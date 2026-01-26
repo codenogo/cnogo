@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "repoShape": "auto",
+  "performance": {
+    "postEditFormat": "auto",
+    "postEditFormatScope": "changed"
+  },
+  "research": {
+    "mode": "auto",
+    "minSources": 3
+  },
+  "enforcement": {
+    "monorepoVerifyScope": "warn"
+  },
+  "packages": []
+}
+

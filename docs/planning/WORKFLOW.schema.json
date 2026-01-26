@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workflow.schema.json",
+  "title": "Universal Development Workflow Pack - WORKFLOW.json",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["version", "repoShape", "enforcement", "performance", "packages"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "repoShape": {
+      "type": "string",
+      "enum": ["auto", "single", "monorepo", "polyglot"]
+    },
+    "performance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "postEditFormat": { "type": "string", "enum": ["auto", "off"] },
+        "postEditFormatScope": { "type": "string", "enum": ["changed", "repo"] }
+      }
+    },
+    "research": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "mode": { "type": "string", "enum": ["off", "local", "mcp", "web", "auto"] },
+        "minSources": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "enforcement": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "monorepoVerifyScope": { "type": "string", "enum": ["warn", "error"] }
+      }
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["path"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["node", "java", "python", "go", "rust", "other"] }
+        }
+      }
+    }
+  }
+}
+

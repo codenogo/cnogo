@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Repo-local pre-commit hook to enforce workflow outside of Claude.
+# Install via: ./scripts/install-githooks.sh
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT"
+
+echo "🔎 Pre-commit: workflow validation"
+python3 scripts/workflow_validate.py --staged
+
+echo "🔎 Pre-commit: secret scan (staged)"
+STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)"
+SECRET_FOUND=0
+
+for file in $STAGED_FILES; do
+  # Skip obviously-non-secret text dumps/examples
+  if echo "$file" | grep -qE '\.(md|txt|example|sample)$'; then
+    continue
+  fi
+  if [ ! -f "$file" ]; then
+    continue
+  fi
+
+  if grep -qE 'AKIA[0-9A-Z]{16}' "$file" 2>/dev/null; then echo "❌ AWS key pattern in $file"; SECRET_FOUND=1; fi
+  if grep -qE 'sk-ant-[a-zA-Z0-9-]{20,}' "$file" 2>/dev/null; then echo "❌ Anthropic key pattern in $file"; SECRET_FOUND=1; fi
+  if grep -qE 'sk-[a-zA-Z0-9]{20,}' "$file" 2>/dev/null; then echo "❌ OpenAI key pattern in $file"; SECRET_FOUND=1; fi
+  if grep -qE 'ghp_[a-zA-Z0-9]{36}' "$file" 2>/dev/null; then echo "❌ GitHub token pattern in $file"; SECRET_FOUND=1; fi
+  if grep -qE 'xox[baprs]-[0-9a-zA-Z-]{10,}' "$file" 2>/dev/null; then echo "❌ Slack token pattern in $file"; SECRET_FOUND=1; fi
+  if grep -qE 'BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY' "$file" 2>/dev/null; then echo "❌ Private key in $file"; SECRET_FOUND=1; fi
+  if grep -qE 'AccountKey=[a-zA-Z0-9+/=]{40,}' "$file" 2>/dev/null; then echo "❌ Azure storage key pattern in $file"; SECRET_FOUND=1; fi
+  if grep -qE '"type":\s*"service_account"' "$file" 2>/dev/null; then echo "❌ GCP service account JSON in $file"; SECRET_FOUND=1; fi
+done
+
+if [ "$SECRET_FOUND" -eq 1 ]; then
+  echo "❌ Commit blocked: secrets detected."
+  exit 1
+fi
+
+echo "✅ Pre-commit checks passed"
+
