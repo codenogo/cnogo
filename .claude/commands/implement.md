@@ -13,6 +13,13 @@ Example: `/implement websocket-notifications 01`
 Execute the specified plan for "$ARGUMENTS".
 **Tip:** For complex plans, use Plan Mode (`Shift+Tab`) to strategize the execution steps before writing code.
 
+### Principle Reminder (Use Skills Library)
+
+Apply **Karpathy Principles** from `docs/skills.md` during implementation:
+
+- Surgical Changes (minimize diff, avoid drive-by refactors)
+- Goal-Driven Execution (verify after each task; loop until proven)
+
 ### Step 1: Load Plan
 
 1. Read `docs/planning/work/features/[feature]/[NN]-PLAN.md`

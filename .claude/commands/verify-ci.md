@@ -52,6 +52,16 @@ If the repo is a monorepo/polyglot (multiple manifests), prefer scoping commands
 - `pnpm -C packages/api test`
 - `mvn -f services/orders/pom.xml test`
 
+### Step 2b: Package-Aware Execution (Recommended)
+
+If `docs/planning/WORKFLOW.json` has `packages[]` with `commands`, run the package-aware runner:
+
+```bash
+python3 scripts/workflow_checks.py verify-ci $ARGUMENTS
+```
+
+This will execute `lint/typecheck/test` per package and write `VERIFICATION-CI.md/json` automatically.
+
 ### Step 3: Persist Verification Artifact
 
 Create:

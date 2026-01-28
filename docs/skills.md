@@ -14,6 +14,7 @@ This file defines reusable “skills” (micro-playbooks + checklists) that Clau
 
 ## Skill Index
 
+- **Karpathy Principles (Claude Coding)**
 - **Bug Triage**
 - **Debug Investigation**
 - **Root Cause Analysis (RCA)**
@@ -28,6 +29,42 @@ This file defines reusable “skills” (micro-playbooks + checklists) that Clau
 - **Release Readiness**
 - **Incident / Hotfix**
 - **Docs Quality**
+
+---
+
+## Karpathy Principles (Claude Coding)
+
+These principles are inspired by the repo [`forrestchang/andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills) and are designed to reduce common LLM coding failure modes.
+
+**Use these on every non-trivial task**, especially during `/plan`, `/implement`, and `/review`.
+
+### 1) Think Before Coding
+
+**Checklist**:
+- State assumptions explicitly; if ambiguous, ask instead of guessing
+- Surface tradeoffs and alternative interpretations before coding
+- If confused, stop and clarify rather than “run with it”
+
+### 2) Simplicity First
+
+**Checklist**:
+- Implement the minimum that solves the request
+- Avoid speculative abstractions/config
+- If 200 lines can be 50, simplify
+
+### 3) Surgical Changes
+
+**Checklist**:
+- Touch only what the task requires
+- Don’t refactor adjacent code “for fun”
+- Clean up only the mess your change created (unused imports, etc.)
+
+### 4) Goal-Driven Execution
+
+**Checklist**:
+- Define measurable success criteria per step
+- Verify after each task (tests, commands, observable behavior)
+- Loop until verified (don’t stop at “should work”)
 
 ---
 

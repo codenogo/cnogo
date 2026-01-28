@@ -28,6 +28,14 @@ Split work by:
 
 Each plan should be completable in one fresh Claude session.
 
+### Principle Reminder (Use Skills Library)
+
+Apply **Karpathy Principles** from `docs/skills.md` while planning:
+
+- Think Before Coding (surface tradeoffs)
+- Simplicity First (minimum viable plan)
+- Goal-Driven Execution (explicit verify commands)
+
 ### Step 3: Create Plans
 
 For each plan, create:

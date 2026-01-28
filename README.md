@@ -4,7 +4,7 @@ A portable workflow system combining Boris Cherny's parallel session approach wi
 
 ## Features
 
-- **24 slash commands** for the full development lifecycle (including enforcement + CI verification + research)
+- **27 slash commands** for the full development lifecycle (including brainstorming + research + bug routing + close)
 - **Deep research artifact** support for de-risking decisions (`/research`)
 - **Parallel session coordination** across multiple checkouts
 - **Secret scanning** built into pre-commit hooks
@@ -69,6 +69,19 @@ cd /path/to/your/project
 claude
 /init
 ```
+
+#### Recommended: Enable Package-Aware Checks (Monorepos/Polyglots)
+
+If your repo is a monorepo or polyglot, run the detector once to populate `WORKFLOW.json` with `packages[]` and suggested per-package commands:
+
+```bash
+python3 scripts/workflow_detect.py --write-workflow
+```
+
+This powers package-aware execution for:
+
+- `python3 scripts/workflow_checks.py review`
+- `python3 scripts/workflow_checks.py verify-ci <feature-slug>`
 
 Then edit these once (they are your long-term “source of truth”):
 
@@ -198,6 +211,24 @@ Then:
 /ship
 ```
 
+### Bug Workflow (Recommended Entry Point)
+
+If you have a bug report and you’re not sure whether it’s “quick” or “deep”, start with:
+
+```bash
+/bug "describe the bug"
+```
+
+It routes you to `/quick`, `/debug`, or `/discuss` and ensures branch safety and verification guidance.
+
+### Post-Merge Cleanup
+
+After a feature is merged into `main`, clean up state and optionally archive feature artifacts:
+
+```bash
+/close <feature-slug>
+```
+
 ### Enforcement: Validate Anytime
 
 Run this anytime you want a fast “are we still following the workflow?” check:
@@ -217,6 +248,16 @@ python3 scripts/workflow_validate.py
 # Optionally: call /verify-ci in a Claude-run CI job OR mirror its checks in your pipeline
 ```
 
+This repo includes a ready-to-use GitHub Actions workflow:
+
+- `.github/workflows/workflow-validate.yml`
+
+If you’ve populated `docs/planning/WORKFLOW.json` → `packages[].commands`, you can also run package-aware checks in CI:
+
+```bash
+python3 scripts/workflow_checks.py review
+```
+
 ### Monorepo / Polyglot Setup (Recommended)
 
 To make plan verification scoping smarter, populate `docs/planning/WORKFLOW.json` with packages:
@@ -232,6 +273,12 @@ To make plan verification scoping smarter, populate `docs/planning/WORKFLOW.json
     { "name": "orders", "path": "services/orders", "kind": "java" }
   ]
 }
+```
+
+You can auto-populate this using:
+
+```bash
+python3 scripts/workflow_detect.py --write-workflow
 ```
 
 Then in plan contracts prefer `task.cwd` or scoped verify commands (`cd <pkg> && ...`).
@@ -257,7 +304,7 @@ Then in plan contracts prefer `task.cwd` or scoped verify commands (`cd <pkg> &&
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        ENFORCEMENT & CI                               │
 │                                                                      │
-│   /validate ──► /verify-ci ──► /research                             │
+│   /validate ──► /verify-ci ──► /research ──► /brainstorm             │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -318,6 +365,7 @@ claude --teleport session_xxx
 |---------|---------|
 | `/discuss <feature>` | Capture decisions before coding |
 | `/research <topic>` | Deep research artifact (repo + MCP + optional web) |
+| `/brainstorm <idea>` | Narrow ideas via Q&A + options before `/discuss` |
 | `/plan <feature>` | Create implementation tasks (≤3 per plan) |
 | `/implement <feature> <plan>` | Execute a plan with verification |
 | `/verify <feature>` | User acceptance testing |
@@ -348,6 +396,7 @@ claude --teleport session_xxx
 | Command | Purpose |
 |---------|---------|
 | `/debug <issue>` | Systematic debugging with state tracking |
+| `/bug <description>` | Bug triage router (quick vs debug vs discuss) |
 | `/rollback` | Revert changes (last, commit-hash, or branch) |
 
 ### Release
@@ -362,6 +411,7 @@ claude --teleport session_xxx
 | Command | Purpose |
 |---------|---------|
 | `/init` | Auto-populate templates based on stack detection |
+| `/close <feature>` | Post-merge cleanup (STATE.md + optional archive) |
 
 ### MCP Integrations
 
@@ -382,7 +432,7 @@ claude --teleport session_xxx
 your-project/
 ├── .claude/
 │   ├── settings.json           # Permissions + hooks
-│   └── commands/               # 24 slash commands
+│   └── commands/               # 27 slash commands
 │
 ├── .github/
 │   ├── CODEOWNERS              # Code ownership
@@ -401,7 +451,9 @@ your-project/
 │       │   └── CONTEXT-TEMPLATE.md
 │       ├── debug/              # Debug sessions
 │       ├── background/         # Background tasks
-│       └── review/             # Persisted review reports
+│       ├── review/             # Persisted review reports
+│       ├── research/           # Research artifacts
+│       └── ideas/              # Brainstorm artifacts
 │
 ├── docs/templates/             # Stack-specific CLAUDE.md templates
 │   ├── CLAUDE-java.md
@@ -514,6 +566,15 @@ Create `.claude/commands/your-command.md`:
 5. **State survives sessions** — STATE.md is your memory across context switches.
 6. **Security by default** — Secret scanning, dependency audits, SAST.
 
+### Karpathy-Inspired Claude Coding Principles
+
+These strengthen the workflow’s reliability and reduce common LLM pitfalls. Source: [`forrestchang/andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills).
+
+1. **Think Before Coding**
+2. **Simplicity First**
+3. **Surgical Changes**
+4. **Goal-Driven Execution**
+
 ## Monorepos & Polyglots
 
 This pack supports single-repo apps, monorepos, and enterprise polyglots.
@@ -521,6 +582,7 @@ This pack supports single-repo apps, monorepos, and enterprise polyglots.
 - **Default behavior**: the validator will **warn** when plan verify commands look unscoped in monorepos.
 - **Configure enforcement** in `docs/planning/WORKFLOW.json`:
   - `enforcement.monorepoVerifyScope`: `"warn"` (default) or `"error"`
+  - `enforcement.karpathyChecklist`: `"off" | "warn" | "error"` (enforce Karpathy checklist in review artifacts)
 
 ## Artifact Contracts (JSON)
 

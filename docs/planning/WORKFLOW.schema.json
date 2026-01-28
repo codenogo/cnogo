@@ -31,7 +31,8 @@
       "type": "object",
       "additionalProperties": true,
       "properties": {
-        "monorepoVerifyScope": { "type": "string", "enum": ["warn", "error"] }
+        "monorepoVerifyScope": { "type": "string", "enum": ["warn", "error"] },
+        "karpathyChecklist": { "type": "string", "enum": ["off", "warn", "error"] }
       }
     },
     "packages": {
@@ -43,7 +44,19 @@
         "properties": {
           "name": { "type": "string" },
           "path": { "type": "string", "minLength": 1 },
-          "kind": { "type": "string", "enum": ["node", "java", "python", "go", "rust", "other"] }
+          "kind": { "type": "string", "enum": ["node", "java", "python", "go", "rust", "other"] },
+          "commands": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "build": { "type": "string" },
+              "test": { "type": "string" },
+              "lint": { "type": "string" },
+              "format": { "type": "string" },
+              "typecheck": { "type": "string" },
+              "run": { "type": "string" }
+            }
+          }
         }
       }
     }

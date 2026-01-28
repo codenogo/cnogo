@@ -127,3 +127,12 @@ Before adding dependencies:
 Reusable playbooks/checklists Claude should apply:
 
 - `docs/skills.md`
+
+## Karpathy-Inspired Operating Principles
+
+Adopt these principles for non-trivial work (especially when making code changes). Inspired by [`forrestchang/andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills).
+
+1. **Think Before Coding**: don’t assume; surface confusion/tradeoffs; ask when ambiguous.
+2. **Simplicity First**: minimum code that solves the problem; no speculative abstractions.
+3. **Surgical Changes**: touch only what’s needed; don’t refactor unrelated areas.
+4. **Goal-Driven Execution**: define success criteria; verify with commands/tests; loop until proven.

@@ -211,6 +211,16 @@ if [ -f pyproject.toml ] && grep -q "mypy" pyproject.toml 2>/dev/null; then
 fi
 ```
 
+### Step 2b: Package-Aware Execution (Recommended)
+
+If `docs/planning/WORKFLOW.json` has `packages[]` with `commands`, run:
+
+```bash
+python3 scripts/workflow_checks.py review
+```
+
+This executes `lint/typecheck/test` per package and writes the review artifacts automatically.
+
 ### Step 3: Code Review Checklist
 
 For each changed file, evaluate:
@@ -259,6 +269,17 @@ For each changed file, evaluate:
 | Feature flag for risky changes | ⬜ |
 | Documentation updated | ⬜ |
 
+#### Karpathy Checklist (Enforced)
+
+Complete this section in the review report:
+
+| Principle | Check |
+|----------|-------|
+| Think Before Coding | Assumptions clarified / tradeoffs surfaced |
+| Simplicity First | No unnecessary abstractions / minimal solution |
+| Surgical Changes | No drive-by refactors / diff matches intent |
+| Goal-Driven Execution | Verifiable success criteria met (tests/commands) |
+
 ### Step 4: Generate Review Report
 
 ```markdown
@@ -301,6 +322,15 @@ For each changed file, evaluate:
 ### Manual Review Notes
 
 [Notes from code review checklist]
+
+### Karpathy Checklist
+
+| Principle | Status | Notes |
+|----------|--------|------|
+| Think Before Coding | ⬜ | |
+| Simplicity First | ⬜ | |
+| Surgical Changes | ⬜ | |
+| Goal-Driven Execution | ⬜ | |
 
 ### Verdict
 

@@ -101,6 +101,19 @@ find . -name Cargo.toml -print | wc -l
 
 If there are multiple manifests, treat this as a **monorepo/polyglot**. Do not assume one global build command; instead enumerate per-package commands in `CLAUDE.md`.
 
+### Step 1b: Auto-Detect Packages (Recommended)
+
+Run the detector to generate package list + commands, and write them into `WORKFLOW.json`:
+
+```bash
+python3 scripts/workflow_detect.py --write-workflow
+```
+
+This fills `docs/planning/WORKFLOW.json` → `packages[]` (paths, kinds, and suggested commands), which improves:
+
+- monorepo verify scoping warnings
+- `/verify-ci` and `/review` package-aware guidance
+
 ### Step 2: Gather Information
 
 Ask the user for:
@@ -161,6 +174,12 @@ Example discovery:
 find . -maxdepth 4 -name package.json -not -path "*/node_modules/*" -print | head -20
 find . -maxdepth 4 -name pom.xml -print | head -20
 find . -maxdepth 4 -name pyproject.toml -print | head -20
+```
+
+You can also copy/paste the detector output into `CLAUDE.md`:
+
+```bash
+python3 scripts/workflow_detect.py
 ```
 
 **Available Templates:**

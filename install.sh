@@ -92,6 +92,8 @@ mkdir -p "$TARGET_DIR/docs/planning/work/debug"
 mkdir -p "$TARGET_DIR/docs/planning/work/background"
 mkdir -p "$TARGET_DIR/docs/planning/work/review"
 mkdir -p "$TARGET_DIR/docs/planning/work/research"
+mkdir -p "$TARGET_DIR/docs/planning/work/ideas"
+mkdir -p "$TARGET_DIR/docs/planning/archive/features"
 mkdir -p "$TARGET_DIR/docs/planning/adr"
 
 for file in PROJECT.md STATE.md ROADMAP.md WORKFLOW.json; do
@@ -116,6 +118,8 @@ touch "$TARGET_DIR/docs/planning/work/debug/.gitkeep"
 touch "$TARGET_DIR/docs/planning/work/background/.gitkeep"
 touch "$TARGET_DIR/docs/planning/work/review/.gitkeep"
 touch "$TARGET_DIR/docs/planning/work/research/.gitkeep"
+touch "$TARGET_DIR/docs/planning/work/ideas/.gitkeep"
+touch "$TARGET_DIR/docs/planning/archive/features/.gitkeep"
 
 # =============================================================================
 # docs/templates directory

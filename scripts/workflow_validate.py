@@ -169,6 +169,13 @@ def _iter_research_dirs(root: Path) -> Iterable[Path]:
     return [p for p in base.iterdir() if p.is_dir()]
 
 
+def _iter_ideas_dirs(root: Path) -> Iterable[Path]:
+    base = root / "docs" / "planning" / "work" / "ideas"
+    if not base.is_dir():
+        return []
+    return [p for p in base.iterdir() if p.is_dir()]
+
+
 def _detect_repo_shape(root: Path) -> dict[str, Any]:
     """
     Heuristic repo-shape detection to support single-repo, monorepo, and polyglot repos.
@@ -248,6 +255,9 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         mvs = enf.get("monorepoVerifyScope", "warn")
         if mvs not in {"warn", "error"}:
             findings.append(Finding("WARN", "WORKFLOW.json: enforcement.monorepoVerifyScope should be warn|error.", str(cfg_path)))
+        kc = enf.get("karpathyChecklist", "warn")
+        if kc not in {"off", "warn", "error"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: enforcement.karpathyChecklist should be off|warn|error.", str(cfg_path)))
 
     pkgs = cfg.get("packages")
     if pkgs is not None and not isinstance(pkgs, list):
@@ -264,6 +274,14 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
             # Soft check: warn if the configured package path doesn't exist (helps catch typos).
             if not (root / path).exists():
                 findings.append(Finding("WARN", f"WORKFLOW.json: packages[{i}].path does not exist: {path}", str(cfg_path)))
+            cmds = p.get("commands")
+            if cmds is not None and not isinstance(cmds, dict):
+                findings.append(Finding("WARN", f"WORKFLOW.json: packages[{i}].commands should be an object.", str(cfg_path)))
+            elif isinstance(cmds, dict):
+                for k in ["build", "test", "lint", "format", "typecheck", "run"]:
+                    v = cmds.get(k)
+                    if v is not None and (not isinstance(v, str) or not v.strip()):
+                        findings.append(Finding("WARN", f"WORKFLOW.json: packages[{i}].commands.{k} should be a non-empty string.", str(cfg_path)))
 
     research = cfg.get("research")
     if research is not None and not isinstance(research, dict):
@@ -326,6 +344,14 @@ def _get_monorepo_scope_level(cfg: dict[str, Any]) -> str:
     return level
 
 
+def _get_karpathy_checklist_level(cfg: dict[str, Any]) -> str:
+    enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
+    level = enforcement.get("karpathyChecklist", "warn")
+    if level not in {"off", "warn", "error"}:
+        return "warn"
+    return level
+
+
 def _verify_cmd_scoped(cmd: str) -> bool:
     """
     Returns True if a verification command looks scoped to a package.
@@ -363,6 +389,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     _validate_workflow_config(cfg, findings, root)
     shape = _detect_repo_shape(root)
     monorepo_scope_level = _get_monorepo_scope_level(cfg)
+    karpathy_level = _get_karpathy_checklist_level(cfg)
     packages_cfg = _packages_from_cfg(cfg)
 
     # Core files
@@ -476,6 +503,16 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
         review_json = feature_dir / "REVIEW.json"
         if review_md.exists():
             _require(review_json, findings, "Missing REVIEW.json contract for REVIEW.md")
+            if karpathy_level != "off":
+                try:
+                    txt = review_md.read_text(encoding="utf-8", errors="replace")
+                    # Simple marker: section heading or checklist label
+                    has = ("Karpathy" in txt) and ("Checklist" in txt or "Principles" in txt)
+                    if not has:
+                        lvl = "ERROR" if karpathy_level == "error" else "WARN"
+                        findings.append(Finding(lvl, "REVIEW.md missing Karpathy checklist section (enforced by WORKFLOW.json).", str(review_md)))
+                except Exception:
+                    pass
             if review_json.exists():
                 try:
                     r = _load_json(review_json)
@@ -558,6 +595,25 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
                             findings.append(Finding("WARN", "RESEARCH.json: sources should be an array.", str(rjson)))
                 except Exception as e:
                     findings.append(Finding("ERROR", f"Failed to parse RESEARCH.json: {e}", str(rjson)))
+
+    # Brainstorm / ideas artifacts (optional)
+    for idir in _iter_ideas_dirs(root):
+        if not touched(idir):
+            continue
+        bmd = idir / "BRAINSTORM.md"
+        bjson = idir / "BRAINSTORM.json"
+        if bmd.exists():
+            _require(bjson, findings, "Missing BRAINSTORM.json contract for BRAINSTORM.md")
+            if bjson.exists():
+                try:
+                    b = _load_json(bjson)
+                    if not isinstance(b, dict):
+                        findings.append(Finding("ERROR", "BRAINSTORM.json must be a JSON object.", str(bjson)))
+                    else:
+                        if "schemaVersion" not in b:
+                            findings.append(Finding("WARN", "BRAINSTORM.json missing schemaVersion (recommended).", str(bjson)))
+                except Exception as e:
+                    findings.append(Finding("ERROR", f"Failed to parse BRAINSTORM.json: {e}", str(bjson)))
 
     return findings
 

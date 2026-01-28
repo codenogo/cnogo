@@ -10,7 +10,8 @@
     "minSources": 3
   },
   "enforcement": {
-    "monorepoVerifyScope": "warn"
+    "monorepoVerifyScope": "warn",
+    "karpathyChecklist": "warn"
   },
   "packages": []
 }
