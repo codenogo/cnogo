@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    { "file": ".claude/settings.json", "change": "Added env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1'" },
+    { "file": ".claude/commands/spawn.md", "change": "Added Agent Definitions section, mapping table, resolve step, fallback path" },
+    { "file": ".claude/commands/*.md (27 files)", "change": "Added effort hint comments: 7 low, 7 medium, 10 high, 3 max" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "Agent Teams env var present, existing keys preserved" },
+    { "task": 2, "result": "pass", "details": "Agent references, mapping table, fallback documented" },
+    { "task": 3, "result": "pass", "details": "27/27 files with effort hints: 7+7+10+3=27" }
+  ],
+  "commit": {
+    "hash": "6663947",
+    "message": "feat(opus-46-agents-workflow-improvements): settings, spawn wrapper, effort hints"
+  },
+  "timestamp": "2026-02-10T00:00:00Z"
+}

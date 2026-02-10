@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    { "file": ".claude/agents/explorer.md", "change": "New haiku agent for fast codebase scanning" },
+    { "file": ".claude/agents/docs-writer.md", "change": "New haiku agent for documentation generation" },
+    { "file": ".claude/agents/code-reviewer.md", "change": "New sonnet agent for code quality review with project memory" },
+    { "file": ".claude/agents/security-scanner.md", "change": "New sonnet agent for vulnerability auditing with project memory" },
+    { "file": ".claude/agents/perf-analyzer.md", "change": "New sonnet agent for performance analysis with project memory" },
+    { "file": ".claude/agents/api-reviewer.md", "change": "New sonnet agent for API design review with project memory" },
+    { "file": ".claude/agents/test-writer.md", "change": "New inherit agent for test generation with project memory" },
+    { "file": ".claude/agents/debugger.md", "change": "New inherit agent for root cause analysis with project memory" },
+    { "file": ".claude/agents/refactorer.md", "change": "New inherit agent for code quality improvement with project memory" },
+    { "file": ".claude/agents/migrate.md", "change": "New inherit agent for migration/upgrades with project memory" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "2 haiku agents created with correct model and tools" },
+    { "task": 2, "result": "pass", "details": "4 sonnet agents created with correct model, memory, and tools" },
+    { "task": 3, "result": "pass", "details": "4 inherit agents created with correct model, memory, and tools" }
+  ],
+  "commit": {
+    "hash": "b0feb4d",
+    "message": "feat(opus-46-agents-workflow-improvements): add 10 custom subagent definitions"
+  },
+  "timestamp": "2026-02-10T00:00:00Z"
+}
