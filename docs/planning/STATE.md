@@ -4,10 +4,9 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 ## Current Focus
 
-- **Feature:** opus-46-agents-workflow-improvements
-- **Status:** PR created
-- **Branch:** feature/opus-46-agents-workflow-improvements
-- **PR:** https://github.com/codenogo/workflowy/pull/1
+- **Feature:** (none)
+- **Status:** Idle
+- **Branch:** main
 
 ## Active Work
 
@@ -15,7 +14,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| opus-46-agents-workflow-improvements | PR created | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | Await review / merge |
+| (none) | | | |
 
 ### Quick Tasks
 
@@ -28,16 +27,14 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: /ship — PR #1 created
-Next step: Await review / merge
-Context: PR https://github.com/codenogo/workflowy/pull/1
-Open files: (none)
+(cleared)
 ```
 
 ## Recent Decisions
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-02-10 | Merged opus-46-agents-workflow-improvements | PR #1 — 10 agents, Agent Teams, effort hints, /team, /sync dual-mode |
 | 2026-02-10 | All 3 phases in one feature branch | opus-46-agents-workflow-improvements |
 | 2026-02-10 | Keep /spawn alongside .claude/agents/ | Backward compat, spawn as wrapper |
 | 2026-02-10 | 10 agents with tiered model routing | haiku/sonnet/inherit by task weight |
@@ -54,10 +51,7 @@ Open files: (none)
 
 ## Notes
 
-- Research: `docs/planning/work/research/opus-46-agents-workflow-improvements/RESEARCH.md`
-- Context: `docs/planning/work/features/opus-46-agents-workflow-improvements/CONTEXT.md`
-- Plans 01→02→03→04 are sequential (each depends on the previous)
-- Plan 01 can run independently; Plans 02-04 have cascading prerequisites
+- Archived: `docs/planning/archive/features/opus-46-agents-workflow-improvements/`
 
 ---
 *Last updated: 2026-02-10*
