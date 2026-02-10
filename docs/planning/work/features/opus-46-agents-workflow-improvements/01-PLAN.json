@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "planNumber": "01",
+  "goal": "Create all 10 .claude/agents/*.md subagent definition files with tiered model routing, persistent memory, and skill preloading",
+  "tasks": [
+    {
+      "name": "Create haiku-tier agents (explorer, docs-writer)",
+      "files": [".claude/agents/explorer.md", ".claude/agents/docs-writer.md"],
+      "action": "Create 2 fast lightweight agents with model: haiku, no memory (explorer) or no memory (docs-writer), appropriate tool restrictions and system prompts",
+      "verify": ["ls -la .claude/agents/explorer.md .claude/agents/docs-writer.md", "grep 'model: haiku' .claude/agents/explorer.md .claude/agents/docs-writer.md"]
+    },
+    {
+      "name": "Create sonnet-tier agents (code-reviewer, security-scanner, perf-analyzer, api-reviewer)",
+      "files": [".claude/agents/code-reviewer.md", ".claude/agents/security-scanner.md", ".claude/agents/perf-analyzer.md", ".claude/agents/api-reviewer.md"],
+      "action": "Create 4 analytical agents with model: sonnet, memory: project, read-only tools + Bash, and relevant skill preloading",
+      "verify": ["ls -la .claude/agents/code-reviewer.md .claude/agents/security-scanner.md .claude/agents/perf-analyzer.md .claude/agents/api-reviewer.md", "grep 'model: sonnet' .claude/agents/code-reviewer.md .claude/agents/security-scanner.md"]
+    },
+    {
+      "name": "Create inherit-tier agents (test-writer, debugger, refactorer, migrate)",
+      "files": [".claude/agents/test-writer.md", ".claude/agents/debugger.md", ".claude/agents/refactorer.md", ".claude/agents/migrate.md"],
+      "action": "Create 4 implementation agents with model: inherit, memory: project, full read-write tools, and relevant skill preloading",
+      "verify": ["ls -la .claude/agents/test-writer.md .claude/agents/debugger.md .claude/agents/refactorer.md .claude/agents/migrate.md", "grep 'model: inherit' .claude/agents/test-writer.md .claude/agents/debugger.md"]
+    }
+  ],
+  "planVerify": ["ls .claude/agents/*.md | wc -l", "python3 scripts/workflow_validate.py"],
+  "commitMessage": "feat(opus-46-agents-workflow-improvements): add 10 custom subagent definitions",
+  "timestamp": "2026-02-10T00:00:00Z"
+}

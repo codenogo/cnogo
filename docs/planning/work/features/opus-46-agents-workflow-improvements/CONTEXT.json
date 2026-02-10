@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "displayName": "Opus 4.6 Agents Workflow Improvements",
+  "research": [
+    "docs/planning/work/research/opus-46-agents-workflow-improvements/RESEARCH.md"
+  ],
+  "decisions": [
+    {
+      "area": "scope",
+      "decision": "All 3 phases in one feature branch",
+      "rationale": "Comprehensive upgrade: agent defs, memory, Agent Teams, effort hints"
+    },
+    {
+      "area": "spawn-migration",
+      "decision": "Keep /spawn as convenience wrapper alongside .claude/agents/",
+      "rationale": "Backward compatibility; /spawn delegates to agent definitions, direct invocation also works"
+    },
+    {
+      "area": "agent-memory",
+      "decision": "All agents except docs-writer get persistent memory (project scope, checked in)",
+      "rationale": "Maximize institutional knowledge sharing via version control"
+    },
+    {
+      "area": "agent-teams",
+      "decision": "Always enabled via CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 in settings.json",
+      "rationale": "User wants immediate access; /team command documents experimental status"
+    },
+    {
+      "area": "model-routing",
+      "decision": "Tiered: haiku (explorer, docs), sonnet (reviewer, security, perf, api), inherit (debugger, tests, refactor, migrate)",
+      "rationale": "Cost optimization: fast models for read-only, capable models for analysis, full power for implementation"
+    },
+    {
+      "area": "effort-hints",
+      "decision": "HTML comment metadata in command .md files (<!-- effort: high -->)",
+      "rationale": "Informational guidance, no enforcement; human and Claude can reference"
+    },
+    {
+      "area": "sync-migration",
+      "decision": "Dual mode: /sync detects Agent Teams and uses shared task list or falls back to manual",
+      "rationale": "Works in both Agent Teams and traditional parallel-session workflows"
+    },
+    {
+      "area": "agent-count",
+      "decision": "10 agents: explorer, code-reviewer, security-scanner, test-writer, debugger, docs-writer, perf-analyzer, api-reviewer, refactorer, migrate",
+      "rationale": "Covers all /spawn specializations plus explorer"
+    }
+  ],
+  "constraints": [
+    "stdlib-only Python (no external deps)",
+    "install.sh must remain single portable installer",
+    "Agent definitions must be stack-agnostic",
+    "Must not break existing /spawn usage",
+    "WORKFLOW.json schema backward-compatible (additive only)"
+  ],
+  "openQuestions": [
+    "Agent memory file merge conflicts on multi-developer teams",
+    "Whether /team creates TEAM.md artifact for session tracking",
+    "TeammateIdle/TaskCompleted hook implementations need Agent Teams usage data",
+    "Whether to add CLAUDE_AUTOCOMPACT_PCT_OVERRIDE to settings.json"
+  ],
+  "relatedCode": [
+    ".claude/commands/spawn.md",
+    ".claude/commands/sync.md",
+    ".claude/commands/background.md",
+    ".claude/settings.json",
+    "install.sh",
+    "docs/skills.md",
+    "docs/planning/WORKFLOW.json"
+  ],
+  "timestamp": "2026-02-10T00:00:00Z"
+}
