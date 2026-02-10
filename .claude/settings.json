@@ -9,7 +9,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(rm -rf /|rm -rf ~/|sudo rm|chmod 777|> /dev/sd|mkfs\\.|dd if=)'; then echo '❌ Blocked: Dangerous command pattern detected' && exit 1; fi"
+            "command": "bash scripts/hook-dangerous-cmd.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/hook-pre-commit-secrets.sh"
           }
         ]
       },
@@ -18,20 +22,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -qE '(\\.env$|\\.env\\.|credentials|secrets\\.ya?ml|-prod\\.ya?ml|\\.pem$|\\.key$|id_rsa|id_ed25519)'; then echo '⚠️ Attempting to read sensitive file - requires approval' && exit 1; fi"
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "if [[ \"$CLAUDE_TOOL_INPUT\" == \"git commit\"* ]]; then echo '🔍 Scanning for secrets...' && SECRET_FOUND=0; STAGED=$(git diff --cached --name-only); for file in $STAGED; do if [ -f \"$file\" ] && ! echo \"$file\" | grep -qE '\\.(md|txt|example|sample)$'; then if grep -qE 'AKIA[0-9A-Z]{16}' \"$file\" 2>/dev/null; then echo \"❌ AWS key pattern in $file\"; SECRET_FOUND=1; fi; if grep -qE 'sk-ant-[a-zA-Z0-9-]{20,}' \"$file\" 2>/dev/null; then echo \"❌ Anthropic key pattern in $file\"; SECRET_FOUND=1; fi; if grep -qE 'sk-[a-zA-Z0-9]{20,}' \"$file\" 2>/dev/null; then echo \"❌ OpenAI key pattern in $file\"; SECRET_FOUND=1; fi; if grep -qE 'ghp_[a-zA-Z0-9]{36}' \"$file\" 2>/dev/null; then echo \"❌ GitHub token pattern in $file\"; SECRET_FOUND=1; fi; if grep -qE 'xox[baprs]-[0-9a-zA-Z-]{10,}' \"$file\" 2>/dev/null; then echo \"❌ Slack token pattern in $file\"; SECRET_FOUND=1; fi; if grep -qE 'BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY' \"$file\" 2>/dev/null; then echo \"❌ Private key in $file\"; SECRET_FOUND=1; fi; if grep -qE 'AccountKey=[a-zA-Z0-9+/=]{40,}' \"$file\" 2>/dev/null; then echo \"❌ Azure storage key pattern in $file\"; SECRET_FOUND=1; fi; if grep -qE '\"type\":\\s*\"service_account\"' \"$file\" 2>/dev/null; then echo \"❌ GCP service account JSON in $file\"; SECRET_FOUND=1; fi; fi; done; if [ $SECRET_FOUND -eq 1 ]; then exit 1; fi; echo '✅ No secrets detected'; fi"
-          },
-          {
-            "type": "command",
-            "command": "if [[ \"$CLAUDE_TOOL_INPUT\" == \"git commit\"* ]]; then TEST_CMD=''; if [ -f pom.xml ]; then TEST_CMD='mvn test -q -DskipITs -Dmaven.test.failure.ignore=false'; elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then TEST_CMD='./gradlew test -q'; elif [ -f package.json ] && grep -q '\"test\"' package.json 2>/dev/null; then TEST_CMD='npm test --silent 2>/dev/null'; elif [ -f pyproject.toml ] || [ -f setup.py ]; then TEST_CMD='pytest -q --tb=short 2>/dev/null'; elif [ -f go.mod ]; then TEST_CMD='go test ./... -short 2>/dev/null'; elif [ -f Cargo.toml ]; then TEST_CMD='cargo test --quiet 2>/dev/null'; fi; if [ -n \"$TEST_CMD\" ]; then echo '🧪 Running tests...'; eval \"$TEST_CMD\"; else echo '⚠️  No test framework detected'; fi; fi"
+            "command": "bash scripts/hook-sensitive-file.sh"
           }
         ]
       }
@@ -52,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 $HOME/.claude/scripts/workflow_hooks.py post_edit || true"
+            "command": "python3 scripts/workflow_hooks.py post_edit || true"
           }
         ]
       },

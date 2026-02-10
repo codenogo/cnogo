@@ -4,8 +4,8 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 ## Current Focus
 
-- **Feature:** (none)
-- **Status:** Idle
+- **Feature:** review-findings-remediation
+- **Status:** Planned (4 plans)
 - **Branch:** main
 
 ## Active Work
@@ -14,7 +14,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| (none) | | | |
+| review-findings-remediation | In Progress | 01 ✅, 02 ⏳, 03 ⏳, 04 ⏳ | `/implement review-findings-remediation 02` |
 
 ### Quick Tasks
 
@@ -27,7 +27,10 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-(cleared)
+Last action: /implement review-findings-remediation 01 — completed (3 tasks)
+Next step: /implement review-findings-remediation 02
+Context: Plans 01→02→03→04 are sequential. Plan 02 depends on hook scripts created in Plan 01.
+Open files: 01-PLAN.md, settings.json
 ```
 
 ## Recent Decisions

@@ -99,60 +99,9 @@ fi
 echo ""
 echo "🔒 Security scanning..."
 
-# Secret detection (built-in)
+# Secret detection — delegates to the shared hook script (single source of truth)
 echo "Scanning for secrets..."
-SECRETS_FOUND=0
-
-for file in $(git diff --name-only HEAD~1..HEAD 2>/dev/null || git diff --name-only); do
-    if [ -f "$file" ]; then
-        # AWS keys
-        if grep -qE 'AKIA[0-9A-Z]{16}' "$file" 2>/dev/null; then
-            echo "❌ AWS key pattern in $file"
-            SECRETS_FOUND=1
-        fi
-        # Anthropic keys
-        if grep -qE 'sk-ant-[a-zA-Z0-9-]{20,}' "$file" 2>/dev/null; then
-            echo "❌ Anthropic key pattern in $file"
-            SECRETS_FOUND=1
-        fi
-        # OpenAI keys
-        if grep -qE 'sk-[a-zA-Z0-9]{20,}' "$file" 2>/dev/null; then
-            echo "❌ OpenAI key pattern in $file"
-            SECRETS_FOUND=1
-        fi
-        # GitHub tokens
-        if grep -qE 'ghp_[a-zA-Z0-9]{36}' "$file" 2>/dev/null; then
-            echo "❌ GitHub token pattern in $file"
-            SECRETS_FOUND=1
-        fi
-        # Slack tokens
-        if grep -qE 'xox[baprs]-[0-9a-zA-Z-]{10,}' "$file" 2>/dev/null; then
-            echo "❌ Slack token pattern in $file"
-            SECRETS_FOUND=1
-        fi
-        # Azure storage keys
-        if grep -qE 'AccountKey=[a-zA-Z0-9+/=]{40,}' "$file" 2>/dev/null; then
-            echo "❌ Azure storage key pattern in $file"
-            SECRETS_FOUND=1
-        fi
-        # GCP service account
-        if grep -qE '"type":\s*"service_account"' "$file" 2>/dev/null; then
-            echo "❌ GCP service account JSON in $file"
-            SECRETS_FOUND=1
-        fi
-        # Private keys
-        if grep -qE 'BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY' "$file" 2>/dev/null; then
-            echo "❌ Private key in $file"
-            SECRETS_FOUND=1
-        fi
-        # Generic secrets
-        if grep -qiE '(password|secret|api_key|apikey)\s*[=:]\s*["\x27][^"\x27]{8,}["\x27]' "$file" 2>/dev/null; then
-            echo "⚠️ Potential hardcoded secret in $file"
-        fi
-    fi
-done
-
-[ $SECRETS_FOUND -eq 0 ] && echo "✅ No secrets detected"
+bash scripts/hook-pre-commit-secrets.sh || SECRETS_FOUND=1
 
 # Dependency vulnerabilities
 echo ""
