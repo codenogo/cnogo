@@ -4,7 +4,7 @@ A portable workflow system combining Boris Cherny's parallel session approach wi
 
 ## Features
 
-- **27 slash commands** for the full development lifecycle (including brainstorming + research + bug routing + close)
+- **28 slash commands** for the full development lifecycle (including brainstorming + research + bug routing + close + team orchestration)
 - **Deep research artifact** support for de-risking decisions (`/research`)
 - **Parallel session coordination** across multiple checkouts
 - **Secret scanning** built into pre-commit hooks
@@ -29,6 +29,59 @@ cp CHANGELOG.md your-project/
 cd your-project && claude
 /status
 ```
+
+## Global Install (Recommended)
+
+If you want to apply this workflow to many repos, do a “global” install by keeping **one copy** of the pack on your machine and running its `install.sh` against any target repo.
+
+### 1) Clone once
+
+```bash
+mkdir -p ~/.workflowy
+git clone git@github.com:codenogo/workflowy.git ~/.workflowy/workflowy
+```
+
+### 2) Add a shell helper command
+
+#### zsh (`~/.zshrc`)
+
+```bash
+workflowy() {
+  ~/.workflowy/workflowy/install.sh "$1"
+}
+```
+
+#### bash (`~/.bashrc` or `~/.bash_profile`)
+
+```bash
+workflowy() {
+  ~/.workflowy/workflowy/install.sh "$1"
+}
+```
+
+Reload your shell:
+
+```bash
+source ~/.zshrc 2>/dev/null || true
+source ~/.bashrc 2>/dev/null || true
+```
+
+### 3) Install/upgrade any repo
+
+```bash
+workflowy /absolute/path/to/your/project
+```
+
+If prompted to merge, choose `y` to upgrade in place.
+
+### 4) Keep your global copy updated
+
+```bash
+cd ~/.workflowy/workflowy
+git pull
+```
+
+Then re-run `workflowy /path/to/your/project` to upgrade that repo to the latest pack.
 
 ## How to Use This Workflow (End-to-End)
 
@@ -425,6 +478,60 @@ claude --teleport session_xxx
 |---------|---------|
 | `/background <task>` | Fire-and-forget long-running tasks |
 | `/spawn <type> <task>` | Launch specialized subagents (security, tests, docs, perf) |
+| `/team <action>` | Orchestrate Agent Teams (create, status, message, dismiss) |
+
+## Agent Definitions
+
+The pack includes 10 custom subagent definitions in `.claude/agents/`, each with a specialized system prompt, model tier, and toolset.
+
+| Agent | Model | Specialization |
+|-------|-------|---------------|
+| `explorer` | haiku | Fast codebase scanning and navigation |
+| `docs-writer` | haiku | Documentation generation |
+| `code-reviewer` | sonnet | Code quality and best-practice analysis |
+| `security-scanner` | sonnet | Vulnerability auditing (OWASP, secrets, auth) |
+| `perf-analyzer` | sonnet | Performance bottleneck analysis |
+| `api-reviewer` | sonnet | API design review (REST, GraphQL, contracts) |
+| `test-writer` | inherit | Test generation (unit, integration, edge cases) |
+| `debugger` | inherit | Root cause analysis and systematic debugging |
+| `refactorer` | inherit | Code quality improvement and pattern migration |
+| `migrate` | inherit | Framework/dependency upgrades |
+
+**Invoke agents** via `/spawn <type> <task>` or by directly requesting them (e.g., "use the security-scanner agent to audit auth").
+
+**Persistent memory**: Agents with `memory: project` (all except explorer and docs-writer) accumulate institutional knowledge in `.claude/agent-memory/`, shared via version control.
+
+**Custom agents**: Add project-specific agents by creating `.claude/agents/your-agent.md` with YAML frontmatter (`name`, `description`, `model`, `tools`).
+
+## Agent Teams (Experimental)
+
+> Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (enabled by default in this pack).
+
+Agent Teams let you spawn multiple agents that collaborate via shared task lists and direct messaging.
+
+```bash
+# Create a review team (3 parallel reviewers)
+/team create Review PR #142 for quality, security, and performance
+
+# Check team progress
+/team status
+
+# Send guidance to a teammate
+/team message debugger Focus on the session middleware
+
+# Shut down the team
+/team dismiss
+```
+
+**Recommended compositions:**
+- **Review team**: code-reviewer + security-scanner + perf-analyzer
+- **Full-stack team**: test-writer + debugger + refactorer + docs-writer
+- **Debug team**: 3x debugger (competing hypotheses)
+- **Migration team**: migrate + test-writer
+
+**Keyboard shortcuts**: `Shift+Up/Down` (select teammate), `Shift+Tab` (toggle delegate mode), `Ctrl+T` (task list), `Ctrl+B` (background task).
+
+For lighter coordination across parallel sessions, use `/sync` instead.
 
 ## File Structure
 
@@ -432,7 +539,9 @@ claude --teleport session_xxx
 your-project/
 ├── .claude/
 │   ├── settings.json           # Permissions + hooks
-│   └── commands/               # 27 slash commands
+│   ├── commands/               # 28 slash commands
+│   ├── agents/                 # 10 subagent definitions
+│   └── agent-memory/           # Persistent agent knowledge (project scope)
 │
 ├── .github/
 │   ├── CODEOWNERS              # Code ownership

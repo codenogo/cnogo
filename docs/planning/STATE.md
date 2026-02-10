@@ -5,7 +5,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 ## Current Focus
 
 - **Feature:** opus-46-agents-workflow-improvements
-- **Status:** Planned, ready for implementation
+- **Status:** Ready for review (Plans 01-04 complete)
 - **Branch:** main
 
 ## Active Work
@@ -14,7 +14,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| opus-46-agents-workflow-improvements | Planned | 01 ⏳, 02 ⏳, 03 ⏳, 04 ⏳ | `/implement opus-46-agents-workflow-improvements 01` |
+| opus-46-agents-workflow-improvements | Ready for review | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | `/review` |
 
 ### Quick Tasks
 
@@ -27,10 +27,10 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: Created 4 plans for opus-46-agents-workflow-improvements
-Next step: /implement opus-46-agents-workflow-improvements 01
-Context: 4 plans (01-04), sequential dependency chain, 10 agent definitions to create
-Open files: 01-PLAN.md through 04-PLAN.md
+Last action: Completed Plan 04 — installer, README, final validation
+Next step: /review
+Context: All 4 plans committed. Feature ready for review.
+Open files: install.sh, README.md
 ```
 
 ## Recent Decisions

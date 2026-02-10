@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # Universal Workflow Pack Installer v2
-# Usage: ./install.sh /path/to/your/project
+# Usage: ./install.sh [OPTIONS] /path/to/your/project
+#   -y, --yes    Auto-accept merge with existing directories
 
 set -e
 
@@ -12,8 +13,25 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Parse arguments
+AUTO_YES=false
+TARGET_DIR=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes)
+            AUTO_YES=true
+            shift
+            ;;
+        *)
+            TARGET_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+TARGET_DIR="${TARGET_DIR:-.}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR="${1:-.}"
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  Universal Workflow Pack Installer v2.0    ║${NC}"
@@ -36,11 +54,15 @@ EXISTING=""
 
 if [ -n "$EXISTING" ]; then
     echo -e "${YELLOW}Warning: The following already exist: ${EXISTING}${NC}"
-    read -p "Merge with existing? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted."
-        exit 1
+    if [ "$AUTO_YES" = true ]; then
+        echo "Auto-accepting merge (-y flag)"
+    else
+        read -p "Merge with existing? (y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Aborted."
+            exit 1
+        fi
     fi
 fi
 
@@ -59,6 +81,20 @@ for cmd in "$SCRIPT_DIR/.claude/commands/"*.md; do
     cp "$cmd" "$TARGET_DIR/.claude/commands/"
     echo "   ├── commands/$(basename $cmd)"
 done
+
+# Agent definitions
+mkdir -p "$TARGET_DIR/.claude/agents"
+for agent in "$SCRIPT_DIR/.claude/agents/"*.md; do
+    cp "$agent" "$TARGET_DIR/.claude/agents/"
+    # Extract model tier from frontmatter
+    MODEL=$(grep '^model:' "$agent" 2>/dev/null | head -1 | awk '{print $2}' || echo "inherit")
+    echo "   ├── agents/$(basename $agent) ($MODEL)"
+done
+
+# Agent memory scaffolding (project scope, checked in)
+mkdir -p "$TARGET_DIR/.claude/agent-memory"
+touch "$TARGET_DIR/.claude/agent-memory/.gitkeep"
+echo "   └── agent-memory/ (project scope)"
 
 # =============================================================================
 # .github directory
@@ -181,21 +217,24 @@ echo "  1. Run '/init' to auto-detect your stack and populate CLAUDE.md"
 echo "  2. Edit docs/planning/PROJECT.md with your project details"
 echo "  3. Edit .github/CODEOWNERS with your team structure"
 echo "  4. Run 'claude' and verify with /status"
+echo "  5. Run '/spawn' to view available subagents"
 echo ""
-echo "Commands installed (21):"
+echo "Commands installed (28):"
 echo ""
 echo "  Core:     /discuss  /plan  /implement  /verify  /review  /ship"
 echo "  Fast:     /quick  /tdd"
 echo "  Session:  /status  /pause  /resume  /sync  /context"
-echo "  Debug:    /debug  /rollback"
-echo "  Release:  /changelog  /release"
-echo "  Setup:    /init"
+echo "  Debug:    /debug  /bug  /rollback"
+echo "  Release:  /changelog  /release  /close"
+echo "  Research: /research  /brainstorm"
+echo "  Setup:    /init  /validate"
 echo "  MCP:      /mcp"
-echo "  Agents:   /background  /spawn"
+echo "  Agents:   /spawn  /team  /background  (10 agent definitions)"
 echo ""
 echo "Hooks installed:"
-echo "  • PreToolUse:  Security validation (blocks dangerous commands)"
-echo "  • PostToolUse: Auto-format on edit (stack-detected)"
-echo "  • PreCommit:   Secret scanning + tests"
-echo "  • PostCommit:  Commit confirmation"
+echo "  • PreToolUse:    Security validation (blocks dangerous commands)"
+echo "  • SubagentStop:  Teammate completion logging"
+echo "  • PostToolUse:   Auto-format on edit (stack-detected)"
+echo "  • PreCommit:     Secret scanning + tests"
+echo "  • PostCommit:    Commit confirmation"
 echo ""
