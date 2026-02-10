@@ -5,8 +5,9 @@ Current position, decisions, and blockers. Updated as work progresses.
 ## Current Focus
 
 - **Feature:** opus-46-agents-workflow-improvements
-- **Status:** Ready for review (Plans 01-04 complete)
-- **Branch:** main
+- **Status:** PR created
+- **Branch:** feature/opus-46-agents-workflow-improvements
+- **PR:** https://github.com/codenogo/workflowy/pull/1
 
 ## Active Work
 
@@ -14,7 +15,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| opus-46-agents-workflow-improvements | Ready for review | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | `/review` |
+| opus-46-agents-workflow-improvements | PR created | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | Await review / merge |
 
 ### Quick Tasks
 
@@ -27,10 +28,10 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: Completed Plan 04 — installer, README, final validation
-Next step: /review
-Context: All 4 plans committed. Feature ready for review.
-Open files: install.sh, README.md
+Last action: /ship — PR #1 created
+Next step: Await review / merge
+Context: PR https://github.com/codenogo/workflowy/pull/1
+Open files: (none)
 ```
 
 ## Recent Decisions
