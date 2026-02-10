@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "planNumber": "02",
+  "goal": "Update settings.json with Agent Teams env var, refactor /spawn to delegate to agent definitions, and add effort hints to all 27 commands",
+  "tasks": [
+    {
+      "name": "Update settings.json with Agent Teams env var",
+      "files": [".claude/settings.json"],
+      "action": "Add env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = '1' to settings.json without modifying existing hooks/permissions",
+      "verify": ["python3 -c \"import json; d=json.load(open('.claude/settings.json')); assert d['env']['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'] == '1'; print('OK')\""]
+    },
+    {
+      "name": "Refactor /spawn to reference .claude/agents/ definitions",
+      "files": [".claude/commands/spawn.md"],
+      "action": "Add agent definition mapping table, update launch step to delegate to .claude/agents/ files, keep inline prompts as fallback",
+      "verify": ["grep 'claude/agents' .claude/commands/spawn.md", "grep 'security-scanner' .claude/commands/spawn.md"]
+    },
+    {
+      "name": "Add effort hint comments to all 27 command files",
+      "files": [".claude/commands/brainstorm.md", ".claude/commands/bug.md", ".claude/commands/changelog.md", ".claude/commands/close.md", ".claude/commands/context.md", ".claude/commands/debug.md", ".claude/commands/discuss.md", ".claude/commands/implement.md", ".claude/commands/init.md", ".claude/commands/mcp.md", ".claude/commands/pause.md", ".claude/commands/plan.md", ".claude/commands/quick.md", ".claude/commands/release.md", ".claude/commands/research.md", ".claude/commands/resume.md", ".claude/commands/review.md", ".claude/commands/rollback.md", ".claude/commands/ship.md", ".claude/commands/status.md", ".claude/commands/sync.md", ".claude/commands/tdd.md", ".claude/commands/validate.md", ".claude/commands/verify.md", ".claude/commands/verify-ci.md", ".claude/commands/background.md", ".claude/commands/spawn.md"],
+      "action": "Insert HTML comment with effort level (low/medium/high/max) at line 2 of each command file",
+      "verify": ["grep -l 'effort:' .claude/commands/*.md | wc -l"]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py"],
+  "commitMessage": "feat(opus-46-agents-workflow-improvements): settings, spawn wrapper, effort hints",
+  "timestamp": "2026-02-10T00:00:00Z"
+}

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "planNumber": "03",
+  "goal": "Create /team command for Agent Teams orchestration, update /sync to dual-mode, add hooks and WORKFLOW.json config",
+  "tasks": [
+    {
+      "name": "Create /team command",
+      "files": [".claude/commands/team.md"],
+      "action": "Create Agent Teams command with create/status/message/dismiss actions, experimental warning, team compositions, keyboard shortcuts, delegate mode guidance",
+      "verify": ["test -f .claude/commands/team.md && echo EXISTS", "grep 'EXPERIMENTAL' .claude/commands/team.md", "grep 'delegate' .claude/commands/team.md"]
+    },
+    {
+      "name": "Update /sync for dual-mode operation",
+      "files": [".claude/commands/sync.md"],
+      "action": "Add Agent Teams detection (Step 0), new modes for shared task list and mailbox, keep existing modes as fallback",
+      "verify": ["grep 'Agent Teams' .claude/commands/sync.md", "grep 'Detect Mode' .claude/commands/sync.md"]
+    },
+    {
+      "name": "Add Agent Teams hooks and WORKFLOW.json config",
+      "files": [".claude/settings.json", "docs/planning/WORKFLOW.json"],
+      "action": "Add SubagentStop hook to settings.json, add agentTeams section to WORKFLOW.json with enabled flag and default compositions",
+      "verify": ["python3 -c \"import json; d=json.load(open('.claude/settings.json')); assert 'SubagentStop' in d['hooks']; print('OK')\"", "python3 -c \"import json; d=json.load(open('docs/planning/WORKFLOW.json')); assert 'agentTeams' in d; print('OK')\""]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py"],
+  "commitMessage": "feat(opus-46-agents-workflow-improvements): Agent Teams integration",
+  "timestamp": "2026-02-10T00:00:00Z"
+}

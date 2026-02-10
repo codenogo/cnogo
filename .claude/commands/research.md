@@ -1,4 +1,5 @@
 # Research: $ARGUMENTS
+<!-- effort: max -->
 
 Deep research for a feature/bug/decision. Produces a durable artifact that `/discuss` can reference to reduce uncertainty.
 

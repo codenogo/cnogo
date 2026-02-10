@@ -1,4 +1,5 @@
 # Close: $ARGUMENTS
+<!-- effort: low -->
 
 Post-merge cleanup. Keeps `STATE.md` current and optionally archives feature artifacts after merge into `main`.
 

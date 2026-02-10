@@ -13,6 +13,15 @@
     "monorepoVerifyScope": "warn",
     "karpathyChecklist": "warn"
   },
-  "packages": []
+  "packages": [],
+  "agentTeams": {
+    "enabled": true,
+    "delegateMode": true,
+    "defaultCompositions": {
+      "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
+      "fullstack": ["test-writer", "debugger", "docs-writer", "refactorer"],
+      "debug": ["debugger", "debugger", "debugger"]
+    }
+  }
 }
 

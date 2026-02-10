@@ -1,4 +1,5 @@
 # Validate
+<!-- effort: low -->
 
 Enforce workflow rules with a machine-checkable validator. Use this before `/review` and before shipping.
 

@@ -1,4 +1,5 @@
 # Rollback: $ARGUMENTS
+<!-- effort: medium -->
 
 Quickly revert recent changes when something goes wrong.
 

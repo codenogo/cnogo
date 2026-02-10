@@ -1,4 +1,5 @@
 # Changelog
+<!-- effort: low -->
 
 Generate or update CHANGELOG.md from git history.
 

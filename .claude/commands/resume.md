@@ -1,4 +1,5 @@
 # Resume
+<!-- effort: low -->
 
 Restore context from a paused session.
 

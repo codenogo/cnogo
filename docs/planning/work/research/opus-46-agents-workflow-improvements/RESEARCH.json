@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "topic": "Opus 4.6 & Agent Workflow — What Can We Learn to Improve This Workflow",
+  "slug": "opus-46-agents-workflow-improvements",
+  "timestamp": "2026-02-10T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    {
+      "type": "web",
+      "ref": "https://www.anthropic.com/news/claude-opus-4-6",
+      "title": "Anthropic — Introducing Claude Opus 4.6"
+    },
+    {
+      "type": "web",
+      "ref": "https://code.claude.com/docs/en/sub-agents",
+      "title": "Claude Code Docs — Create Custom Subagents"
+    },
+    {
+      "type": "web",
+      "ref": "https://www.anthropic.com/engineering/multi-agent-research-system",
+      "title": "Anthropic Engineering — Multi-Agent Research System"
+    },
+    {
+      "type": "web",
+      "ref": "https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents",
+      "title": "Anthropic Engineering — Effective Harnesses for Long-Running Agents"
+    },
+    {
+      "type": "web",
+      "ref": "https://claudefa.st/blog/guide/agents/agent-teams",
+      "title": "Claude Code Agent Teams Guide"
+    },
+    {
+      "type": "web",
+      "ref": "https://claude-world.com/articles/claude-opus-4-6/",
+      "title": "Claude World — Claude Opus 4.6 Overview"
+    },
+    {
+      "type": "repo",
+      "ref": "docs/planning/WORKFLOW.json",
+      "title": "Current workflow enforcement configuration"
+    },
+    {
+      "type": "repo",
+      "ref": "docs/skills.md",
+      "title": "Skills library — 15 reusable playbooks"
+    },
+    {
+      "type": "repo",
+      "ref": ".claude/commands/spawn.md",
+      "title": "Current /spawn implementation"
+    },
+    {
+      "type": "repo",
+      "ref": ".claude/settings.json",
+      "title": "Hooks, permissions, and enforcement config"
+    }
+  ],
+  "summary": [
+    "Custom subagent definitions (.claude/agents/) should replace ephemeral /spawn prompts — highest-ROI improvement",
+    "Agent Teams (experimental) introduce mesh-network coordination with shared task lists, replacing manual /sync",
+    "Persistent subagent memory enables cross-session learning for code reviewers, debuggers, and security scanners",
+    "Effort controls (low/medium/high/max) enable per-command cost optimization — quick tasks should use lower effort",
+    "Context compaction reduces /pause+/resume friction for long sessions",
+    "Anthropic's multi-agent research shows 90.2% improvement with orchestrator+workers, but at 15x token cost",
+    "Long-running agent harness patterns (JSON progress, bootstrapping rituals, git recovery) align with existing workflow",
+    "1M context window is powerful but <=3-task plan batching remains valuable as a verification discipline",
+    "Skill preloading into subagents maps directly to our existing skills library",
+    "Three-phase rollout: agents now, memory next, Agent Teams when stable"
+  ],
+  "recommendation": "Phase 1: Create .claude/agents/ definitions for 7 specializations with skill preloading and model routing. Add effort-level guidance to commands. Phase 2: Enable persistent memory for key agents, strengthen /resume with bootstrapping rituals. Phase 3: Integrate Agent Teams when they exit experimental."
+}

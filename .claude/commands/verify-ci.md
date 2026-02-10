@@ -1,4 +1,5 @@
 # Verify CI: $ARGUMENTS
+<!-- effort: high -->
 
 Non-interactive verification suitable for CI, nightly runs, or pre-merge gates. This complements `/verify` (human UAT).
 

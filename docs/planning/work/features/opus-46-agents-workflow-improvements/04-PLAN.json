@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "opus-46-agents-workflow-improvements",
+  "planNumber": "04",
+  "goal": "Update install.sh to install agents and memory scaffolding, update README, run full end-to-end validation",
+  "tasks": [
+    {
+      "name": "Update install.sh with agents and memory scaffolding",
+      "files": ["install.sh"],
+      "action": "Add .claude/agents/ copy section, .claude/agent-memory/ scaffolding, update command counts and next steps",
+      "verify": ["grep 'agents' install.sh | head -10", "grep 'agent-memory' install.sh"]
+    },
+    {
+      "name": "Update README.md with agent workflow documentation",
+      "files": ["README.md"],
+      "action": "Add Agent Definitions section (10 agents table), Agent Teams section (experimental, /team, keyboard shortcuts), update command list",
+      "verify": ["grep 'Agent Definitions' README.md", "grep 'Agent Teams' README.md"]
+    },
+    {
+      "name": "Full end-to-end validation and STATE.md update",
+      "files": ["docs/planning/STATE.md"],
+      "action": "Run workflow_validate.py, verify all files exist and are valid, update STATE.md to ready for review",
+      "verify": ["python3 scripts/workflow_validate.py", "grep 'Ready for review' docs/planning/STATE.md"]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py", "ls .claude/agents/*.md | wc -l"],
+  "commitMessage": "feat(opus-46-agents-workflow-improvements): installer, README, final integration",
+  "timestamp": "2026-02-10T00:00:00Z"
+}

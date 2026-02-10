@@ -1,4 +1,5 @@
 # MCP: $ARGUMENTS
+<!-- effort: medium -->
 
 Manage Model Context Protocol connections for external integrations.
 
