@@ -1,4 +1,5 @@
 # Debug: $ARGUMENTS
+<!-- effort: max -->
 
 Systematic debugging with persistent state tracking.
 

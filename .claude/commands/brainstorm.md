@@ -1,4 +1,5 @@
 # Brainstorm: $ARGUMENTS
+<!-- effort: high -->
 
 Project ideation before committing to decisions in `/discuss`. This is for exploring options, asking narrowing questions, and optionally running deep research.
 

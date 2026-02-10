@@ -1,4 +1,5 @@
 # Status
+<!-- effort: low -->
 
 Show current position, progress, and next steps.
 

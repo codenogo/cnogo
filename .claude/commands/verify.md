@@ -1,4 +1,5 @@
 # Verify: $ARGUMENTS
+<!-- effort: high -->
 
 User acceptance testing. Confirms the feature actually works as expected.
 

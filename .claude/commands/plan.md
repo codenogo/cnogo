@@ -1,4 +1,5 @@
 # Plan: $ARGUMENTS
+<!-- effort: high -->
 
 Create implementation tasks for the feature. Each plan has ≤3 tasks to keep context fresh.
 

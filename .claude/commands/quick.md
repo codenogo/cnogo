@@ -1,4 +1,5 @@
 # Quick: $ARGUMENTS
+<!-- effort: medium -->
 
 Fast path for small fixes and ad-hoc tasks. Skips discuss/plan ceremony.
 

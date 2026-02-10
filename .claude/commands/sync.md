@@ -1,4 +1,5 @@
 # Sync
+<!-- effort: medium -->
 
 Coordinate work across parallel sessions/checkouts.
 

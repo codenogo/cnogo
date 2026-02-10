@@ -1,4 +1,5 @@
 # Review
+<!-- effort: high -->
 
 Comprehensive quality gates before merge. Runs automated checks and structured manual review.
 

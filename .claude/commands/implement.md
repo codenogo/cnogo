@@ -1,4 +1,5 @@
 # Implement: $ARGUMENTS
+<!-- effort: high -->
 
 Execute a plan with verification after each task.
 

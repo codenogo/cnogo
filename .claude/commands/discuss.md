@@ -1,4 +1,5 @@
 # Discuss: $ARGUMENTS
+<!-- effort: high -->
 
 Capture implementation decisions before any planning or coding begins, and persist them as both human-readable markdown and a machine-checkable contract.
 

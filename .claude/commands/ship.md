@@ -1,4 +1,5 @@
 # Ship Current Changes
+<!-- effort: high -->
 
 Commit, push, and create PR. Final step after `/review` passes.
 

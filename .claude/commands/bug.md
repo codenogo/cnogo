@@ -1,4 +1,5 @@
 # Bug: $ARGUMENTS
+<!-- effort: high -->
 
 Bug workflow router. Helps choose the right path and ensures bugfix work happens safely (branch, regression test guidance, and verification).
 

@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -39,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/workflow_hooks.py post_edit || true"
+            "command": "python3 $HOME/.claude/scripts/workflow_hooks.py post_edit || true"
           }
         ]
       },
@@ -129,7 +132,8 @@
       "Bash(which:*)",
       "Bash(env:*)",
       "Bash(rm:*)",
-      "Bash(./scripts/*)"
+      "Bash(./scripts/*)",
+      "Bash($HOME/.claude/scripts/*)"
     ],
     "deny": [
       "Bash(rm -rf /*)",

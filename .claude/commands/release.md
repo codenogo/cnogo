@@ -1,4 +1,5 @@
 # Release: $ARGUMENTS
+<!-- effort: max -->
 
 Create a release with notes, tag, and optional SBOM.
 

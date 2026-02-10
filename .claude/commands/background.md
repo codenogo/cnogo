@@ -1,4 +1,5 @@
 # Background: $ARGUMENTS
+<!-- effort: medium -->
 
 Launch a fire-and-forget task that runs independently while you continue working.
 

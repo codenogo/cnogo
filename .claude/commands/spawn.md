@@ -1,4 +1,5 @@
 # Spawn: $ARGUMENTS
+<!-- effort: medium -->
 
 Launch a specialized subagent for focused work with isolated context.
 
@@ -8,16 +9,48 @@ Launch a specialized subagent for focused work with isolated context.
 
 ## Available Specializations
 
-| Specialization | Focus Area | Best For |
-|----------------|------------|----------|
-| `security` | Security analysis | Vulnerability audits, auth review, secrets scanning |
-| `tests` | Test generation | Unit tests, integration tests, coverage gaps |
-| `docs` | Documentation | README, API docs, code comments, wikis |
-| `perf` | Performance | Profiling, optimization, benchmarks |
-| `api` | API design | Endpoint review, schema validation, contracts |
-| `refactor` | Code quality | Dead code, duplication, patterns |
-| `migrate` | Migrations | Framework updates, dependency upgrades |
-| `review` | Code review | PR review, best practices, style |
+| Specialization | Focus Area | Agent Definition | Best For |
+|----------------|------------|------------------|----------|
+| `security` | Security analysis | `.claude/agents/security-scanner.md` | Vulnerability audits, auth review, secrets scanning |
+| `tests` | Test generation | `.claude/agents/test-writer.md` | Unit tests, integration tests, coverage gaps |
+| `docs` | Documentation | `.claude/agents/docs-writer.md` | README, API docs, code comments, wikis |
+| `perf` | Performance | `.claude/agents/perf-analyzer.md` | Profiling, optimization, benchmarks |
+| `api` | API design | `.claude/agents/api-reviewer.md` | Endpoint review, schema validation, contracts |
+| `refactor` | Code quality | `.claude/agents/refactorer.md` | Dead code, duplication, patterns |
+| `migrate` | Migrations | `.claude/agents/migrate.md` | Framework updates, dependency upgrades |
+| `review` | Code review | `.claude/agents/code-reviewer.md` | PR review, best practices, style |
+
+## Agent Definitions
+
+Each specialization maps to a persistent agent definition in `.claude/agents/`. These agents have:
+
+- **Tiered model routing**: haiku (fast scanning), sonnet (analysis), inherit/opus (implementation)
+- **Persistent memory**: Agents accumulate project knowledge across sessions (`.claude/agent-memory/`)
+- **Tool restrictions**: Read-only agents can't modify code; implementation agents get full access
+- **Focused system prompts**: Each agent has domain expertise from `docs/skills.md`
+
+### Specialization → Agent Mapping
+
+| /spawn shorthand | Agent name | Model | Memory |
+|------------------|-----------|-------|--------|
+| `security` | `security-scanner` | sonnet | project |
+| `tests` | `test-writer` | inherit | project |
+| `docs` | `docs-writer` | haiku | none |
+| `perf` | `perf-analyzer` | sonnet | project |
+| `api` | `api-reviewer` | sonnet | project |
+| `refactor` | `refactorer` | inherit | project |
+| `migrate` | `migrate` | inherit | project |
+| `review` | `code-reviewer` | sonnet | project |
+
+### Direct Invocation
+
+Users can also invoke agents directly without /spawn:
+
+```
+Use the code-reviewer agent to review my changes
+Have the security-scanner agent audit the auth module
+Ask the debugger agent to investigate this error
+```
 
 ## Skills Integration
 
@@ -38,7 +71,20 @@ Extract specialization and task from "$ARGUMENTS":
 - First word = specialization (security, tests, docs, etc.)
 - Remaining = task description
 
-### Step 2: Load Specialization Profile
+### Step 2: Resolve Agent Definition
+
+Look up the specialization in the mapping table above and find the corresponding `.claude/agents/<name>.md` file.
+
+- If the agent definition file exists: delegate to that agent (preferred — it has model routing, memory, and focused prompts)
+- If the agent definition file does NOT exist: fall back to the inline profiles below
+
+### Step 3: Launch Subagent
+
+**Primary path (agent definitions exist):**
+
+Delegate to the matching `.claude/agents/<name>.md` agent. The Task tool will use the agent's configured model, tools, memory, and system prompt automatically.
+
+**Fallback path (inline profiles — for projects without .claude/agents/):**
 
 #### Security Subagent
 ```markdown
@@ -54,20 +100,20 @@ You are a security-focused code analyst. Your task:
 
 3. **Output Format:**
    Create `docs/planning/work/features/security-audit-[date].md`:
-   
+
    ## Security Audit Report
-   
+
    ### Critical Issues
    | File | Line | Issue | Severity | Fix |
-   
+
    ### Warnings
    | File | Line | Issue | Recommendation |
-   
+
    ### Passed Checks
    - [ ] No hardcoded secrets
    - [ ] Input validation present
    - [ ] Auth correctly applied
-   
+
    ### Recommendations
    [Prioritized list of improvements]
 ```
@@ -90,7 +136,7 @@ You are a test generation specialist. Your task:
    - Generate tests following project patterns
    - Ensure tests are runnable
 
-4. **Output:** 
+4. **Output:**
    - New test files in appropriate locations
    - Summary of tests added
 ```
@@ -180,26 +226,16 @@ You are a code quality specialist. Your task:
    - Verification that tests still pass
 ```
 
-### Step 3: Launch Subagent
-
-```
-Spawn a subagent with the specialization profile above.
-
-The subagent will:
-1. Operate with its own isolated context window
-2. Return only relevant findings to the main context
-3. Create artifacts in docs/planning/work/
-4. Report completion status
-```
-
 ### Step 4: Report Launch
 
 ```markdown
 ## Subagent Spawned
 
 **Type:** [specialization]
+**Agent:** [agent-name from .claude/agents/ or "inline fallback"]
 **Task:** [task description]
-**Status:** 🔄 Running
+**Model:** [haiku/sonnet/inherit]
+**Status:** Running
 
 The subagent is working independently. Results will appear in:
 - `docs/planning/work/features/[specialization]-[task]-[date].md`
@@ -224,10 +260,14 @@ Use `/status` to check progress.
 
 # Review API design
 /spawn api Review the payment API for best practices
+
+# Code review
+/spawn review Check the latest changes for quality issues
 ```
 
 ## Output
 
 - Confirmation of subagent launch
+- Which agent definition was used (or fallback)
 - Expected output location
 - Instructions to check status

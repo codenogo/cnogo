@@ -1,4 +1,5 @@
 # Pause
+<!-- effort: low -->
 
 Create a session handoff for resuming later.
 

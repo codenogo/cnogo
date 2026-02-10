@@ -1,4 +1,5 @@
 # Init
+<!-- effort: medium -->
 
 Auto-populate project templates by detecting the tech stack and gathering project information.
 
