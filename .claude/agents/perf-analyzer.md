@@ -1,7 +1,7 @@
 ---
 name: perf-analyzer
 description: Performance analysis specialist for profiling, optimization, and benchmarking. Use when investigating latency, throughput, or resource usage issues.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: sonnet
 memory: project
 ---

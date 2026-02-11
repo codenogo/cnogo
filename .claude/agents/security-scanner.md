@@ -1,7 +1,7 @@
 ---
 name: security-scanner
 description: Security analysis specialist for vulnerability audits, auth review, and secrets scanning. Use when reviewing security-sensitive code changes.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: sonnet
 memory: project
 ---
