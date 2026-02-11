@@ -4,10 +4,9 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 ## Current Focus
 
-- **Feature:** review-findings-remediation
-- **Status:** PR created
-- **PR:** [#2](https://github.com/codenogo/workflowy/pull/2)
-- **Branch:** fix/review-findings-remediation
+- **Feature:** None
+- **Status:** Idle
+- **Branch:** main
 
 ## Active Work
 
@@ -15,7 +14,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| review-findings-remediation | PR created (#2) | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | Await review / merge |
+| (none) | | | |
 
 ### Quick Tasks
 
@@ -28,16 +27,14 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: /ship — PR #2 created
-Next step: Await review / merge, then /close review-findings-remediation
-Context: All 4 plans complete, review passed, PR created.
-PR: https://github.com/codenogo/workflowy/pull/2
+(cleared)
 ```
 
 ## Recent Decisions
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-02-11 | Merged review-findings-remediation | PR #2 — 20 findings remediated (security, performance, maintainability) |
 | 2026-02-10 | Merged opus-46-agents-workflow-improvements | PR #1 — 10 agents, Agent Teams, effort hints, /team, /sync dual-mode |
 | 2026-02-10 | All 3 phases in one feature branch | opus-46-agents-workflow-improvements |
 | 2026-02-10 | Keep /spawn alongside .claude/agents/ | Backward compat, spawn as wrapper |
@@ -56,6 +53,7 @@ PR: https://github.com/codenogo/workflowy/pull/2
 ## Notes
 
 - Archived: `docs/planning/archive/features/opus-46-agents-workflow-improvements/`
+- Archived: `docs/planning/archive/features/review-findings-remediation/`
 
 ---
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-11*
