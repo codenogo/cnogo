@@ -20,18 +20,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from workflow_utils import load_json, load_workflow as _load_workflow_util, repo_root, write_json
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-
-
-def load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def write_json(path: Path, obj: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
 
 
 def write_text(path: Path, text: str) -> None:
@@ -40,6 +33,7 @@ def write_text(path: Path, text: str) -> None:
 
 
 def run_shell(cmd: str, cwd: Path) -> tuple[int, str]:
+    # WORKFLOW.json is a trusted file (equivalent to Makefile) — shell=True is intentional.
     try:
         out = subprocess.check_output(cmd, cwd=cwd, shell=True, stderr=subprocess.STDOUT).decode(errors="replace")
         return 0, out
@@ -79,15 +73,8 @@ class CheckResult:
     cmd: str | None = None
 
 
-def load_workflow(root: Path) -> dict[str, Any]:
-    wf = root / "docs" / "planning" / "WORKFLOW.json"
-    if not wf.exists():
-        return {}
-    try:
-        obj = load_json(wf)
-        return obj if isinstance(obj, dict) else {}
-    except Exception:
-        return {}
+def load_workflow(root: Path | None = None) -> dict[str, Any]:
+    return _load_workflow_util()
 
 
 def packages_from_workflow(wf: dict[str, Any]) -> list[dict[str, Any]]:
@@ -285,7 +272,7 @@ def main() -> int:
     r.add_argument("--feature", help="Feature slug (overrides STATE.md inference).")
 
     args = parser.parse_args()
-    root = Path.cwd()
+    root = repo_root()
     wf = load_workflow(root)
     pkgs = packages_from_workflow(wf)
     if not pkgs:

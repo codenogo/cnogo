@@ -20,6 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
+from workflow_utils import load_json as _load_json, repo_root as _utils_repo_root
+
 
 FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 QUICK_DIR_RE = re.compile(r"^[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -27,21 +29,7 @@ PLAN_MD_RE = re.compile(r"^(?P<num>[0-9]{2})-PLAN\.md$")
 
 
 def _repo_root(start: Path) -> Path:
-    # Prefer git root if available; otherwise walk up until we see docs/planning.
-    try:
-        out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], stderr=subprocess.DEVNULL)
-        return Path(out.decode().strip())
-    except Exception:
-        p = start.resolve()
-        for parent in [p] + list(p.parents):
-            if (parent / "docs" / "planning").is_dir():
-                return parent
-        return start.resolve()
-
-
-def _load_json(path: Path) -> Any:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    return _utils_repo_root()
 
 
 def _is_git_repo(root: Path) -> bool:

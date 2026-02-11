@@ -14,7 +14,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| review-findings-remediation | In Progress | 01 ✅, 02 ✅, 03 ⏳, 04 ⏳ | `/implement review-findings-remediation 03` |
+| review-findings-remediation | In Progress | 01 ✅, 02 ✅, 03 ✅, 04 ⏳ | `/implement review-findings-remediation 04` |
 
 ### Quick Tasks
 
@@ -27,10 +27,10 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: /implement review-findings-remediation 02 — completed (3 tasks)
-Next step: /implement review-findings-remediation 03
-Context: Plans 01→02→03→04 are sequential. Plan 03 creates workflow_utils.py and optimizes PostToolUse.
-Open files: 02-PLAN.md, settings.json, install.sh
+Last action: /implement review-findings-remediation 03 — completed (3 tasks)
+Next step: /implement review-findings-remediation 04
+Context: Plans 01→02→03→04 are sequential. Plan 04 refactors validator and updates schema.
+Open files: 03-PLAN.md, workflow_utils.py
 ```
 
 ## Recent Decisions
