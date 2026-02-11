@@ -1,7 +1,7 @@
 ---
 name: api-reviewer
 description: API design review specialist for endpoint design, schema validation, and contract quality. Use when adding or modifying API endpoints.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: sonnet
 memory: project
 ---

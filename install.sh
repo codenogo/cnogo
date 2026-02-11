@@ -74,12 +74,16 @@ echo ""
 # =============================================================================
 echo "📁 .claude/"
 mkdir -p "$TARGET_DIR/.claude/commands"
-cp "$SCRIPT_DIR/.claude/settings.json" "$TARGET_DIR/.claude/"
-echo "   ├── settings.json (hooks + permissions)"
+if [ ! -f "$TARGET_DIR/.claude/settings.json" ]; then
+    cp "$SCRIPT_DIR/.claude/settings.json" "$TARGET_DIR/.claude/"
+    echo "   ├── settings.json (hooks + permissions)"
+else
+    echo -e "   ├── settings.json ${YELLOW}(skipped - exists)${NC}"
+fi
 
 for cmd in "$SCRIPT_DIR/.claude/commands/"*.md; do
     cp "$cmd" "$TARGET_DIR/.claude/commands/"
-    echo "   ├── commands/$(basename $cmd)"
+    echo "   ├── commands/$(basename "$cmd")"
 done
 
 # Agent definitions
@@ -88,13 +92,41 @@ for agent in "$SCRIPT_DIR/.claude/agents/"*.md; do
     cp "$agent" "$TARGET_DIR/.claude/agents/"
     # Extract model tier from frontmatter
     MODEL=$(grep '^model:' "$agent" 2>/dev/null | head -1 | awk '{print $2}' || echo "inherit")
-    echo "   ├── agents/$(basename $agent) ($MODEL)"
+    echo "   ├── agents/$(basename "$agent") ($MODEL)"
 done
 
 # Agent memory scaffolding (project scope, checked in)
 mkdir -p "$TARGET_DIR/.claude/agent-memory"
 touch "$TARGET_DIR/.claude/agent-memory/.gitkeep"
 echo "   └── agent-memory/ (project scope)"
+
+# =============================================================================
+# scripts directory
+# =============================================================================
+echo ""
+echo "📁 scripts/"
+mkdir -p "$TARGET_DIR/scripts"
+
+for script in "$SCRIPT_DIR/scripts/"*.py; do
+    if [ -f "$script" ]; then
+        cp "$script" "$TARGET_DIR/scripts/"
+        echo "   ├── $(basename "$script")"
+    fi
+done
+
+for hook in "$SCRIPT_DIR/scripts/hook-"*.sh; do
+    if [ -f "$hook" ]; then
+        cp "$hook" "$TARGET_DIR/scripts/"
+        chmod +x "$TARGET_DIR/scripts/$(basename "$hook")"
+        echo "   ├── $(basename "$hook")"
+    fi
+done
+
+if [ -f "$SCRIPT_DIR/scripts/install-githooks.sh" ]; then
+    cp "$SCRIPT_DIR/scripts/install-githooks.sh" "$TARGET_DIR/scripts/"
+    chmod +x "$TARGET_DIR/scripts/install-githooks.sh"
+    echo "   └── install-githooks.sh"
+fi
 
 # =============================================================================
 # .github directory
@@ -235,6 +267,6 @@ echo "Hooks installed:"
 echo "  • PreToolUse:    Security validation (blocks dangerous commands)"
 echo "  • SubagentStop:  Teammate completion logging"
 echo "  • PostToolUse:   Auto-format on edit (stack-detected)"
-echo "  • PreCommit:     Secret scanning + tests"
+echo "  • PreCommit:     Secret scanning"
 echo "  • PostCommit:    Commit confirmation"
 echo ""

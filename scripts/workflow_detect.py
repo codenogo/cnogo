@@ -20,17 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-
-def repo_root() -> Path:
-    return Path.cwd()
-
-
-def load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def write_json(path: Path, obj: Any) -> None:
-    path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
+from workflow_utils import load_json, repo_root, write_json
 
 
 def find_files(root: Path, name: str) -> list[Path]:

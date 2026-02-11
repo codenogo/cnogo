@@ -16,9 +16,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-
-def load(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+from workflow_utils import load_json
 
 
 def write(path: Path, text: str) -> None:
@@ -141,7 +139,7 @@ def main() -> int:
     jf = Path(args.json_file)
     if not jf.exists():
         raise SystemExit(f"File not found: {jf}")
-    data = load(jf)
+    data = load_json(jf)
     if not isinstance(data, dict):
         raise SystemExit("Contract must be a JSON object.")
 

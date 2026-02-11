@@ -12,3 +12,15 @@ dist/
 build/
 .idea/
 .vscode/
+
+# Sensitive files
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_dsa
+id_ecdsa
+credentials.json
+service-account*.json

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-10T00:00:00Z",
+  "feature": "review-findings-remediation",
+  "branch": "main",
+  "automated": [
+    { "name": "validator", "result": "pass" },
+    { "name": "json-validation", "result": "pass" },
+    { "name": "shell-syntax", "result": "pass" },
+    { "name": "python-compile", "result": "pass" },
+    { "name": "secrets", "result": "pass" },
+    { "name": "lint", "result": "skipped" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "skipped" }
+  ],
+  "verdict": "pass",
+  "blockers": [],
+  "warnings": [
+    {
+      "file": "scripts/workflow_validate.py",
+      "line": 396,
+      "issue": "_validate_features() is ~80 lines (guideline ≤50)",
+      "severity": "low"
+    },
+    {
+      "file": "scripts/hook-pre-commit-secrets.sh",
+      "line": 34,
+      "issue": "for file in $STAGED doesn't handle filenames with spaces",
+      "severity": "low"
+    },
+    {
+      "file": "install.sh",
+      "line": 270,
+      "issue": "Output says PreCommit but scanning runs via PreToolUse hook",
+      "severity": "low"
+    },
+    {
+      "file": ".claude/settings.json",
+      "line": 37,
+      "issue": "SubagentStop hook uses echo with $CLAUDE_AGENT_TYPE (inconsistent with printf pattern)",
+      "severity": "low"
+    }
+  ]
+}

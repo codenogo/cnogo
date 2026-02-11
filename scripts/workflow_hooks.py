@@ -11,29 +11,13 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Iterable
 
-
-def repo_root() -> Path:
-    try:
-        out = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], stderr=subprocess.DEVNULL).decode().strip()
-        return Path(out)
-    except Exception:
-        return Path.cwd()
-
-
-def load_workflow_cfg(root: Path) -> dict[str, Any]:
-    p = root / "docs" / "planning" / "WORKFLOW.json"
-    if not p.exists():
-        return {}
-    try:
-        cfg = json.loads(p.read_text(encoding="utf-8"))
-        return cfg if isinstance(cfg, dict) else {}
-    except Exception:
-        return {}
+from workflow_utils import load_workflow, repo_root
 
 
 def _iter_possible_paths(obj: Any) -> Iterable[str]:
@@ -114,11 +98,7 @@ def extract_edited_files(raw_input: str, root: Path) -> list[Path]:
 
 
 def which(cmd: str) -> bool:
-    try:
-        subprocess.check_output(["which", cmd], stderr=subprocess.DEVNULL)
-        return True
-    except Exception:
-        return False
+    return shutil.which(cmd) is not None
 
 
 def run(cmd: list[str], *, cwd: Path) -> int:
@@ -132,16 +112,18 @@ def run(cmd: list[str], *, cwd: Path) -> int:
 
 
 def post_edit() -> int:
+    raw = os.environ.get("CLAUDE_TOOL_INPUT", "")
+    if not raw.strip():
+        return 0
+
     root = repo_root()
-    cfg = load_workflow_cfg(root)
+    cfg = load_workflow()
     perf = cfg.get("performance") if isinstance(cfg.get("performance"), dict) else {}
     enabled = perf.get("postEditFormat", "auto")
     scope = perf.get("postEditFormatScope", "changed")
 
     if enabled in {"off", False, "false"}:
         return 0
-
-    raw = os.environ.get("CLAUDE_TOOL_INPUT", "")
     edited = extract_edited_files(raw, root)
 
     # If we couldn't identify files, fall back (auto) to repo-wide formatter command.
