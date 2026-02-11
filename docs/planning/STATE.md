@@ -5,8 +5,9 @@ Current position, decisions, and blockers. Updated as work progresses.
 ## Current Focus
 
 - **Feature:** review-findings-remediation
-- **Status:** Ready for review
-- **Branch:** main
+- **Status:** PR created
+- **PR:** [#2](https://github.com/codenogo/workflowy/pull/2)
+- **Branch:** fix/review-findings-remediation
 
 ## Active Work
 
@@ -14,7 +15,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| review-findings-remediation | Ready for review | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | `/review` |
+| review-findings-remediation | PR created (#2) | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | Await review / merge |
 
 ### Quick Tasks
 
@@ -27,10 +28,10 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: /implement review-findings-remediation 04 — completed (3 tasks)
-Next step: /review
-Context: All 4 plans complete (12 tasks, 20 findings addressed). Ready for review.
-Open files: 04-PLAN.md, workflow_validate.py
+Last action: /ship — PR #2 created
+Next step: Await review / merge, then /close review-findings-remediation
+Context: All 4 plans complete, review passed, PR created.
+PR: https://github.com/codenogo/workflowy/pull/2
 ```
 
 ## Recent Decisions
