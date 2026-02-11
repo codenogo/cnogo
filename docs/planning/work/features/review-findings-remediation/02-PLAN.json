@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-findings-remediation",
+  "planNumber": "02",
+  "goal": "Fix install.sh to copy scripts and skip settings.json, harden deny rules, restrict review agent tools",
+  "tasks": [
+    {
+      "name": "Fix install.sh",
+      "files": ["install.sh"],
+      "action": "Add scripts/ copy section, skip settings.json if exists, quote basenames",
+      "verify": ["bash -n install.sh", "grep 'scripts/' install.sh | head -5"]
+    },
+    {
+      "name": "Harden permission deny rules",
+      "files": [".claude/settings.json"],
+      "action": "Add deny rules for rm -rf ., force push, docker privileged, terraform destroy, sensitive file bash access, curl/wget exfiltration",
+      "verify": ["python3 -c \"import json; json.load(open('.claude/settings.json'))\""]
+    },
+    {
+      "name": "Remove Bash from review agents",
+      "files": [".claude/agents/code-reviewer.md", ".claude/agents/security-scanner.md", ".claude/agents/perf-analyzer.md", ".claude/agents/api-reviewer.md"],
+      "action": "Change tools from 'Read, Grep, Glob, Bash' to 'Read, Grep, Glob'",
+      "verify": ["grep -c 'Bash' .claude/agents/code-reviewer.md"]
+    }
+  ],
+  "planVerify": ["bash -n install.sh", "python3 -c \"import json; json.load(open('.claude/settings.json'))\"", "python3 scripts/workflow_validate.py"],
+  "commitMessage": "fix(review-findings-remediation): installer fixes, security hardening, agent restrictions",
+  "timestamp": "2026-02-10T00:00:00Z"
+}

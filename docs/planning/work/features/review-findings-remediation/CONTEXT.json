@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-findings-remediation",
+  "displayName": "Review Findings Remediation",
+  "decisions": [
+    { "area": "scope", "decision": "All 20 findings", "rationale": "Full remediation across critical, high, and medium" },
+    { "area": "hooks", "decision": "Extract to shell scripts", "rationale": "Move from inline settings.json to scripts/. Maintainable, testable, debuggable" },
+    { "area": "pre-commit-tests", "decision": "Remove entirely", "rationale": "Tests run during /review and /verify-ci. Pre-commit adds 10-120s for marginal value" },
+    { "area": "settings-merge", "decision": "Skip if exists", "rationale": "Same pattern as CODEOWNERS. Warn and skip, user merges manually" },
+    { "area": "agent-tools", "decision": "Remove Bash from review agents", "rationale": "Pure analysis agents don't need shell. Reduces attack surface" },
+    { "area": "bash-file-access", "decision": "Add deny patterns", "rationale": "Close Read hook bypass via cat/head/tail/grep on sensitive files" },
+    { "area": "python-dry", "decision": "Create workflow_utils.py", "rationale": "Shared load_json/repo_root/write_json. All scripts import from it" }
+  ],
+  "constraints": [
+    "stdlib-only Python",
+    "install.sh must remain single portable script",
+    "Hook extraction must not change user-facing behavior",
+    "Agent changes must not break /spawn",
+    "Deny patterns use prefix matching — document limitations"
+  ],
+  "openQuestions": [
+    "Add .gitignore entries for *.pem, *.key, etc.?",
+    "Update WORKFLOW.schema.json with agentTeams?",
+    "Add hook timeouts?"
+  ],
+  "relatedCode": [
+    ".claude/settings.json",
+    "install.sh",
+    "scripts/workflow_hooks.py",
+    "scripts/workflow_validate.py",
+    "scripts/workflow_checks.py",
+    "scripts/workflow_detect.py",
+    ".claude/agents/code-reviewer.md",
+    ".claude/agents/security-scanner.md",
+    ".claude/agents/perf-analyzer.md",
+    ".claude/agents/api-reviewer.md",
+    ".claude/commands/review.md",
+    ".claude/commands/spawn.md"
+  ],
+  "timestamp": "2026-02-10T00:00:00Z"
+}

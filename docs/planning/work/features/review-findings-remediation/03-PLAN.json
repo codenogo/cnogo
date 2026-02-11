@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-findings-remediation",
+  "planNumber": "03",
+  "goal": "Optimize PostToolUse hook, create shared workflow_utils.py, refactor Python scripts to eliminate DRY violations",
+  "tasks": [
+    {
+      "name": "Optimize PostToolUse formatting hook",
+      "files": ["scripts/workflow_hooks.py"],
+      "action": "Replace subprocess which with shutil.which, add early-exit check, cache repo root",
+      "verify": ["grep 'shutil.which' scripts/workflow_hooks.py"]
+    },
+    {
+      "name": "Create workflow_utils.py",
+      "files": ["scripts/workflow_utils.py"],
+      "action": "Shared module with repo_root(), load_json(), write_json(), load_workflow()",
+      "verify": ["python3 -c \"from scripts.workflow_utils import repo_root, load_json; print('OK')\""]
+    },
+    {
+      "name": "Refactor Python scripts to use workflow_utils.py",
+      "files": ["scripts/workflow_validate.py", "scripts/workflow_detect.py", "scripts/workflow_checks.py", "scripts/workflow_render.py", "scripts/workflow_hooks.py"],
+      "action": "Replace duplicated load_json/repo_root/write_json with imports from workflow_utils",
+      "verify": ["python3 scripts/workflow_validate.py"]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py", "python3 -c \"from scripts.workflow_utils import repo_root; print('OK')\""],
+  "commitMessage": "fix(review-findings-remediation): optimize PostToolUse, consolidate Python utils",
+  "timestamp": "2026-02-10T00:00:00Z"
+}

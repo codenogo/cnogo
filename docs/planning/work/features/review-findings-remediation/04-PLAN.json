@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-findings-remediation",
+  "planNumber": "04",
+  "goal": "Split validate_repo() into focused functions, optimize rglob, update schema, final cleanup",
+  "tasks": [
+    {
+      "name": "Split validate_repo() into focused functions",
+      "files": ["scripts/workflow_validate.py"],
+      "action": "Extract 5 sub-validators from the 233-line monolith, keep validate_repo() as orchestrator",
+      "verify": ["python3 scripts/workflow_validate.py", "grep -c 'def _validate_' scripts/workflow_validate.py"]
+    },
+    {
+      "name": "Optimize rglob with WORKFLOW.json packages",
+      "files": ["scripts/workflow_validate.py"],
+      "action": "Use packages[] from WORKFLOW.json when available, fall back to rglob only when needed",
+      "verify": ["python3 scripts/workflow_validate.py"]
+    },
+    {
+      "name": "Update WORKFLOW.schema.json and final cleanup",
+      "files": ["docs/planning/WORKFLOW.schema.json", ".gitignore"],
+      "action": "Add agentTeams to schema, add sensitive files to .gitignore, fix PEP 8 spacing",
+      "verify": ["python3 -c \"import json; json.load(open('docs/planning/WORKFLOW.schema.json')); print('OK')\"", "python3 scripts/workflow_validate.py"]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py", "python3 -c \"import json; json.load(open('docs/planning/WORKFLOW.schema.json'))\""],
+  "commitMessage": "fix(review-findings-remediation): refactor validator, schema update, final cleanup",
+  "timestamp": "2026-02-10T00:00:00Z"
+}
