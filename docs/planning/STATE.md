@@ -5,7 +5,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 ## Current Focus
 
 - **Feature:** review-findings-remediation
-- **Status:** Planned (4 plans)
+- **Status:** Ready for review
 - **Branch:** main
 
 ## Active Work
@@ -14,7 +14,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| review-findings-remediation | In Progress | 01 ✅, 02 ✅, 03 ✅, 04 ⏳ | `/implement review-findings-remediation 04` |
+| review-findings-remediation | Ready for review | 01 ✅, 02 ✅, 03 ✅, 04 ✅ | `/review` |
 
 ### Quick Tasks
 
@@ -27,10 +27,10 @@ Current position, decisions, and blockers. Updated as work progresses.
 When pausing mid-work, capture here:
 
 ```
-Last action: /implement review-findings-remediation 03 — completed (3 tasks)
-Next step: /implement review-findings-remediation 04
-Context: Plans 01→02→03→04 are sequential. Plan 04 refactors validator and updates schema.
-Open files: 03-PLAN.md, workflow_utils.py
+Last action: /implement review-findings-remediation 04 — completed (3 tasks)
+Next step: /review
+Context: All 4 plans complete (12 tasks, 20 findings addressed). Ready for review.
+Open files: 04-PLAN.md, workflow_validate.py
 ```
 
 ## Recent Decisions

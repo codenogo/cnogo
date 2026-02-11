@@ -150,6 +150,7 @@ def _iter_quick_dirs(root: Path) -> Iterable[Path]:
         return []
     return [p for p in base.iterdir() if p.is_dir()]
 
+
 def _iter_research_dirs(root: Path) -> Iterable[Path]:
     base = root / "docs" / "planning" / "work" / "research"
     if not base.is_dir():
@@ -168,7 +169,33 @@ def _detect_repo_shape(root: Path) -> dict[str, Any]:
     """
     Heuristic repo-shape detection to support single-repo, monorepo, and polyglot repos.
     This is used only for validation warnings unless configured stricter via WORKFLOW.json.
+
+    Optimization: if WORKFLOW.json has non-empty packages[], use that instead of rglob.
+    Falls back to rglob only when repoShape is "auto" AND packages is empty.
     """
+    cfg = _load_workflow_config(root)
+    pkgs = cfg.get("packages")
+
+    # Fast path: use configured packages[] if available
+    if isinstance(pkgs, list) and pkgs:
+        kind_counts: dict[str, int] = {}
+        for p in pkgs:
+            if isinstance(p, dict):
+                kind = str(p.get("kind", "other"))
+                kind_counts[kind] = kind_counts.get(kind, 0) + 1
+        manifest_total = sum(kind_counts.values())
+        languages = len(kind_counts - {"other"})
+        return {
+            "package_json": kind_counts.get("node", 0),
+            "pom_xml": kind_counts.get("java", 0),
+            "pyproject_toml": kind_counts.get("python", 0),
+            "go_mod": kind_counts.get("go", 0),
+            "cargo_toml": kind_counts.get("rust", 0),
+            "monorepo": manifest_total > 1,
+            "polyglot": languages > 1,
+        }
+
+    # Slow path: rglob fallback when packages[] is empty or missing
     def count(glob: str, *, exclude_node_modules: bool = True) -> int:
         paths = list(root.rglob(glob))
         if exclude_node_modules:
@@ -184,18 +211,14 @@ def _detect_repo_shape(root: Path) -> dict[str, Any]:
     manifest_total = pkg_json + pom + pyproject + go_mod + cargo
     languages = sum(1 for x in [pkg_json, pom, pyproject, go_mod, cargo] if x > 0)
 
-    # "monorepo" here means multiple manifests, regardless of language.
-    monorepo = manifest_total > 1
-    polyglot = languages > 1
-
     return {
         "package_json": pkg_json,
         "pom_xml": pom,
         "pyproject_toml": pyproject,
         "go_mod": go_mod,
         "cargo_toml": cargo,
-        "monorepo": monorepo,
-        "polyglot": polyglot,
+        "monorepo": manifest_total > 1,
+        "polyglot": languages > 1,
     }
 
 
@@ -370,41 +393,16 @@ def _verify_cmd_scoped(cmd: str) -> bool:
     return False
 
 
-def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
-    findings: list[Finding] = []
-
-    cfg = _load_workflow_config(root)
-    _validate_workflow_config(cfg, findings, root)
-    shape = _detect_repo_shape(root)
-    monorepo_scope_level = _get_monorepo_scope_level(cfg)
-    karpathy_level = _get_karpathy_checklist_level(cfg)
-    packages_cfg = _packages_from_cfg(cfg)
-
-    # Core files
-    _require(root / "docs" / "planning" / "PROJECT.md", findings, "Missing planning doc PROJECT.md")
-    _require(root / "docs" / "planning" / "STATE.md", findings, "Missing planning doc STATE.md")
-    _require(root / "docs" / "planning" / "ROADMAP.md", findings, "Missing planning doc ROADMAP.md")
-
-    if staged_only:
-        if not _is_git_repo(root):
-            findings.append(Finding("ERROR", "--staged requires a git repository.", str(root)))
-            return findings
-        staged = set(_staged_files(root))
-        # Filter validations to only directories/files implicated by staged changes.
-        def touched(path: Path) -> bool:
-            try:
-                # Any staged file under this path?
-                for f in staged:
-                    if str(f).startswith(str(path)):
-                        return True
-                return False
-            except Exception:
-                return False
-    else:
-        def touched(_path: Path) -> bool:
-            return True
-
-    # Feature work
+def _validate_features(
+    root: Path,
+    findings: list[Finding],
+    touched,
+    shape: dict[str, Any],
+    monorepo_scope_level: str,
+    karpathy_level: str,
+    packages_cfg: list[dict[str, str]],
+) -> None:
+    """Validate feature directories: context, plans, summaries, reviews."""
     for feature_dir in _iter_feature_dirs(root):
         if not touched(feature_dir):
             continue
@@ -450,8 +448,6 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
                                 files = task.get("files")
                                 if isinstance(cwd, str) and cwd.strip():
                                     continue  # explicit cwd is considered scoped
-                                # If packages are configured and files clearly belong to one package,
-                                # we can suggest the cwd explicitly.
                                 inferred = None
                                 if isinstance(files, list) and all(isinstance(x, str) for x in files):
                                     inferred = _infer_task_package([str(x) for x in files], packages_cfg)
@@ -486,56 +482,66 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
                     except Exception as e:
                         findings.append(Finding("ERROR", f"Failed to parse summary contract: {e}", str(summary_json)))
 
-        # Review artifacts (optional, but if present must have contract)
-        review_md = feature_dir / "REVIEW.md"
-        review_json = feature_dir / "REVIEW.json"
-        if review_md.exists():
-            _require(review_json, findings, "Missing REVIEW.json contract for REVIEW.md")
-            if karpathy_level != "off":
-                try:
-                    txt = review_md.read_text(encoding="utf-8", errors="replace")
-                    # Simple marker: section heading or checklist label
-                    has = ("Karpathy" in txt) and ("Checklist" in txt or "Principles" in txt)
-                    if not has:
-                        lvl = "ERROR" if karpathy_level == "error" else "WARN"
-                        findings.append(Finding(lvl, "REVIEW.md missing Karpathy checklist section (enforced by WORKFLOW.json).", str(review_md)))
-                except Exception:
-                    pass
-            if review_json.exists():
-                try:
-                    r = _load_json(review_json)
-                    if isinstance(r, dict) and "schemaVersion" not in r:
-                        findings.append(Finding("WARN", "REVIEW.json missing schemaVersion (recommended).", str(review_json)))
-                except Exception:
-                    pass
+        _validate_ci_verification(feature_dir, findings, karpathy_level)
 
-        # CI verification artifacts (optional, but if present must have contract)
-        vci_md = feature_dir / "VERIFICATION-CI.md"
-        vci_json = feature_dir / "VERIFICATION-CI.json"
-        if vci_md.exists():
-            _require(vci_json, findings, "Missing VERIFICATION-CI.json contract for VERIFICATION-CI.md")
-            if vci_json.exists():
-                try:
-                    vc = _load_json(vci_json)
-                    if isinstance(vc, dict) and "schemaVersion" not in vc:
-                        findings.append(Finding("WARN", "VERIFICATION-CI.json missing schemaVersion (recommended).", str(vci_json)))
-                except Exception:
-                    pass
 
-        # Human verification artifacts (optional, but if present must have contract)
-        v_md = feature_dir / "VERIFICATION.md"
-        v_json = feature_dir / "VERIFICATION.json"
-        if v_md.exists():
-            _require(v_json, findings, "Missing VERIFICATION.json contract for VERIFICATION.md")
-            if v_json.exists():
-                try:
-                    vh = _load_json(v_json)
-                    if isinstance(vh, dict) and "schemaVersion" not in vh:
-                        findings.append(Finding("WARN", "VERIFICATION.json missing schemaVersion (recommended).", str(v_json)))
-                except Exception:
-                    pass
+def _validate_ci_verification(
+    feature_dir: Path,
+    findings: list[Finding],
+    karpathy_level: str,
+) -> None:
+    """Validate review, CI verification, and human verification artifacts within a feature."""
+    # Review artifacts
+    review_md = feature_dir / "REVIEW.md"
+    review_json = feature_dir / "REVIEW.json"
+    if review_md.exists():
+        _require(review_json, findings, "Missing REVIEW.json contract for REVIEW.md")
+        if karpathy_level != "off":
+            try:
+                txt = review_md.read_text(encoding="utf-8", errors="replace")
+                has = ("Karpathy" in txt) and ("Checklist" in txt or "Principles" in txt)
+                if not has:
+                    lvl = "ERROR" if karpathy_level == "error" else "WARN"
+                    findings.append(Finding(lvl, "REVIEW.md missing Karpathy checklist section (enforced by WORKFLOW.json).", str(review_md)))
+            except Exception:
+                pass
+        if review_json.exists():
+            try:
+                r = _load_json(review_json)
+                if isinstance(r, dict) and "schemaVersion" not in r:
+                    findings.append(Finding("WARN", "REVIEW.json missing schemaVersion (recommended).", str(review_json)))
+            except Exception:
+                pass
 
-    # Quick work
+    # CI verification artifacts
+    vci_md = feature_dir / "VERIFICATION-CI.md"
+    vci_json = feature_dir / "VERIFICATION-CI.json"
+    if vci_md.exists():
+        _require(vci_json, findings, "Missing VERIFICATION-CI.json contract for VERIFICATION-CI.md")
+        if vci_json.exists():
+            try:
+                vc = _load_json(vci_json)
+                if isinstance(vc, dict) and "schemaVersion" not in vc:
+                    findings.append(Finding("WARN", "VERIFICATION-CI.json missing schemaVersion (recommended).", str(vci_json)))
+            except Exception:
+                pass
+
+    # Human verification artifacts
+    v_md = feature_dir / "VERIFICATION.md"
+    v_json = feature_dir / "VERIFICATION.json"
+    if v_md.exists():
+        _require(v_json, findings, "Missing VERIFICATION.json contract for VERIFICATION.md")
+        if v_json.exists():
+            try:
+                vh = _load_json(v_json)
+                if isinstance(vh, dict) and "schemaVersion" not in vh:
+                    findings.append(Finding("WARN", "VERIFICATION.json missing schemaVersion (recommended).", str(v_json)))
+            except Exception:
+                pass
+
+
+def _validate_quick_tasks(root: Path, findings: list[Finding], touched) -> None:
+    """Validate quick task directories."""
     for quick_dir in _iter_quick_dirs(root):
         if not touched(quick_dir):
             continue
@@ -562,7 +568,9 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
         if summary_md.exists():
             _require(summary_json, findings, "Missing SUMMARY.json contract for quick SUMMARY.md")
 
-    # Research artifacts (optional)
+
+def _validate_research(root: Path, findings: list[Finding], touched) -> None:
+    """Validate research artifact directories."""
     for rdir in _iter_research_dirs(root):
         if not touched(rdir):
             continue
@@ -584,7 +592,9 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
                 except Exception as e:
                     findings.append(Finding("ERROR", f"Failed to parse RESEARCH.json: {e}", str(rjson)))
 
-    # Brainstorm / ideas artifacts (optional)
+
+def _validate_brainstorm(root: Path, findings: list[Finding], touched) -> None:
+    """Validate brainstorm/ideas artifact directories."""
     for idir in _iter_ideas_dirs(root):
         if not touched(idir):
             continue
@@ -602,6 +612,45 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
                             findings.append(Finding("WARN", "BRAINSTORM.json missing schemaVersion (recommended).", str(bjson)))
                 except Exception as e:
                     findings.append(Finding("ERROR", f"Failed to parse BRAINSTORM.json: {e}", str(bjson)))
+
+
+def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
+    findings: list[Finding] = []
+
+    cfg = _load_workflow_config(root)
+    _validate_workflow_config(cfg, findings, root)
+    shape = _detect_repo_shape(root)
+    monorepo_scope_level = _get_monorepo_scope_level(cfg)
+    karpathy_level = _get_karpathy_checklist_level(cfg)
+    packages_cfg = _packages_from_cfg(cfg)
+
+    # Core files
+    _require(root / "docs" / "planning" / "PROJECT.md", findings, "Missing planning doc PROJECT.md")
+    _require(root / "docs" / "planning" / "STATE.md", findings, "Missing planning doc STATE.md")
+    _require(root / "docs" / "planning" / "ROADMAP.md", findings, "Missing planning doc ROADMAP.md")
+
+    if staged_only:
+        if not _is_git_repo(root):
+            findings.append(Finding("ERROR", "--staged requires a git repository.", str(root)))
+            return findings
+        staged = set(_staged_files(root))
+
+        def touched(path: Path) -> bool:
+            try:
+                for f in staged:
+                    if str(f).startswith(str(path)):
+                        return True
+                return False
+            except Exception:
+                return False
+    else:
+        def touched(_path: Path) -> bool:
+            return True
+
+    _validate_features(root, findings, touched, shape, monorepo_scope_level, karpathy_level, packages_cfg)
+    _validate_quick_tasks(root, findings, touched)
+    _validate_research(root, findings, touched)
+    _validate_brainstorm(root, findings, touched)
 
     return findings
 
