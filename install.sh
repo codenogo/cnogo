@@ -206,7 +206,7 @@ echo ""
 echo "📁 docs/templates/"
 mkdir -p "$TARGET_DIR/docs/templates"
 
-for template in CLAUDE-java.md CLAUDE-typescript.md CLAUDE-python.md CLAUDE-go.md CLAUDE-rust.md; do
+for template in CLAUDE-generic.md CLAUDE-java.md CLAUDE-typescript.md CLAUDE-python.md CLAUDE-go.md CLAUDE-rust.md; do
     if [ -f "$SCRIPT_DIR/docs/templates/$template" ]; then
         cp "$SCRIPT_DIR/docs/templates/$template" "$TARGET_DIR/docs/templates/"
         echo "   ├── $template"
