@@ -42,10 +42,8 @@ def plan_to_task_descriptions(
     plan_number = plan.get("planNumber", "")
     epic_id = plan.get("memoryEpicId", "")
 
-    # Load feature context snippet (first 30 lines of CONTEXT.md)
-    context_snippet = _load_context_snippet(plan_json_path.parent)
-
     tasks = plan.get("tasks", [])
+    task_count = len(tasks)
     results: list[dict[str, Any]] = []
 
     for i, task in enumerate(tasks):
@@ -57,9 +55,34 @@ def plan_to_task_descriptions(
                 root, epic_id, task, feature, plan_number
             )
 
+        # Skip already-closed tasks (duplicate prevention on resume)
+        if memory_id and _is_already_closed(root, memory_id):
+            results.append({
+                "name": task.get("name", f"Task {i + 1}"),
+                "description": "",
+                "memoryId": memory_id,
+                "files": task.get("files", []),
+                "verify": task.get("verify", []),
+                "blockedBy": task.get("blockedBy", []),
+                "skipped": True,
+            })
+            continue
+
         files = task.get("files", [])
         verify = task.get("verify", [])
         blocked_by = task.get("blockedBy", [])
+
+        # Validate blockedBy indices are in range and don't self-reference
+        for idx in blocked_by:
+            if not isinstance(idx, int) or idx < 0 or idx >= task_count:
+                raise ValueError(
+                    f"Task {i} has invalid blockedBy index {idx} "
+                    f"(valid range: 0-{task_count - 1})"
+                )
+            if idx == i:
+                raise ValueError(
+                    f"Task {i} has self-referencing blockedBy index {idx}"
+                )
 
         description = generate_implement_prompt(
             task_name=task.get("name", f"Task {i + 1}"),
@@ -67,9 +90,6 @@ def plan_to_task_descriptions(
             files=files,
             verify=verify,
             memory_id=memory_id,
-            context_snippet=context_snippet,
-            feature=feature,
-            plan_number=plan_number,
         )
 
         results.append({
@@ -79,6 +99,7 @@ def plan_to_task_descriptions(
             "files": files,
             "verify": verify,
             "blockedBy": blocked_by,
+            "skipped": False,
         })
 
     return results
@@ -91,102 +112,45 @@ def generate_implement_prompt(
     files: list[str],
     verify: list[str],
     memory_id: str = "",
-    context_snippet: str = "",
-    feature: str = "",
-    plan_number: str = "",
 ) -> str:
-    """Generate the full agent prompt for an implementer teammate.
+    """Generate a minimal agent prompt for an implementer teammate.
 
-    Includes: context, action, file list, verify commands, memory
-    claim/close instructions, and failure protocol.
+    Uses ID-based context: agents fetch details via memory.show() at runtime
+    instead of embedding CONTEXT.md content.
     """
     lines: list[str] = []
 
-    # Header
     lines.append(f"# Implement: {task_name}")
     lines.append("")
-
-    # Feature context
-    if context_snippet:
-        lines.append("## Feature Context")
-        lines.append(context_snippet)
-        lines.append("")
-
-    # Action
-    lines.append("## Action")
     lines.append(action)
     lines.append("")
 
-    # File boundaries
     if files:
-        lines.append("## Files (ONLY touch these)")
-        for f in files:
-            lines.append(f"- `{f}`")
+        lines.append("**Files (ONLY touch these):**")
+        lines.append(", ".join(f"`{f}`" for f in files))
         lines.append("")
 
-    # Verification
     if verify:
-        lines.append("## Verify (must ALL pass)")
+        lines.append("**Verify (must ALL pass):**")
         for v in verify:
-            lines.append(f"```bash\n{v}\n```")
+            lines.append(f"- `{v}`")
         lines.append("")
 
-    # Memory instructions
     if memory_id:
         if not _MEMORY_ID_RE.match(memory_id):
             raise ValueError(
                 f"Invalid memory_id format: {memory_id!r}. "
                 "Expected pattern: cn-<base36>[.<digits>]*"
             )
-        lines.append("## Memory Integration")
-        lines.append("")
-        lines.append("Before starting, claim this task:")
-        lines.append("```bash")
-        lines.append(f'python3 -c "')
-        lines.append("import sys; sys.path.insert(0, '.')")
-        lines.append("from scripts.memory import claim")
-        lines.append("from pathlib import Path")
-        lines.append(
-            f"claim('{memory_id}', actor='implementer', root=Path('.'))"
-        )
-        lines.append('"')
-        lines.append("```")
-        lines.append("")
-        lines.append("After ALL verify commands pass, close the task:")
-        lines.append("```bash")
-        lines.append(f'python3 -c "')
-        lines.append("import sys; sys.path.insert(0, '.')")
-        lines.append("from scripts.memory import close")
-        lines.append("from pathlib import Path")
-        lines.append(
-            f"close('{memory_id}', reason='completed', root=Path('.'))"
-        )
-        lines.append('"')
-        lines.append("```")
+        lines.append(f"**Memory:** `{memory_id}`")
+        lines.append(f"- Claim: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import claim; claim('{memory_id}', actor='implementer', root=__import__('pathlib').Path('.'))\"`")
+        lines.append(f"- Close: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import close; close('{memory_id}', reason='completed', root=__import__('pathlib').Path('.'))\"`")
+        lines.append(f"- Context: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import show; print(show('{memory_id}', root=__import__('pathlib').Path('.')))\"`")
         lines.append("")
 
-    # Failure protocol
-    lines.append("## Failure Protocol")
-    lines.append("1. If a verify command fails, diagnose and fix the issue")
-    lines.append("2. Re-run the verify command")
-    lines.append(
-        "3. If still failing after 2 attempts, notify the team leader"
-    )
+    lines.append("**On failure:** fix and retry. After 2 failures, message the team lead.")
     if memory_id:
-        lines.append(
-            "4. Update memory with failure details:"
-        )
-        lines.append("```bash")
-        lines.append(f'python3 -c "')
-        lines.append("import sys; sys.path.insert(0, '.')")
-        lines.append("from scripts.memory import update")
-        lines.append("from pathlib import Path")
-        lines.append(
-            f"update('{memory_id}', "
-            "comment='Failed: <describe the issue>', root=Path('.'))"
-        )
-        lines.append('"')
-        lines.append("```")
+        lines.append("**If blocked:** do NOT close memory. Message the team lead.")
     lines.append("")
 
     return "\n".join(lines)
@@ -196,17 +160,39 @@ def generate_implement_prompt(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _load_context_snippet(feature_dir: Path) -> str:
-    """Load first 30 lines of CONTEXT.md for agent context injection."""
-    context_path = feature_dir / "CONTEXT.md"
-    if not context_path.exists():
-        return ""
-    try:
-        text = context_path.read_text(encoding="utf-8")
-        lines = text.splitlines()[:30]
-        return "\n".join(lines)
-    except OSError:
-        return ""
+
+def detect_file_conflicts(
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Check for file boundary violations across plan tasks.
+
+    Returns a list of conflict dicts with keys:
+      file, tasks (list of task indices that share the file)
+
+    Empty list = no conflicts (safe for parallel execution).
+    """
+    file_owners: dict[str, list[int]] = {}
+    for i, task in enumerate(tasks):
+        if task.get("skipped", False):
+            continue
+        for f in task.get("files", []):
+            file_owners.setdefault(f, []).append(i)
+
+    conflicts = []
+    for file_path, owners in file_owners.items():
+        if len(owners) > 1:
+            conflicts.append({"file": file_path, "tasks": owners})
+    return conflicts
+
+
+def _is_already_closed(root: Path, memory_id: str) -> bool:
+    """Check if a memory issue is already closed (for duplicate prevention)."""
+    from . import is_initialized, show
+
+    if not is_initialized(root):
+        return False
+    issue = show(memory_id, root=root)
+    return issue is not None and issue.status == "closed"
 
 
 def _ensure_memory_issue(
