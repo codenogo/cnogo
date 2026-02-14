@@ -90,7 +90,7 @@ Check that `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to `"1"` in the environ
 ### Step 1: Parse Action
 
 Extract the action and arguments from "$ARGUMENTS":
-- First word = action (create, status, message, dismiss)
+- First word = action (create, implement, status, message, dismiss)
 - Remaining = action-specific arguments
 
 ### Step 2: Execute Action

@@ -8,6 +8,7 @@ memory issue linkage. One-way bridge: memory -> TaskList direction only.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,9 @@ from .identity import generate_child_id as _child_id
 
 _CNOGO_DIR = ".cnogo"
 _DB_NAME = "memory.db"
+
+# Memory IDs must match: cn-<base36>[.<digits>]*  (e.g., cn-a3f8, cn-a3f8.1.2)
+_MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
 
 
 def plan_to_task_descriptions(
@@ -39,7 +43,7 @@ def plan_to_task_descriptions(
     epic_id = plan.get("memoryEpicId", "")
 
     # Load feature context snippet (first 30 lines of CONTEXT.md)
-    context_snippet = _load_context_snippet(plan_json_path.parent, feature)
+    context_snippet = _load_context_snippet(plan_json_path.parent)
 
     tasks = plan.get("tasks", [])
     results: list[dict[str, Any]] = []
@@ -129,6 +133,11 @@ def generate_implement_prompt(
 
     # Memory instructions
     if memory_id:
+        if not _MEMORY_ID_RE.match(memory_id):
+            raise ValueError(
+                f"Invalid memory_id format: {memory_id!r}. "
+                "Expected pattern: cn-<base36>[.<digits>]*"
+            )
         lines.append("## Memory Integration")
         lines.append("")
         lines.append("Before starting, claim this task:")
@@ -187,7 +196,7 @@ def generate_implement_prompt(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _load_context_snippet(feature_dir: Path, feature: str) -> str:
+def _load_context_snippet(feature_dir: Path) -> str:
     """Load first 30 lines of CONTEXT.md for agent context injection."""
     context_path = feature_dir / "CONTEXT.md"
     if not context_path.exists():

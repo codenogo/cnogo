@@ -5,9 +5,10 @@ Execute a plan with verification after each task.
 
 ## Arguments
 
-`/implement <feature> <plan-number>`
+`/implement <feature> <plan-number> [--team]`
 
 Example: `/implement websocket-notifications 01`
+Example (team mode): `/implement websocket-notifications 01 --team`
 
 ## Your Task
 
