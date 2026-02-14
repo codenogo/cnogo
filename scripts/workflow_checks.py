@@ -48,20 +48,29 @@ def git_branch(root: Path) -> str:
 
 
 def infer_feature_from_state(root: Path) -> str | None:
-    state = root / "docs" / "planning" / "STATE.md"
-    if not state.exists():
-        return None
-    txt = state.read_text(encoding="utf-8", errors="replace").splitlines()
-    for line in txt:
-        if "Feature:" in line:
-            # expects: - **Feature:** foo OR - Feature: foo
-            parts = line.split("Feature:", 1)
-            if len(parts) == 2:
-                val = parts[1].strip().strip("`")
-                if val and val.lower() not in {"none", "-", "idle"}:
-                    # remove markdown emphasis
-                    val = val.replace("**", "").strip()
-                    return val
+    """Infer the active feature slug from memory engine, with branch fallback."""
+    # Try memory engine first
+    try:
+        import sys
+        sys.path.insert(0, str(root))
+        from scripts.memory import is_initialized, list_issues
+        if is_initialized(root):
+            # Look for in-progress epics first, then open epics
+            for status in ("in_progress", "open"):
+                epics = list_issues(
+                    issue_type="epic", status=status, root=root
+                )
+                for epic in epics:
+                    if epic.feature_slug:
+                        return epic.feature_slug
+    except Exception:
+        pass
+    # Fallback: parse branch name (e.g. feature/foo-bar -> foo-bar)
+    branch = git_branch(root)
+    if branch and "/" in branch:
+        slug = branch.split("/", 1)[1]
+        if slug and slug not in {"main", "master", "develop"}:
+            return slug
     return None
 
 

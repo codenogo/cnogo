@@ -646,7 +646,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
 
     # Core files
     _require(root / "docs" / "planning" / "PROJECT.md", findings, "Missing planning doc PROJECT.md")
-    _require(root / "docs" / "planning" / "STATE.md", findings, "Missing planning doc STATE.md")
+    _require(root / ".cnogo" / "memory.db", findings, "Memory engine not initialized — run: python3 scripts/workflow_memory.py init")
     _require(root / "docs" / "planning" / "ROADMAP.md", findings, "Missing planning doc ROADMAP.md")
 
     if staged_only:

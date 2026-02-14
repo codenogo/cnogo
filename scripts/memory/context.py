@@ -49,6 +49,36 @@ def prime(*, limit: int = 10, root: Path | None = None) -> str:
         )
         lines.append("")
 
+        # Active Epics (replaces STATE.md current focus)
+        epics = _st.list_issues_query(
+            conn, issue_type="epic", status="in_progress", limit=limit
+        )
+        if not epics:
+            epics = _st.list_issues_query(
+                conn, issue_type="epic", status="open", limit=limit
+            )
+        if epics:
+            lines.append("### Active Epics")
+            for epic in epics:
+                children = _st.list_issues_query(
+                    conn, parent=epic.id, limit=200
+                )
+                total = len(children)
+                closed = sum(1 for c in children if c.status == "closed")
+                slug = epic.feature_slug or epic.id
+                plan = f" plan {epic.plan_number}" if epic.plan_number else ""
+                progress = f" ({closed}/{total} tasks done)" if total else ""
+                lines.append(
+                    f"- `{epic.id}` **{slug}**{plan}{progress}"
+                )
+                handoff = epic.metadata.get("handoff", "")
+                if handoff:
+                    snippet = handoff[:120]
+                    if len(handoff) > 120:
+                        snippet += "..."
+                    lines.append(f"  Handoff: {snippet}")
+            lines.append("")
+
         # In Progress
         if in_progress:
             lines.append("### In Progress")
