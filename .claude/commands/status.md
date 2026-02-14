@@ -83,11 +83,22 @@ If a team implementation is active, show task completion progress:
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '.')
+import sys, json; sys.path.insert(0, '.')
+from datetime import datetime, timezone
 from scripts.memory import is_initialized, list_issues
 from pathlib import Path
 root = Path('.')
 if is_initialized(root):
+    # Load stale threshold from WORKFLOW.json (default 10 minutes)
+    stale_minutes = 10
+    wf_path = root / 'docs' / 'planning' / 'WORKFLOW.json'
+    if wf_path.exists():
+        try:
+            wf = json.loads(wf_path.read_text())
+            stale_minutes = wf.get('agentTeams', {}).get('staleIndicatorMinutes', 10)
+        except Exception:
+            pass
+    now = datetime.now(timezone.utc)
     epics = list_issues(issue_type='epic', status='in_progress', root=root)
     for epic in epics:
         children = list_issues(parent=epic.id, root=root)
@@ -99,9 +110,25 @@ if is_initialized(root):
         print(f'### Team Implementation: {epic.title}')
         print(f'  Progress: {done}/{total} tasks complete, {active} in progress')
         for c in children:
-            icon = '✅' if c.status == 'closed' else '🔄' if c.status == 'in_progress' else '⏳'
             assignee = f' (@{c.assignee})' if c.assignee else ''
-            print(f'  {icon} {c.id} {c.title}{assignee}')
+            if c.status == 'closed':
+                print(f'  ✅ {c.id} {c.title}{assignee}')
+            elif c.status == 'in_progress':
+                age_str = ''
+                stale = False
+                if hasattr(c, 'updated_at') and c.updated_at:
+                    try:
+                        updated = datetime.fromisoformat(c.updated_at.replace('Z', '+00:00'))
+                        age_min = int((now - updated).total_seconds() / 60)
+                        age_str = f' — claimed {age_min}m ago'
+                        stale = age_min > stale_minutes
+                    except Exception:
+                        pass
+                icon = '⚠️' if stale else '🔄'
+                suffix = ' (stale?)' if stale else ''
+                print(f'  {icon} {c.id} {c.title}{assignee}{age_str}{suffix}')
+            else:
+                print(f'  ⏳ {c.id} {c.title}{assignee}')
 "
 ```
 

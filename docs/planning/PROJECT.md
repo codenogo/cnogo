@@ -14,6 +14,7 @@ cnogo gives any software project a structured development workflow out of the bo
 | Bash install.sh distribution | No package manager dependency — `install.sh` is the single distribution mechanism |
 | Stack-agnostic | Must work with Java, TypeScript, Python, Go, Rust, or any other stack |
 | No runtime services | No daemons, servers, or background processes — everything runs inline |
+| Agent Teams requires Claude Code >= 2.1 with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` | Experimental feature — pin to known-good version |
 
 ## Architecture
 
@@ -84,6 +85,7 @@ Things explicitly out of scope:
 | Markdown commands | Claude Code natively loads .claude/commands/*.md as slash commands | 2026-01 |
 | install.sh distribution | Simplest possible install — no npm/pip/brew dependency | 2026-01 |
 | Templates in docs/templates/ | Separates install templates from cnogo's own project docs | 2026-02 |
+| Pin Agent Teams to Claude Code >= 2.1 | Feature is experimental; version pinning prevents breakage | 2026-02 |
 
 ---
 *Last updated: 2026-02-14*

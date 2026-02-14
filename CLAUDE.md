@@ -4,7 +4,7 @@ Agent instructions for cnogo. Claude reads this automatically.
 
 ## Project Overview
 
-cnogo is a universal development workflow pack for Claude Code. It provides 28+ slash commands, a SQLite-backed memory engine for persistent task tracking, and Agent Teams support for parallel multi-agent execution. Python stdlib only — zero external dependencies.
+cnogo is a universal development workflow pack for Claude Code. It provides 28+ slash commands, a SQLite-backed memory engine for persistent task tracking, and Agent Teams support for parallel multi-agent execution. Python stdlib only — zero external dependencies. Agent Teams requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` environment variable and Claude Code >= 2.1.
 
 ## Quick Reference
 
@@ -67,7 +67,7 @@ No test suite yet (tracked as v2.0 future work). Current verification:
 ```bash
 python3 scripts/workflow_validate.py                    # Validate all workflow artifacts
 python3 -m py_compile scripts/workflow_validate.py      # Syntax check
-python3 -c "from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"  # Memory engine smoke test
+python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import is_initialized, prime; from pathlib import Path; r=Path('.'); print(prime(root=r) if is_initialized(r) else 'Memory not initialized')"  # Memory engine smoke test
 ```
 
 ## Troubleshooting

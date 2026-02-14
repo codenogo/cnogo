@@ -10,6 +10,8 @@ Execute a plan with verification after each task.
 Example: `/implement websocket-notifications 01`
 Example (team mode): `/implement websocket-notifications 01 --team`
 
+Note: If the plan JSON contains `"parallelizable": true/false`, this influences team-mode auto-detection (see Step 1c).
+
 ## Your Task
 
 Execute the specified plan for "$ARGUMENTS".
@@ -38,11 +40,14 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import claim
 
 ### Step 1c: Team Mode (If Requested)
 
-**Detection logic:**
+**Detection logic (in priority order):**
 1. If `$ARGUMENTS` contains `--team` → delegate to `/team implement <feature> <plan>`
-2. Else if ALL: plan has >2 tasks, Agent Teams available, non-overlapping files → auto-delegate: "Delegating to team mode (N independent tasks with non-overlapping files)."
-3. Else if >1 task AND Agent Teams available but files overlap → "Serial execution is safer." Continue below.
-4. Otherwise → standard serial execution
+2. If plan JSON has `"parallelizable": true` AND Agent Teams available → auto-delegate (still run `detect_file_conflicts()` and warn if conflicts exist, but proceed): "Delegating to team mode (plan marked parallelizable)."
+3. If plan JSON has `"parallelizable": false` → serial execution (override auto-detection, even if `--team` is not set and tasks look independent)
+4. If `parallelizable` not present → fall back to existing heuristic:
+   a. If ALL: plan has >2 tasks, Agent Teams available, non-overlapping files → auto-delegate: "Delegating to team mode (N independent tasks with non-overlapping files)."
+   b. If >1 task AND Agent Teams available but files overlap → "Serial execution is safer." Continue below.
+   c. Otherwise → standard serial execution
 
 ### Step 2: Execute Tasks
 
