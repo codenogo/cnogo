@@ -176,7 +176,7 @@ mkdir -p "$TARGET_DIR/docs/planning/adr"
 
 for file in PROJECT.md ROADMAP.md WORKFLOW.json; do
     if [ ! -f "$TARGET_DIR/docs/planning/$file" ]; then
-        cp "$SCRIPT_DIR/docs/planning/$file" "$TARGET_DIR/docs/planning/"
+        cp "$SCRIPT_DIR/docs/templates/${file%.*}-TEMPLATE.${file##*.}" "$TARGET_DIR/docs/planning/$file"
         echo "   ├── $file"
     else
         echo -e "   ├── $file ${YELLOW}(skipped - exists)${NC}"
