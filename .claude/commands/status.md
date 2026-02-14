@@ -7,10 +7,10 @@ Show current position, progress, and next steps.
 
 Read project state and provide clear status.
 
-### Step 1: Read State
+### Step 1: Read State from Memory
 
 ```bash
-cat docs/planning/STATE.md
+python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"
 ```
 
 ### Step 2: Check Git State
@@ -55,9 +55,9 @@ ls docs/planning/work/features/ 2>/dev/null
 ls docs/planning/work/quick/ 2>/dev/null | tail -5
 ```
 
-### Step 3b: Memory Status (If Enabled)
+### Step 3b: Memory Status
 
-If the memory engine is initialized (`.cnogo/memory.db` exists), include structured task status:
+Include structured task status from the memory engine:
 
 ```bash
 python3 -c "
@@ -141,7 +141,7 @@ Output:
 
 ## Blockers
 
-- [Any blockers from STATE.md]
+- [Any blockers from memory engine]
 ```
 
 ### Step 5: Recommend Action

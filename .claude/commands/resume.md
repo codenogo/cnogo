@@ -7,13 +7,28 @@ Restore context from a paused session.
 
 Pick up where the last session left off.
 
-### Step 1: Load Handoff
+### Step 1: Load Handoff from Memory
 
 ```bash
-cat docs/planning/STATE.md
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, list_issues, prime
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    print(prime(root=root))
+    print()
+    epics = list_issues(issue_type='epic', status='open', root=root)
+    if not epics:
+        epics = list_issues(issue_type='epic', status='in_progress', root=root)
+    for e in epics:
+        h = e.metadata.get('handoff', '')
+        if h:
+            print(f'Handoff ({e.feature_slug}): {h}')
+"
 ```
 
-Look for the `## Session Handoff` section.
+Look for handoff metadata on active epics.
 
 ### Step 2: Verify Git State
 
@@ -80,12 +95,12 @@ When memory is available, the structured task state replaces the need to parse m
 
 #### Team Implementation Recovery
 
-Detect interrupted team implementations (in-progress epics with incomplete children):
+Detect interrupted team implementations and release stale claims:
 
 ```bash
 python3 -c "
 import sys; sys.path.insert(0, '.')
-from scripts.memory import is_initialized, list_issues
+from scripts.memory import is_initialized, list_issues, release
 from pathlib import Path
 root = Path('.')
 if is_initialized(root):
@@ -101,16 +116,21 @@ if is_initialized(root):
         remaining = [c for c in children if c.status == 'open']
         if active or remaining:
             print(f'### Interrupted: {epic.title}')
-            print(f'  Completed: {len(done)}, In Progress: {len(active)}, Remaining: {len(remaining)}')
+            print(f'  Completed: {len(done)}/{len(children)}')
+            # Release stale in_progress claims from dead agents
             for c in active:
-                print(f'  > {c.id} {c.title} (@{c.assignee}) — was in progress')
-            for c in remaining[:5]:
-                print(f'  - {c.id} {c.title} — ready to resume')
+                print(f'  Releasing stale claim: {c.id} {c.title} (@{c.assignee})')
+                release(c.id, actor='resume-recovery', root=root)
+            remaining_count = len(active) + len(remaining)
+            print(f'  {remaining_count} task(s) ready for re-execution')
             print(f'  Resume with: /team implement {epic.feature_slug} {epic.plan_number}')
 "
 ```
 
-When resuming a team implementation, the memory engine preserves all task state. The new team session will see which tasks are done, which were in progress (and need re-claiming), and which are still blocked.
+**Duplicate prevention**: When `/team implement` runs after recovery, the bridge module reads the plan JSON. For each task:
+- If the task's `memoryId` is already **closed** → skip (already done)
+- If the task's `memoryId` is **open** (released above) → create TaskCreate entry and re-execute
+- This prevents duplicate work: only incomplete tasks are re-created in the new team session
 
 ### Step 4: Load Feature Context
 
@@ -155,12 +175,23 @@ cat docs/planning/work/features/[feature]/*-SUMMARY.md 2>/dev/null
 
 ### Step 6: Clear Handoff
 
-After successful resume, update STATE.md:
+After successful resume, clear handoff metadata from the active epic:
 
-```markdown
-## Session Handoff
-
-*Resumed [timestamp] — handoff cleared*
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import list_issues, update
+from pathlib import Path
+root = Path('.')
+epics = list_issues(issue_type='epic', status='open', root=root)
+if not epics:
+    epics = list_issues(issue_type='epic', status='in_progress', root=root)
+for e in epics:
+    if e.metadata.get('handoff'):
+        meta = {k: v for k, v in e.metadata.items() if k != 'handoff'}
+        update(e.id, metadata=meta, root=root)
+        print(f'Handoff cleared from {e.id}')
+"
 ```
 
 ### Step 7: Confirm Ready

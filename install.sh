@@ -174,7 +174,7 @@ mkdir -p "$TARGET_DIR/docs/planning/work/ideas"
 mkdir -p "$TARGET_DIR/docs/planning/archive/features"
 mkdir -p "$TARGET_DIR/docs/planning/adr"
 
-for file in PROJECT.md STATE.md ROADMAP.md WORKFLOW.json; do
+for file in PROJECT.md ROADMAP.md WORKFLOW.json; do
     if [ ! -f "$TARGET_DIR/docs/planning/$file" ]; then
         cp "$SCRIPT_DIR/docs/planning/$file" "$TARGET_DIR/docs/planning/"
         echo "   ├── $file"
@@ -182,6 +182,12 @@ for file in PROJECT.md STATE.md ROADMAP.md WORKFLOW.json; do
         echo -e "   ├── $file ${YELLOW}(skipped - exists)${NC}"
     fi
 done
+
+# Migration: remove STATE.md if it exists (replaced by memory engine)
+if [ -f "$TARGET_DIR/docs/planning/STATE.md" ]; then
+    rm "$TARGET_DIR/docs/planning/STATE.md"
+    echo -e "   ├── STATE.md ${YELLOW}(deleted — replaced by memory engine)${NC}"
+fi
 
 cp "$SCRIPT_DIR/docs/planning/adr/ADR-TEMPLATE.md" "$TARGET_DIR/docs/planning/adr/"
 echo "   ├── adr/ADR-TEMPLATE.md"
@@ -257,6 +263,25 @@ echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  ✓ Installation complete                   ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════╝${NC}"
+# Initialize memory engine
+echo ""
+echo "🧠 Initializing memory engine..."
+if command -v python3 &>/dev/null; then
+    (cd "$TARGET_DIR" && python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, init
+from pathlib import Path
+root = Path('.')
+if not is_initialized(root):
+    init(root=root)
+    print('   ✅ Memory engine initialized (.cnogo/memory.db)')
+else:
+    print('   ✅ Memory engine already initialized')
+" 2>/dev/null) || echo -e "   ${YELLOW}⚠️  Memory init skipped (run manually: python3 scripts/workflow_memory.py init)${NC}"
+else
+    echo -e "   ${YELLOW}⚠️  python3 not found — run manually: python3 scripts/workflow_memory.py init${NC}"
+fi
+
 echo ""
 echo "Next steps:"
 echo "  1. Run '/init' to auto-detect your stack and populate CLAUDE.md"

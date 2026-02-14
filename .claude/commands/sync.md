@@ -5,7 +5,7 @@ Coordinate work across parallel sessions/checkouts.
 
 ## The Problem
 
-With Boris Cherny's workflow, you have 5+ sessions running in parallel. Each has its own STATE.md. How do you know what's happening in your other checkouts without constantly switching terminals?
+With parallel sessions running, you need visibility into what's happening across checkouts without constantly switching terminals.
 
 ## Step 0: Detect Mode
 
@@ -13,91 +13,27 @@ Before choosing a sync mode, detect the coordination environment:
 
 1. **Check for Agent Teams**: Is `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` set and are there active teammates?
    - If **Agent Teams active**: Use Modes 5-6 (shared task list + mailbox)
-   - If **no Agent Teams**: Fall back to Modes 1-4 (manual sync file)
+   - If **no Agent Teams**: Use memory sync (default)
 
 2. **Auto-detection logic**:
    - Read team config at `~/.claude/teams/*/config.json` to check for active teams
    - If a team exists with active members, prefer Agent Teams modes
-   - Otherwise, use the manual sync file approach
+   - Otherwise, use memory sync
 
 ## Choosing a Mode
 
 | Scenario | Recommended Mode |
 |----------|-----------------|
-| Multiple local checkouts, no Agent Teams | Mode 1-4 (manual sync file) |
+| Default / quick status check | Memory sync |
 | Agent Teams active with teammates | Mode 5-6 (shared task list) |
-| Quick status check | Mode 1 (view) or Mode 5 (team view) |
-| Claiming files to prevent conflicts | Mode 3 (claim) |
 | Messaging a specific teammate | Mode 6 (Agent Teams message) |
 | Full team orchestration | Use `/team` instead |
 
-## Solution A: Manual Sync File (Modes 1-4)
+## Solution A: Memory Engine (Primary)
 
-Use a sync file in a shared location (e.g., Dropbox, iCloud, or a dedicated repo).
+Use the memory engine for structured state synchronization:
 
-### Step 1: Configure Sync Location
-
-Set the sync file path. Options:
-
-```bash
-# Option A: Environment variable
-export WORKFLOW_SYNC_FILE=~/Dropbox/workflow-sync.md
-
-# Option B: Git repo (push/pull to share)
-export WORKFLOW_SYNC_FILE=~/projects/workflow-sync/status.md
-
-# Option C: Local file (single machine only)
-export WORKFLOW_SYNC_FILE=~/.workflow-sync.md
-```
-
-Add to your shell profile (`.zshrc` or `.bashrc`).
-
-### Step 2: Register This Session
-
-```bash
-# Get checkout identifier
-CHECKOUT_NAME=$(basename $(pwd))
-BRANCH=$(git branch --show-current)
-FEATURE=$(grep -A1 "Current Focus" docs/planning/STATE.md 2>/dev/null | grep "Feature:" | cut -d: -f2 | xargs)
-
-# Append to sync file
-cat >> "$WORKFLOW_SYNC_FILE" << EOF
-
-## $CHECKOUT_NAME
-- **Branch:** $BRANCH
-- **Feature:** $FEATURE
-- **Status:** Active
-- **Updated:** $(date -Iseconds)
-EOF
-```
-
-### Step 3: Update Sync on Key Actions
-
-After `/plan`, `/implement`, `/pause`:
-
-```bash
-CHECKOUT_NAME=$(basename $(pwd))
-TIMESTAMP=$(date -Iseconds)
-STATUS=$(grep -A5 "Current Focus" docs/planning/STATE.md 2>/dev/null)
-
-# Update this checkout's entry in sync file
-# (In practice, this would be a more sophisticated update)
-echo "[$TIMESTAMP] $CHECKOUT_NAME: $STATUS" >> "$WORKFLOW_SYNC_FILE.log"
-```
-
-### Step 4: View All Sessions
-
-Read the sync file:
-
-```bash
-cat "$WORKFLOW_SYNC_FILE"
-```
-
-## Solution B: Memory Engine (Mode 7)
-
-When the memory engine is initialized (`.cnogo/memory.db` exists), use it for structured state synchronization:
-
-### Mode 7: `/sync` (Memory-Backed)
+### `/sync` (Memory-Backed)
 
 ```bash
 python3 -c "
@@ -124,9 +60,9 @@ Memory mode provides:
 - Token-efficient context summaries
 - Automatic merge handling (line-based JSONL format)
 
-When memory is active, prefer Mode 7 over manual sync (Modes 1-4) for single-developer workflows. Agent Teams (Modes 5-6) remain for multi-agent coordination.
+Memory sync provides structured state exported to git-tracked JSONL, dependency graphs, and token-efficient summaries. Agent Teams (Modes 5-6) remain for multi-agent coordination.
 
-## Solution C: Agent Teams (Modes 5-6)
+## Solution B: Agent Teams (Modes 5-6)
 
 When Agent Teams is active, coordination happens through the shared task list and mailbox system built into Claude Code.
 
@@ -134,55 +70,10 @@ When Agent Teams is active, coordination happens through the shared task list an
 
 When user runs `/sync`:
 
-### Mode 1: `/sync` (View — Manual)
+1. Run the memory sync (export to JSONL, show prime() summary)
+2. If Agent Teams are active, also show team status
 
-Show status of all known sessions:
-
-```markdown
-## Session Sync
-
-### Active Sessions
-
-| Checkout | Branch | Feature | Status | Last Update |
-|----------|--------|---------|--------|-------------|
-| commhub-main | main | - | Idle | 2 hours ago |
-| commhub-feature | feat/websocket | websocket-notifications | Implementing Plan 02 | 5 min ago |
-| commhub-bugfix | fix/token | - | PR open | 1 hour ago |
-| commhub-tests | main | - | Writing tests | 30 min ago |
-
-### Remote Sessions (claude.ai/code)
-
-| Task | Status | Started |
-|------|--------|---------|
-| Implement retry logic | Running | 45 min ago |
-| Add pagination | Complete | 1 hour ago |
-
-### Conflicts
-
-Both `commhub-feature` and `commhub-refactor` are touching `src/services/notification.ts`
-```
-
-### Mode 2: `/sync update` (Push — Manual)
-
-Update this session's status to the sync file:
-
-1. Read current STATE.md
-2. Extract key info (feature, status, branch)
-3. Update sync file with this checkout's entry
-
-### Mode 3: `/sync claim <file>` (Coordinate — Manual)
-
-Claim a file to avoid conflicts:
-
-```bash
-echo "$(basename $(pwd)): $1 - $(date)" >> "$WORKFLOW_SYNC_FILE.locks"
-```
-
-### Mode 4: `/sync release <file>` (Release — Manual)
-
-Release a claimed file.
-
-### Mode 5: `/sync` (View — Agent Teams)
+### `/sync` (View — Agent Teams)
 
 When Agent Teams is detected, show the shared task list instead:
 
@@ -228,18 +119,11 @@ Route a message to a teammate via the Agent Teams mailbox:
 
 ## Output
 
-### Manual View Mode
+### Memory Sync Mode
 
-Formatted table of all sessions with:
-- Conflict warnings
-- Stale session warnings (>4 hours no update)
-- Suggested actions
-
-### Manual Update Mode
-
-```
-Sync updated for [checkout-name]
-```
+- Memory state exported to `.cnogo/issues.jsonl`
+- Token-efficient summary via `prime()`
+- Statistics overview
 
 ### Agent Teams View Mode
 
