@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "feature": "memory-engine-fixes",
+  "planNumber": "01",
+  "memoryEpicId": "cn-1t0uuce",
+  "goal": "Consolidate duplicated rebuild_blocked_cache (W-2), add retry-on-SQLITE_BUSY with exponential backoff for multi-agent robustness",
+  "tasks": [
+    {
+      "name": "Consolidate rebuild_blocked_cache and fix W-2",
+      "memoryId": "cn-1t0uuce.1",
+      "files": [
+        "scripts/memory/graph.py",
+        "scripts/memory/__init__.py",
+        "scripts/memory/sync.py"
+      ],
+      "action": "Update graph.py rebuild_blocked_cache to filter closed issues (add JOIN issues + WHERE status NOT IN closed in both steps). Remove duplicate _rebuild_blocked_cache from __init__.py. Replace all __init__.py calls with import from graph.py.",
+      "verify": [
+        "python3 -c \"from scripts.memory.graph import rebuild_blocked_cache; print('OK')\"",
+        "python3 -m py_compile scripts/memory/graph.py",
+        "python3 -m py_compile scripts/memory/__init__.py"
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Add retry-on-SQLITE_BUSY helper",
+      "memoryId": "cn-1t0uuce.2",
+      "files": [
+        "scripts/memory/storage.py"
+      ],
+      "action": "Add with_retry(fn, *args, max_retries=3, base_delay=0.1, **kwargs) to storage.py. Catches sqlite3.OperationalError with 'database is locked', retries with exponential backoff (0.1s, 0.2s, 0.4s), re-raises after final failure. Uses time.sleep from stdlib.",
+      "verify": [
+        "python3 -m py_compile scripts/memory/storage.py",
+        "python3 -c \"from scripts.memory.storage import with_retry; print('OK')\""
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Wire retry into write operations",
+      "memoryId": "cn-1t0uuce.3",
+      "files": [
+        "scripts/memory/__init__.py"
+      ],
+      "action": "Import with_retry from .storage. Wrap claim(), close(), and create() DB interactions with retry. Apply at outermost level covering BEGIN IMMEDIATE through commit. Do NOT wrap read-only operations.",
+      "verify": [
+        "python3 -m py_compile scripts/memory/__init__.py",
+        "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import create, claim, close, init; from pathlib import Path; import tempfile; d=tempfile.mkdtemp(); r=Path(d); init(r); i=create('Test',root=r); claim(i.id,actor='a',root=r); close(i.id,root=r); print('OK')\""
+      ],
+      "blockedBy": [0, 1]
+    }
+  ],
+  "planVerify": [
+    "python3 scripts/workflow_validate.py",
+    "python3 -m py_compile scripts/memory/__init__.py",
+    "python3 -m py_compile scripts/memory/storage.py",
+    "python3 -m py_compile scripts/memory/graph.py",
+    "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import init, create, claim, close, ready, dep_add, stats; from pathlib import Path; import tempfile; d=tempfile.mkdtemp(); r=Path(d); init(r); a=create('A',root=r); b=create('B',root=r); dep_add(b.id,a.id,root=r); assert len(ready(root=r))==1; claim(a.id,actor='x',root=r); close(a.id,root=r); assert len(ready(root=r))==1; print('ALL PASS')\""
+  ],
+  "commitMessage": "fix(memory): consolidate blocked cache, add retry-on-busy",
+  "timestamp": "2026-02-14T12:00:00Z"
+}

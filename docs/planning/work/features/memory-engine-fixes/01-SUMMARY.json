@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "feature": "memory-engine-fixes",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    { "file": "scripts/memory/graph.py", "change": "Fixed W-2: added closed-issue filtering to rebuild_blocked_cache Steps 1 and 2" },
+    { "file": "scripts/memory/__init__.py", "change": "Removed duplicate _rebuild_blocked_cache, imported from graph.py; wrapped create/claim/close with retry" },
+    { "file": "scripts/memory/storage.py", "change": "Added with_retry() helper for SQLITE_BUSY exponential backoff" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "graph.py import OK, py_compile OK, blocked cache end-to-end OK" },
+    { "task": 2, "result": "pass", "details": "py_compile OK, with_retry import OK" },
+    { "task": 3, "result": "pass", "details": "py_compile OK, create/claim/close end-to-end OK" },
+    { "task": "plan", "result": "pass", "details": "workflow_validate OK, all py_compile OK, full dep-graph test ALL CHECKS PASS" }
+  ],
+  "commit": { "hash": "e99d972", "message": "fix(memory): consolidate blocked cache, add retry-on-busy" },
+  "timestamp": "2026-02-14T21:50:00Z"
+}

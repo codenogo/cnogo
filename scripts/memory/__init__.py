@@ -24,7 +24,9 @@ from . import storage as _st
 from .identity import content_hash as _content_hash
 from .identity import generate_child_id as _child_id
 from .identity import generate_id as _gen_id
+from .graph import rebuild_blocked_cache as _rebuild_blocked_cache
 from .models import Dependency, Event, Issue
+from .storage import with_retry as _with_retry
 
 __all__ = [
     # Init
@@ -133,83 +135,90 @@ def create(
     actor: str = "claude",
     root: Path | None = None,
 ) -> Issue:
-    """Create a new issue. Returns Issue with generated ID."""
-    conn = _conn(root)
-    try:
-        # Acquire write lock early for child counter atomicity (W-1)
-        conn.execute("BEGIN IMMEDIATE")
-        now = _st._now()
+    """Create a new issue. Returns Issue with generated ID.
 
-        # Generate ID — hierarchical if parent given, hash-based otherwise
-        if parent is not None:
-            child_num = _st.next_child_number(conn, parent)
-            issue_id = _child_id(parent, child_num)
-        else:
-            # Try with increasing nonce, then more bytes on collision
-            issue_id = ""
-            for nonce in range(10):
-                candidate = _gen_id(title, actor, nonce=nonce)
-                if not _st.id_exists(conn, candidate):
-                    issue_id = candidate
-                    break
-            if not issue_id:
-                # Extend to 5 bytes
+    Retries on SQLITE_BUSY with exponential backoff for multi-agent
+    robustness.
+    """
+    def _do_create() -> Issue:
+        conn = _conn(root)
+        try:
+            # Acquire write lock early for child counter atomicity (W-1)
+            conn.execute("BEGIN IMMEDIATE")
+            now = _st._now()
+
+            # Generate ID — hierarchical if parent given, hash-based otherwise
+            if parent is not None:
+                child_num = _st.next_child_number(conn, parent)
+                issue_id = _child_id(parent, child_num)
+            else:
+                # Try with increasing nonce, then more bytes on collision
+                issue_id = ""
                 for nonce in range(10):
-                    candidate = _gen_id(title, actor, id_bytes=5, nonce=nonce)
+                    candidate = _gen_id(title, actor, nonce=nonce)
                     if not _st.id_exists(conn, candidate):
                         issue_id = candidate
                         break
-            if not issue_id:
-                raise RuntimeError("Failed to generate unique ID after retries")
+                if not issue_id:
+                    # Extend to 5 bytes
+                    for nonce in range(10):
+                        candidate = _gen_id(title, actor, id_bytes=5, nonce=nonce)
+                        if not _st.id_exists(conn, candidate):
+                            issue_id = candidate
+                            break
+                if not issue_id:
+                    raise RuntimeError("Failed to generate unique ID after retries")
 
-        chash = _content_hash(title, description or "", issue_type)
+            chash = _content_hash(title, description or "", issue_type)
 
-        issue = Issue(
-            id=issue_id,
-            title=title,
-            content_hash=chash,
-            description=description or "",
-            status="open",
-            issue_type=issue_type,
-            priority=priority,
-            feature_slug=feature_slug or "",
-            plan_number=plan_number or "",
-            metadata=metadata or {},
-            created_at=now,
-            updated_at=now,
-        )
-
-        _st.insert_issue(conn, issue)
-
-        # Labels
-        for lbl in (labels or []):
-            _st.add_label(conn, issue_id, lbl)
-        issue.labels = labels or []
-
-        # Parent-child dependency
-        if parent is not None:
-            dep = Dependency(
-                issue_id=issue_id,
-                depends_on_id=parent,
-                dep_type="parent-child",
+            issue = Issue(
+                id=issue_id,
+                title=title,
+                content_hash=chash,
+                description=description or "",
+                status="open",
+                issue_type=issue_type,
+                priority=priority,
+                feature_slug=feature_slug or "",
+                plan_number=plan_number or "",
+                metadata=metadata or {},
                 created_at=now,
+                updated_at=now,
             )
-            _st.insert_dependency(conn, dep)
 
-        # Event
-        _emit(conn, issue_id, "created", actor, {
-            "title": title,
-            "issue_type": issue_type,
-            "parent": parent,
-        })
+            _st.insert_issue(conn, issue)
 
-        # Rebuild blocked cache after structural change
-        _rebuild_blocked_cache(conn)
+            # Labels
+            for lbl in (labels or []):
+                _st.add_label(conn, issue_id, lbl)
+            issue.labels = labels or []
 
-        conn.commit()
-        return issue
-    finally:
-        conn.close()
+            # Parent-child dependency
+            if parent is not None:
+                dep = Dependency(
+                    issue_id=issue_id,
+                    depends_on_id=parent,
+                    dep_type="parent-child",
+                    created_at=now,
+                )
+                _st.insert_dependency(conn, dep)
+
+            # Event
+            _emit(conn, issue_id, "created", actor, {
+                "title": title,
+                "issue_type": issue_type,
+                "parent": parent,
+            })
+
+            # Rebuild blocked cache after structural change
+            _rebuild_blocked_cache(conn)
+
+            conn.commit()
+            return issue
+        finally:
+            conn.close()
+
+    return _with_retry(_do_create)
 
 
 def show(issue_id: str, *, root: Path | None = None) -> Issue | None:
@@ -299,29 +308,37 @@ def claim(
     actor: str,
     root: Path | None = None,
 ) -> Issue:
-    """Atomic claim: sets assignee + in_progress. Raises if already claimed."""
+    """Atomic claim: sets assignee + in_progress. Raises if already claimed.
+
+    Retries on SQLITE_BUSY with exponential backoff for multi-agent
+    robustness.
+    """
     r = root or _root or Path(".")
-    conn = _conn(r)
-    try:
-        # Acquire write lock early for CAS atomicity (W-6)
-        conn.execute("BEGIN IMMEDIATE")
-        existing = _st.get_issue(conn, issue_id)
-        if existing is None:
-            raise ValueError(f"Issue {issue_id} not found")
-        if existing.status == "closed":
-            raise ValueError(f"Issue {issue_id} is closed")
 
-        ok = _st.claim_issue(conn, issue_id, actor)
-        if not ok:
-            raise ValueError(
-                f"Issue {issue_id} already claimed by {existing.assignee!r}"
-            )
+    def _do_claim() -> Issue:
+        conn = _conn(r)
+        try:
+            # Acquire write lock early for CAS atomicity (W-6)
+            conn.execute("BEGIN IMMEDIATE")
+            existing = _st.get_issue(conn, issue_id)
+            if existing is None:
+                raise ValueError(f"Issue {issue_id} not found")
+            if existing.status == "closed":
+                raise ValueError(f"Issue {issue_id} is closed")
 
-        _emit(conn, issue_id, "claimed", actor)
-        conn.commit()
-        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
-    finally:
-        conn.close()
+            ok = _st.claim_issue(conn, issue_id, actor)
+            if not ok:
+                raise ValueError(
+                    f"Issue {issue_id} already claimed by {existing.assignee!r}"
+                )
+
+            _emit(conn, issue_id, "claimed", actor)
+            conn.commit()
+            return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+        finally:
+            conn.close()
+
+    result = _with_retry(_do_claim)
     _auto_export(r)
     return result
 
@@ -335,31 +352,39 @@ def close(
     root: Path | None = None,
 ) -> Issue:
     """Close an issue. Rebuilds blocked cache, auto-closes parent epic if
-    all siblings are now closed, and auto-exports JSONL."""
+    all siblings are now closed, and auto-exports JSONL.
+
+    Retries on SQLITE_BUSY with exponential backoff for multi-agent
+    robustness.
+    """
     r = root or _root or Path(".")
-    conn = _conn(r)
-    try:
-        existing = _st.get_issue(conn, issue_id)
-        if existing is None:
-            raise ValueError(f"Issue {issue_id} not found")
 
-        ok = _st.close_issue(conn, issue_id, reason)
-        if not ok:
-            raise ValueError(f"Issue {issue_id} is already closed")
+    def _do_close() -> Issue:
+        conn = _conn(r)
+        try:
+            existing = _st.get_issue(conn, issue_id)
+            if existing is None:
+                raise ValueError(f"Issue {issue_id} not found")
 
-        _emit(conn, issue_id, "closed", actor, {
-            "reason": reason,
-            "comment": comment or "",
-        })
+            ok = _st.close_issue(conn, issue_id, reason)
+            if not ok:
+                raise ValueError(f"Issue {issue_id} is already closed")
 
-        # Auto-close parent epic if all children are now closed
-        _try_auto_close_parent(conn, issue_id, actor)
+            _emit(conn, issue_id, "closed", actor, {
+                "reason": reason,
+                "comment": comment or "",
+            })
 
-        _rebuild_blocked_cache(conn)
-        conn.commit()
-        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
-    finally:
-        conn.close()
+            # Auto-close parent epic if all children are now closed
+            _try_auto_close_parent(conn, issue_id, actor)
+
+            _rebuild_blocked_cache(conn)
+            conn.commit()
+            return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+        finally:
+            conn.close()
+
+    result = _with_retry(_do_close)
     _auto_export(r)
     return result
 
@@ -626,64 +651,6 @@ def _try_auto_close_parent(conn, issue_id: str, actor: str) -> None:
 
 
 _CYCLE_MAX_ITERATIONS = 10_000
-
-
-def _rebuild_blocked_cache(conn) -> None:
-    """Materialize which issues are blocked by open dependencies.
-
-    Algorithm:
-      1. Direct blocking: issues with 'blocks' deps on open issues.
-      2. Transitive closure: if a parent/blocker is already blocked,
-         propagate to children and downstream via both 'blocks' and
-         'parent-child' edges. Fixed-point iteration until stable.
-
-    Edge type semantics:
-      - 'blocks': direct blocker (B depends on A, A must close first).
-      - 'parent-child': transitive only (if parent is blocked, children too).
-      An open (non-blocked) parent does NOT directly block its children.
-
-    Uses a temp table to avoid inconsistency during rebuild.
-    """
-    conn.execute(
-        "CREATE TEMP TABLE IF NOT EXISTS _blocked_new"
-        " (issue_id TEXT PRIMARY KEY)"
-    )
-    conn.execute("DELETE FROM _blocked_new")
-
-    # Step 1: Direct blocking — 'blocks' type dependencies on open issues.
-    # Only non-closed issues can be blocked (closed issues are done).
-    conn.execute("""
-        INSERT INTO _blocked_new (issue_id)
-        SELECT DISTINCT d.issue_id
-        FROM dependencies d
-        JOIN issues blocker ON d.depends_on_id = blocker.id
-        JOIN issues blocked ON d.issue_id = blocked.id
-        WHERE d.dep_type = 'blocks'
-          AND blocker.status NOT IN ('closed')
-          AND blocked.status NOT IN ('closed')
-    """)
-
-    # Step 2: Transitive — if a parent/blocker is in _blocked_new,
-    # propagate to children and downstream issues.
-    # Only propagate to non-closed issues.
-    for _ in range(_CYCLE_MAX_ITERATIONS):
-        cursor = conn.execute("""
-            INSERT OR IGNORE INTO _blocked_new (issue_id)
-            SELECT DISTINCT d.issue_id
-            FROM dependencies d
-            JOIN _blocked_new bc ON d.depends_on_id = bc.issue_id
-            JOIN issues i ON d.issue_id = i.id
-            WHERE d.dep_type IN ('blocks', 'parent-child')
-              AND d.issue_id NOT IN (SELECT issue_id FROM _blocked_new)
-              AND i.status NOT IN ('closed')
-        """)
-        if cursor.rowcount == 0:
-            break
-
-    # Atomic swap
-    conn.execute("DELETE FROM blocked_cache")
-    conn.execute("INSERT INTO blocked_cache SELECT * FROM _blocked_new")
-    conn.execute("DROP TABLE _blocked_new")
 
 
 def _would_create_cycle(conn, issue_id: str, depends_on_id: str) -> bool:
