@@ -147,14 +147,36 @@ case "$STACK" in
         TEMPLATE="$TEMPLATE_DIR/CLAUDE-rust.md"
         ;;
     *)
-        TEMPLATE="CLAUDE.md"  # Use generic template
+        TEMPLATE="docs/templates/CLAUDE-generic.md"  # Use generic template
         ;;
 esac
 
 if [ -f "$TEMPLATE" ]; then
     echo "Using template: $TEMPLATE"
-    cp "$TEMPLATE" CLAUDE.md
-    echo "✅ CLAUDE.md populated with $STACK defaults"
+    if [ -f "CLAUDE.md" ]; then
+        # Check if CLAUDE.md has custom content (differs from generic template)
+        GENERIC="docs/templates/CLAUDE-generic.md"
+        if [ -f "$GENERIC" ] && ! diff -q "CLAUDE.md" "$GENERIC" > /dev/null 2>&1; then
+            echo ""
+            echo -e "${YELLOW}Your CLAUDE.md has custom content.${NC}"
+            echo "The stack template ($STACK) would replace it."
+            echo ""
+            read -p "Replace CLAUDE.md with $STACK template? (y/n) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo "⏭️  Kept existing CLAUDE.md"
+            else
+                cp "$TEMPLATE" CLAUDE.md
+                echo "✅ CLAUDE.md replaced with $STACK defaults"
+            fi
+        else
+            cp "$TEMPLATE" CLAUDE.md
+            echo "✅ CLAUDE.md populated with $STACK defaults"
+        fi
+    else
+        cp "$TEMPLATE" CLAUDE.md
+        echo "✅ CLAUDE.md populated with $STACK defaults"
+    fi
 else
     echo "⚠️ No template found for $STACK, using generic template"
 fi
