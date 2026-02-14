@@ -36,25 +36,32 @@ def rebuild_blocked_cache(conn: sqlite3.Connection) -> None:
     )
     conn.execute("DELETE FROM _blocked_new")
 
-    # Step 1: Direct blocking — 'blocks' type on open issues
+    # Step 1: Direct blocking — 'blocks' type dependencies on open issues.
+    # Only non-closed issues can be blocked (closed issues are done). (W-2)
     conn.execute("""
         INSERT INTO _blocked_new (issue_id)
         SELECT DISTINCT d.issue_id
         FROM dependencies d
         JOIN issues blocker ON d.depends_on_id = blocker.id
+        JOIN issues blocked ON d.issue_id = blocked.id
         WHERE d.dep_type = 'blocks'
           AND blocker.status NOT IN ('closed')
+          AND blocked.status NOT IN ('closed')
     """)
 
-    # Step 2: Transitive — if parent/blocker is blocked, propagate
+    # Step 2: Transitive — if a parent/blocker is in _blocked_new,
+    # propagate to children and downstream issues.
+    # Only propagate to non-closed issues. (W-2)
     for _ in range(_MAX_ITERATIONS):
         cursor = conn.execute("""
             INSERT OR IGNORE INTO _blocked_new (issue_id)
             SELECT DISTINCT d.issue_id
             FROM dependencies d
             JOIN _blocked_new bc ON d.depends_on_id = bc.issue_id
+            JOIN issues i ON d.issue_id = i.id
             WHERE d.dep_type IN ('blocks', 'parent-child')
               AND d.issue_id NOT IN (SELECT issue_id FROM _blocked_new)
+              AND i.status NOT IN ('closed')
         """)
         if cursor.rowcount == 0:
             break

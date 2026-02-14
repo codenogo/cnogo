@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -140,6 +141,27 @@ def _row_to_event(row: sqlite3.Row) -> Event:
         data=_parse_json(row["data"]),
         created_at=row["created_at"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Retry helper for SQLITE_BUSY
+# ---------------------------------------------------------------------------
+
+def with_retry(fn, *args, max_retries=3, base_delay=0.1, **kwargs):
+    """Call *fn* with retry on SQLITE_BUSY (database is locked).
+
+    Uses exponential backoff: base_delay * 2^attempt (0.1s, 0.2s, 0.4s).
+    Re-raises after *max_retries* failures. Stdlib only (time.sleep).
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except sqlite3.OperationalError as exc:
+            if "database is locked" not in str(exc):
+                raise
+            if attempt == max_retries:
+                raise
+            time.sleep(base_delay * (2 ** attempt))
 
 
 # ---------------------------------------------------------------------------
