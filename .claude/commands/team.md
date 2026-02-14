@@ -43,20 +43,22 @@ Extract action and arguments from "$ARGUMENTS". First word = action, remaining =
 
 1. Parse `<feature>` and `<plan>` from arguments
 2. Load `docs/planning/work/features/<feature>/<plan>-PLAN.json`
-3. Generate task descriptions via bridge:
+3. Generate task descriptions via bridge (once — reuse for steps 4 and 5):
    ```bash
-   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory.bridge import plan_to_task_descriptions; from pathlib import Path; print(json.dumps(plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), Path('.')), indent=2))"
+   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory.bridge import plan_to_task_descriptions; from pathlib import Path; descs=plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), Path('.')); print(json.dumps(descs, indent=2))"
    ```
-4. Check file conflicts via `detect_file_conflicts()`. **Advisory only** — if conflicts, warn: "File overlaps detected. Merge conflicts likely — resolver agent will handle." Proceed regardless (worktree isolation prevents runtime interference).
-5. **Create worktree session** — each agent gets an isolated worktree and branch:
+   Save the returned list as `task_descriptions` for subsequent steps.
+4. Check file conflicts via `detect_file_conflicts(task_descriptions)`. **Advisory only** — if conflicts, warn: "File overlaps detected. Merge conflicts likely — resolver agent will handle." Proceed regardless (worktree isolation prevents runtime interference).
+5. **Create worktree session** — pass the `task_descriptions` from step 3 (do NOT call `plan_to_task_descriptions` again):
    ```bash
-   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory import create_session, plan_to_task_descriptions; from pathlib import Path; root=Path('.'); descs=plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), root); session=create_session(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), root, descs); print(json.dumps({'phase': session.phase, 'worktrees': len(session.worktrees)}))"
+   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory import create_session; from pathlib import Path; root=Path('.'); session=create_session(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), root, task_descriptions); print(json.dumps({'phase': session.phase, 'worktrees': len(session.worktrees)}))"
    ```
+   Where `task_descriptions` is the list from step 3.
 6. Create team `impl-<feature>-<plan>` via TeamCreate
 7. Create TaskCreate entries — include the worktree path in each task description so agents know their working directory. Two-pass:
    - **Pass 1:** Create tasks for non-skipped items. Record `task_index_to_id` mapping (None for skipped).
    - **Pass 2:** Wire `blockedBy` dependencies via TaskUpdate `addBlockedBy`.
-8. Spawn one `implementer` teammate per task via Task tool with `team_name` and `subagent_type: "general-purpose"`. The agent's prompt must include: "Your working directory is `<worktree_path>`. All file paths are relative to this directory."
+8. Spawn one `implementer` teammate per task via Task tool with `team_name`, `subagent_type: "general-purpose"`, and `model: "sonnet"`. The agent's prompt must include the implementer.md instructions and: "Your working directory is `<worktree_path>`. All file paths are relative to this directory."
 9. Activate delegate mode. Monitor via TaskList until all tasks completed.
 10. **Merge agent branches** — sequential merge in task order:
     ```bash

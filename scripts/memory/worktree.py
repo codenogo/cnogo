@@ -35,11 +35,9 @@ _VALID_PHASES = frozenset(
     {
         "setup",
         "executing",
-        "agents_complete",
         "merging",
         "merged",
         "verified",
-        "committed",
         "cleaned",
     }
 )
@@ -203,9 +201,14 @@ def save_session(session: WorktreeSession, root: Path) -> None:
         os.close(fd)
         os.replace(tmp_path, str(session_path))
     except Exception:
-        os.close(fd) if not os.get_inheritable(fd) else None
-        if os.path.exists(tmp_path):
+        try:
+            os.close(fd)
+        except OSError:
+            pass  # Already closed
+        try:
             os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
         raise
 
 
@@ -269,7 +272,7 @@ def create_session(
 
     try:
         for i, desc in enumerate(task_descriptions):
-            if desc.get("skip"):
+            if desc.get("skipped"):
                 continue
 
             task_name = desc.get("name", f"task-{i}")

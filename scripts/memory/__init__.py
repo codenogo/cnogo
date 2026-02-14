@@ -771,9 +771,6 @@ def generate_implement_prompt(
     files: list[str],
     verify: list[str],
     memory_id: str = "",
-    context_snippet: str = "",
-    feature: str = "",
-    plan_number: str = "",
 ) -> str:
     """Generate the full agent prompt for an implementer teammate."""
     from .bridge import generate_implement_prompt as _gen
@@ -783,19 +780,18 @@ def generate_implement_prompt(
         files=files,
         verify=verify,
         memory_id=memory_id,
-        context_snippet=context_snippet,
-        feature=feature,
-        plan_number=plan_number,
     )
 
 
 def detect_file_conflicts(
     tasks: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Check for file boundary violations across plan tasks.
+    """Check for file overlaps that may produce merge conflicts (advisory).
 
-    Returns a list of conflict dicts: [{file, tasks}].
-    Empty list = safe for parallel execution.
+    Returns a list of conflict dicts: [{file, tasks, severity}].
+    Severity is always "advisory" — worktree isolation prevents runtime
+    interference, and the resolver agent handles merge conflicts at merge time.
+    Empty list = no overlaps detected.
     """
     from .bridge import detect_file_conflicts as _detect
     return _detect(tasks)

@@ -139,7 +139,7 @@ Detect interrupted worktree sessions:
 ```bash
 python3 -c "
 import sys, json; sys.path.insert(0, '.')
-from scripts.memory.worktree import load_session
+from scripts.memory import load_session
 from pathlib import Path
 root = Path('.')
 session = load_session(root)
@@ -157,7 +157,11 @@ if session:
     if session.phase == 'executing':
         print(f'  Resume with: /team implement {session.feature} {session.plan_number}')
     elif session.phase == 'merging':
-        print(f'  Continue merge from task {session.merge_order[len(session.merged_so_far)]}')
+        remaining = len(session.merged_so_far)
+        if remaining < len(session.merge_order):
+            print(f'  Continue merge from task {session.merge_order[remaining]}')
+        else:
+            print(f'  All merges done — ready to finalize')
     elif session.phase in ('merged', 'verified'):
         print(f'  Ready to commit and clean up')
 "
