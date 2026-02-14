@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "feature": "agent-architecture-redesign",
+  "planNumber": "03",
+  "goal": "Trim team.md to ~120 lines, remove eager loading from implement.md, rewrite spawn.md for skills-based specializations",
+  "memoryEpicId": "cn-ca31b0",
+  "tasks": [
+    {
+      "name": "Trim team.md to ~120 lines",
+      "memoryId": "cn-ca31b0.7",
+      "files": [".claude/commands/team.md"],
+      "action": "Remove agent table, compositions, keyboard shortcuts, examples, best practices. Keep action table + orchestration logic. Reference skills instead of agent files for non-implementer roles.",
+      "verify": ["wc -l .claude/commands/team.md"]
+    },
+    {
+      "name": "Update implement.md — remove eager loading",
+      "memoryId": "cn-ca31b0.8",
+      "files": [".claude/commands/implement.md"],
+      "action": "Remove Principle Reminder section, CONTEXT.md read instruction, skills.md references. Trim inline code blocks. Target ~150 lines.",
+      "verify": ["wc -l .claude/commands/implement.md", "grep -c 'skills.md' .claude/commands/implement.md || true"]
+    },
+    {
+      "name": "Update spawn.md to use skills",
+      "memoryId": "cn-ca31b0.9",
+      "files": [".claude/commands/spawn.md"],
+      "action": "Replace agent definition table with skills-based specialization table. Remove inline fallback profiles. Target ~80 lines.",
+      "verify": ["wc -l .claude/commands/spawn.md"]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py"],
+  "commitMessage": "refactor(agent-architecture): command restructuring — lean team.md, skills-based spawn",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

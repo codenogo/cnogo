@@ -4,14 +4,14 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 ## Current Focus
 
-- **Feature:** team-implement-integration
-- **Status:** All Plans Complete — Ready for `/review`
+- **Feature:** agent-architecture-redesign
+- **Status:** Planned
 - **Branch:** main
-- **Memory Epic:** cn-9xdhpc (all 9 issues closed)
-- **Plan 01:** ✅ Complete (bridge module + implementer agent)
-- **Plan 02:** ✅ Complete (command wiring)
-- **Plan 03:** ✅ Complete (recovery/docs/agent awareness)
-- **Next:** `/review`
+- **Memory Epic:** cn-ca31b0
+- **Plan 01:** Context foundation (CLAUDE.md, skills, settings)
+- **Plan 02:** Agent restructuring (ultra-lean, deletions, bridge)
+- **Plan 03:** Command restructuring (team.md, implement.md, spawn.md)
+- **Next:** `/implement agent-architecture-redesign 01`
 
 ## Active Work
 
@@ -19,6 +19,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
+| agent-architecture-redesign | Planned | 01, 02, 03 | `/implement 01` |
 | team-implement-integration | Complete | 01 ✅, 02 ✅, 03 ✅ | `/review` |
 
 ### Quick Tasks
@@ -39,6 +40,7 @@ When pausing mid-work, capture here:
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-02-14 | Discussed agent-architecture-redesign | Agents=teams-only, ID-based context, skills for domain expertise, ultra-lean agents, memory required |
 | 2026-02-14 | Plan 03 complete | Recovery, Team Implementation skill, agent awareness |
 | 2026-02-14 | Plan 02 complete | Wired bridge into /team, /implement, /status commands |
 | 2026-02-14 | Plan 01 complete | Bridge module, implementer agent, public API exposure |

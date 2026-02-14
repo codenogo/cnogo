@@ -1,162 +1,85 @@
 # CLAUDE.md
 
-Agent instructions for this project. Claude reads this automatically.
+Agent instructions for cnogo. Claude reads this automatically.
 
 ## Project Overview
 
-[One paragraph: what this project is, who it's for, what it does]
+cnogo is a universal development workflow pack for Claude Code. It provides 28+ slash commands, a SQLite-backed memory engine for persistent task tracking, and Agent Teams support for parallel multi-agent execution. Python stdlib only — zero external dependencies.
 
 ## Quick Reference
 
 ```bash
-# Build
-[build command]
-
-# Test
-[test command]
-
-# Run locally
-[run command]
-
-# Lint/format
-[lint command]
+python3 scripts/workflow_validate.py            # Validate workflow artifacts
+python3 scripts/workflow_memory.py stats         # Memory engine statistics
+python3 scripts/workflow_memory.py prime         # Token-efficient context summary
+python3 scripts/workflow_memory.py ready         # Show unblocked tasks
 ```
 
 ## Code Organisation
 
 ```
-src/
-├── [layer or feature]/     # [Purpose]
-├── [layer or feature]/     # [Purpose]
-└── [layer or feature]/     # [Purpose]
-
-tests/
-├── unit/                   # Unit tests
-└── integration/            # Integration tests
+scripts/memory/              # Memory engine (Python, stdlib only)
+.claude/agents/              # Team teammates only (implementer, debugger)
+.claude/skills/              # Lazy-loaded domain expertise
+.claude/commands/            # Slash command definitions
+docs/planning/               # Planning docs, feature work, research
+docs/planning/STATE.md       # Current position and decisions
+.cnogo/memory.db             # SQLite runtime (gitignored)
+.cnogo/issues.jsonl          # Git-tracked sync format
 ```
 
 ## Conventions
 
-### Naming
-- Files: `kebab-case.ts` or `PascalCase.java`
-- Classes: `PascalCase`
-- Functions: `camelCase`
-- Constants: `SCREAMING_SNAKE_CASE`
+- Feature slugs: `kebab-case` (e.g., `websocket-notifications`)
+- Commits: `type(scope): description`
+- Branches: `feature/description`, `fix/description`
+- Python: stdlib only, no external deps
+- Plans: max 3 tasks per plan, each with explicit `files` and `verify`
 
-### Code Style
-- [Max line length]
-- [Import ordering]
-- [Any other conventions]
+## Operating Principles
 
-### Git
-- Branch naming: `feature/description`, `fix/description`
-- Commit format: `type(scope): description`
-- PR: Squash and merge
+Apply these on every non-trivial task. Inspired by [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills).
 
-## Architecture Rules
-
-### Do
-- [Pattern to follow]
-- [Pattern to follow]
-
-### Don't
-- [Anti-pattern to avoid]
-- [Anti-pattern to avoid]
+1. **Think Before Coding** — surface confusion and tradeoffs; ask when ambiguous
+2. **Simplicity First** — minimum code that solves the problem; no speculative abstractions
+3. **Surgical Changes** — touch only what's needed; don't refactor unrelated areas
+4. **Goal-Driven Execution** — define success criteria; verify with commands/tests; loop until proven
 
 ## Key Files
 
-| File | Purpose | Notes |
-|------|---------|-------|
-| `src/config/` | Configuration | Don't hardcode values |
-| `src/types/` | Type definitions | Keep in sync with API |
-
-## Common Tasks
-
-### Adding a new API endpoint
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
-
-### Adding a new database table
-1. [Step 1]
-2. [Step 2]
-
-## Testing Requirements
-
-- Unit tests required for: [what]
-- Integration tests required for: [what]
-- Minimum coverage: [X%]
-
-## Security
-
-- Never commit: secrets, keys, credentials
-- Always validate: [inputs]
-- Always sanitize: [outputs]
-
-## Dependencies
-
-Before adding dependencies:
-1. Check if existing dep solves problem
-2. Evaluate security (last update, maintainers, CVEs)
-3. Consider bundle size impact
-
-## Troubleshooting
-
-### [Common Issue 1]
-```bash
-[Solution]
-```
-
-### [Common Issue 2]
-```bash
-[Solution]
-```
-
----
-
-## Planning Docs
-
-- Project vision: `docs/planning/PROJECT.md`
-- Current state: `docs/planning/STATE.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Quick tasks: `docs/planning/work/quick/`
+| File | Purpose |
+|------|---------|
+| `scripts/memory/` | Memory engine package (CRUD, deps, graph, bridge, sync) |
+| `scripts/memory/bridge.py` | Translates plans to agent task descriptions |
+| `.claude/settings.json` | Permissions, hooks, env vars |
+| `docs/planning/WORKFLOW.json` | Workflow config (research mode, enforcement) |
 
 ## Memory Engine
 
-Optional structured task tracking (initialize via `/init` or `python3 scripts/workflow_memory.py init`):
+Required for `/team` workflows. Initialize via `/init` or `python3 scripts/workflow_memory.py init`.
 
 ```bash
-# CLI access
-python3 scripts/workflow_memory.py ready          # Show unblocked tasks
-python3 scripts/workflow_memory.py prime           # Token-efficient context summary
-python3 scripts/workflow_memory.py stats           # Aggregate statistics
-python3 scripts/workflow_memory.py create "title"  # Create an issue
-python3 scripts/workflow_memory.py show <id>       # Show issue details
+python3 scripts/workflow_memory.py show <id>     # Show issue details
+python3 scripts/workflow_memory.py create "title" # Create an issue
+python3 scripts/workflow_memory.py claim <id>     # Claim a task
+python3 scripts/workflow_memory.py close <id>     # Close a task
 ```
 
 ```python
-# Python API access (from commands/scripts)
 import sys; sys.path.insert(0, '.')
-from scripts.memory import is_initialized, create, ready, claim, close, prime
+from scripts.memory import is_initialized, create, ready, claim, close, prime, show
 ```
 
-Key files:
-- `scripts/memory/` — Python package (stdlib only)
-- `.cnogo/memory.db` — SQLite runtime (gitignored)
-- `.cnogo/issues.jsonl` — Git-tracked sync format
+## Planning Docs
 
-## Skills Library
+- Current state: `docs/planning/STATE.md`
+- Project vision: `docs/planning/PROJECT.md`
+- Roadmap: `docs/planning/ROADMAP.md`
+- Feature work: `docs/planning/work/features/`
+- Research: `docs/planning/work/research/`
 
-Reusable playbooks/checklists Claude should apply:
+## Security
 
-- `docs/skills.md`
-
-## Karpathy-Inspired Operating Principles
-
-Adopt these principles for non-trivial work (especially when making code changes). Inspired by [`forrestchang/andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills).
-
-1. **Think Before Coding**: don’t assume; surface confusion/tradeoffs; ask when ambiguous.
-2. **Simplicity First**: minimum code that solves the problem; no speculative abstractions.
-3. **Surgical Changes**: touch only what’s needed; don’t refactor unrelated areas.
-4. **Goal-Driven Execution**: define success criteria; verify with commands/tests; loop until proven.
+- Never commit: secrets, keys, credentials, `.env` files
+- Pre-commit hooks scan for secrets and dangerous commands
+- Always validate user input at system boundaries

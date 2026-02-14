@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "topic": "Subagent context management patterns for multi-agent workflows",
+  "slug": "subagent-context-patterns",
+  "timestamp": "2026-02-14T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    { "type": "web", "ref": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents", "title": "Anthropic: Effective Context Engineering for AI Agents" },
+    { "type": "web", "ref": "https://www.anthropic.com/engineering/multi-agent-research-system", "title": "Anthropic: Multi-Agent Research System" },
+    { "type": "web", "ref": "https://code.claude.com/docs/en/sub-agents", "title": "Claude Code Docs: Custom Subagents" },
+    { "type": "web", "ref": "https://martinfowler.com/articles/exploring-gen-ai/context-engineering-coding-agents.html", "title": "Martin Fowler: Context Engineering for Coding Agents" },
+    { "type": "web", "ref": "https://maggieappleton.com/gastown", "title": "Maggie Appleton: Gas Town Agent Patterns" },
+    { "type": "web", "ref": "https://github.com/steveyegge/gastown", "title": "Gas Town GitHub Repository" },
+    { "type": "web", "ref": "https://gist.github.com/kieranklaassen/4f2aba89594a4aea4ad64d753984b2ea", "title": "Claude Code Swarm Orchestration Skill" },
+    { "type": "web", "ref": "https://richardporter.dev/blog/superpowers-plugin-claude-code-big-features", "title": "Superpowers Plugin: Fresh Subagent Pattern" },
+    { "type": "web", "ref": "https://zoer.ai/posts/zoer/claude-code-sub-agents-best-practices", "title": "Claude Code Sub-Agents Best Practices" },
+    { "type": "web", "ref": "https://github.com/anthropics/claude-code/issues/18240", "title": "Bug: Subagent Return Context Exhaustion" },
+    { "type": "web", "ref": "https://www.richsnapp.com/article/2025/10-05-context-management-with-subagents-in-claude-code", "title": "Context Management with Subagents" },
+    { "type": "web", "ref": "https://deepwiki.com/shanraisshan/claude-code-best-practice/4.3-token-budget-management", "title": "Token Budget Management" },
+    { "type": "web", "ref": "https://addyosmani.com/blog/claude-code-agent-teams/", "title": "Addy Osmani: Claude Code Swarms" },
+    { "type": "web", "ref": "https://alexop.dev/posts/from-tasks-to-swarms-agent-teams-in-claude-code/", "title": "From Tasks to Swarms: Agent Teams" },
+    { "type": "repo", "ref": ".claude/commands/team.md", "title": "Team command (307 lines — largest context hog)" },
+    { "type": "repo", "ref": ".claude/commands/implement.md", "title": "Implement command (202 lines — unconditional file reads)" },
+    { "type": "repo", "ref": ".claude/agents/implementer.md", "title": "Implementer agent definition" }
+  ],
+  "summary": [
+    "Context exhaustion is a known Claude Code bug (#18240, #17591) — cnogo's fat commands amplify it",
+    "Commands load 5-8K tokens of overhead before code reading begins (skills.md, agent tables, CONTEXT.md, PLAN.json)",
+    "Gas Town's transferable principle: persistent roles + ephemeral sessions; work state in git/SQLite, not context",
+    "Anthropic guidance: subagents should return 1-2K summaries; use JIT loading, not eager loading",
+    "Superpowers pattern: dispatch each task to fresh subagent with only needed context; persist progress to disk",
+    "System prompt budget: 2-5K tokens max; design tasks to complete within 50% context usage",
+    "Fix: inline skill refs, remove agent tables from team.md, add maxTurns, set early auto-compaction"
+  ],
+  "recommendation": "Combine three approaches: (A) inline skill references and remove dead-weight context from commands, (B) add maxTurns:30 and CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60 as safety nets, (C) make implementer task descriptions self-contained so subagents don't re-read source docs. Follow up by using memory engine as external coordination state."
+}

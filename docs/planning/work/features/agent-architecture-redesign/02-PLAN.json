@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "feature": "agent-architecture-redesign",
+  "planNumber": "02",
+  "goal": "Trim agents to ultra-lean teammates, delete surplus agents, update bridge for ID-based context, delete docs/skills.md",
+  "memoryEpicId": "cn-ca31b0",
+  "tasks": [
+    {
+      "name": "Rewrite implementer.md and debugger.md (ultra-lean)",
+      "memoryId": "cn-ca31b0.4",
+      "files": [".claude/agents/implementer.md", ".claude/agents/debugger.md"],
+      "action": "Rewrite both agents to ~35 lines: role + cycle + rules. Add maxTurns: 30. Remove memory: project and Memory Engine Integration boilerplate.",
+      "verify": ["wc -l .claude/agents/implementer.md .claude/agents/debugger.md"]
+    },
+    {
+      "name": "Delete surplus agent files and docs/skills.md",
+      "memoryId": "cn-ca31b0.5",
+      "files": [".claude/agents/code-reviewer.md", ".claude/agents/security-scanner.md", ".claude/agents/perf-analyzer.md", ".claude/agents/api-reviewer.md", ".claude/agents/test-writer.md", ".claude/agents/refactorer.md", ".claude/agents/docs-writer.md", ".claude/agents/migrate.md", ".claude/agents/explorer.md", "docs/skills.md"],
+      "action": "Delete all 9 surplus agent files and docs/skills.md. .claude/agents/ should contain exactly implementer.md and debugger.md.",
+      "verify": ["ls .claude/agents/*.md | wc -l", "test ! -f docs/skills.md && echo 'OK' || echo 'FAIL'"]
+    },
+    {
+      "name": "Update bridge.py for ID-based context passing",
+      "memoryId": "cn-ca31b0.6",
+      "files": ["scripts/memory/bridge.py"],
+      "action": "Remove context_snippet parameter, _load_context_snippet(), _extract_sections(), _CONTEXT_MAX_LINES. Simplify generate_implement_prompt() to ~30-line output with memory ID reference instead of embedded context.",
+      "verify": ["python3 -c \"from scripts.memory.bridge import generate_implement_prompt; p=generate_implement_prompt(task_name='Test', action='Do', files=['f.py'], verify=['pytest'], memory_id='cn-abc123'); assert len(p.strip().split(chr(10))) < 40; print('OK')\""],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": ["python3 scripts/workflow_validate.py", "python3 -c \"from scripts.memory.bridge import generate_implement_prompt; print('OK')\""],
+  "commitMessage": "refactor(agent-architecture): restructure agents — ultra-lean teammates, skills migration",
+  "timestamp": "2026-02-14T00:00:00Z"
+}
