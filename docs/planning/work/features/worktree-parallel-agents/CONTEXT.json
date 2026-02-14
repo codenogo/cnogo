@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "feature": "worktree-parallel-agents",
+  "displayName": "Git Worktree Integration for Multi-Agent Parallel Execution",
+  "research": [
+    "docs/planning/work/research/subagent-context-patterns/RESEARCH.md"
+  ],
+  "decisions": [
+    { "area": "integration", "decision": "Replace shared-dir mode entirely", "rationale": "Simpler mental model — one parallel execution strategy with hard filesystem isolation" },
+    { "area": "conflict-resolution", "decision": "Agent-assisted (opus resolver)", "rationale": "Resolver agent reads both task descriptions + conflict markers — more context than manual resolution" },
+    { "area": "escalation", "decision": "Abort conflicting merge + user decides", "rationale": "Preserve successful merges, abort only the failing one. No wasted work." },
+    { "area": "recovery", "decision": "State file + /resume", "rationale": ".cnogo/worktree-session.json checkpoints every phase. /resume detects interrupted sessions." },
+    { "area": "module", "decision": "New scripts/memory/worktree.py", "rationale": "Bridge stays pure translator. Worktree module owns git operations and state file." },
+    { "area": "memory", "decision": "Symlink .cnogo/", "rationale": "All agents share one SQLite file via symlink. WAL mode handles concurrent reads." },
+    { "area": "resolver-model", "decision": "opus", "rationale": "Conflict resolution is rare but high-stakes — worth the cost for best reasoning." },
+    { "area": "branch-naming", "decision": "agent/<feature>-<plan>-task-<N>", "rationale": "Readable, namespaced, includes context." },
+    { "area": "worktree-location", "decision": "Sibling directories", "rationale": "Standard ecosystem convention. Keeps main repo clean." },
+    { "area": "conflict-detection", "decision": "Advisory only (not a gate)", "rationale": "With worktree isolation, overlapping files don't block parallel execution — conflicts resolve at merge time." }
+  ],
+  "constraints": [
+    "Python stdlib only — subprocess.run for git operations",
+    "No concurrent SQLite writers — WAL mode + retry",
+    "Branch exclusivity — unique branch per worktree",
+    "Disk space — each worktree duplicates working tree"
+  ],
+  "openQuestions": [
+    "Max worktree count limit?",
+    "Resolver agent git log access?",
+    "Immediate vs deferred worktree cleanup?",
+    "Fallback when git worktree unavailable?"
+  ],
+  "relatedCode": [
+    "scripts/memory/bridge.py",
+    ".claude/commands/team.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/resume.md",
+    ".claude/agents/implementer.md",
+    "scripts/memory/storage.py"
+  ],
+  "memoryEpicId": "cn-1g3d0b0",
+  "timestamp": "2026-02-14T00:00:00Z"
+}
