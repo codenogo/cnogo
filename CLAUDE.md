@@ -36,15 +36,6 @@ docs/planning/STATE.md       # Current position and decisions
 - Python: stdlib only, no external deps
 - Plans: max 3 tasks per plan, each with explicit `files` and `verify`
 
-## Operating Principles
-
-Apply these on every non-trivial task. Inspired by [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills).
-
-1. **Think Before Coding** — surface confusion and tradeoffs; ask when ambiguous
-2. **Simplicity First** — minimum code that solves the problem; no speculative abstractions
-3. **Surgical Changes** — touch only what's needed; don't refactor unrelated areas
-4. **Goal-Driven Execution** — define success criteria; verify with commands/tests; loop until proven
-
 ## Key Files
 
 | File | Purpose |
@@ -53,33 +44,3 @@ Apply these on every non-trivial task. Inspired by [forrestchang/andrej-karpathy
 | `scripts/memory/bridge.py` | Translates plans to agent task descriptions |
 | `.claude/settings.json` | Permissions, hooks, env vars |
 | `docs/planning/WORKFLOW.json` | Workflow config (research mode, enforcement) |
-
-## Memory Engine
-
-Required for `/team` workflows. Initialize via `/init` or `python3 scripts/workflow_memory.py init`.
-
-```bash
-python3 scripts/workflow_memory.py show <id>     # Show issue details
-python3 scripts/workflow_memory.py create "title" # Create an issue
-python3 scripts/workflow_memory.py claim <id>     # Claim a task
-python3 scripts/workflow_memory.py close <id>     # Close a task
-```
-
-```python
-import sys; sys.path.insert(0, '.')
-from scripts.memory import is_initialized, create, ready, claim, close, prime, show
-```
-
-## Planning Docs
-
-- Current state: `docs/planning/STATE.md`
-- Project vision: `docs/planning/PROJECT.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Research: `docs/planning/work/research/`
-
-## Security
-
-- Never commit: secrets, keys, credentials, `.env` files
-- Pre-commit hooks scan for secrets and dangerous commands
-- Always validate user input at system boundaries
