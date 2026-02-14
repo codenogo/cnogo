@@ -336,8 +336,12 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
     elif isinstance(agent_teams, dict):
         stale = agent_teams.get("staleIndicatorMinutes")
         if stale is not None:
-            if not isinstance(stale, int) or stale <= 0:
+            if isinstance(stale, bool) or not isinstance(stale, int) or stale <= 0:
                 findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.staleIndicatorMinutes should be an integer > 0.", str(cfg_path)))
+        wt_mode = agent_teams.get("worktreeMode")
+        if wt_mode is not None:
+            if isinstance(wt_mode, bool) or not isinstance(wt_mode, str) or wt_mode not in ("always", "off"):
+                findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.worktreeMode should be 'always' or 'off'.", str(cfg_path)))
 
 
 def _packages_from_cfg(cfg: dict[str, Any]) -> list[dict[str, str]]:
@@ -648,6 +652,38 @@ def _validate_brainstorm(root: Path, findings: list[Finding], touched) -> None:
                     findings.append(Finding("ERROR", f"Failed to parse BRAINSTORM.json: {e}", str(bjson)))
 
 
+def _validate_worktree_session(root: Path, findings: list[Finding]) -> None:
+    """Validate .cnogo/worktree-session.json schema if it exists."""
+    session_path = root / ".cnogo" / "worktree-session.json"
+    if not session_path.exists():
+        return
+    try:
+        data = _load_json(session_path)
+    except Exception as e:
+        findings.append(Finding("ERROR", f"Failed to parse worktree-session.json: {e}", str(session_path)))
+        return
+    if not isinstance(data, dict):
+        findings.append(Finding("ERROR", "worktree-session.json must be a JSON object.", str(session_path)))
+        return
+
+    valid_phases = {"setup", "executing", "agents_complete", "merging", "merged", "verified", "committed", "cleaned"}
+
+    sv = data.get("schemaVersion")
+    if not isinstance(sv, int):
+        findings.append(Finding("WARN", "worktree-session.json: schemaVersion should be an integer.", str(session_path)))
+    for field in ("feature", "planNumber", "baseCommit", "baseBranch"):
+        val = data.get(field)
+        if not isinstance(val, str):
+            findings.append(Finding("WARN", f"worktree-session.json: {field} should be a string.", str(session_path)))
+    phase = data.get("phase")
+    if not isinstance(phase, str) or phase not in valid_phases:
+        findings.append(Finding("WARN", f"worktree-session.json: phase should be one of {sorted(valid_phases)}.", str(session_path)))
+    for arr_field in ("worktrees", "mergeOrder", "mergedSoFar"):
+        val = data.get(arr_field)
+        if not isinstance(val, list):
+            findings.append(Finding("WARN", f"worktree-session.json: {arr_field} should be an array.", str(session_path)))
+
+
 def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -685,6 +721,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     _validate_quick_tasks(root, findings, touched)
     _validate_research(root, findings, touched)
     _validate_brainstorm(root, findings, touched)
+    _validate_worktree_session(root, findings)
 
     return findings
 

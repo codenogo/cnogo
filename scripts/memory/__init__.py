@@ -30,7 +30,7 @@ __all__ = [
     # Init
     "init", "is_initialized",
     # Issue CRUD
-    "create", "show", "update", "claim", "close", "reopen",
+    "create", "show", "update", "claim", "close", "reopen", "release",
     # Query
     "ready", "list_issues", "stats",
     # Dependencies
@@ -41,6 +41,10 @@ __all__ = [
     "prime", "show_graph",
     # Bridge (Agent Teams integration)
     "plan_to_task_descriptions", "generate_implement_prompt",
+    "detect_file_conflicts",
+    # Worktree (parallel agent isolation)
+    "create_session", "merge_session", "cleanup_session",
+    "get_conflict_context", "load_session", "save_session",
 ]
 
 # ---------------------------------------------------------------------------
@@ -72,6 +76,20 @@ def _emit(conn, issue_id: str, event_type: str, actor: str,
         data=data or {},
         created_at=_st._now(),
     ))
+
+
+def _auto_export(root: Path) -> None:
+    """Best-effort JSONL export after state-changing operations.
+
+    Keeps .cnogo/issues.jsonl in sync with SQLite so git always sees
+    the latest state. Failures are silently ignored — JSONL is a
+    convenience layer, not the source of truth.
+    """
+    try:
+        from .sync import export_jsonl as _export
+        _export(root)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -218,12 +236,17 @@ def update(
     title: str | None = None,
     description: str | None = None,
     priority: int | None = None,
+    assignee: str | None = None,
     metadata: dict | None = None,
     comment: str | None = None,
     actor: str = "claude",
     root: Path | None = None,
 ) -> Issue:
-    """Update issue fields. Emits 'updated' event."""
+    """Update issue fields. Emits 'updated' event.
+
+    The ``assignee`` parameter allows direct reassignment without going
+    through the release/claim cycle. Pass an empty string to unassign.
+    """
     conn = _conn(root)
     try:
         existing = _st.get_issue(conn, issue_id)
@@ -242,6 +265,9 @@ def update(
         if priority is not None and priority != existing.priority:
             fields["priority"] = priority
             changes["priority"] = {"old": existing.priority, "new": priority}
+        if assignee is not None and assignee != existing.assignee:
+            fields["assignee"] = assignee
+            changes["assignee"] = {"old": existing.assignee, "new": assignee}
         if metadata is not None:
             merged = {**existing.metadata, **metadata}
             fields["metadata"] = merged
@@ -274,7 +300,8 @@ def claim(
     root: Path | None = None,
 ) -> Issue:
     """Atomic claim: sets assignee + in_progress. Raises if already claimed."""
-    conn = _conn(root)
+    r = root or _root or Path(".")
+    conn = _conn(r)
     try:
         # Acquire write lock early for CAS atomicity (W-6)
         conn.execute("BEGIN IMMEDIATE")
@@ -292,9 +319,11 @@ def claim(
 
         _emit(conn, issue_id, "claimed", actor)
         conn.commit()
-        return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
     finally:
         conn.close()
+    _auto_export(r)
+    return result
 
 
 def close(
@@ -305,8 +334,10 @@ def close(
     actor: str = "claude",
     root: Path | None = None,
 ) -> Issue:
-    """Close an issue. Rebuilds blocked cache."""
-    conn = _conn(root)
+    """Close an issue. Rebuilds blocked cache, auto-closes parent epic if
+    all siblings are now closed, and auto-exports JSONL."""
+    r = root or _root or Path(".")
+    conn = _conn(r)
     try:
         existing = _st.get_issue(conn, issue_id)
         if existing is None:
@@ -321,11 +352,16 @@ def close(
             "comment": comment or "",
         })
 
+        # Auto-close parent epic if all children are now closed
+        _try_auto_close_parent(conn, issue_id, actor)
+
         _rebuild_blocked_cache(conn)
         conn.commit()
-        return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
     finally:
         conn.close()
+    _auto_export(r)
+    return result
 
 
 def reopen(
@@ -351,6 +387,42 @@ def reopen(
         return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
     finally:
         conn.close()
+
+
+def release(
+    issue_id: str,
+    *,
+    actor: str = "claude",
+    root: Path | None = None,
+) -> Issue:
+    """Release a claimed (in_progress) issue back to open/unassigned.
+
+    Used to reclaim tasks from dead agents or re-assign work.
+    Resets status to 'open' and clears assignee.
+    """
+    r = root or _root or Path(".")
+    conn = _conn(r)
+    try:
+        existing = _st.get_issue(conn, issue_id)
+        if existing is None:
+            raise ValueError(f"Issue {issue_id} not found")
+
+        ok = _st.release_issue(conn, issue_id)
+        if not ok:
+            raise ValueError(
+                f"Issue {issue_id} is not in_progress (status={existing.status!r})"
+            )
+
+        _emit(conn, issue_id, "released", actor, {
+            "previous_assignee": existing.assignee,
+        })
+        _rebuild_blocked_cache(conn)
+        conn.commit()
+        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+    finally:
+        conn.close()
+    _auto_export(r)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -513,6 +585,46 @@ def blocks(
 # Blocked Cache & Cycle Detection (inline — Phase 2 adds graph.py)
 # ---------------------------------------------------------------------------
 
+def _try_auto_close_parent(conn, issue_id: str, actor: str) -> None:
+    """Auto-close a parent epic when all its children are closed.
+
+    Finds the parent via parent-child dependency, checks if all siblings
+    are closed, and if so closes the parent with reason 'completed'.
+    """
+    # Find parent via parent-child dependency
+    rows = conn.execute(
+        """SELECT depends_on_id FROM dependencies
+           WHERE issue_id = ? AND dep_type = 'parent-child'""",
+        (issue_id,),
+    ).fetchall()
+    if not rows:
+        return
+
+    parent_id = rows[0]["depends_on_id"]
+    parent = _st.get_issue(conn, parent_id)
+    if parent is None or parent.status == "closed":
+        return
+
+    # Check if all children of this parent are now closed
+    children = conn.execute(
+        """SELECT i.status FROM issues i
+           JOIN dependencies d ON i.id = d.issue_id
+           WHERE d.depends_on_id = ? AND d.dep_type = 'parent-child'""",
+        (parent_id,),
+    ).fetchall()
+
+    if not children:
+        return
+
+    all_closed = all(c["status"] == "closed" for c in children)
+    if all_closed:
+        _st.close_issue(conn, parent_id, "completed")
+        _emit(conn, parent_id, "closed", actor, {
+            "reason": "completed",
+            "comment": "Auto-closed: all children completed",
+        })
+
+
 _CYCLE_MAX_ITERATIONS = 10_000
 
 
@@ -538,26 +650,32 @@ def _rebuild_blocked_cache(conn) -> None:
     )
     conn.execute("DELETE FROM _blocked_new")
 
-    # Step 1: Direct blocking — 'blocks' type dependencies on open issues
+    # Step 1: Direct blocking — 'blocks' type dependencies on open issues.
+    # Only non-closed issues can be blocked (closed issues are done).
     conn.execute("""
         INSERT INTO _blocked_new (issue_id)
         SELECT DISTINCT d.issue_id
         FROM dependencies d
         JOIN issues blocker ON d.depends_on_id = blocker.id
+        JOIN issues blocked ON d.issue_id = blocked.id
         WHERE d.dep_type = 'blocks'
           AND blocker.status NOT IN ('closed')
+          AND blocked.status NOT IN ('closed')
     """)
 
     # Step 2: Transitive — if a parent/blocker is in _blocked_new,
     # propagate to children and downstream issues.
+    # Only propagate to non-closed issues.
     for _ in range(_CYCLE_MAX_ITERATIONS):
         cursor = conn.execute("""
             INSERT OR IGNORE INTO _blocked_new (issue_id)
             SELECT DISTINCT d.issue_id
             FROM dependencies d
             JOIN _blocked_new bc ON d.depends_on_id = bc.issue_id
+            JOIN issues i ON d.issue_id = i.id
             WHERE d.dep_type IN ('blocks', 'parent-child')
               AND d.issue_id NOT IN (SELECT issue_id FROM _blocked_new)
+              AND i.status NOT IN ('closed')
         """)
         if cursor.rowcount == 0:
             break
@@ -669,3 +787,64 @@ def generate_implement_prompt(
         feature=feature,
         plan_number=plan_number,
     )
+
+
+def detect_file_conflicts(
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Check for file boundary violations across plan tasks.
+
+    Returns a list of conflict dicts: [{file, tasks}].
+    Empty list = safe for parallel execution.
+    """
+    from .bridge import detect_file_conflicts as _detect
+    return _detect(tasks)
+
+
+# ---------------------------------------------------------------------------
+# Worktree (parallel agent isolation)
+# ---------------------------------------------------------------------------
+
+def create_session(
+    plan_json_path: Path,
+    root: Path,
+    task_descriptions: list[dict[str, Any]],
+) -> Any:
+    """Create worktrees for parallel agent execution."""
+    from .worktree import create_session as _create
+    return _create(plan_json_path, root, task_descriptions)
+
+
+def merge_session(session: Any, root: Path) -> Any:
+    """Merge agent branches sequentially in task order."""
+    from .worktree import merge_session as _merge
+    return _merge(session, root)
+
+
+def cleanup_session(session: Any, root: Path) -> None:
+    """Remove all worktrees, delete branches, and remove state file."""
+    from .worktree import cleanup_session as _cleanup
+    _cleanup(session, root)
+
+
+def get_conflict_context(
+    session: Any,
+    task_index: int,
+    plan_json_path: Path,
+    root: Path,
+) -> dict[str, Any]:
+    """Build context dict for the resolver agent."""
+    from .worktree import get_conflict_context as _ctx
+    return _ctx(session, task_index, plan_json_path, root)
+
+
+def load_session(root: Path) -> Any:
+    """Read and deserialize worktree session state. Returns None if no file."""
+    from .worktree import load_session as _load
+    return _load(root)
+
+
+def save_session(session: Any, root: Path) -> None:
+    """Serialize worktree session to JSON, write atomically."""
+    from .worktree import save_session as _save
+    _save(session, root)
