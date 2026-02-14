@@ -164,12 +164,15 @@ def generate_implement_prompt(
 def detect_file_conflicts(
     tasks: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Check for file boundary violations across plan tasks.
+    """Check for file overlaps that may produce merge conflicts (advisory).
 
     Returns a list of conflict dicts with keys:
-      file, tasks (list of task indices that share the file)
+      file, tasks (list of task indices that share the file), severity
 
-    Empty list = no conflicts (safe for parallel execution).
+    Severity is always "advisory" — worktree isolation prevents runtime
+    interference, and the resolver agent handles merge conflicts at merge time.
+
+    Empty list = no overlaps detected.
     """
     file_owners: dict[str, list[int]] = {}
     for i, task in enumerate(tasks):
@@ -181,7 +184,7 @@ def detect_file_conflicts(
     conflicts = []
     for file_path, owners in file_owners.items():
         if len(owners) > 1:
-            conflicts.append({"file": file_path, "tasks": owners})
+            conflicts.append({"file": file_path, "tasks": owners, "severity": "advisory"})
     return conflicts
 
 

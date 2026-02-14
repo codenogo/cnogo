@@ -47,17 +47,30 @@ Extract action and arguments from "$ARGUMENTS". First word = action, remaining =
    ```bash
    python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory.bridge import plan_to_task_descriptions; from pathlib import Path; print(json.dumps(plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), Path('.')), indent=2))"
    ```
-4. Check file conflicts via `detect_file_conflicts()`. If conflicts, warn and suggest serial `/implement` instead.
-5. Create team `impl-<feature>-<plan>` via TeamCreate
-6. Create TaskCreate entries (two-pass):
+4. Check file conflicts via `detect_file_conflicts()`. **Advisory only** — if conflicts, warn: "File overlaps detected. Merge conflicts likely — resolver agent will handle." Proceed regardless (worktree isolation prevents runtime interference).
+5. **Create worktree session** — each agent gets an isolated worktree and branch:
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory import create_session, plan_to_task_descriptions; from pathlib import Path; root=Path('.'); descs=plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), root); session=create_session(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), root, descs); print(json.dumps({'phase': session.phase, 'worktrees': len(session.worktrees)}))"
+   ```
+6. Create team `impl-<feature>-<plan>` via TeamCreate
+7. Create TaskCreate entries — include the worktree path in each task description so agents know their working directory. Two-pass:
    - **Pass 1:** Create tasks for non-skipped items. Record `task_index_to_id` mapping (None for skipped).
    - **Pass 2:** Wire `blockedBy` dependencies via TaskUpdate `addBlockedBy`.
-7. Spawn one `implementer` teammate per task via Task tool with `team_name` and `subagent_type: "general-purpose"`
-8. Activate delegate mode. Monitor via TaskList until all tasks completed.
-9. Run `planVerify` commands from plan JSON. Fix failures directly.
-10. Create summary artifacts (`<NN>-SUMMARY.md` + `<NN>-SUMMARY.json`)
-11. Commit: `git add -A && git commit -m "<commitMessage from plan>"`
-13. Dismiss team, then `python3 scripts/workflow_validate.py`
+8. Spawn one `implementer` teammate per task via Task tool with `team_name` and `subagent_type: "general-purpose"`. The agent's prompt must include: "Your working directory is `<worktree_path>`. All file paths are relative to this directory."
+9. Activate delegate mode. Monitor via TaskList until all tasks completed.
+10. **Merge agent branches** — sequential merge in task order:
+    ```bash
+    python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory import load_session, merge_session; from pathlib import Path; root=Path('.'); session=load_session(root); result=merge_session(session, root); print(json.dumps({'success': result.success, 'merged': result.merged_indices, 'conflict_index': result.conflict_index, 'conflict_files': result.conflict_files}))"
+    ```
+11. **If merge conflict**: Spawn resolver agent (`.claude/agents/resolver.md`) with context from `get_conflict_context()`. After resolution, retry merge from where it left off. If resolver fails after 2 attempts, `git merge --abort` and report to user.
+12. Run `planVerify` commands from plan JSON. Fix failures directly.
+13. Create summary artifacts (`<NN>-SUMMARY.md` + `<NN>-SUMMARY.json`)
+14. Commit: `git add -A && git commit -m "<commitMessage from plan>"`
+15. **Cleanup worktrees** — remove worktrees, branches, and state file:
+    ```bash
+    python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import load_session, cleanup_session; from pathlib import Path; root=Path('.'); session=load_session(root); cleanup_session(session, root); print('Worktrees cleaned')"
+    ```
+16. Dismiss team, then `python3 scripts/workflow_validate.py`
 
 #### Action: `status`
 
@@ -90,8 +103,8 @@ Send shutdown_request to each teammate, wait for confirmations, TeamDelete, repo
 
 ## Notes
 
-- Agent Teams is a research preview — one team per session, no resumption
-- Keep teams small (3-4 teammates) — more increases coordination overhead and token cost
+- Agent Teams is a research preview — keep teams small (3-4 teammates) to limit coordination overhead and token cost
+- Worktree state file (`.cnogo/worktree-session.json`) enables crash recovery — use `/resume` to detect interrupted sessions
 - For single-agent work, use `/spawn` instead
 
 ## Output

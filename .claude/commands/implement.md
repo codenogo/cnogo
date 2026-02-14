@@ -41,13 +41,14 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import claim
 ### Step 1c: Team Mode (If Requested)
 
 **Detection logic (in priority order):**
-1. If `$ARGUMENTS` contains `--team` → delegate to `/team implement <feature> <plan>`
-2. If plan JSON has `"parallelizable": true` AND Agent Teams available → auto-delegate (still run `detect_file_conflicts()` and warn if conflicts exist, but proceed): "Delegating to team mode (plan marked parallelizable)."
-3. If plan JSON has `"parallelizable": false` → serial execution (override auto-detection, even if `--team` is not set and tasks look independent)
-4. If `parallelizable` not present → fall back to existing heuristic:
-   a. If ALL: plan has >2 tasks, Agent Teams available, non-overlapping files → auto-delegate: "Delegating to team mode (N independent tasks with non-overlapping files)."
-   b. If >1 task AND Agent Teams available but files overlap → "Serial execution is safer." Continue below.
-   c. Otherwise → standard serial execution
+1. If `$ARGUMENTS` contains `--team` → delegate to `/team implement <feature> <plan>` (explicit flag, always honored)
+2. If plan JSON has `"parallelizable": true` AND Agent Teams available → auto-delegate with worktree isolation: "Delegating to team mode with worktree isolation (plan marked parallelizable)."
+3. If plan JSON has `"parallelizable": false` → serial execution (override auto-detection)
+4. If `parallelizable` not present → fall back to heuristic:
+   a. If ALL: plan has >2 tasks AND Agent Teams available → auto-delegate with worktree isolation. File conflicts are advisory only (resolver agent handles merge conflicts).
+   b. Otherwise → standard serial execution
+
+Note: All parallel execution uses git worktree isolation. File overlap no longer blocks parallel execution — the resolver agent handles merge conflicts at merge time.
 
 ### Step 2: Execute Tasks
 

@@ -132,6 +132,43 @@ if is_initialized(root):
 - If the task's `memoryId` is **open** (released above) → create TaskCreate entry and re-execute
 - This prevents duplicate work: only incomplete tasks are re-created in the new team session
 
+#### Worktree Session Recovery
+
+Detect interrupted worktree sessions:
+
+```bash
+python3 -c "
+import sys, json; sys.path.insert(0, '.')
+from scripts.memory.worktree import load_session
+from pathlib import Path
+root = Path('.')
+session = load_session(root)
+if session:
+    print(f'### Interrupted Worktree Session')
+    print(f'  Feature: {session.feature}, Plan: {session.plan_number}')
+    print(f'  Phase: {session.phase}')
+    print(f'  Base: {session.base_commit} on {session.base_branch}')
+    completed = sum(1 for w in session.worktrees if w.status in ('completed', 'merged'))
+    total = len(session.worktrees)
+    print(f'  Progress: {completed}/{total} tasks')
+    for w in session.worktrees:
+        icon = {'created': '⏳', 'executing': '🔄', 'completed': '✅', 'merged': '🔀', 'conflict': '⚠️', 'cleaned': '🧹'}.get(w.status, '❓')
+        print(f'  {icon} Task {w.task_index}: {w.name} [{w.status}]')
+    if session.phase == 'executing':
+        print(f'  Resume with: /team implement {session.feature} {session.plan_number}')
+    elif session.phase == 'merging':
+        print(f'  Continue merge from task {session.merge_order[len(session.merged_so_far)]}')
+    elif session.phase in ('merged', 'verified'):
+        print(f'  Ready to commit and clean up')
+"
+```
+
+Recovery options based on phase:
+- **executing**: Re-run `/team implement` — bridge skips already-closed memory tasks, worktrees exist for in-progress ones
+- **merging**: Continue `merge_session()` from last checkpoint (reads `mergedSoFar`)
+- **merged/verified**: Just commit and cleanup
+- **Any phase**: `cleanup_session()` to abort and remove all worktrees
+
 ### Step 4: Load Feature Context
 
 If working on a feature:
