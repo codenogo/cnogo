@@ -91,7 +91,7 @@ from pathlib import Path
 root = Path('.')
 if is_initialized(root):
     # Close all open issues for this feature
-    feature = '<feature-slug>'  # Infer from branch name or STATE.md
+    feature = '<feature-slug>'  # Infer from branch name or memory
     issues = list_issues(feature_slug=feature, root=root)
     closed = 0
     for issue in issues:
@@ -103,18 +103,7 @@ if is_initialized(root):
 "
 ```
 
-### Step 5: Update State
-
-Update `docs/planning/STATE.md`:
-```
-## Current Focus
-- Feature: [feature]
-- Status: PR created
-- PR: #[number] or [URL]
-- Next: Await review / merge
-```
-
-### Step 6: Clean Up (optional)
+### Step 5: Clean Up (optional)
 
 If user confirms:
 ```bash

@@ -11,7 +11,7 @@ Review all changes for quality, security, and correctness.
 
 Always write a review artifact:
 
-- If `docs/planning/STATE.md` indicates an active **Feature**, write to:
+- If memory has an active feature (query: `list_issues(issue_type='epic', status='in_progress')`), write to:
   - `docs/planning/work/features/<feature>/REVIEW.md`
   - `docs/planning/work/features/<feature>/REVIEW.json`
 - Otherwise write to:

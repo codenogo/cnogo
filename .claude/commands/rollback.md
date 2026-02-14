@@ -111,17 +111,6 @@ elif [ -f go.mod ]; then
 fi
 ```
 
-### Step 4: Update State
-
-Update `docs/planning/STATE.md`:
-```
-## Recent Decisions
-
-| Date | Decision | Context |
-|------|----------|---------|
-| [now] | Rolled back [commit] | [reason if provided] |
-```
-
 ## Safety Rules
 
 1. **Never force push** — Rollbacks create new commits, preserving history

@@ -115,10 +115,6 @@ Contract schema (minimal):
 }
 ```
 
-### Step 6: Update State
-
-Update `docs/planning/STATE.md` with plan completion status.
-
 ## Output
 
 - Summary of changes

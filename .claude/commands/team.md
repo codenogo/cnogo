@@ -56,8 +56,7 @@ Extract action and arguments from "$ARGUMENTS". First word = action, remaining =
 8. Activate delegate mode. Monitor via TaskList until all tasks completed.
 9. Run `planVerify` commands from plan JSON. Fix failures directly.
 10. Create summary artifacts (`<NN>-SUMMARY.md` + `<NN>-SUMMARY.json`)
-11. Update `docs/planning/STATE.md`
-12. Commit: `git add -A && git commit -m "<commitMessage from plan>"`
+11. Commit: `git add -A && git commit -m "<commitMessage from plan>"`
 13. Dismiss team, then `python3 scripts/workflow_validate.py`
 
 #### Action: `status`

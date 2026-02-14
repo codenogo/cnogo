@@ -49,7 +49,7 @@ def prime(*, limit: int = 10, root: Path | None = None) -> str:
         )
         lines.append("")
 
-        # Active Epics (replaces STATE.md current focus)
+        # Active Epics
         epics = _st.list_issues_query(
             conn, issue_type="epic", status="in_progress", limit=limit
         )

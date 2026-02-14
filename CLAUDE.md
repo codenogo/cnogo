@@ -23,7 +23,6 @@ scripts/memory/              # Memory engine (Python, stdlib only)
 .claude/skills/              # Lazy-loaded domain expertise
 .claude/commands/            # Slash command definitions
 docs/planning/               # Planning docs, feature work, research
-docs/planning/STATE.md       # Current position and decisions
 .cnogo/memory.db             # SQLite runtime (gitignored)
 .cnogo/issues.jsonl          # Git-tracked sync format
 ```

@@ -17,7 +17,10 @@ Analyse the feature "$ARGUMENTS" and identify gray areas that need decisions.
 ### Step 1: Read Context
 
 1. Read `docs/planning/PROJECT.md` for constraints and patterns
-2. Read `docs/planning/STATE.md` for current context
+2. Load current position from memory:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"
+   ```
 3. Search codebase for related code: `rg -l "$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go}' -t code`
 4. **Check External Context:**
    - If Jira/Linear MCP configured: Fetch ticket details
@@ -175,15 +178,6 @@ Store the returned `memoryEpicId` in `CONTEXT.json`:
 ```
 
 If memory is not initialized, skip this step — the command works identically without it.
-
-### Step 6: Update State
-
-Add to `docs/planning/STATE.md`:
-```
-## Current Focus
-- Feature: <feature-slug>
-- Status: Discussed, ready for planning
-```
 
 ## Output
 

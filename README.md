@@ -139,7 +139,6 @@ This powers package-aware execution for:
 Then edit these once (they are your long-term “source of truth”):
 
 - **`docs/planning/PROJECT.md`**: vision, constraints, architecture patterns
-- **`docs/planning/STATE.md`**: what’s in progress + handoffs
 - **`docs/planning/WORKFLOW.json`**: enforcement + performance knobs (monorepo packages, scoping strictness)
 
 Finally:
@@ -162,7 +161,7 @@ Outputs:
 
 - `docs/planning/work/features/<feature-slug>/CONTEXT.md`
 - `docs/planning/work/features/<feature-slug>/CONTEXT.json`
-- Updates `docs/planning/STATE.md`
+- Creates memory epic for the feature
 
 #### (Optional) Deep Research (when uncertainty is high)
 
@@ -201,7 +200,7 @@ Outputs:
 - A commit (atomic)
 - `docs/planning/work/features/<feature-slug>/01-SUMMARY.md`
 - `docs/planning/work/features/<feature-slug>/01-SUMMARY.json`
-- Updates `docs/planning/STATE.md`
+- Closes memory tasks as each is verified
 
 Repeat for `02`, `03`, etc.
 
@@ -241,7 +240,7 @@ Outputs:
 /ship
 ```
 
-Creates a PR via `gh` (if available) and updates `STATE.md`.
+Creates a PR via `gh` (if available) and closes the memory epic.
 
 ### Daily Usage: Quick Fixes (Tier 1)
 
@@ -464,7 +463,7 @@ claude --teleport session_xxx
 | Command | Purpose |
 |---------|---------|
 | `/init` | Auto-populate templates based on stack detection |
-| `/close <feature>` | Post-merge cleanup (STATE.md + optional archive) |
+| `/close <feature>` | Post-merge cleanup (memory close + optional archive) |
 
 ### MCP Integrations
 
@@ -549,7 +548,6 @@ your-project/
 │
 ├── docs/planning/
 │   ├── PROJECT.md              # Vision, constraints, patterns
-│   ├── STATE.md                # Current position, decisions
 │   ├── ROADMAP.md              # Phases and progress
 │   ├── WORKFLOW.json           # Optional enforcement config (validator/monorepo)
 │   ├── adr/                    # Architecture Decision Records
@@ -572,7 +570,7 @@ your-project/
 │   └── CLAUDE-rust.md
 │
 ├── CLAUDE.md                   # Agent instructions
-├── docs/skills.md              # Reusable “skills” playbooks for consistent SDLC execution
+├── .claude/skills/             # Lazy-loaded domain expertise (security, review, perf, etc.)
 └── CHANGELOG.md                # Release history
 ```
 
@@ -672,7 +670,7 @@ Create `.claude/commands/your-command.md`:
 2. **Atomic commits** — One commit per task. Git bisect works. Reverts are clean.
 3. **Discuss before plan** — Capture decisions upfront. Avoid rework.
 4. **Verify before ship** — Trust but verify. Does it actually work?
-5. **State survives sessions** — STATE.md is your memory across context switches.
+5. **State survives sessions** — Memory engine persists across context switches.
 6. **Security by default** — Secret scanning, dependency audits, SAST.
 
 ### Karpathy-Inspired Claude Coding Principles
@@ -740,7 +738,7 @@ This configures `core.hooksPath=.githooks` for the repository.
 ## Credits
 
 - **Boris Cherny** — Parallel session workflow, plan mode, fresh context pattern
-- **GSD (TÂCHES)** — Context engineering, STATE.md, discuss → plan → execute → verify cycle
+- **GSD (TÂCHES)** — Context engineering, memory engine, discuss → plan → execute → verify cycle
 - **Keep a Changelog** — Changelog format
 - **Conventional Commits** — Commit message format
 

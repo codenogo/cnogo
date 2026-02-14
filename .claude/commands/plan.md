@@ -16,7 +16,10 @@ Break "$ARGUMENTS" into atomic, executable plans.
 
 1. Read `docs/planning/PROJECT.md` for patterns
 2. Read `docs/planning/work/features/$ARGUMENTS/CONTEXT.md` and `CONTEXT.json` for decisions
-3. Read `docs/planning/STATE.md` for current position
+3. Load current position from memory:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"
+   ```
 
 If CONTEXT.md doesn't exist, ask user to run `/discuss $ARGUMENTS` first or confirm they want to proceed without it.
 
@@ -29,9 +32,9 @@ Split work by:
 
 Each plan should be completable in one fresh Claude session.
 
-### Principle Reminder (Use Skills Library)
+### Principle Reminder
 
-Apply **Karpathy Principles** from `docs/skills.md` while planning:
+Apply **Karpathy Principles** (see CLAUDE.md) while planning:
 
 - Think Before Coding (surface tradeoffs)
 - Simplicity First (minimum viable plan)
@@ -66,7 +69,8 @@ For each plan, create:
       "cwd": "packages/api (optional; recommended for monorepos)",
       "files": ["path/to/file.ts"],
       "action": "Specific instructions",
-      "verify": ["npm test --silent"]
+      "verify": ["npm test --silent"],
+      "blockedBy": [0]
     }
   ],
   "planVerify": ["npm test --silent"],
@@ -74,6 +78,14 @@ For each plan, create:
   "timestamp": "2026-01-24T00:00:00Z"
 }
 ```
+
+**`blockedBy` semantics (optional field):**
+- Type: `number[]` — zero-based indices into the same plan's `tasks` array
+- Meaning: this task cannot start until ALL referenced tasks are completed
+- Default: `[]` (empty) — task can run immediately in parallel
+- Example: `"blockedBy": [0, 1]` means "wait for task 0 and task 1 to finish first"
+- Used by `/team implement` to set `addBlockedBy` on TaskList entries
+- In serial `/implement`, tasks are executed in array order regardless of `blockedBy`
 
 For the human plan, create `docs/planning/work/features/$ARGUMENTS/NN-PLAN.md`:
 
@@ -182,17 +194,6 @@ Store each task's `memoryId` in `NN-PLAN.json`:
 Add inter-task dependencies with `dep_add()` when tasks must execute in order.
 
 If memory is not initialized, skip this step — the command works identically without it.
-
-### Step 5: Update State
-
-Update `docs/planning/STATE.md`:
-```
-## Current Focus
-- Feature: $ARGUMENTS
-- Status: Planned
-- Plans: 01, 02, 03 (list them)
-- Next: /implement $ARGUMENTS 01
-```
 
 ## Output
 

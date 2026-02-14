@@ -1,7 +1,7 @@
 # Close: $ARGUMENTS
 <!-- effort: low -->
 
-Post-merge cleanup. Keeps `STATE.md` current and optionally archives feature artifacts after merge into `main`.
+Post-merge cleanup. Closes memory epic and optionally archives feature artifacts after merge into `main`.
 
 ## Arguments
 
@@ -11,7 +11,7 @@ Example: `/close websocket-notifications`
 
 ## Your Task
 
-After a feature is merged, update state and file organization.
+After a feature is merged, close memory epic and clean up artifacts.
 
 ### Step 1: Confirm Merge
 
@@ -24,16 +24,7 @@ git log -5 --oneline
 
 If the user provides a PR number, include it in notes.
 
-### Step 2: Update `docs/planning/STATE.md`
-
-Update:
-
-- **Current Focus**: set Feature to `None` (or next feature if already known)
-- **Status**: `Idle` (or next status)
-- Clear any active **Session Handoff** (mark as cleared)
-- Add a line in **Recent Decisions** indicating the merge (feature slug + PR if known)
-
-### Step 2b: Memory Close (If Enabled)
+### Step 2: Memory Close
 
 If the memory engine is initialized (`.cnogo/memory.db` exists), close all open issues for this feature:
 
@@ -87,7 +78,7 @@ python3 scripts/workflow_validate.py
 
 ## Output
 
-- What was updated in `STATE.md`
+- Memory epic and issues closed
 - Whether artifacts were archived
 - Next recommended action (`/brainstorm`, `/discuss`, or `/quick`)
 

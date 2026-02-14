@@ -13,7 +13,7 @@ Apply these on every non-trivial task. Inspired by [forrestchang/andrej-karpathy
 
 ## Memory Engine
 
-Optional structured task tracking (initialize via `/init` or `python3 scripts/workflow_memory.py init`):
+Structured task tracking (initialized at install via `install.sh`, or manually via `python3 scripts/workflow_memory.py init`):
 
 ```bash
 # CLI access
@@ -37,7 +37,7 @@ Key files:
 
 ## Planning Docs
 
-- Current state: `docs/planning/STATE.md`
+- Current state: memory engine (`prime()` for context summary)
 - Project vision: `docs/planning/PROJECT.md`
 - Roadmap: `docs/planning/ROADMAP.md`
 - Feature work: `docs/planning/work/features/`

@@ -182,16 +182,6 @@ For the human-readable report, create `docs/planning/work/features/$ARGUMENTS/VE
 *Verified: [date]*
 ```
 
-### Step 8: Update State
-
-Update `docs/planning/STATE.md`:
-```
-## Current Focus
-- Feature: $ARGUMENTS
-- Status: Verified (N passed, N failed)
-- Next: [/implement fixes | /review]
-```
-
 ## Output
 
 - Verification summary

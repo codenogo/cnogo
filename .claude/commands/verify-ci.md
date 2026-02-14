@@ -99,17 +99,6 @@ Create:
 python3 scripts/workflow_validate.py
 ```
 
-### Step 5: Update State
-
-Update `docs/planning/STATE.md`:
-
-```
-## Current Focus
-- Feature: $ARGUMENTS
-- Status: Verified (CI)
-- Next: /verify (human) or /review
-```
-
 ## Output
 
 - What ran and what was skipped (with reasons)

@@ -4,7 +4,7 @@ Package-aware check runner for this workflow pack.
 
 Reads docs/planning/WORKFLOW.json packages[].commands and runs checks per package:
 - verify-ci: writes VERIFICATION-CI.md/json under a feature folder
-- review: writes REVIEW.md/json under feature folder if inferable from STATE.md, else under work/review/
+- review: writes REVIEW.md/json under feature folder if inferable from memory, else under work/review/
 
 No external dependencies.
 """
@@ -278,7 +278,7 @@ def main() -> int:
     v.add_argument("feature", help="Feature slug (docs/planning/work/features/<feature>/)")
 
     r = sub.add_parser("review", help="Run review checks and write REVIEW artifacts.")
-    r.add_argument("--feature", help="Feature slug (overrides STATE.md inference).")
+    r.add_argument("--feature", help="Feature slug (overrides memory inference).")
 
     args = parser.parse_args()
     root = repo_root()
