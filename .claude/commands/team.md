@@ -93,12 +93,29 @@ Extract the action and arguments from "$ARGUMENTS":
 3. **Activate delegate mode** — the lead (you) should coordinate, not code directly
 4. Create the team using TeamCreate
 5. Create tasks using TaskCreate based on the task description
-6. Spawn teammates from `.claude/agents/` definitions using the Task tool with `team_name`
-7. **Assign file boundaries** to each teammate to prevent merge conflicts:
+6. **Memory Integration (If Enabled):** If `.cnogo/memory.db` exists, also create memory issues:
+   ```bash
+   python3 -c "
+   import sys; sys.path.insert(0, '.')
+   from scripts.memory import is_initialized, create
+   from pathlib import Path
+   root = Path('.')
+   if is_initialized(root):
+       # Create team epic
+       epic = create('<team task description>', issue_type='epic', labels=['team'], root=root)
+       # Create subtask per agent assignment
+       for agent_task in agent_tasks:
+           t = create(agent_task['name'], parent=epic.id, labels=['team'], root=root)
+           print(f'Memory task: {t.id} -> {agent_task[\"agent\"]}')
+   "
+   ```
+   Agents use `memory.claim()` before starting work and `memory.close()` when done.
+7. Spawn teammates from `.claude/agents/` definitions using the Task tool with `team_name`
+8. **Assign file boundaries** to each teammate to prevent merge conflicts:
    - Each teammate should own specific files/directories
    - No two teammates should edit the same file
    - Document assignments in the task descriptions
-8. Report the team composition and assignments
+9. Report the team composition and assignments
 
 #### Action: `status`
 

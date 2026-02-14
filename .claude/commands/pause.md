@@ -74,6 +74,26 @@ Update `docs/planning/STATE.md` with handoff section:
 [Any decisions made but not documented, gotchas discovered, etc.]
 ```
 
+### Step 3b: Memory Sync (If Enabled)
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), persist all task state:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, sync, prime
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    sync(root)
+    print('Memory state synced to .cnogo/issues.jsonl')
+    print()
+    print(prime(root=root))
+"
+```
+
+This exports the full memory state to JSONL (git-tracked), making session handoff more robust. The `prime()` output can be included in the handoff section for quick context recovery.
+
 ### Step 4: Verify State is Saved
 
 ```bash

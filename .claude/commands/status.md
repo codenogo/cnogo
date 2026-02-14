@@ -55,6 +55,28 @@ ls docs/planning/work/features/ 2>/dev/null
 ls docs/planning/work/quick/ 2>/dev/null | tail -5
 ```
 
+### Step 3b: Memory Status (If Enabled)
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), include structured task status:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, prime, stats
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    print(prime(root=root))
+    print()
+    s = stats(root=root)
+    print(f'Total: {s.get(\"total\", 0)} | Open: {s.get(\"open\", 0)} | Active: {s.get(\"in_progress\", 0)} | Ready: {s.get(\"ready\", 0)} | Blocked: {s.get(\"blocked\", 0)}')
+else:
+    print('Memory engine not initialized.')
+"
+```
+
+Include the memory output in the status report alongside the git and artifact state.
+
 ### Step 4: Generate Status Report
 
 Output:

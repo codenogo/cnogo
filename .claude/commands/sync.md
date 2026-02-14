@@ -93,7 +93,40 @@ Read the sync file:
 cat "$WORKFLOW_SYNC_FILE"
 ```
 
-## Solution B: Agent Teams (Modes 5-6)
+## Solution B: Memory Engine (Mode 7)
+
+When the memory engine is initialized (`.cnogo/memory.db` exists), use it for structured state synchronization:
+
+### Mode 7: `/sync` (Memory-Backed)
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, sync, stats, prime
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    sync(root)
+    print(prime(root=root))
+    print()
+    s = stats(root=root)
+    print(f'Total: {s.get(\"total\", 0)} | Open: {s.get(\"open\", 0)} | Active: {s.get(\"in_progress\", 0)} | Ready: {s.get(\"ready\", 0)} | Blocked: {s.get(\"blocked\", 0)}')
+    print()
+    print('Memory exported to .cnogo/issues.jsonl and staged for git.')
+else:
+    print('Memory engine not initialized. Using manual sync.')
+"
+```
+
+Memory mode provides:
+- Structured issue state exported to git-tracked JSONL
+- Dependency graph with blocked/ready detection
+- Token-efficient context summaries
+- Automatic merge handling (line-based JSONL format)
+
+When memory is active, prefer Mode 7 over manual sync (Modes 1-4) for single-developer workflows. Agent Teams (Modes 5-6) remain for multi-agent coordination.
+
+## Solution C: Agent Teams (Modes 5-6)
 
 When Agent Teams is active, coordination happens through the shared task list and mailbox system built into Claude Code.
 

@@ -37,3 +37,20 @@ Prioritize by impact:
 - **Low impact**: <2x improvement, nice-to-have
 
 Update your agent memory with performance hotspots and optimization patterns specific to this project.
+
+### Memory Engine Integration
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), you can query task context:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, prime
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    print(prime(root=root))
+"
+```
+
+Use `memory.show(issue_id)` to get full details on a specific issue. Use `memory.ready()` to find unblocked tasks. If working on a team task, use `memory.claim(issue_id, actor='<your-name>')` before starting and `memory.close(issue_id)` when done.

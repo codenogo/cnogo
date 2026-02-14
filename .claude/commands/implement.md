@@ -30,19 +30,51 @@ Apply **Karpathy Principles** from `docs/skills.md` during implementation:
 
 If plan not found, list available plans and ask user to specify.
 
+### Step 1b: Memory Claim (If Enabled)
+
+If the memory engine is initialized and the plan JSON has `memoryId` fields:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, claim, ready
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    # Show ready tasks for this feature
+    tasks = ready(feature_slug='<feature-slug>', root=root)
+    for t in tasks:
+        print(f'Ready: {t.id} {t.title}')
+"
+```
+
+Before starting each task, claim it:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import claim
+from pathlib import Path
+claim('<memoryId>', actor='<session-id>', root=Path('.'))
+"
+```
+
 ### Step 2: Execute Tasks
 
 For each task in the plan:
 
 1. **Announce** — "Starting Task N: [name]"
-2. **Read** — Load the files mentioned in the task
-3. **Implement** — Make the changes as specified
-4. **Verify** — Run the verification command
-5. **Report** — "Task N complete" or "Task N failed: [reason]"
+2. **Claim** — If memory enabled, `memory.claim(task_memoryId, actor=session_id)`
+3. **Read** — Load the files mentioned in the task
+4. **Implement** — Make the changes as specified
+5. **Verify** — Run the verification command
+6. **Close** — If memory enabled and verify passes, `memory.close(task_memoryId)`
+7. **Report** — "Task N complete" or "Task N failed: [reason]"
 
 If verification fails:
 - Diagnose the issue
 - Fix and re-verify
+- If memory enabled, `memory.update(task_memoryId, comment="Failed: ...")`
 - If stuck after 2 attempts, pause and ask user
 
 ### Step 3: Run Plan Verification

@@ -80,6 +80,21 @@ def _validate_feature_slug(name: str, findings: list[Finding], path: Path) -> No
         )
 
 
+MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
+
+
+def _validate_memory_id(value: Any, field_name: str, findings: list[Finding], path: Path) -> None:
+    """Validate optional memory ID fields (memoryEpicId, memoryId)."""
+    if value is None:
+        return  # Optional field, absence is fine
+    if not isinstance(value, str) or not MEMORY_ID_RE.match(value):
+        findings.append(Finding(
+            "WARN",
+            f"{field_name} has invalid format (expected cn-<base36>[.N]): {value!r}",
+            str(path),
+        ))
+
+
 def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) -> None:
     if not isinstance(contract, dict):
         findings.append(Finding("ERROR", "Plan contract must be a JSON object.", str(path)))
@@ -87,6 +102,9 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
 
     if "schemaVersion" not in contract:
         findings.append(Finding("WARN", "Plan contract missing schemaVersion (recommended).", str(path)))
+
+    # Validate optional memory fields
+    _validate_memory_id(contract.get("memoryEpicId"), "memoryEpicId", findings, path)
 
     tasks = contract.get("tasks")
     if not isinstance(tasks, list):
@@ -118,6 +136,8 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
         verify = t.get("verify")
         if not isinstance(verify, list) or not verify or not all(isinstance(x, str) and x.strip() for x in verify):
             findings.append(Finding("ERROR", f"Task {i} must include non-empty 'verify' array of commands.", str(path)))
+        # Validate optional memory ID per task
+        _validate_memory_id(t.get("memoryId"), f"Task {i} memoryId", findings, path)
 
 
 def _validate_quick_contract(contract: Any, findings: list[Finding], path: Path) -> None:

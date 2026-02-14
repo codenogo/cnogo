@@ -122,6 +122,30 @@ Before adding dependencies:
 - Feature work: `docs/planning/work/features/`
 - Quick tasks: `docs/planning/work/quick/`
 
+## Memory Engine
+
+Optional structured task tracking (initialize via `/init` or `python3 scripts/workflow_memory.py init`):
+
+```bash
+# CLI access
+python3 scripts/workflow_memory.py ready          # Show unblocked tasks
+python3 scripts/workflow_memory.py prime           # Token-efficient context summary
+python3 scripts/workflow_memory.py stats           # Aggregate statistics
+python3 scripts/workflow_memory.py create "title"  # Create an issue
+python3 scripts/workflow_memory.py show <id>       # Show issue details
+```
+
+```python
+# Python API access (from commands/scripts)
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create, ready, claim, close, prime
+```
+
+Key files:
+- `scripts/memory/` — Python package (stdlib only)
+- `.cnogo/memory.db` — SQLite runtime (gitignored)
+- `.cnogo/issues.jsonl` — Git-tracked sync format
+
 ## Skills Library
 
 Reusable playbooks/checklists Claude should apply:

@@ -43,6 +43,41 @@ cat [file1]
 cat [file2]
 ```
 
+### Step 3b: Memory Context (If Enabled)
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), load structured task state:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, prime, ready, list_issues, import_jsonl
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    # Rebuild from JSONL if DB is stale
+    import_jsonl(root)
+
+    # Show context summary
+    print(prime(root=root))
+
+    # Show in-progress work
+    active = list_issues(status='in_progress', root=root)
+    if active:
+        print('### Continue Working On')
+        for t in active:
+            print(f'  - {t.id} {t.title} (@{t.assignee})')
+
+    # Show ready tasks
+    ready_tasks = ready(root=root)
+    if ready_tasks:
+        print('### Ready to Start')
+        for t in ready_tasks[:5]:
+            print(f'  - {t.id} {t.title}')
+"
+```
+
+When memory is available, the structured task state replaces the need to parse markdown handoff prose. The `prime()` output gives a compact summary of open work, ready tasks, and blockers.
+
 ### Step 4: Load Feature Context
 
 If working on a feature:

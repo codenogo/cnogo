@@ -125,8 +125,18 @@ done
 if [ -f "$SCRIPT_DIR/scripts/install-githooks.sh" ]; then
     cp "$SCRIPT_DIR/scripts/install-githooks.sh" "$TARGET_DIR/scripts/"
     chmod +x "$TARGET_DIR/scripts/install-githooks.sh"
-    echo "   └── install-githooks.sh"
+    echo "   ├── install-githooks.sh"
 fi
+
+# Memory engine package
+mkdir -p "$TARGET_DIR/scripts/memory"
+for mem in "$SCRIPT_DIR/scripts/memory/"*.py; do
+    if [ -f "$mem" ]; then
+        cp "$mem" "$TARGET_DIR/scripts/memory/"
+        echo "   ├── memory/$(basename "$mem")"
+    fi
+done
+echo "   └── memory/ (memory engine package)"
 
 # =============================================================================
 # .github directory

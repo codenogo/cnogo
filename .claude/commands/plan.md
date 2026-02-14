@@ -133,7 +133,57 @@ feat($ARGUMENTS): [description]
 4. **Reference CONTEXT.md** — Use the decisions, don't re-decide.
 5. **Contracts required** — Every `NN-PLAN.md` must have a matching `NN-PLAN.json`.
 
-### Step 4: Update State
+### Step 4: Memory Integration (If Enabled)
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), create issues for each task:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create, dep_add, show
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    # Read epic ID from CONTEXT.json if available
+    epic_id = '<memoryEpicId from CONTEXT.json>'
+
+    # Create a task for each plan task
+    for i, task in enumerate(tasks):
+        issue = create(
+            task['name'],
+            parent=epic_id,
+            feature_slug='<feature-slug>',
+            plan_number='<NN>',
+            metadata={'files': task['files'], 'verify': task['verify']},
+            root=root,
+        )
+        print(f'Task {i+1}: {issue.id}')
+
+    # Add inter-task dependencies (if tasks are sequential)
+    # dep_add(task2_id, task1_id, root=root)
+"
+```
+
+Store each task's `memoryId` in `NN-PLAN.json`:
+
+```json
+{
+  "...existing fields...",
+  "memoryEpicId": "<plan-level-epic-id>",
+  "tasks": [
+    {
+      "...existing fields...",
+      "memoryId": "<task-issue-id>"
+    }
+  ]
+}
+```
+
+Add inter-task dependencies with `dep_add()` when tasks must execute in order.
+
+If memory is not initialized, skip this step — the command works identically without it.
+
+### Step 5: Update State
 
 Update `docs/planning/STATE.md`:
 ```

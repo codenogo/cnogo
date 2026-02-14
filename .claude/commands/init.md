@@ -220,7 +220,41 @@ Create CODEOWNERS based on:
 - Detected service boundaries
 - User-provided team information
 
-### Step 6: Verify
+### Step 6: Memory Engine Setup (Optional)
+
+Ask the user if they want to enable the **memory engine** for structured task tracking.
+
+If yes:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import init
+from pathlib import Path
+init(Path('.'))
+print('Memory engine initialized at .cnogo/')
+"
+```
+
+Then verify the `.gitignore` includes memory runtime exclusions:
+
+```
+.cnogo/memory.db
+.cnogo/memory.db-wal
+.cnogo/memory.db-shm
+```
+
+If these lines are missing, append them to `.gitignore`.
+
+**What memory engine provides:**
+- Structured issue tracking across sessions (persists to `.cnogo/issues.jsonl`)
+- Dependency graphs with blocked/ready state detection
+- Atomic task claiming for parallel agent coordination
+- Token-efficient context summaries via `memory.prime()`
+
+If the user declines, all commands continue to work exactly as before (markdown-only mode).
+
+### Step 7: Verify
 
 Show the user what was populated:
 
@@ -231,9 +265,10 @@ Show the user what was populated:
 
 | File | Status |
 |------|--------|
-| `CLAUDE.md` | ✅ Populated with [stack] commands |
-| `docs/planning/PROJECT.md` | ✅ Tech stack detected |
-| `.github/CODEOWNERS` | ✅ Default owner set |
+| `CLAUDE.md` | Populated with [stack] commands |
+| `docs/planning/PROJECT.md` | Tech stack detected |
+| `.github/CODEOWNERS` | Default owner set |
+| `.cnogo/memory.db` | Memory engine initialized (if enabled) |
 
 ### Next Steps
 

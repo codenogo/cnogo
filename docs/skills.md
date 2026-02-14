@@ -237,3 +237,26 @@ These principles are inspired by the repo [`forrestchang/andrej-karpathy-skills`
 - Examples are copy-pasteable
 - State and next steps are clear
 
+---
+
+## Memory Task Management
+
+**When**: working with the memory engine for structured task tracking across sessions.
+
+**Checklist**:
+- Check if memory is initialized: `is_initialized(Path('.'))`
+- Query ready tasks: `ready(feature_slug='...', root=root)`
+- Claim before starting: `claim(issue_id, actor='session-name', root=root)`
+- Close after verify passes: `close(issue_id, reason='completed', root=root)`
+- Sync before pausing: `sync(root)` exports to git-tracked JSONL
+- Use `prime()` for token-efficient context injection (~500-1500 tokens)
+- Check blockers: `blockers(issue_id)` to understand dependency chains
+- Cycle safety: `dep_add()` automatically rejects cycles
+
+**When NOT to use**:
+- Memory not initialized (commands work without it)
+- Single quick fix (overhead not warranted)
+- Memory is optional — all commands degrade gracefully without it
+
+**CLI access**: `python3 scripts/workflow_memory.py <command>`
+
