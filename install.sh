@@ -220,11 +220,15 @@ echo ""
 echo "📄 Root files"
 
 if [ ! -f "$TARGET_DIR/CLAUDE.md" ]; then
-    cp "$SCRIPT_DIR/CLAUDE.md" "$TARGET_DIR/"
-    echo "   ├── CLAUDE.md"
+    cp "$SCRIPT_DIR/docs/templates/CLAUDE-generic.md" "$TARGET_DIR/CLAUDE.md"
+    echo "   ├── CLAUDE.md (from generic template)"
 else
     echo -e "   ├── CLAUDE.md ${YELLOW}(skipped - exists)${NC}"
 fi
+
+# Workflow docs (always overwrite — cnogo's file)
+cp "$SCRIPT_DIR/.claude/CLAUDE.md" "$TARGET_DIR/.claude/CLAUDE.md"
+echo "   ├── .claude/CLAUDE.md (workflow docs)"
 
 if [ ! -f "$TARGET_DIR/CHANGELOG.md" ]; then
     cp "$SCRIPT_DIR/CHANGELOG.md" "$TARGET_DIR/"
@@ -234,17 +238,17 @@ else
 fi
 
 # =============================================================================
-# docs/skills.md
+# .claude/skills directory
 # =============================================================================
 echo ""
-echo "📄 Skills library"
-mkdir -p "$TARGET_DIR/docs"
-if [ ! -f "$TARGET_DIR/docs/skills.md" ]; then
-    cp "$SCRIPT_DIR/docs/skills.md" "$TARGET_DIR/docs/"
-    echo "   └── docs/skills.md"
-else
-    echo -e "   └── docs/skills.md ${YELLOW}(skipped - exists)${NC}"
-fi
+echo "📁 .claude/skills/"
+mkdir -p "$TARGET_DIR/.claude/skills"
+for skill in "$SCRIPT_DIR/.claude/skills/"*.md; do
+    if [ -f "$skill" ]; then
+        cp "$skill" "$TARGET_DIR/.claude/skills/"
+        echo "   ├── $(basename "$skill")"
+    fi
+done
 
 # =============================================================================
 # Done
@@ -271,7 +275,7 @@ echo "  Release:  /changelog  /release  /close"
 echo "  Research: /research  /brainstorm"
 echo "  Setup:    /init  /validate"
 echo "  MCP:      /mcp"
-echo "  Agents:   /spawn  /team  /background  (10 agent definitions)"
+echo "  Agents:   /spawn  /team  /background  (2 agent definitions)"
 echo ""
 echo "Hooks installed:"
 echo "  • PreToolUse:    Security validation (blocks dangerous commands)"

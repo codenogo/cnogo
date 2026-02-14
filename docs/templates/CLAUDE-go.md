@@ -151,13 +151,3 @@ Before adding dependencies:
 2. Prefer minimal dependencies
 3. Run `govulncheck` after adding
 4. Verify module is actively maintained
-
----
-
-## Planning Docs
-
-- Project vision: `docs/planning/PROJECT.md`
-- Current state: `docs/planning/STATE.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Quick tasks: `docs/planning/work/quick/`

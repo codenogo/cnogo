@@ -168,13 +168,3 @@ Before adding dependencies:
 3. Check maintenance status on crates.io
 4. Run `cargo audit` after adding
 5. Verify MSRV compatibility
-
----
-
-## Planning Docs
-
-- Project vision: `docs/planning/PROJECT.md`
-- Current state: `docs/planning/STATE.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Quick tasks: `docs/planning/work/quick/`

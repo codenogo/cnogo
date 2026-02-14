@@ -135,13 +135,3 @@ Before adding dependencies:
 2. Verify maintenance status on PyPI
 3. Run `pip-audit` for vulnerabilities
 4. Prefer pure Python or well-maintained C extensions
-
----
-
-## Planning Docs
-
-- Project vision: `docs/planning/PROJECT.md`
-- Current state: `docs/planning/STATE.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Quick tasks: `docs/planning/work/quick/`
