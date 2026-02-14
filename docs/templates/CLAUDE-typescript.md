@@ -131,13 +131,3 @@ Before adding dependencies:
 2. Verify last update and maintenance status
 3. Check for known vulnerabilities (`npm audit`)
 4. Prefer well-maintained packages with TypeScript support
-
----
-
-## Planning Docs
-
-- Project vision: `docs/planning/PROJECT.md`
-- Current state: `docs/planning/STATE.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Quick tasks: `docs/planning/work/quick/`

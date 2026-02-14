@@ -17,7 +17,10 @@ Analyse the feature "$ARGUMENTS" and identify gray areas that need decisions.
 ### Step 1: Read Context
 
 1. Read `docs/planning/PROJECT.md` for constraints and patterns
-2. Read `docs/planning/STATE.md` for current context
+2. Load current position from memory:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"
+   ```
 3. Search codebase for related code: `rg -l "$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go}' -t code`
 4. **Check External Context:**
    - If Jira/Linear MCP configured: Fetch ticket details
@@ -142,14 +145,39 @@ Create `docs/planning/work/features/<feature-slug>/CONTEXT.md`:
 *Discussed: [date]*
 ```
 
-### Step 5: Update State
+### Step 5: Memory Integration (If Enabled)
 
-Add to `docs/planning/STATE.md`:
+If the memory engine is initialized (`.cnogo/memory.db` exists), create a feature epic:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    issue = create(
+        'Feature: <feature-slug>',
+        issue_type='epic',
+        feature_slug='<feature-slug>',
+        labels=['feature'],
+        description='<one-line feature description>',
+        root=root,
+    )
+    print(f'Memory epic: {issue.id}')
+"
 ```
-## Current Focus
-- Feature: <feature-slug>
-- Status: Discussed, ready for planning
+
+Store the returned `memoryEpicId` in `CONTEXT.json`:
+
+```json
+{
+  "...existing fields...",
+  "memoryEpicId": "<returned-id>"
+}
 ```
+
+If memory is not initialized, skip this step — the command works identically without it.
 
 ## Output
 

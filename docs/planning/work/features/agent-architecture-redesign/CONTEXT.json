@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "feature": "agent-architecture-redesign",
+  "displayName": "Agent Architecture Redesign",
+  "research": ["docs/planning/work/research/subagent-context-patterns/RESEARCH.md"],
+  "decisions": [
+    { "area": "agent-role", "decision": "Teams only", "rationale": "Subagents use built-in types; .claude/agents/ reserved for team teammates" },
+    { "area": "context-passing", "decision": "ID-based retrieval", "rationale": "Pass memory ID; agent fetches details at runtime via memory.show()" },
+    { "area": "memory-dependency", "decision": "Required", "rationale": "Memory must be initialized for /team workflows; no conditional branches" },
+    { "area": "agent-size", "decision": "Ultra-lean (~30-40 lines)", "rationale": "Role + cycle only; everything else from task description or memory" },
+    { "area": "command-structure", "decision": "Single /team, trimmed to ~120 lines", "rationale": "Strip agent table/compositions/examples; bridge handles task generation" },
+    { "area": "non-implementer-agents", "decision": "Convert to skills", "rationale": "Domain expertise loaded via skills frontmatter, not full agent definitions" },
+    { "area": "retained-agents", "decision": "implementer + debugger only", "rationale": "Only agents that need independent task execution remain as teammates" },
+    { "area": "claude-md", "decision": "Trim and fill with real content", "rationale": "Replace placeholders; inline Karpathy principles as 4 bullet points" },
+    { "area": "skills-md", "decision": "Dissolve into CLAUDE.md and .claude/skills/", "rationale": "Eliminate always-loaded 287-line file; lazy-load domain skills" }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "Memory engine required for /team workflows",
+    "Agent files under ~40 lines (2-5K token system prompt budget)",
+    "Skills lazy-loaded via frontmatter",
+    "Bridge outputs memory IDs, not full plan content",
+    "Backward compatibility: /implement serial mode unchanged"
+  ],
+  "openQuestions": [
+    "Should debugger use claim→close or investigate→report cycle?",
+    "How to handle /team create for review teams with skill-based agents?",
+    "Keep or deprecate /spawn command?",
+    "Migration path for existing agent files?",
+    "Project-level vs user-level .claude/skills/?"
+  ],
+  "relatedCode": [
+    ".claude/agents/implementer.md",
+    ".claude/agents/code-reviewer.md",
+    ".claude/commands/team.md",
+    "scripts/memory/bridge.py",
+    "scripts/memory/__init__.py",
+    "docs/skills.md",
+    "CLAUDE.md"
+  ],
+  "memoryEpicId": "cn-ca31b0",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

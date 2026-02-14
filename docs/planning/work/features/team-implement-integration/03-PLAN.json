@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "feature": "team-implement-integration",
+  "planNumber": "03",
+  "goal": "Enable session recovery for interrupted team implementations, add skills documentation, and update agent awareness",
+  "tasks": [
+    {
+      "name": "Add team-implement recovery to /resume",
+      "memoryId": "cn-9xdhpc.7",
+      "files": [".claude/commands/resume.md"],
+      "action": "Extend Step 3b to detect interrupted team implementations from memory state (in-progress epics with children). Show completion status and suggest /team implement to resume.",
+      "verify": ["grep -q 'team implement' .claude/commands/resume.md && echo OK"]
+    },
+    {
+      "name": "Add Team Implementation skill",
+      "memoryId": "cn-9xdhpc.8",
+      "files": ["docs/skills.md"],
+      "action": "Add Team Implementation skill section after Memory Task Management. Include checklist: verify plan, generate descriptions, create team, spawn implementers, delegate mode, monitor, handle failures, recovery.",
+      "verify": ["grep -q 'Team Implementation' docs/skills.md && echo OK"]
+    },
+    {
+      "name": "Update agent awareness for team context",
+      "memoryId": "cn-9xdhpc.9",
+      "files": [".claude/agents/code-reviewer.md", ".claude/agents/test-writer.md"],
+      "action": "Add Team Context note to Memory Engine Integration section of code-reviewer and test-writer agents. Brief note about coordinating with implementer teammates via TaskList.",
+      "verify": ["grep -q 'Team Context' .claude/agents/code-reviewer.md && grep -q 'Team Context' .claude/agents/test-writer.md && echo OK"]
+    }
+  ],
+  "planVerify": ["grep -q 'team implement' .claude/commands/resume.md && grep -q 'Team Implementation' docs/skills.md && python3 scripts/workflow_validate.py"],
+  "memoryEpicId": "cn-9xdhpc",
+  "commitMessage": "feat(team-implement-integration): add recovery, documentation, and agent awareness",
+  "timestamp": "2026-02-14T02:00:00Z"
+}

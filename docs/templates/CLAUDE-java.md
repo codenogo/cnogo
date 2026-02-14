@@ -123,13 +123,3 @@ Before adding dependencies:
 1. Check if Spring Boot starter already provides it
 2. Prefer Spring ecosystem libraries
 3. Check for CVEs on new dependencies
-
----
-
-## Planning Docs
-
-- Project vision: `docs/planning/PROJECT.md`
-- Current state: `docs/planning/STATE.md`
-- Roadmap: `docs/planning/ROADMAP.md`
-- Feature work: `docs/planning/work/features/`
-- Quick tasks: `docs/planning/work/quick/`

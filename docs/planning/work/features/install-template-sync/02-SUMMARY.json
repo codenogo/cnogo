@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    { "file": "install.sh", "change": "Replaced docs/skills.md block with .claude/skills/ copy loop" },
+    { "file": "install.sh", "change": "Changed CLAUDE.md source to CLAUDE-generic.md" },
+    { "file": "install.sh", "change": "Added .claude/CLAUDE.md always-overwrite copy" },
+    { "file": "install.sh", "change": "Fixed agent count 10 → 2" },
+    { "file": "docs/templates/CLAUDE-python.md", "change": "Removed Planning Docs section" },
+    { "file": "docs/templates/CLAUDE-java.md", "change": "Removed Planning Docs section" },
+    { "file": "docs/templates/CLAUDE-typescript.md", "change": "Removed Planning Docs section" },
+    { "file": "docs/templates/CLAUDE-go.md", "change": "Removed Planning Docs section" },
+    { "file": "docs/templates/CLAUDE-rust.md", "change": "Removed Planning Docs section" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "Skills loop present, no stale docs/skills.md ref" },
+    { "task": 2, "result": "pass", "details": "Generic source, workflow copy, agent count 2" },
+    { "task": 3, "result": "pass", "details": "All 6 templates have no Planning Docs" }
+  ],
+  "commit": { "hash": "cb060cf", "message": "fix(install-template-sync): sync install.sh with redesigned architecture" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

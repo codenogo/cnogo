@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "planNumber": "02",
+  "goal": "Sync install.sh with the new file structure and clean up stack templates",
+  "tasks": [
+    {
+      "name": "Replace stale docs/skills.md block with .claude/skills/ loop",
+      "files": ["install.sh"],
+      "action": "Remove lines 236-247 (docs/skills.md copy block). Replace with .claude/skills/*.md copy loop that always overwrites.",
+      "verify": ["grep -q '.claude/skills/' install.sh && echo OK", "! grep -q 'docs/skills.md' install.sh && echo OK"],
+      "memoryId": "cn-fkgm1t.4"
+    },
+    {
+      "name": "Fix CLAUDE.md copy source + add .claude/CLAUDE.md + fix agent count",
+      "files": ["install.sh"],
+      "action": "Change CLAUDE.md source from root to docs/templates/CLAUDE-generic.md. Add .claude/CLAUDE.md always-overwrite copy. Change '10 agent definitions' to '2 agent definitions'.",
+      "verify": ["grep -q 'CLAUDE-generic.md' install.sh && echo OK", "grep -q '2 agent definitions' install.sh && echo OK"],
+      "blockedBy": [0],
+      "memoryId": "cn-fkgm1t.5"
+    },
+    {
+      "name": "Remove Planning Docs from all 5 stack templates",
+      "files": ["docs/templates/CLAUDE-python.md", "docs/templates/CLAUDE-java.md", "docs/templates/CLAUDE-typescript.md", "docs/templates/CLAUDE-go.md", "docs/templates/CLAUDE-rust.md"],
+      "action": "Remove trailing Planning Docs section (--- separator + ## Planning Docs + 5 bullet points) from each template.",
+      "verify": ["for f in docs/templates/CLAUDE-*.md; do ! grep -q 'Planning Docs' \"$f\" && echo OK; done"],
+      "memoryId": "cn-fkgm1t.6"
+    }
+  ],
+  "planVerify": ["bash -n install.sh", "! grep -q 'docs/skills.md' install.sh", "grep -q '2 agent definitions' install.sh", "for f in docs/templates/CLAUDE-*.md; do ! grep -q 'Planning Docs' \"$f\"; done"],
+  "commitMessage": "fix(install-template-sync): sync install.sh with redesigned architecture",
+  "memoryEpicId": "cn-fkgm1t",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

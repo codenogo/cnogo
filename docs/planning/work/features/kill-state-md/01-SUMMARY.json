@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "feature": "kill-state-md",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    { "file": "scripts/memory/context.py", "change": "Added Active Epics section to prime() with feature slug, plan number, completion ratio, handoff snippet" },
+    { "file": "scripts/workflow_checks.py", "change": "Replaced infer_feature_from_state() with memory query + branch fallback" },
+    { "file": "scripts/workflow_validate.py", "change": "Changed _require(STATE.md) to _require(.cnogo/memory.db)" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "prime() shows Active Epics with completion ratios" },
+    { "task": 2, "result": "pass", "details": "infer_feature_from_state() returns feature from memory" },
+    { "task": 3, "result": "pass", "details": "workflow_validate.py passes with memory.db requirement" }
+  ],
+  "commit": { "hash": "98cf820", "message": "feat(kill-state-md): enhance memory engine to replace STATE.md" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

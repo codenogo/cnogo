@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "feature": "kill-state-md",
+  "branch": "main",
+  "automated": [
+    { "name": "lint", "result": "skipped" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "skipped" }
+  ],
+  "packages": [],
+  "verdict": "warn",
+  "blockers": [],
+  "warnings": [
+    {
+      "file": "CHANGELOG.md",
+      "line": 14,
+      "issue": "/close description still references STATE.md",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_checks.py",
+      "line": 66,
+      "issue": "Bare except Exception: pass swallows all errors silently",
+      "severity": "low"
+    },
+    {
+      "file": "install.sh",
+      "line": 187,
+      "issue": "STATE.md migration deletes without backup",
+      "severity": "low"
+    },
+    {
+      "file": "install.sh",
+      "line": 195,
+      "issue": "Memory auto-init suppresses errors with 2>/dev/null",
+      "severity": "low"
+    }
+  ]
+}

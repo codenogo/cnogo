@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "feature": "template-self-separation",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    { "file": "docs/templates/PROJECT-TEMPLATE.md", "change": "Created — verbatim copy of PROJECT.md template" },
+    { "file": "docs/templates/ROADMAP-TEMPLATE.md", "change": "Created — verbatim copy of ROADMAP.md template" },
+    { "file": "docs/templates/WORKFLOW-TEMPLATE.json", "change": "Created — verbatim copy of WORKFLOW.json template" },
+    { "file": "install.sh", "change": "Changed copy source from docs/planning/ to docs/templates/*-TEMPLATE.* with explicit target filename" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "All 3 template files byte-identical to originals" },
+    { "task": 2, "result": "pass", "details": "install.sh references docs/templates/*-TEMPLATE.*" },
+    { "task": 3, "result": "pass", "details": "Fresh install produces template content; skip-if-exists preserved" }
+  ],
+  "commit": { "hash": "799e8a5", "message": "feat(template-self-separation): extract install templates to docs/templates/" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

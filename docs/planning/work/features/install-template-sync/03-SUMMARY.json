@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    { "file": ".claude/commands/init.md", "change": "Added safety check before replacing CLAUDE.md with custom content" },
+    { "file": ".claude/commands/init.md", "change": "Fixed unknown stack fallback to use CLAUDE-generic.md" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "Safety check with custom content detection, prompt, and skip path" },
+    { "task": 2, "result": "pass", "details": "Generic fallback present, no root CLAUDE.md fallback" }
+  ],
+  "commit": { "hash": "83e8363", "message": "fix(install-template-sync): make /init safe for existing projects" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

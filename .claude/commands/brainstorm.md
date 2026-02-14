@@ -17,9 +17,8 @@ Help the user explore and narrow "$ARGUMENTS" into 1–3 crisp candidate directi
 
 1. Read `docs/planning/PROJECT.md` (even if still skeletal) for constraints/patterns
 2. Read `docs/planning/WORKFLOW.json` for research policy
-3. Read `docs/skills.md` and apply:
-   - **Karpathy Principles** (Think Before Coding, etc.)
-   - **API Design / Security / Data & Migrations** skills if relevant
+3. Apply **Karpathy Principles** from CLAUDE.md (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
+4. Load relevant `.claude/skills/` files if the topic touches security, API design, or data migrations
 
 ### Step 1: Ask Narrowing Questions (Iterative)
 

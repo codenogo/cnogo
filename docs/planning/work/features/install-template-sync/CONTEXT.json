@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "displayName": "Install & Template Sync",
+  "decisions": [
+    { "area": "claude-md-ownership", "decision": "Three-file model", "rationale": "Root = cnogo dev; CLAUDE-generic.md = template for new projects; .claude/CLAUDE.md = workflow docs for all targets" },
+    { "area": "workflow-delivery", "decision": ".claude/CLAUDE.md always installed", "rationale": "Claude Code auto-loads both root and .claude/CLAUDE.md. Workflow docs are cnogo's domain, safe to always overwrite" },
+    { "area": "existing-project-claude-md", "decision": "Never touch root CLAUDE.md", "rationale": ".claude/CLAUDE.md handles workflow docs; root file is the project's own" },
+    { "area": "claude-workflow-upgrade", "decision": "Always overwrite .claude/CLAUDE.md", "rationale": "It's cnogo's file, not the user's. Safe to update on reinstall" },
+    { "area": "skills-installation", "decision": "Install all 8 .claude/skills/*.md", "rationale": "Stack-agnostic playbooks useful in any project. Commands lazy-load them" },
+    { "area": "init-safety", "decision": "Ask before replacing root CLAUDE.md", "rationale": "If CLAUDE.md has custom content, user should decide whether to replace with stack template" },
+    { "area": "stack-templates", "decision": "Remove Planning Docs section", "rationale": "All workflow references live in .claude/CLAUDE.md — single source of truth" },
+    { "area": "install-stale-refs", "decision": "Remove docs/skills.md block, fix agent count to 2", "rationale": "docs/skills.md deleted in agent-architecture-redesign Plan 02. Only implementer + debugger remain" },
+    { "area": "unknown-stack-fallback", "decision": "Use docs/templates/CLAUDE-generic.md", "rationale": "init.md currently falls back to root CLAUDE.md which has cnogo-specific content" }
+  ],
+  "constraints": [
+    "Python stdlib only — no external deps",
+    "install.sh must remain idempotent",
+    "Backward compatible — existing target projects must not break",
+    ".claude/CLAUDE.md content must be stack-agnostic"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "CLAUDE.md",
+    "install.sh",
+    ".claude/commands/init.md",
+    "docs/templates/CLAUDE-python.md",
+    "docs/templates/CLAUDE-java.md",
+    "docs/templates/CLAUDE-typescript.md",
+    "docs/templates/CLAUDE-go.md",
+    "docs/templates/CLAUDE-rust.md",
+    ".claude/skills/"
+  ],
+  "memoryEpicId": "cn-fkgm1t",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

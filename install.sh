@@ -125,8 +125,18 @@ done
 if [ -f "$SCRIPT_DIR/scripts/install-githooks.sh" ]; then
     cp "$SCRIPT_DIR/scripts/install-githooks.sh" "$TARGET_DIR/scripts/"
     chmod +x "$TARGET_DIR/scripts/install-githooks.sh"
-    echo "   └── install-githooks.sh"
+    echo "   ├── install-githooks.sh"
 fi
+
+# Memory engine package
+mkdir -p "$TARGET_DIR/scripts/memory"
+for mem in "$SCRIPT_DIR/scripts/memory/"*.py; do
+    if [ -f "$mem" ]; then
+        cp "$mem" "$TARGET_DIR/scripts/memory/"
+        echo "   ├── memory/$(basename "$mem")"
+    fi
+done
+echo "   └── memory/ (memory engine package)"
 
 # =============================================================================
 # .github directory
@@ -164,14 +174,20 @@ mkdir -p "$TARGET_DIR/docs/planning/work/ideas"
 mkdir -p "$TARGET_DIR/docs/planning/archive/features"
 mkdir -p "$TARGET_DIR/docs/planning/adr"
 
-for file in PROJECT.md STATE.md ROADMAP.md WORKFLOW.json; do
+for file in PROJECT.md ROADMAP.md WORKFLOW.json; do
     if [ ! -f "$TARGET_DIR/docs/planning/$file" ]; then
-        cp "$SCRIPT_DIR/docs/planning/$file" "$TARGET_DIR/docs/planning/"
+        cp "$SCRIPT_DIR/docs/templates/${file%.*}-TEMPLATE.${file##*.}" "$TARGET_DIR/docs/planning/$file"
         echo "   ├── $file"
     else
         echo -e "   ├── $file ${YELLOW}(skipped - exists)${NC}"
     fi
 done
+
+# Migration: remove STATE.md if it exists (replaced by memory engine)
+if [ -f "$TARGET_DIR/docs/planning/STATE.md" ]; then
+    rm "$TARGET_DIR/docs/planning/STATE.md"
+    echo -e "   ├── STATE.md ${YELLOW}(deleted — replaced by memory engine)${NC}"
+fi
 
 cp "$SCRIPT_DIR/docs/planning/adr/ADR-TEMPLATE.md" "$TARGET_DIR/docs/planning/adr/"
 echo "   ├── adr/ADR-TEMPLATE.md"
@@ -196,7 +212,7 @@ echo ""
 echo "📁 docs/templates/"
 mkdir -p "$TARGET_DIR/docs/templates"
 
-for template in CLAUDE-java.md CLAUDE-typescript.md CLAUDE-python.md CLAUDE-go.md CLAUDE-rust.md; do
+for template in CLAUDE-generic.md CLAUDE-java.md CLAUDE-typescript.md CLAUDE-python.md CLAUDE-go.md CLAUDE-rust.md; do
     if [ -f "$SCRIPT_DIR/docs/templates/$template" ]; then
         cp "$SCRIPT_DIR/docs/templates/$template" "$TARGET_DIR/docs/templates/"
         echo "   ├── $template"
@@ -210,11 +226,15 @@ echo ""
 echo "📄 Root files"
 
 if [ ! -f "$TARGET_DIR/CLAUDE.md" ]; then
-    cp "$SCRIPT_DIR/CLAUDE.md" "$TARGET_DIR/"
-    echo "   ├── CLAUDE.md"
+    cp "$SCRIPT_DIR/docs/templates/CLAUDE-generic.md" "$TARGET_DIR/CLAUDE.md"
+    echo "   ├── CLAUDE.md (from generic template)"
 else
     echo -e "   ├── CLAUDE.md ${YELLOW}(skipped - exists)${NC}"
 fi
+
+# Workflow docs (always overwrite — cnogo's file)
+cp "$SCRIPT_DIR/.claude/CLAUDE.md" "$TARGET_DIR/.claude/CLAUDE.md"
+echo "   ├── .claude/CLAUDE.md (workflow docs)"
 
 if [ ! -f "$TARGET_DIR/CHANGELOG.md" ]; then
     cp "$SCRIPT_DIR/CHANGELOG.md" "$TARGET_DIR/"
@@ -224,17 +244,17 @@ else
 fi
 
 # =============================================================================
-# docs/skills.md
+# .claude/skills directory
 # =============================================================================
 echo ""
-echo "📄 Skills library"
-mkdir -p "$TARGET_DIR/docs"
-if [ ! -f "$TARGET_DIR/docs/skills.md" ]; then
-    cp "$SCRIPT_DIR/docs/skills.md" "$TARGET_DIR/docs/"
-    echo "   └── docs/skills.md"
-else
-    echo -e "   └── docs/skills.md ${YELLOW}(skipped - exists)${NC}"
-fi
+echo "📁 .claude/skills/"
+mkdir -p "$TARGET_DIR/.claude/skills"
+for skill in "$SCRIPT_DIR/.claude/skills/"*.md; do
+    if [ -f "$skill" ]; then
+        cp "$skill" "$TARGET_DIR/.claude/skills/"
+        echo "   ├── $(basename "$skill")"
+    fi
+done
 
 # =============================================================================
 # Done
@@ -243,6 +263,65 @@ echo ""
 echo -e "${GREEN}╔════════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  ✓ Installation complete                   ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════════╝${NC}"
+# Initialize memory engine
+echo ""
+echo "🧠 Initializing memory engine..."
+if command -v python3 &>/dev/null; then
+    (cd "$TARGET_DIR" && python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, init
+from pathlib import Path
+root = Path('.')
+if not is_initialized(root):
+    init(root=root)
+    print('   ✅ Memory engine initialized (.cnogo/memory.db)')
+else:
+    print('   ✅ Memory engine already initialized')
+" 2>/dev/null) || echo -e "   ${YELLOW}⚠️  Memory init skipped (run manually: python3 scripts/workflow_memory.py init)${NC}"
+else
+    echo -e "   ${YELLOW}⚠️  python3 not found — run manually: python3 scripts/workflow_memory.py init${NC}"
+fi
+
+# =============================================================================
+# .gitignore entries
+# =============================================================================
+echo ""
+echo "📄 .gitignore entries"
+GITIGNORE="$TARGET_DIR/.gitignore"
+ENTRIES=(
+    "# Memory engine runtime (SQLite binary — not diffable)"
+    ".cnogo/memory.db"
+    ".cnogo/memory.db-wal"
+    ".cnogo/memory.db-shm"
+    ""
+    "# Worktree session state (transient, contains absolute paths)"
+    ".cnogo/worktree-session.json"
+)
+
+if [ -f "$GITIGNORE" ]; then
+    MISSING=false
+    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json"; do
+        if ! grep -qF "$entry" "$GITIGNORE"; then
+            MISSING=true
+            break
+        fi
+    done
+    if [ "$MISSING" = true ]; then
+        echo "" >> "$GITIGNORE"
+        for line in "${ENTRIES[@]}"; do
+            echo "$line" >> "$GITIGNORE"
+        done
+        echo "   ✅ Appended .cnogo/ entries to .gitignore"
+    else
+        echo -e "   ${YELLOW}(skipped — entries already present)${NC}"
+    fi
+else
+    for line in "${ENTRIES[@]}"; do
+        echo "$line" >> "$GITIGNORE"
+    done
+    echo "   ✅ Created .gitignore with .cnogo/ entries"
+fi
+
 echo ""
 echo "Next steps:"
 echo "  1. Run '/init' to auto-detect your stack and populate CLAUDE.md"
@@ -253,7 +332,7 @@ echo "  5. Run '/spawn' to view available subagents"
 echo ""
 echo "Commands installed (28):"
 echo ""
-echo "  Core:     /discuss  /plan  /implement  /verify  /review  /ship"
+echo "  Core:     /discuss  /plan  /implement  /verify  /verify-ci  /review  /ship"
 echo "  Fast:     /quick  /tdd"
 echo "  Session:  /status  /pause  /resume  /sync  /context"
 echo "  Debug:    /debug  /bug  /rollback"
@@ -261,7 +340,7 @@ echo "  Release:  /changelog  /release  /close"
 echo "  Research: /research  /brainstorm"
 echo "  Setup:    /init  /validate"
 echo "  MCP:      /mcp"
-echo "  Agents:   /spawn  /team  /background  (10 agent definitions)"
+echo "  Agents:   /spawn  /team  /background  (3 agent definitions)"
 echo ""
 echo "Hooks installed:"
 echo "  • PreToolUse:    Security validation (blocks dangerous commands)"

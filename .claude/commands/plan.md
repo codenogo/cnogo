@@ -16,7 +16,10 @@ Break "$ARGUMENTS" into atomic, executable plans.
 
 1. Read `docs/planning/PROJECT.md` for patterns
 2. Read `docs/planning/work/features/$ARGUMENTS/CONTEXT.md` and `CONTEXT.json` for decisions
-3. Read `docs/planning/STATE.md` for current position
+3. Load current position from memory:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"
+   ```
 
 If CONTEXT.md doesn't exist, ask user to run `/discuss $ARGUMENTS` first or confirm they want to proceed without it.
 
@@ -29,9 +32,9 @@ Split work by:
 
 Each plan should be completable in one fresh Claude session.
 
-### Principle Reminder (Use Skills Library)
+### Principle Reminder
 
-Apply **Karpathy Principles** from `docs/skills.md` while planning:
+Apply **Karpathy Principles** (see CLAUDE.md) while planning:
 
 - Think Before Coding (surface tradeoffs)
 - Simplicity First (minimum viable plan)
@@ -66,7 +69,8 @@ For each plan, create:
       "cwd": "packages/api (optional; recommended for monorepos)",
       "files": ["path/to/file.ts"],
       "action": "Specific instructions",
-      "verify": ["npm test --silent"]
+      "verify": ["npm test --silent"],
+      "blockedBy": [0]
     }
   ],
   "planVerify": ["npm test --silent"],
@@ -74,6 +78,14 @@ For each plan, create:
   "timestamp": "2026-01-24T00:00:00Z"
 }
 ```
+
+**`blockedBy` semantics (optional field):**
+- Type: `number[]` — zero-based indices into the same plan's `tasks` array
+- Meaning: this task cannot start until ALL referenced tasks are completed
+- Default: `[]` (empty) — task can run immediately in parallel
+- Example: `"blockedBy": [0, 1]` means "wait for task 0 and task 1 to finish first"
+- Used by `/team implement` to set `addBlockedBy` on TaskList entries
+- In serial `/implement`, tasks are executed in array order regardless of `blockedBy`
 
 For the human plan, create `docs/planning/work/features/$ARGUMENTS/NN-PLAN.md`:
 
@@ -133,16 +145,55 @@ feat($ARGUMENTS): [description]
 4. **Reference CONTEXT.md** — Use the decisions, don't re-decide.
 5. **Contracts required** — Every `NN-PLAN.md` must have a matching `NN-PLAN.json`.
 
-### Step 4: Update State
+### Step 4: Memory Integration (If Enabled)
 
-Update `docs/planning/STATE.md`:
+If the memory engine is initialized (`.cnogo/memory.db` exists), create issues for each task:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create, dep_add, show
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    # Read epic ID from CONTEXT.json if available
+    epic_id = '<memoryEpicId from CONTEXT.json>'
+
+    # Create a task for each plan task
+    for i, task in enumerate(tasks):
+        issue = create(
+            task['name'],
+            parent=epic_id,
+            feature_slug='<feature-slug>',
+            plan_number='<NN>',
+            metadata={'files': task['files'], 'verify': task['verify']},
+            root=root,
+        )
+        print(f'Task {i+1}: {issue.id}')
+
+    # Add inter-task dependencies (if tasks are sequential)
+    # dep_add(task2_id, task1_id, root=root)
+"
 ```
-## Current Focus
-- Feature: $ARGUMENTS
-- Status: Planned
-- Plans: 01, 02, 03 (list them)
-- Next: /implement $ARGUMENTS 01
+
+Store each task's `memoryId` in `NN-PLAN.json`:
+
+```json
+{
+  "...existing fields...",
+  "memoryEpicId": "<plan-level-epic-id>",
+  "tasks": [
+    {
+      "...existing fields...",
+      "memoryId": "<task-issue-id>"
+    }
+  ]
+}
 ```
+
+Add inter-task dependencies with `dep_add()` when tasks must execute in order.
+
+If memory is not initialized, skip this step — the command works identically without it.
 
 ## Output
 

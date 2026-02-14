@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "feature": "worktree-parallel-agents",
+  "planNumber": "01",
+  "goal": "Create scripts/memory/worktree.py with all worktree lifecycle primitives — session state, setup, merge, and cleanup.",
+  "parallelizable": false,
+  "memoryEpicId": "cn-1g3d0b0",
+  "tasks": [
+    {
+      "name": "State Dataclasses + Git Helpers + State File I/O",
+      "memoryId": "cn-1g3d0b0.1",
+      "files": ["scripts/memory/worktree.py"],
+      "action": "Create worktree.py with WorktreeSession, WorktreeInfo, MergeResult dataclasses; save_session/load_session/delete_session_file for .cnogo/worktree-session.json; _run_git/_current_commit/_current_branch helpers.",
+      "verify": [
+        "python3 -c \"compile(open('scripts/memory/worktree.py').read(), 'worktree.py', 'exec'); print('PASS')\"",
+        "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.worktree import WorktreeSession, WorktreeInfo, MergeResult, save_session, load_session; print('PASS')\""
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "create_session() — Setup Primitives",
+      "memoryId": "cn-1g3d0b0.2",
+      "files": ["scripts/memory/worktree.py"],
+      "action": "Add create_session(plan_json_path, root, task_descriptions) that reads plan JSON, records base commit/branch, creates branches and worktrees per task, symlinks .cnogo/, writes state file.",
+      "verify": [
+        "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.worktree import create_session; print('PASS')\""
+      ],
+      "blockedBy": [0]
+    },
+    {
+      "name": "merge_session() + cleanup_session()",
+      "memoryId": "cn-1g3d0b0.3",
+      "files": ["scripts/memory/worktree.py"],
+      "action": "Add merge_session (sequential merge with conflict detection), get_conflict_context (reads conflict markers + task descriptions), and cleanup_session (remove worktrees + delete branches + prune).",
+      "verify": [
+        "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.worktree import merge_session, cleanup_session, get_conflict_context; print('PASS')\""
+      ],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -c \"compile(open('scripts/memory/worktree.py').read(), 'worktree.py', 'exec'); print('PASS')\"",
+    "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.worktree import WorktreeSession, WorktreeInfo, MergeResult, create_session, merge_session, cleanup_session, get_conflict_context, save_session, load_session; print('ALL IMPORTS PASS')\"",
+    "python3 scripts/workflow_validate.py"
+  ],
+  "commitMessage": "feat(worktree-parallel-agents): core worktree module with setup, merge, and cleanup\n\n- Add scripts/memory/worktree.py with full lifecycle primitives\n- State file checkpointing for crash recovery\n- Sequential merge with conflict detection\n- Resolver context preparation for agent-assisted conflict resolution",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

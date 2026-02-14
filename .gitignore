@@ -13,6 +13,14 @@ build/
 .idea/
 .vscode/
 
+# Memory engine runtime (SQLite binary — not diffable)
+.cnogo/memory.db
+.cnogo/memory.db-wal
+.cnogo/memory.db-shm
+
+# Worktree session state (transient, contains absolute paths)
+.cnogo/worktree-session.json
+
 # Sensitive files
 *.pem
 *.key

@@ -147,14 +147,39 @@ Contract schema (minimal):
 }
 ```
 
-### Step 5: Commit
+### Step 5: Memory Tracking (If Enabled)
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), create and close a quick task issue:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create, close
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    issue = create(
+        '<task description>',
+        issue_type='quick',
+        labels=['quick'],
+        description='<brief summary of what was done>',
+        root=root,
+    )
+    close(issue.id, reason='completed', root=root)
+    print(f'Quick task tracked: {issue.id}')
+"
+```
+
+If memory is not initialized, skip this step.
+
+### Step 6: Commit
 
 ```bash
 git add -A
 git commit -m "fix([scope]): $ARGUMENTS"
 ```
 
-### Step 6: Prompt Next Step
+### Step 7: Prompt Next Step
 
 Ask user:
 - "Ready to `/ship`?"

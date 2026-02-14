@@ -80,6 +80,21 @@ def _validate_feature_slug(name: str, findings: list[Finding], path: Path) -> No
         )
 
 
+MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
+
+
+def _validate_memory_id(value: Any, field_name: str, findings: list[Finding], path: Path) -> None:
+    """Validate optional memory ID fields (memoryEpicId, memoryId)."""
+    if value is None:
+        return  # Optional field, absence is fine
+    if not isinstance(value, str) or not MEMORY_ID_RE.match(value):
+        findings.append(Finding(
+            "WARN",
+            f"{field_name} has invalid format (expected cn-<base36>[.N]): {value!r}",
+            str(path),
+        ))
+
+
 def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) -> None:
     if not isinstance(contract, dict):
         findings.append(Finding("ERROR", "Plan contract must be a JSON object.", str(path)))
@@ -87,6 +102,14 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
 
     if "schemaVersion" not in contract:
         findings.append(Finding("WARN", "Plan contract missing schemaVersion (recommended).", str(path)))
+
+    # Validate optional memory fields
+    _validate_memory_id(contract.get("memoryEpicId"), "memoryEpicId", findings, path)
+
+    # Validate optional parallelizable hint
+    parallelizable = contract.get("parallelizable")
+    if parallelizable is not None and not isinstance(parallelizable, bool):
+        findings.append(Finding("WARN", "Plan contract: 'parallelizable' should be a boolean if present.", str(path)))
 
     tasks = contract.get("tasks")
     if not isinstance(tasks, list):
@@ -118,6 +141,8 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
         verify = t.get("verify")
         if not isinstance(verify, list) or not verify or not all(isinstance(x, str) and x.strip() for x in verify):
             findings.append(Finding("ERROR", f"Task {i} must include non-empty 'verify' array of commands.", str(path)))
+        # Validate optional memory ID per task
+        _validate_memory_id(t.get("memoryId"), f"Task {i} memoryId", findings, path)
 
 
 def _validate_quick_contract(contract: Any, findings: list[Finding], path: Path) -> None:
@@ -184,7 +209,7 @@ def _detect_repo_shape(root: Path) -> dict[str, Any]:
                 kind = str(p.get("kind", "other"))
                 kind_counts[kind] = kind_counts.get(kind, 0) + 1
         manifest_total = sum(kind_counts.values())
-        languages = len(kind_counts - {"other"})
+        languages = len(kind_counts.keys() - {"other"})
         return {
             "package_json": kind_counts.get("node", 0),
             "pom_xml": kind_counts.get("java", 0),
@@ -304,6 +329,19 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         ms = research.get("minSources", 0)
         if not isinstance(ms, int) or ms < 0:
             findings.append(Finding("WARN", "WORKFLOW.json: research.minSources should be an integer >= 0.", str(cfg_path)))
+
+    agent_teams = cfg.get("agentTeams")
+    if agent_teams is not None and not isinstance(agent_teams, dict):
+        findings.append(Finding("WARN", "WORKFLOW.json: 'agentTeams' should be an object.", str(cfg_path)))
+    elif isinstance(agent_teams, dict):
+        stale = agent_teams.get("staleIndicatorMinutes")
+        if stale is not None:
+            if isinstance(stale, bool) or not isinstance(stale, int) or stale <= 0:
+                findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.staleIndicatorMinutes should be an integer > 0.", str(cfg_path)))
+        wt_mode = agent_teams.get("worktreeMode")
+        if wt_mode is not None:
+            if isinstance(wt_mode, bool) or not isinstance(wt_mode, str) or wt_mode not in ("always", "off"):
+                findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.worktreeMode should be 'always' or 'off'.", str(cfg_path)))
 
 
 def _packages_from_cfg(cfg: dict[str, Any]) -> list[dict[str, str]]:
@@ -614,6 +652,38 @@ def _validate_brainstorm(root: Path, findings: list[Finding], touched) -> None:
                     findings.append(Finding("ERROR", f"Failed to parse BRAINSTORM.json: {e}", str(bjson)))
 
 
+def _validate_worktree_session(root: Path, findings: list[Finding]) -> None:
+    """Validate .cnogo/worktree-session.json schema if it exists."""
+    session_path = root / ".cnogo" / "worktree-session.json"
+    if not session_path.exists():
+        return
+    try:
+        data = _load_json(session_path)
+    except Exception as e:
+        findings.append(Finding("ERROR", f"Failed to parse worktree-session.json: {e}", str(session_path)))
+        return
+    if not isinstance(data, dict):
+        findings.append(Finding("ERROR", "worktree-session.json must be a JSON object.", str(session_path)))
+        return
+
+    valid_phases = {"setup", "executing", "agents_complete", "merging", "merged", "verified", "committed", "cleaned"}
+
+    sv = data.get("schemaVersion")
+    if not isinstance(sv, int):
+        findings.append(Finding("WARN", "worktree-session.json: schemaVersion should be an integer.", str(session_path)))
+    for field in ("feature", "planNumber", "baseCommit", "baseBranch"):
+        val = data.get(field)
+        if not isinstance(val, str):
+            findings.append(Finding("WARN", f"worktree-session.json: {field} should be a string.", str(session_path)))
+    phase = data.get("phase")
+    if not isinstance(phase, str) or phase not in valid_phases:
+        findings.append(Finding("WARN", f"worktree-session.json: phase should be one of {sorted(valid_phases)}.", str(session_path)))
+    for arr_field in ("worktrees", "mergeOrder", "mergedSoFar"):
+        val = data.get(arr_field)
+        if not isinstance(val, list):
+            findings.append(Finding("WARN", f"worktree-session.json: {arr_field} should be an array.", str(session_path)))
+
+
 def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -626,7 +696,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
 
     # Core files
     _require(root / "docs" / "planning" / "PROJECT.md", findings, "Missing planning doc PROJECT.md")
-    _require(root / "docs" / "planning" / "STATE.md", findings, "Missing planning doc STATE.md")
+    _require(root / ".cnogo" / "memory.db", findings, "Memory engine not initialized — run: python3 scripts/workflow_memory.py init")
     _require(root / "docs" / "planning" / "ROADMAP.md", findings, "Missing planning doc ROADMAP.md")
 
     if staged_only:
@@ -651,6 +721,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     _validate_quick_tasks(root, findings, touched)
     _validate_research(root, findings, touched)
     _validate_brainstorm(root, findings, touched)
+    _validate_worktree_session(root, findings)
 
     return findings
 

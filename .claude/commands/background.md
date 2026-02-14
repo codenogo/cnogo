@@ -85,6 +85,41 @@ Important:
 - Commit changes with message: "background($TASK_ID): [description]"
 ```
 
+### Step 4b: Memory Tracking (If Enabled)
+
+If the memory engine is initialized (`.cnogo/memory.db` exists), create a tracking issue:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create, claim
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    issue = create(
+        '$ARGUMENTS',
+        issue_type='background',
+        labels=['background'],
+        root=root,
+    )
+    claim(issue.id, actor='background-$TASK_ID', root=root)
+    print(f'Memory issue: {issue.id}')
+"
+```
+
+When the background task completes, close the memory issue:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, close
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    close('<memoryId>', reason='completed', root=root)
+"
+```
+
 ### Step 5: Confirm Launch
 
 ```markdown

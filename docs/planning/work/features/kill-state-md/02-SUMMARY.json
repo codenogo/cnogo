@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "feature": "kill-state-md",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    { "file": "install.sh", "change": "Removed STATE.md from template loop, added auto-delete migration, added memory auto-init" },
+    { "file": ".claude/commands/pause.md", "change": "Stores handoff in memory metadata on active epic" },
+    { "file": ".claude/commands/resume.md", "change": "Loads handoff from memory, clears handoff from epic metadata" },
+    { "file": ".claude/commands/status.md", "change": "Reads state from memory prime() instead of STATE.md" },
+    { "file": ".claude/commands/sync.md", "change": "Dropped Modes 1-4, made memory sync primary, kept Agent Teams modes" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "bash -n install.sh passes" },
+    { "task": 2, "result": "pass", "details": "Zero STATE.md references in pause.md, resume.md" },
+    { "task": 3, "result": "pass", "details": "Zero STATE.md references in status.md, sync.md" }
+  ],
+  "commit": { "hash": "798f476", "message": "feat(kill-state-md): migrate install + session commands off STATE.md" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

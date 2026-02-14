@@ -3,192 +3,112 @@
 
 Orchestrate Agent Teams for collaborative multi-agent workflows.
 
-> **EXPERIMENTAL**: Agent Teams is a research preview feature. Behavior may change. Set `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json` to enable (already enabled by default in this workflow pack).
-
 ## Arguments
 
 `/team <action> [args]`
 
 | Action | Usage | Purpose |
 |--------|-------|---------|
-| `create` | `/team create <task-description>` | Create a team and spawn teammates for a task |
-| `status` | `/team status` | Show teammates, task list, and progress |
-| `message` | `/team message <teammate> <message>` | Send a message to a specific teammate |
-| `dismiss` | `/team dismiss` | Shut down all teammates gracefully |
-
-## Available Agents for Teams
-
-Teammates are spawned from `.claude/agents/` definitions:
-
-| Agent | Model | Role | Best As Teammate For |
-|-------|-------|------|---------------------|
-| `code-reviewer` | sonnet | Code quality analysis | Review teams, full-stack teams |
-| `security-scanner` | sonnet | Vulnerability auditing | Review teams, security audits |
-| `perf-analyzer` | sonnet | Performance analysis | Review teams, optimization sprints |
-| `api-reviewer` | sonnet | API design review | Review teams, API-heavy features |
-| `test-writer` | inherit | Test generation | Full-stack teams, TDD workflows |
-| `debugger` | inherit | Root cause analysis | Debug teams, incident response |
-| `refactorer` | inherit | Code quality improvement | Full-stack teams, cleanup sprints |
-| `docs-writer` | haiku | Documentation | Full-stack teams, release prep |
-| `migrate` | inherit | Framework/dependency upgrades | Migration teams |
-
-## Recommended Team Compositions
-
-### Code Review Team
-3 reviewers analyzing different dimensions in parallel:
-```
-/team create Review PR #142 for quality, security, and performance
-```
-Spawns: `code-reviewer`, `security-scanner`, `perf-analyzer`
-
-### Full-Stack Team
-4 specialists owning different layers:
-```
-/team create Build the notifications feature end-to-end
-```
-Spawns: `test-writer` (tests), `debugger` (backend), `refactorer` (frontend), `docs-writer` (docs)
-
-### Debug Team
-3 investigators testing competing hypotheses:
-```
-/team create Investigate why the app crashes after login — try 3 different theories
-```
-Spawns: `debugger`, `debugger`, `debugger` (each assigned a different hypothesis)
-
-### Migration Team
-2 specialists for safe upgrades:
-```
-/team create Upgrade React from v18 to v19
-```
-Spawns: `migrate` (core upgrade), `test-writer` (regression tests)
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Shift+Up/Down` | Select a teammate to view/interact with |
-| `Shift+Tab` | Toggle delegate mode (lead coordinates only, no coding) |
-| `Ctrl+T` | Toggle task list visibility |
-| `Ctrl+B` | Background the current task |
-| `Escape` | Interrupt current teammate's turn |
+| `create` | `/team create <task-description>` | Create a team for a task |
+| `implement` | `/team implement <feature> <plan>` | Execute a plan in parallel |
+| `status` | `/team status` | Show progress |
+| `message` | `/team message <teammate> <msg>` | Message a teammate |
+| `dismiss` | `/team dismiss` | Shut down teammates |
 
 ## Your Task
 
 ### Step 0: Verify Agent Teams Enabled
 
-Check that `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set to `"1"` in the environment or `.claude/settings.json`. If not enabled, inform the user how to enable it.
+Check that `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is `"1"` in `.claude/settings.json`. If not, inform the user.
 
 ### Step 1: Parse Action
 
-Extract the action and arguments from "$ARGUMENTS":
-- First word = action (create, status, message, dismiss)
-- Remaining = action-specific arguments
+Extract action and arguments from "$ARGUMENTS". First word = action, remaining = args.
 
 ### Step 2: Execute Action
 
 #### Action: `create`
 
-1. Analyze the task description to determine which agents are needed
-2. Match to a recommended composition (or create a custom one)
-3. **Activate delegate mode** — the lead (you) should coordinate, not code directly
-4. Create the team using TeamCreate
-5. Create tasks using TaskCreate based on the task description
-6. Spawn teammates from `.claude/agents/` definitions using the Task tool with `team_name`
-7. **Assign file boundaries** to each teammate to prevent merge conflicts:
-   - Each teammate should own specific files/directories
-   - No two teammates should edit the same file
-   - Document assignments in the task descriptions
-8. Report the team composition and assignments
+1. Analyze the task to determine needed specializations
+2. Create team via TeamCreate, create tasks via TaskCreate
+3. Spawn `general-purpose` teammates with relevant `.claude/skills/` loaded via `skills` frontmatter
+4. Assign file boundaries to prevent merge conflicts — no two teammates edit the same file
+5. Activate delegate mode (Shift+Tab) — lead coordinates, doesn't code
+6. If memory initialized, create an epic and subtasks:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import is_initialized, create; from pathlib import Path; root=Path('.'); epic=create('<description>', issue_type='epic', labels=['team'], root=root) if is_initialized(root) else None; print(f'Epic: {epic.id}') if epic else None"
+   ```
+
+#### Action: `implement`
+
+1. Parse `<feature>` and `<plan>` from arguments
+2. Load `docs/planning/work/features/<feature>/<plan>-PLAN.json`
+3. Generate task descriptions via bridge (once — reuse for steps 4 and 5):
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory.bridge import plan_to_task_descriptions; from pathlib import Path; descs=plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), Path('.')); print(json.dumps(descs, indent=2))"
+   ```
+   Save the returned list as `task_descriptions` for subsequent steps.
+4. Check file conflicts via `detect_file_conflicts(task_descriptions)`. **Advisory only** — if conflicts, warn: "File overlaps detected. Merge conflicts likely — resolver agent will handle." Proceed regardless (worktree isolation prevents runtime interference).
+5. **Create worktree session** — pass the `task_descriptions` from step 3 (do NOT call `plan_to_task_descriptions` again):
+   ```bash
+   python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory import create_session; from pathlib import Path; root=Path('.'); session=create_session(Path('docs/planning/work/features/<feature>/<plan>-PLAN.json'), root, task_descriptions); print(json.dumps({'phase': session.phase, 'worktrees': len(session.worktrees)}))"
+   ```
+   Where `task_descriptions` is the list from step 3.
+6. Create team `impl-<feature>-<plan>` via TeamCreate
+7. Create TaskCreate entries — include the worktree path in each task description so agents know their working directory. Two-pass:
+   - **Pass 1:** Create tasks for non-skipped items. Record `task_index_to_id` mapping (None for skipped).
+   - **Pass 2:** Wire `blockedBy` dependencies via TaskUpdate `addBlockedBy`.
+8. Spawn one `implementer` teammate per task via Task tool with `team_name`, `subagent_type: "general-purpose"`, and `model: "sonnet"`. The agent's prompt must include the implementer.md instructions and: "Your working directory is `<worktree_path>`. All file paths are relative to this directory."
+9. Activate delegate mode. Monitor via TaskList until all tasks completed.
+10. **Merge agent branches** — sequential merge in task order:
+    ```bash
+    python3 -c "import sys,json; sys.path.insert(0,'.'); from scripts.memory import load_session, merge_session; from pathlib import Path; root=Path('.'); session=load_session(root); result=merge_session(session, root); print(json.dumps({'success': result.success, 'merged': result.merged_indices, 'conflict_index': result.conflict_index, 'conflict_files': result.conflict_files}))"
+    ```
+11. **If merge conflict**: Spawn resolver agent (`.claude/agents/resolver.md`) with context from `get_conflict_context()`. After resolution, retry merge from where it left off. If resolver fails after 2 attempts, `git merge --abort` and report to user.
+12. Run `planVerify` commands from plan JSON. Fix failures directly.
+13. Create summary artifacts (`<NN>-SUMMARY.md` + `<NN>-SUMMARY.json`)
+14. Commit: `git add -A && git commit -m "<commitMessage from plan>"`
+15. **Cleanup worktrees** — remove worktrees, branches, and state file:
+    ```bash
+    python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import load_session, cleanup_session; from pathlib import Path; root=Path('.'); session=load_session(root); cleanup_session(session, root); print('Worktrees cleaned')"
+    ```
+16. Dismiss team, then `python3 scripts/workflow_validate.py`
 
 #### Action: `status`
 
-1. Read the team config to list all teammates
-2. Show TaskList with current status
-3. Report:
-   - Active teammates and their current task
-   - Completed tasks
-   - Blocked tasks and why
-   - Recommended next actions
+1. Read team config, show TaskList with status
+2. Report: active teammates, completed/blocked tasks, recommended actions
 
 #### Action: `message`
 
-1. Parse teammate name and message from arguments
-2. Send the message using SendMessage
-3. Confirm delivery
+Parse teammate name and message, send via SendMessage, confirm delivery.
 
 #### Action: `dismiss`
 
-1. Send shutdown_request to each teammate
-2. Wait for confirmations
-3. Clean up team resources with TeamDelete
-4. Report final status
+Send shutdown_request to each teammate, wait for confirmations, TeamDelete, report final status.
 
 ### Step 3: Report
 
 ```markdown
 ## Team Status
 
-**Team:** [team-name]
-**Mode:** [delegate/active]
-**Teammates:** [count]
+**Team:** [name] | **Teammates:** [count]
 
-| Teammate | Agent | Status | Current Task |
-|----------|-------|--------|-------------|
-| [name] | [agent-type] | [active/idle/done] | [task description] |
+| Teammate | Status | Current Task |
+|----------|--------|-------------|
+| [name] | [active/idle/done] | [task] |
 
 ### Task List
 | ID | Task | Owner | Status | Blocked By |
 |----|------|-------|--------|------------|
-
-### File Boundaries
-| Teammate | Owns |
-|----------|------|
-| [name] | [files/directories] |
-```
-
-## Best Practices
-
-1. **Use delegate mode by default** — Press `Shift+Tab` to keep the lead focused on coordination
-2. **Assign clear file boundaries** — Prevents merge conflicts between teammates
-3. **Size tasks appropriately** — ~5-6 self-contained units per teammate
-4. **Monitor with Ctrl+T** — Check task list regularly, redirect off-track work
-5. **Start with review tasks** — Build intuition for team value before implementation tasks
-6. **Keep teams small** — 3-4 teammates is optimal; more increases coordination overhead and token cost
-7. **Token awareness** — Each teammate loads context independently; 3 teammates ≈ 3-4x token usage
-
-## Examples
-
-```bash
-# Parallel code review
-/team create Review PR #142 with security, performance, and code quality reviewers
-
-# Full-stack feature
-/team create Build user notifications with backend, tests, and docs specialists
-
-# Competing hypothesis debugging
-/team create Debug the login crash — investigate auth tokens, session state, and race conditions
-
-# Check team progress
-/team status
-
-# Send guidance to a teammate
-/team message debugger Focus on the session middleware, I think that's the issue
-
-# Wrap up
-/team dismiss
 ```
 
 ## Notes
 
-- Agent Teams is a research preview — expect rough edges
-- No session resumption after `/resume` or `/rewind` commands
-- One team per session maximum
-- Teammates cannot spawn their own teams
-- For lighter coordination, use `/sync` instead
+- Agent Teams is a research preview — keep teams small (3-4 teammates) to limit coordination overhead and token cost
+- Worktree state file (`.cnogo/worktree-session.json`) enables crash recovery — use `/resume` to detect interrupted sessions
 - For single-agent work, use `/spawn` instead
 
 ## Output
 
-- Team composition and teammate assignments
-- Task list with file boundaries
-- Instructions for monitoring and interacting with the team
+Team composition, task list, and monitoring instructions.

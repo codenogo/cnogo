@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "feature": "agent-architecture-redesign",
+  "branch": "main",
+  "automated": [
+    { "name": "lint", "result": "skipped" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "pass" },
+    { "name": "workflow_validate", "result": "pass" },
+    { "name": "bridge_smoke", "result": "pass" }
+  ],
+  "verdict": "warn",
+  "blockers": [],
+  "warnings": [
+    { "file": ".claude/commands/plan.md", "line": 34, "issue": "Stale reference to deleted docs/skills.md", "severity": "medium" },
+    { "file": ".claude/commands/brainstorm.md", "line": 20, "issue": "Stale reference to deleted docs/skills.md", "severity": "medium" },
+    { "file": "README.md", "line": 575, "issue": "Stale file tree reference to deleted docs/skills.md", "severity": "low" }
+  ]
+}

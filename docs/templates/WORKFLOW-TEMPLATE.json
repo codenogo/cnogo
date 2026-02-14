@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "repoShape": "auto",
+  "performance": {
+    "postEditFormat": "auto",
+    "postEditFormatScope": "changed"
+  },
+  "research": {
+    "mode": "auto",
+    "minSources": 3
+  },
+  "enforcement": {
+    "monorepoVerifyScope": "warn",
+    "karpathyChecklist": "warn"
+  },
+  "packages": [],
+  "agentTeams": {
+    "enabled": true,
+    "delegateMode": true,
+    "defaultCompositions": {
+      "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
+      "fullstack": ["test-writer", "debugger", "docs-writer", "refactorer"],
+      "debug": ["debugger", "debugger", "debugger"]
+    }
+  }
+}
+

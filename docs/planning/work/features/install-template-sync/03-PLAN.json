@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "planNumber": "03",
+  "goal": "Make /init safe for existing projects and fix the unknown stack fallback",
+  "tasks": [
+    {
+      "name": "Add safety check before replacing root CLAUDE.md",
+      "files": [".claude/commands/init.md"],
+      "action": "Replace unconditional cp with a diff check against CLAUDE-generic.md. If CLAUDE.md has custom content, ask before overwriting. If it matches the generic template, replace silently.",
+      "verify": ["grep -q 'custom content' .claude/commands/init.md && echo OK", "grep -q 'Replace CLAUDE.md' .claude/commands/init.md && echo OK"],
+      "memoryId": "cn-fkgm1t.7"
+    },
+    {
+      "name": "Fix unknown stack fallback",
+      "files": [".claude/commands/init.md"],
+      "action": "Change TEMPLATE=\"CLAUDE.md\" to TEMPLATE=\"docs/templates/CLAUDE-generic.md\" in the unknown stack case.",
+      "verify": ["grep -q 'TEMPLATE=\"docs/templates/CLAUDE-generic.md\"' .claude/commands/init.md && echo OK"],
+      "memoryId": "cn-fkgm1t.8"
+    }
+  ],
+  "planVerify": ["grep -q 'custom content' .claude/commands/init.md", "grep -q 'docs/templates/CLAUDE-generic.md' .claude/commands/init.md", "! grep 'TEMPLATE=\"CLAUDE.md\"' .claude/commands/init.md"],
+  "commitMessage": "fix(install-template-sync): make /init safe for existing projects",
+  "memoryEpicId": "cn-fkgm1t",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

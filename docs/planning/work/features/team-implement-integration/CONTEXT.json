@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "feature": "team-implement-integration",
+  "displayName": "Team-Implement Integration",
+  "research": [
+    "https://betterstack.com/community/guides/ai/beads-issue-tracker-ai-agents/",
+    "https://openhands.dev/blog/automating-massive-refactors-with-parallel-agents",
+    "https://blog.langchain.com/introducing-open-swe-an-open-source-asynchronous-coding-agent/",
+    "https://allenai.org/blog/open-coding-agents",
+    "https://github.com/Piebald-AI/claude-code-system-prompts"
+  ],
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "New implementer agent + bridge layer",
+      "rationale": "Dedicated agent for plan task execution; bridge syncs memory ready-state to TaskList"
+    },
+    {
+      "area": "plan-translation",
+      "decision": "/team implement generates team tasks from NN-PLAN.json",
+      "rationale": "Reuses existing plan structure with memoryId linkage"
+    },
+    {
+      "area": "work-queue",
+      "decision": "Memory -> TaskList one-way bridge via memory.ready()",
+      "rationale": "Memory is persistent source of truth; TaskList is agent-visible ephemeral layer"
+    },
+    {
+      "area": "verify-loop",
+      "decision": "Plan verify[] array becomes agent success criterion",
+      "rationale": "Plan already defines verification; agents execute it and close on pass"
+    },
+    {
+      "area": "file-boundaries",
+      "decision": "Enforce at plan level via files[] array",
+      "rationale": "Plan tasks already specify file boundaries; no runtime enforcement needed"
+    },
+    {
+      "area": "sync-direction",
+      "decision": "Memory -> TaskList (one-way, not bidirectional)",
+      "rationale": "Simpler consistency model; memory is the durable source of truth"
+    },
+    {
+      "area": "agent-type",
+      "decision": "general-purpose subagent_type for implementer",
+      "rationale": "Implementer needs full tool access (Read, Edit, Write, Bash, Grep, Glob)"
+    },
+    {
+      "area": "concurrency",
+      "decision": "Parallel within plan, sequential across plans",
+      "rationale": "Plan tasks within a plan are independent; plan 02 waits for plan 01"
+    },
+    {
+      "area": "failure-handling",
+      "decision": "Retry once, then notify leader",
+      "rationale": "Matches existing /implement pattern: 2 attempts then escalate"
+    },
+    {
+      "area": "persistence",
+      "decision": "Memory persists via JSONL; TaskList is ephemeral per team session",
+      "rationale": "/resume rebuilds TaskList from memory state"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only (no external dependencies)",
+    "Backward compatible: /implement without teams works as before",
+    "Agent Teams is experimental — graceful degradation required",
+    "Max 3-4 teammates per team (token cost)",
+    "Max 3 tasks per plan (existing constraint)",
+    "Each agent has its own context window"
+  ],
+  "openQuestions": [
+    "Dedicated implementer agent vs general-purpose with instructions in task description?",
+    "Should verify failures auto-create memory events or agent does it explicitly?",
+    "Mixed teams (implementer + reviewer in parallel) or separate phases?"
+  ],
+  "relatedCode": [
+    "scripts/memory/__init__.py",
+    "scripts/memory/storage.py",
+    "scripts/memory/graph.py",
+    "scripts/memory/sync.py",
+    "scripts/memory/context.py",
+    ".claude/commands/team.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/plan.md",
+    ".claude/agents/*.md"
+  ],
+  "memoryEpicId": "cn-9xdhpc",
+  "timestamp": "2026-02-14T01:45:00Z"
+}

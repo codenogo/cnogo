@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-14T06:00:00Z",
+  "feature": "team-implement-integration",
+  "branch": "main",
+  "automated": [
+    { "name": "lint", "result": "skipped" },
+    { "name": "tests", "result": "pass" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "skipped" },
+    { "name": "workflow_validate", "result": "pass" }
+  ],
+  "verdict": "pass",
+  "blockers": [],
+  "warnings": [
+    { "file": "scripts/memory/bridge.py", "line": 83, "issue": "generate_implement_prompt() is 101 lines (target ≤50)", "severity": "low" },
+    { "file": "scripts/memory/bridge.py", "line": 200, "issue": "Magic number 30 for context snippet lines", "severity": "low" },
+    { "file": ".claude/commands/team.md", "line": 118, "issue": "agent_tasks undefined in example snippet", "severity": "low" }
+  ],
+  "fixedDuringReview": [
+    { "file": "scripts/memory/bridge.py", "issue": "Command injection via unvalidated memory_id", "severity": "critical", "fix": "Added regex validation" },
+    { "file": "scripts/memory/bridge.py", "issue": "Unused feature parameter in _load_context_snippet", "severity": "low", "fix": "Removed parameter" },
+    { "file": ".claude/commands/team.md", "issue": "Step 1 missing implement action", "severity": "medium", "fix": "Added implement to action list" },
+    { "file": ".claude/commands/implement.md", "issue": "--team flag undocumented", "severity": "medium", "fix": "Added to arguments and examples" }
+  ]
+}

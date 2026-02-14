@@ -30,55 +30,56 @@ git stash list
 ### Step 2: Identify Open Work
 
 ```bash
-# What feature/task is in progress
-cat docs/planning/STATE.md | head -20
+# Query memory for current state
+python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"
 
 # Recent files touched
 git diff --name-only HEAD~3..HEAD 2>/dev/null || git diff --name-only
 ```
 
-### Step 3: Create Handoff
+### Step 3: Store Handoff in Memory
 
-Update `docs/planning/STATE.md` with handoff section:
-
-```markdown
-## Session Handoff
-
-**Paused:** [timestamp]
-**Branch:** [current branch]
-**Checkout:** [directory name if relevant]
-
-### Last Action
-[What was just completed]
-
-### In Progress
-[What was being worked on]
-
-### Next Step
-[Exactly what to do next - be specific]
-
-### Context
-[Any important context that won't be obvious]
-
-### Open Files
-[Files that were being edited]
-- `path/to/file.ts` — [what was being done]
-- `path/to/other.ts` — [what was being done]
-
-### Uncommitted Changes
-```
-[output of git status --porcelain]
-```
-
-### Mental State
-[Any decisions made but not documented, gotchas discovered, etc.]
-```
-
-### Step 4: Verify State is Saved
+Store handoff context as metadata on the active epic (or as a standalone note):
 
 ```bash
-# Ensure STATE.md is saved
-cat docs/planning/STATE.md | grep -A 30 "Session Handoff"
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, list_issues, update, sync
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    # Find active epic to attach handoff
+    epics = list_issues(issue_type='epic', status='in_progress', root=root)
+    if not epics:
+        epics = list_issues(issue_type='epic', status='open', root=root)
+    if epics:
+        epic = epics[0]
+        update(epic.id, metadata={**epic.metadata, 'handoff': '<HANDOFF_TEXT>'}, root=root)
+        print(f'Handoff stored on {epic.id} ({epic.feature_slug})')
+    sync(root)
+    print('Memory synced to .cnogo/issues.jsonl')
+"
+```
+
+Compose the `<HANDOFF_TEXT>` as a compact string:
+
+```
+Paused: [timestamp] | Branch: [branch] | Last: [last action] | Next: [next step] | Files: [file1, file2] | Notes: [mental state]
+```
+
+### Step 4: Verify Handoff Saved
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import list_issues
+from pathlib import Path
+epics = list_issues(issue_type='epic', status='open', root=Path('.'))
+for e in epics:
+    h = e.metadata.get('handoff', '')
+    if h:
+        print(f'{e.id} ({e.feature_slug}): {h[:200]}')
+"
 ```
 
 ### Step 5: Optional - Stash Changes

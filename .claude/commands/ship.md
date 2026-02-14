@@ -79,18 +79,31 @@ gh pr create \
 - Docs: `docs/planning/work/features/[feature]/`
 ```
 
-### Step 5: Update State
+### Step 4b: Memory Close (If Enabled)
 
-Update `docs/planning/STATE.md`:
-```
-## Current Focus
-- Feature: [feature]
-- Status: PR created
-- PR: #[number] or [URL]
-- Next: Await review / merge
+If the memory engine is initialized (`.cnogo/memory.db` exists), close the feature epic and sync:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, list_issues, close, sync
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    # Close all open issues for this feature
+    feature = '<feature-slug>'  # Infer from branch name or memory
+    issues = list_issues(feature_slug=feature, root=root)
+    closed = 0
+    for issue in issues:
+        if issue.status != 'closed':
+            close(issue.id, reason='shipped', actor='claude', root=root)
+            closed += 1
+    sync(root)
+    print(f'Shipped: closed {closed} memory issues for {feature}')
+"
 ```
 
-### Step 6: Clean Up (optional)
+### Step 5: Clean Up (optional)
 
 If user confirms:
 ```bash

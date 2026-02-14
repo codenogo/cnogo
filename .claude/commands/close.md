@@ -1,7 +1,7 @@
 # Close: $ARGUMENTS
 <!-- effort: low -->
 
-Post-merge cleanup. Keeps `STATE.md` current and optionally archives feature artifacts after merge into `main`.
+Post-merge cleanup. Closes memory epic and optionally archives feature artifacts after merge into `main`.
 
 ## Arguments
 
@@ -11,7 +11,7 @@ Example: `/close websocket-notifications`
 
 ## Your Task
 
-After a feature is merged, update state and file organization.
+After a feature is merged, close memory epic and clean up artifacts.
 
 ### Step 1: Confirm Merge
 
@@ -24,14 +24,40 @@ git log -5 --oneline
 
 If the user provides a PR number, include it in notes.
 
-### Step 2: Update `docs/planning/STATE.md`
+### Step 2: Memory Close
 
-Update:
+If the memory engine is initialized (`.cnogo/memory.db` exists), close all open issues for this feature:
 
-- **Current Focus**: set Feature to `None` (or next feature if already known)
-- **Status**: `Idle` (or next status)
-- Clear any active **Session Handoff** (mark as cleared)
-- Add a line in **Recent Decisions** indicating the merge (feature slug + PR if known)
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, list_issues, close
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    issues = list_issues(feature_slug='$ARGUMENTS', root=root)
+    closed = 0
+    for issue in issues:
+        if issue.status != 'closed':
+            close(issue.id, reason='shipped', actor='claude', root=root)
+            closed += 1
+    print(f'Closed {closed} memory issues for $ARGUMENTS')
+"
+```
+
+Then sync to persist state:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, sync
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    sync(root)
+    print('Memory synced')
+"
+```
 
 ### Step 3: Archive Feature Artifacts (Optional)
 
@@ -52,7 +78,7 @@ python3 scripts/workflow_validate.py
 
 ## Output
 
-- What was updated in `STATE.md`
+- Memory epic and issues closed
 - Whether artifacts were archived
 - Next recommended action (`/brainstorm`, `/discuss`, or `/quick`)
 

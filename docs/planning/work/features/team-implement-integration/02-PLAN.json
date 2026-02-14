@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "feature": "team-implement-integration",
+  "planNumber": "02",
+  "goal": "Wire bridge module into /team (implement action), /implement (team mode), and /status (progress display)",
+  "tasks": [
+    {
+      "name": "Add implement action to /team command",
+      "memoryId": "cn-9xdhpc.4",
+      "files": [".claude/commands/team.md"],
+      "action": "Add /team implement <feature> <plan> action that reads NN-PLAN.json via bridge module, creates team, creates TaskCreate entries with blockedBy from dependencies, spawns implementer teammates, activates delegate mode.",
+      "verify": ["grep -q 'Action: implement' .claude/commands/team.md && echo OK"]
+    },
+    {
+      "name": "Add team mode to /implement command",
+      "memoryId": "cn-9xdhpc.5",
+      "files": [".claude/commands/implement.md"],
+      "action": "Add Step 1c: Team Mode detection. If --team flag or multi-task plan with Agent Teams available, suggest /team implement delegation. Preserve existing serial flow when team mode is not active.",
+      "verify": ["grep -q 'Team Mode' .claude/commands/implement.md && echo OK"]
+    },
+    {
+      "name": "Add team-implement display to /status",
+      "memoryId": "cn-9xdhpc.6",
+      "files": [".claude/commands/status.md"],
+      "action": "Extend Step 3b to show team implementation progress: completed/in-progress/remaining task counts for active epic implementations.",
+      "verify": ["grep -q 'Team Implementation' .claude/commands/status.md && echo OK"]
+    }
+  ],
+  "planVerify": ["grep -q 'implement' .claude/commands/team.md && grep -q 'Team Mode' .claude/commands/implement.md && python3 scripts/workflow_validate.py"],
+  "memoryEpicId": "cn-9xdhpc",
+  "commitMessage": "feat(team-implement-integration): wire bridge into team/implement/status commands",
+  "timestamp": "2026-02-14T02:00:00Z"
+}
