@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "feature": "template-self-separation",
+  "planNumber": "02",
+  "goal": "Replace placeholder content in cnogo's own PROJECT.md, ROADMAP.md, WORKFLOW.json, and CLAUDE.md with real project information",
+  "tasks": [
+    {
+      "name": "Fill in PROJECT.md",
+      "files": ["docs/planning/PROJECT.md"],
+      "action": "Replace all placeholder text with cnogo's real content: vision, constraints, architecture, tech stack, patterns, non-goals",
+      "verify": [
+        "python3 scripts/workflow_validate.py"
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-ngp191.4"
+    },
+    {
+      "name": "Fill in ROADMAP.md",
+      "files": ["docs/planning/ROADMAP.md"],
+      "action": "Replace all placeholder text with cnogo's actual milestones: v1.0, v1.1 complete, v2.0 future",
+      "verify": [
+        "python3 scripts/workflow_validate.py"
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-ngp191.5"
+    },
+    {
+      "name": "Fill in WORKFLOW.json and CLAUDE.md",
+      "files": ["docs/planning/WORKFLOW.json", "CLAUDE.md"],
+      "action": "Populate WORKFLOW.json packages[] with cnogo-scripts, fill in CLAUDE.md unfilled sections",
+      "verify": [
+        "python3 scripts/workflow_validate.py",
+        "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert len(cfg.get('packages',[])) > 0; print('PASS: packages populated')\""
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-ngp191.6"
+    }
+  ],
+  "planVerify": [
+    "python3 scripts/workflow_validate.py",
+    "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert len(cfg.get('packages',[])) > 0; print('PASS: packages populated')\"",
+    "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))\""
+  ],
+  "commitMessage": "feat(template-self-separation): fill in cnogo's own project documentation\n\n- PROJECT.md: vision, constraints, architecture, tech stack\n- ROADMAP.md: v1.0, v1.1 milestones, completed features, v2.0 ideas\n- WORKFLOW.json: populate packages[] with cnogo-scripts\n- CLAUDE.md: fill in conventions, architecture rules, testing, troubleshooting",
+  "memoryEpicId": "cn-ngp191",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

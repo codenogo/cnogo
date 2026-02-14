@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "feature": "template-self-separation",
+  "planNumber": "01",
+  "goal": "Move dual-purpose files to docs/templates/ as *-TEMPLATE files and update install.sh to copy from there",
+  "tasks": [
+    {
+      "name": "Create template files in docs/templates/",
+      "files": [
+        "docs/templates/PROJECT-TEMPLATE.md",
+        "docs/templates/ROADMAP-TEMPLATE.md",
+        "docs/templates/WORKFLOW-TEMPLATE.json"
+      ],
+      "action": "Copy current docs/planning/ files verbatim to docs/templates/ with -TEMPLATE suffix",
+      "verify": [
+        "diff docs/planning/PROJECT.md docs/templates/PROJECT-TEMPLATE.md",
+        "diff docs/planning/ROADMAP.md docs/templates/ROADMAP-TEMPLATE.md",
+        "diff docs/planning/WORKFLOW.json docs/templates/WORKFLOW-TEMPLATE.json"
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-ngp191.1"
+    },
+    {
+      "name": "Update install.sh copy sources",
+      "files": ["install.sh"],
+      "action": "Change copy loop to use docs/templates/*-TEMPLATE.* instead of docs/planning/",
+      "verify": [
+        "grep TEMPLATE install.sh"
+      ],
+      "blockedBy": [0],
+      "memoryId": "cn-ngp191.2"
+    },
+    {
+      "name": "Verify install.sh end-to-end",
+      "files": ["install.sh"],
+      "action": "Dry-run install to temp dir and verify template content is installed",
+      "verify": [
+        "TMPDIR=$(mktemp -d) && bash install.sh -y \"$TMPDIR\" && diff \"$TMPDIR/docs/planning/PROJECT.md\" docs/templates/PROJECT-TEMPLATE.md && diff \"$TMPDIR/docs/planning/ROADMAP.md\" docs/templates/ROADMAP-TEMPLATE.md && diff \"$TMPDIR/docs/planning/WORKFLOW.json\" docs/templates/WORKFLOW-TEMPLATE.json && rm -rf \"$TMPDIR\""
+      ],
+      "blockedBy": [0, 1],
+      "memoryId": "cn-ngp191.3"
+    }
+  ],
+  "planVerify": [
+    "diff docs/planning/PROJECT.md docs/templates/PROJECT-TEMPLATE.md",
+    "grep TEMPLATE install.sh",
+    "python3 scripts/workflow_validate.py"
+  ],
+  "commitMessage": "feat(template-self-separation): extract install templates to docs/templates/\n\n- Copy PROJECT.md, ROADMAP.md, WORKFLOW.json as *-TEMPLATE files\n- Update install.sh to copy from docs/templates/ instead of docs/planning/\n- cnogo's own docs/planning/ files are now free to contain real content",
+  "memoryEpicId": "cn-ngp191",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

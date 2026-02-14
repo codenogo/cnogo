@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "feature": "worktree-parallel-agents",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".claude/commands/team.md",
+      "change": "Rewrote implement action to use worktree lifecycle: create → merge → resolve → cleanup"
+    },
+    {
+      "file": ".claude/commands/implement.md",
+      "change": "Updated Step 1c — file conflicts advisory only, all parallel uses worktree isolation"
+    },
+    {
+      "file": "scripts/memory/bridge.py",
+      "change": "Updated detect_file_conflicts() to return advisory severity"
+    },
+    {
+      "file": ".claude/commands/resume.md",
+      "change": "Added Worktree Session Recovery section with phase-based recovery options"
+    },
+    {
+      "file": ".claude/agents/implementer.md",
+      "change": "Added commit step and worktree awareness rules"
+    }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "5+ worktree mentions, all session functions present" },
+    { "task": 2, "result": "pass", "details": "advisory in bridge.py, worktree isolation in implement.md" },
+    { "task": 3, "result": "pass", "details": "load_session in resume.md, Commit in implementer.md" }
+  ],
+  "commit": {
+    "hash": "42b602e",
+    "message": "feat(worktree-parallel-agents): wire worktrees into team, implement, resume commands"
+  },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

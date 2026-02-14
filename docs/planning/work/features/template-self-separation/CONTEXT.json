@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "template-self-separation",
+  "displayName": "Template Self-Separation",
+  "decisions": [
+    { "area": "separation", "decision": "Move templates to docs/templates/", "rationale": "Matches existing pattern (CLAUDE-generic.md, CONTEXT-TEMPLATE.md, ADR-TEMPLATE.md)" },
+    { "area": "naming", "decision": "*-TEMPLATE.md / *-TEMPLATE.json", "rationale": "Consistent with CONTEXT-TEMPLATE.md and ADR-TEMPLATE.md" },
+    { "area": "workflow-json", "decision": "Same treatment as PROJECT.md/ROADMAP.md", "rationale": "Move template, fill in cnogo's own with packages[]" },
+    { "area": "scope", "decision": "Separation + fill in cnogo's own docs", "rationale": "Dogfooding is the goal" },
+    { "area": "claude-md", "decision": "Fill in unfilled sections", "rationale": "Already separated, but own sections have placeholders" }
+  ],
+  "constraints": [
+    "install.sh only changes copy source paths — no behavioral changes",
+    "Template content stays identical to current files",
+    "cnogo docs must describe the project as it exists today",
+    "Zero-dependency Python constraint"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "install.sh",
+    "docs/templates/CLAUDE-generic.md",
+    "docs/planning/PROJECT.md",
+    "docs/planning/ROADMAP.md",
+    "docs/planning/WORKFLOW.json",
+    "CLAUDE.md"
+  ],
+  "memoryEpicId": "cn-ngp191",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "feature": "kill-state-md",
+  "displayName": "Kill STATE.md",
+  "decisions": [
+    { "area": "memory-requirement", "decision": "Required at install", "rationale": "install.sh runs memory.init() automatically; eliminates all If Enabled guards" },
+    { "area": "session-handoff", "decision": "Memory metadata on active epic", "rationale": "prime() already shows active epics; /resume reads show(epic_id).metadata['handoff']" },
+    { "area": "recent-decisions", "decision": "Drop entirely", "rationale": "Feature decisions live in CONTEXT.md; merges/rollbacks in git log; table was redundant" },
+    { "area": "sync-modes", "decision": "Replace Modes 1-4 with Mode 7 only", "rationale": "Drop manual grep-based modes; /sync always uses prime() + stats(); JSONL is git-tracked" },
+    { "area": "prime-enhancement", "decision": "Add active epic details + plan progress", "rationale": "Show in-progress epics with feature_slug, plan_number, child task completion ratio" },
+    { "area": "feature-detection", "decision": "Query memory for in-progress epic", "rationale": "Replace infer_feature_from_state() with list_issues(issue_type='epic', status='in_progress')" },
+    { "area": "install-validation", "decision": "Remove STATE.md from install.sh + workflow_validate.py", "rationale": "Stop copying STATE.md; remove _require(STATE.md); add _require(.cnogo/memory.db)" },
+    { "area": "migration", "decision": "Auto-delete STATE.md on next install", "rationale": "install.sh detects and removes existing STATE.md from target projects" }
+  ],
+  "constraints": [
+    "Memory engine must be initialized before any command that previously read STATE.md",
+    "prime() output must remain token-efficient (~500-1500 tokens) despite added epic details",
+    "Handoff metadata on epics must handle the no active epic case",
+    "All 17 commands that reference STATE.md must be updated",
+    "workflow_checks.py and workflow_validate.py need Python-level changes",
+    "install.sh needs STATE.md removed from template loop + auto-delete logic",
+    ".claude/CLAUDE.md, CLAUDE.md, and README.md reference STATE.md — update docs"
+  ],
+  "openQuestions": [
+    "When no epic is in progress (idle project), where does /pause store handoff? Lean toward transient session issue."
+  ],
+  "relatedCode": [
+    "scripts/memory/context.py",
+    "scripts/memory/__init__.py",
+    "scripts/workflow_checks.py",
+    "scripts/workflow_validate.py",
+    "install.sh",
+    ".claude/commands/resume.md",
+    ".claude/commands/pause.md",
+    ".claude/commands/status.md",
+    ".claude/commands/sync.md",
+    ".claude/commands/plan.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/discuss.md",
+    ".claude/commands/ship.md",
+    ".claude/commands/close.md",
+    ".claude/commands/team.md",
+    ".claude/commands/verify.md",
+    ".claude/commands/verify-ci.md",
+    ".claude/commands/review.md",
+    ".claude/commands/rollback.md",
+    "docs/planning/STATE.md"
+  ],
+  "memoryEpicId": "cn-145b2y1",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

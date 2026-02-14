@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "feature": "kill-state-md",
+  "planNumber": "01",
+  "goal": "Make the memory engine capable of fully replacing STATE.md by enhancing prime(), replacing infer_feature_from_state(), and updating validation rules.",
+  "tasks": [
+    {
+      "name": "Enhance prime() with active epic details and plan progress",
+      "files": ["scripts/memory/context.py"],
+      "action": "Add Active Epics section to prime() showing feature_slug, plan_number, child task completion ratio, and handoff snippet from epic metadata.",
+      "verify": ["python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import prime; from pathlib import Path; output = prime(root=Path('.')); print(output); assert 'kill-state-md' in output or 'Epics' in output or 'Features' in output; print('OK')\""],
+      "memoryId": "cn-145b2y1.1"
+    },
+    {
+      "name": "Replace infer_feature_from_state() with memory query",
+      "files": ["scripts/workflow_checks.py"],
+      "action": "Replace infer_feature_from_state() (lines 50-65) to query memory for in-progress/open epics, fallback to branch name parsing. Import memory at function level.",
+      "verify": ["python3 -c \"import sys; sys.path.insert(0,'.'); sys.path.insert(0,'scripts'); from workflow_checks import infer_feature_from_state; from pathlib import Path; r = infer_feature_from_state(Path('.')); print(f'Feature: {r}'); assert r; print('OK')\""],
+      "blockedBy": [0],
+      "memoryId": "cn-145b2y1.2"
+    },
+    {
+      "name": "Update workflow_validate.py — require memory.db instead of STATE.md",
+      "files": ["scripts/workflow_validate.py"],
+      "action": "At line 649, replace _require(STATE.md) with _require(.cnogo/memory.db).",
+      "verify": ["python3 scripts/workflow_validate.py"],
+      "memoryId": "cn-145b2y1.3"
+    }
+  ],
+  "planVerify": [
+    "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))\"",
+    "python3 -c \"import sys; sys.path.insert(0,'.'); sys.path.insert(0,'scripts'); from workflow_checks import infer_feature_from_state; r = infer_feature_from_state(__import__('pathlib').Path('.')); print(f'Feature: {r}'); assert r\"",
+    "python3 scripts/workflow_validate.py"
+  ],
+  "memoryEpicId": "cn-145b2y1",
+  "commitMessage": "feat(kill-state-md): enhance memory engine to replace STATE.md",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

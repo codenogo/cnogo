@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `/bug` command for routing bug work (quick vs debug vs discuss) with branch/test guidance
 - `/brainstorm` command for ideation + narrowing (Q&A + options) before `/discuss`
-- `/close` command for post-merge cleanup (update `STATE.md` and optionally archive feature artifacts)
+- `/close` command for post-merge cleanup (close memory epic and optionally archive feature artifacts)
 - `/research` command for deep research artifacts to de-risk decisions during `/discuss`
 - `/validate` command to enforce workflow rules (slugs, contracts, plan size)
 - `/verify-ci` command for non-interactive (CI-friendly) verification artifacts
@@ -32,7 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Total commands increased from 15 to 27
+- Total commands increased from 15 to 28
 
 ### Fixed
 

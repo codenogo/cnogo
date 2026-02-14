@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "feature": "multi-agent-enhancements",
+  "timestamp": "2026-02-14T00:00:00Z",
+  "branch": "main",
+  "automated": [
+    { "name": "lint", "result": "pass" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "skipped" }
+  ],
+  "verdict": "pass",
+  "blockers": [],
+  "warnings": [
+    { "file": "scripts/workflow_validate.py", "line": 339, "issue": "Bool subclass of int accepted by staleIndicatorMinutes validation — fixed", "severity": "medium" },
+    { "file": ".claude/commands/implement.md", "line": 44, "issue": "--team vs parallelizable:false conflict undocumented — fixed", "severity": "low" },
+    { "file": ".claude/commands/status.md", "line": 122, "issue": "Clock skew could produce negative age — fixed with max(0,...)", "severity": "low" }
+  ]
+}

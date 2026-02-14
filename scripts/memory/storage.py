@@ -278,6 +278,22 @@ def close_issue(conn: sqlite3.Connection, issue_id: str, reason: str) -> bool:
     return cursor.rowcount > 0
 
 
+def release_issue(conn: sqlite3.Connection, issue_id: str) -> bool:
+    """Release a claimed (in_progress) issue back to open/unassigned.
+
+    Used when an agent dies or a task needs to be re-assigned.
+    Returns True if status changed.
+    """
+    now = _now()
+    cursor = conn.execute(
+        """UPDATE issues
+           SET status = 'open', assignee = '', updated_at = ?
+           WHERE id = ? AND status = 'in_progress'""",
+        (now, issue_id),
+    )
+    return cursor.rowcount > 0
+
+
 def reopen_issue(conn: sqlite3.Connection, issue_id: str) -> bool:
     """Reopen a closed issue. Returns True if status changed."""
     now = _now()

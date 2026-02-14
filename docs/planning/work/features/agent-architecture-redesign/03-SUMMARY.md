@@ -24,7 +24,7 @@ Stale `skills.md` references found in `plan.md` and `brainstorm.md` — outside 
 
 ## Commit
 
-`pending` - refactor(agent-architecture): command restructuring — lean team.md, skills-based spawn
+`dd6dd48` - refactor(agent-architecture): command restructuring — lean team.md, skills-based spawn
 
 ---
 *Implemented: 2026-02-14*

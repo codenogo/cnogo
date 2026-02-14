@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    { "file": "docs/templates/CLAUDE-generic.md", "change": "Created stack-agnostic template with placeholder sections" },
+    { "file": ".claude/CLAUDE.md", "change": "Created workflow docs with 5 sections" },
+    { "file": "CLAUDE.md", "change": "Trimmed to cnogo-dev only, removed workflow sections" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "Generic template exists with correct sections" },
+    { "task": 2, "result": "pass", "details": "Workflow docs has all 5 sections" },
+    { "task": 3, "result": "pass", "details": "Root CLAUDE.md is cnogo-dev only" }
+  ],
+  "commit": { "hash": "43a607b", "message": "feat(install-template-sync): create three-file CLAUDE.md model" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

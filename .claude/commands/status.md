@@ -119,7 +119,7 @@ if is_initialized(root):
                 if hasattr(c, 'updated_at') and c.updated_at:
                     try:
                         updated = datetime.fromisoformat(c.updated_at.replace('Z', '+00:00'))
-                        age_min = int((now - updated).total_seconds() / 60)
+                        age_min = max(0, int((now - updated).total_seconds() / 60))
                         age_str = f' — claimed {age_min}m ago'
                         stale = age_min > stale_minutes
                     except Exception:

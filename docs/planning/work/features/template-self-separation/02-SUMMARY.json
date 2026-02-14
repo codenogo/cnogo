@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "feature": "template-self-separation",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    { "file": "docs/planning/PROJECT.md", "change": "Replaced template placeholders with real cnogo content" },
+    { "file": "docs/planning/ROADMAP.md", "change": "Replaced template placeholders with actual milestones and features" },
+    { "file": "docs/planning/WORKFLOW.json", "change": "Populated packages[] with cnogo-scripts package" },
+    { "file": "CLAUDE.md", "change": "Added Architecture Rules, Testing, Troubleshooting, and reference sections" },
+    { "file": "scripts/workflow_validate.py", "change": "Fixed dict-set subtraction bug in _detect_repo_shape()" }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "PROJECT.md filled, workflow_validate.py passed" },
+    { "task": 2, "result": "pass", "details": "ROADMAP.md filled, workflow_validate.py passed" },
+    { "task": 3, "result": "pass", "details": "WORKFLOW.json has 1 package, CLAUDE.md sections added" }
+  ],
+  "commit": { "hash": "1727c2a", "message": "feat(template-self-separation): fill in cnogo's own project documentation" },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

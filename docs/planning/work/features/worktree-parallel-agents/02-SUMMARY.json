@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "feature": "worktree-parallel-agents",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".claude/agents/resolver.md",
+      "change": "New agent — opus model, conflict resolution cycle with verify-both-sides step"
+    },
+    {
+      "file": "scripts/memory/__init__.py",
+      "change": "Added 6 worktree exports to __all__ + lazy-import wrapper functions"
+    },
+    {
+      "file": "scripts/workflow_validate.py",
+      "change": "Added worktreeMode validation + _validate_worktree_session() function"
+    },
+    {
+      "file": "docs/planning/WORKFLOW.json",
+      "change": "Added worktreeMode: always to agentTeams config"
+    }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "model: opus and conflict present in resolver.md" },
+    { "task": 2, "result": "pass", "details": "create_session, merge_session, cleanup_session, load_session all importable" },
+    { "task": 3, "result": "pass", "details": "Compile clean, workflow_validate clean, worktreeMode == always" }
+  ],
+  "commit": {
+    "hash": "cb3eb56",
+    "message": "feat(worktree-parallel-agents): resolver agent, API exports, and validation"
+  },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

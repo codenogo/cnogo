@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "feature": "worktree-parallel-agents",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/memory/worktree.py",
+      "change": "New module with WorktreeSession/WorktreeInfo/MergeResult dataclasses, git helpers, state file I/O, create_session, merge_session, get_conflict_context, cleanup_session"
+    }
+  ],
+  "verification": [
+    { "task": 1, "result": "pass", "details": "Module compiles, dataclasses and I/O functions importable" },
+    { "task": 2, "result": "pass", "details": "create_session importable" },
+    { "task": 3, "result": "pass", "details": "merge_session, cleanup_session, get_conflict_context importable" }
+  ],
+  "commit": {
+    "hash": "5380369",
+    "message": "feat(worktree-parallel-agents): core worktree module with setup, merge, and cleanup"
+  },
+  "timestamp": "2026-02-14T00:00:00Z"
+}

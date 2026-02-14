@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "feature": "worktree-parallel-agents",
+  "branch": "main",
+  "automated": [
+    { "name": "lint", "result": "skipped" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "pass" },
+    { "name": "deps", "result": "skipped" }
+  ],
+  "verdict": "pass",
+  "blockers": [],
+  "warnings": [
+    { "file": "scripts/memory/worktree.py", "line": 276, "issue": "No input validation for feature/plan_number used in branch names and paths", "severity": "medium" },
+    { "file": "scripts/memory/worktree.py", "line": 278, "issue": "Worktree path has no boundary assertion to prevent traversal outside parent dir", "severity": "medium" },
+    { "file": "scripts/memory/worktree.py", "line": 289, "issue": "Symlink created without checking if target already exists", "severity": "low" },
+    { "file": "scripts/memory/worktree.py", "line": 233, "issue": "create_session is 97 lines, exceeds 50-line threshold", "severity": "low" },
+    { "file": "scripts/memory/worktree.py", "line": 314, "issue": "Bare except Exception catches too broadly", "severity": "low" },
+    { "file": "scripts/memory/bridge.py", "line": 66, "issue": "Skipped tasks still carry blockedBy constraints from plan JSON", "severity": "low" }
+  ]
+}

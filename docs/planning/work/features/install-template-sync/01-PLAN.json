@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "feature": "install-template-sync",
+  "planNumber": "01",
+  "goal": "Create the three-file CLAUDE.md model: root stays cnogo-dev, new generic template for targets, new .claude/CLAUDE.md for workflow docs",
+  "tasks": [
+    {
+      "name": "Create docs/templates/CLAUDE-generic.md",
+      "files": ["docs/templates/CLAUDE-generic.md"],
+      "action": "Create a generic stack-agnostic template for target projects. Same structure as stack templates but with generic placeholders. No Planning Docs section.",
+      "verify": ["test -f docs/templates/CLAUDE-generic.md && echo OK", "grep -q 'Project Overview' docs/templates/CLAUDE-generic.md && echo OK"],
+      "memoryId": "cn-fkgm1t.1"
+    },
+    {
+      "name": "Create .claude/CLAUDE.md workflow docs",
+      "files": [".claude/CLAUDE.md"],
+      "action": "Create workflow documentation file with Operating Principles, Memory Engine, Planning Docs, Skills Library, and Security sections. Stack-agnostic, installed to all targets.",
+      "verify": ["test -f .claude/CLAUDE.md && echo OK", "grep -q 'Memory Engine' .claude/CLAUDE.md && echo OK", "grep -q 'Planning Docs' .claude/CLAUDE.md && echo OK"],
+      "memoryId": "cn-fkgm1t.2"
+    },
+    {
+      "name": "Trim root CLAUDE.md to cnogo-dev only",
+      "files": ["CLAUDE.md"],
+      "action": "Remove Operating Principles, Memory Engine, Planning Docs, and Security sections from root CLAUDE.md. Keep Project Overview, Quick Reference, Code Organisation, Conventions, Key Files.",
+      "verify": ["grep -q 'cnogo' CLAUDE.md && echo OK", "grep -q 'Key Files' CLAUDE.md && echo OK", "! grep -q 'Operating Principles' CLAUDE.md && echo OK"],
+      "blockedBy": [1],
+      "memoryId": "cn-fkgm1t.3"
+    }
+  ],
+  "planVerify": ["test -f docs/templates/CLAUDE-generic.md", "test -f .claude/CLAUDE.md", "grep -q 'cnogo' CLAUDE.md", "grep -q 'Memory Engine' .claude/CLAUDE.md", "! grep -q 'Memory Engine' CLAUDE.md"],
+  "commitMessage": "feat(install-template-sync): create three-file CLAUDE.md model",
+  "memoryEpicId": "cn-fkgm1t",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

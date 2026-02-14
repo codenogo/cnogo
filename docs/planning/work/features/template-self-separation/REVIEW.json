@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "feature": "template-self-separation",
+  "branch": "main",
+  "automated": [
+    { "name": "lint", "result": "pass" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "skipped" },
+    { "name": "workflow-validate", "result": "warn" },
+    { "name": "install-e2e", "result": "pass" },
+    { "name": "memory-smoke", "result": "pass" }
+  ],
+  "verdict": "warn",
+  "blockers": [],
+  "warnings": [
+    { "file": "CHANGELOG.md", "line": 35, "issue": "Command count says 27 but actual is 28", "severity": "medium" },
+    { "file": "CLAUDE.md", "line": 70, "issue": "Smoke test command missing is_initialized() guard", "severity": "medium" },
+    { "file": "docs/planning/WORKFLOW.json", "line": 22, "issue": "Lint command only covers 3 of 7 Python files", "severity": "medium" },
+    { "file": "docs/planning/ROADMAP.md", "line": 23, "issue": "quick command may be double-counted between v1.0 and v1.1", "severity": "low" }
+  ]
+}

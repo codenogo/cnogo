@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "feature": "kill-state-md",
+  "planNumber": "02",
+  "goal": "Update install.sh to remove STATE.md and auto-init memory, then migrate pause/resume/status/sync commands to use memory exclusively.",
+  "tasks": [
+    {
+      "name": "Update install.sh — remove STATE.md, add auto-delete, auto-init memory",
+      "files": ["install.sh"],
+      "action": "Remove STATE.md from template loop, add migration auto-delete for existing STATE.md, add memory auto-init after installation.",
+      "verify": ["bash -n install.sh"],
+      "memoryId": "cn-145b2y1.4"
+    },
+    {
+      "name": "Migrate pause.md + resume.md to use memory metadata for handoff",
+      "files": [".claude/commands/pause.md", ".claude/commands/resume.md"],
+      "action": "Replace STATE.md handoff read/write with memory metadata on active epic. Remove all STATE.md references.",
+      "verify": ["grep -c 'STATE.md' .claude/commands/pause.md .claude/commands/resume.md 2>/dev/null; test $? -ne 0 && echo 'Clean' || echo 'References remain'"],
+      "memoryId": "cn-145b2y1.5"
+    },
+    {
+      "name": "Migrate status.md + sync.md — drop STATE.md, use memory only",
+      "files": [".claude/commands/status.md", ".claude/commands/sync.md"],
+      "action": "Replace STATE.md reads with memory prime()/stats(). Remove sync Modes 1-4 entirely. Make Mode 7 the primary sync mechanism.",
+      "verify": ["grep -c 'STATE.md' .claude/commands/status.md .claude/commands/sync.md 2>/dev/null; test $? -ne 0 && echo 'Clean' || echo 'References remain'"],
+      "memoryId": "cn-145b2y1.6"
+    }
+  ],
+  "planVerify": [
+    "bash -n install.sh",
+    "python3 scripts/workflow_validate.py"
+  ],
+  "memoryEpicId": "cn-145b2y1",
+  "commitMessage": "feat(kill-state-md): migrate install + session commands off STATE.md",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

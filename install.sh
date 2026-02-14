@@ -282,6 +282,46 @@ else
     echo -e "   ${YELLOW}⚠️  python3 not found — run manually: python3 scripts/workflow_memory.py init${NC}"
 fi
 
+# =============================================================================
+# .gitignore entries
+# =============================================================================
+echo ""
+echo "📄 .gitignore entries"
+GITIGNORE="$TARGET_DIR/.gitignore"
+ENTRIES=(
+    "# Memory engine runtime (SQLite binary — not diffable)"
+    ".cnogo/memory.db"
+    ".cnogo/memory.db-wal"
+    ".cnogo/memory.db-shm"
+    ""
+    "# Worktree session state (transient, contains absolute paths)"
+    ".cnogo/worktree-session.json"
+)
+
+if [ -f "$GITIGNORE" ]; then
+    MISSING=false
+    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json"; do
+        if ! grep -qF "$entry" "$GITIGNORE"; then
+            MISSING=true
+            break
+        fi
+    done
+    if [ "$MISSING" = true ]; then
+        echo "" >> "$GITIGNORE"
+        for line in "${ENTRIES[@]}"; do
+            echo "$line" >> "$GITIGNORE"
+        done
+        echo "   ✅ Appended .cnogo/ entries to .gitignore"
+    else
+        echo -e "   ${YELLOW}(skipped — entries already present)${NC}"
+    fi
+else
+    for line in "${ENTRIES[@]}"; do
+        echo "$line" >> "$GITIGNORE"
+    done
+    echo "   ✅ Created .gitignore with .cnogo/ entries"
+fi
+
 echo ""
 echo "Next steps:"
 echo "  1. Run '/init' to auto-detect your stack and populate CLAUDE.md"
@@ -292,7 +332,7 @@ echo "  5. Run '/spawn' to view available subagents"
 echo ""
 echo "Commands installed (28):"
 echo ""
-echo "  Core:     /discuss  /plan  /implement  /verify  /review  /ship"
+echo "  Core:     /discuss  /plan  /implement  /verify  /verify-ci  /review  /ship"
 echo "  Fast:     /quick  /tdd"
 echo "  Session:  /status  /pause  /resume  /sync  /context"
 echo "  Debug:    /debug  /bug  /rollback"
@@ -300,7 +340,7 @@ echo "  Release:  /changelog  /release  /close"
 echo "  Research: /research  /brainstorm"
 echo "  Setup:    /init  /validate"
 echo "  MCP:      /mcp"
-echo "  Agents:   /spawn  /team  /background  (2 agent definitions)"
+echo "  Agents:   /spawn  /team  /background  (3 agent definitions)"
 echo ""
 echo "Hooks installed:"
 echo "  • PreToolUse:    Security validation (blocks dangerous commands)"
