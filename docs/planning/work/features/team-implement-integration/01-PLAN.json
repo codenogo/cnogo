@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "feature": "team-implement-integration",
+  "planNumber": "01",
+  "goal": "Create bridge module that translates plan tasks into agent-executable descriptions, and an implementer agent with claim-execute-verify-close cycle",
+  "tasks": [
+    {
+      "name": "Create bridge module",
+      "memoryId": "cn-9xdhpc.1",
+      "files": ["scripts/memory/bridge.py"],
+      "action": "Create scripts/memory/bridge.py with plan_to_task_descriptions() and generate_implement_prompt() functions. Reads NN-PLAN.json, ensures memory issues exist, generates rich agent prompts with context/files/verify/memory instructions.",
+      "verify": ["python3 -c \"import sys; sys.path.insert(0, '.'); from scripts.memory.bridge import plan_to_task_descriptions, generate_implement_prompt; print('OK')\""]
+    },
+    {
+      "name": "Create implementer agent",
+      "memoryId": "cn-9xdhpc.2",
+      "files": [".claude/agents/implementer.md"],
+      "action": "Create .claude/agents/implementer.md with frontmatter (name, description, tools, model, memory) and body instructing agent to: claim memory issue, read files, implement changes, run verify commands, close on success, notify leader on failure.",
+      "verify": ["test -f .claude/agents/implementer.md && grep -q 'name: implementer' .claude/agents/implementer.md && echo OK"]
+    },
+    {
+      "name": "Expose bridge in public API",
+      "memoryId": "cn-9xdhpc.3",
+      "files": ["scripts/memory/__init__.py"],
+      "action": "Add imports from .bridge and add plan_to_task_descriptions, generate_implement_prompt to __all__ list.",
+      "verify": ["python3 -c \"import sys; sys.path.insert(0, '.'); from scripts.memory import plan_to_task_descriptions, generate_implement_prompt; print('OK')\""]
+    }
+  ],
+  "planVerify": ["python3 -c \"import sys; sys.path.insert(0, '.'); from scripts.memory import plan_to_task_descriptions; print('OK')\" && test -f .claude/agents/implementer.md && python3 scripts/workflow_validate.py"],
+  "memoryEpicId": "cn-9xdhpc",
+  "commitMessage": "feat(team-implement-integration): add bridge module and implementer agent",
+  "timestamp": "2026-02-14T02:00:00Z"
+}
