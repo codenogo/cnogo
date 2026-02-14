@@ -34,7 +34,7 @@ None. All tasks completed cleanly on first attempt.
 
 ## Commit
 
-`pending` - refactor(agent-architecture): restructure agents — ultra-lean teammates, skills migration
+`95349c9` - refactor(agent-architecture): restructure agents — ultra-lean teammates, skills migration
 
 ---
 *Implemented: 2026-02-14*
