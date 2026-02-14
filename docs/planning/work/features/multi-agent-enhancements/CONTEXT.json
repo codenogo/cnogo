@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "feature": "multi-agent-enhancements",
+  "displayName": "Multi-Agent Enhancements",
+  "memoryEpicId": "cn-1cg9p77",
+  "research": ["docs/planning/work/research/opus-46-multi-agent/RESEARCH.md"],
+  "decisions": [
+    { "area": "stale-claims", "decision": "Display claim age in /status, highlight at 10 min threshold", "rationale": "No auto-release — variable task durations make fixed timeouts unreliable" },
+    { "area": "stale-config", "decision": "agentTeams.staleIndicatorMinutes in WORKFLOW.json", "rationale": "Project-level, easy to tune" },
+    { "area": "model-selection", "decision": "Agent YAML frontmatter only", "rationale": "Simple, already works, no new config surface" },
+    { "area": "debugger-model", "decision": "Change debugger from inherit to opus", "rationale": "Opus best for complex reasoning and root cause analysis" },
+    { "area": "parallel-hints", "decision": "Plan-level parallelizable boolean in NN-PLAN.json", "rationale": "Simple flag for /implement auto-detection" },
+    { "area": "version-pin", "decision": "Document in PROJECT.md + CLAUDE.md", "rationale": "Lightweight, no runtime check needed" },
+    { "area": "agent-sdk", "decision": "Deferred to v2.0+", "rationale": "Not needed until CI/CD automation features" }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "Memory schema changes must be backward-compatible",
+    "WORKFLOW.json schema change must not break workflow_validate.py",
+    "Plan JSON schema change must be optional"
+  ],
+  "openQuestions": [
+    "What minimum Claude Code version to pin (when was Agent Teams introduced?)"
+  ],
+  "relatedCode": [
+    "scripts/memory/storage.py",
+    "scripts/memory/__init__.py",
+    ".claude/agents/implementer.md",
+    ".claude/agents/debugger.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/status.md",
+    "scripts/memory/bridge.py",
+    "docs/planning/WORKFLOW.json",
+    "scripts/workflow_validate.py"
+  ],
+  "timestamp": "2026-02-14T00:00:00Z"
+}

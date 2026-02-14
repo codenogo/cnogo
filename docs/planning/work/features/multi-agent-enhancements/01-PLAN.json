@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "feature": "multi-agent-enhancements",
+  "planNumber": "01",
+  "goal": "Add staleIndicatorMinutes config to WORKFLOW.json, set debugger model to opus, and update workflow_validate.py to accept the new parallelizable plan field.",
+  "parallelizable": true,
+  "memoryEpicId": "cn-1cg9p77",
+  "tasks": [
+    {
+      "name": "Set debugger model to opus and add model comments",
+      "files": [".claude/agents/implementer.md", ".claude/agents/debugger.md"],
+      "action": "Change debugger.md model from inherit to opus. Add model rationale comments to both agent files.",
+      "verify": [
+        "grep -q 'model: opus' .claude/agents/debugger.md && echo 'PASS' || echo 'FAIL'",
+        "grep -q 'model: sonnet' .claude/agents/implementer.md && echo 'PASS' || echo 'FAIL'"
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-1cg9p77.1"
+    },
+    {
+      "name": "Add staleIndicatorMinutes to WORKFLOW.json",
+      "files": ["docs/planning/WORKFLOW.json"],
+      "action": "Add staleIndicatorMinutes: 10 inside the agentTeams object.",
+      "verify": [
+        "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); v=cfg['agentTeams']['staleIndicatorMinutes']; assert v == 10, f'Expected 10 got {v}'; print('PASS')\""
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-1cg9p77.2"
+    },
+    {
+      "name": "Update workflow_validate.py for new fields",
+      "files": ["scripts/workflow_validate.py"],
+      "action": "Add validation for agentTeams.staleIndicatorMinutes (integer > 0) and optional parallelizable boolean in plan JSON.",
+      "verify": [
+        "python3 -m py_compile scripts/workflow_validate.py && echo 'PASS' || echo 'FAIL'",
+        "python3 scripts/workflow_validate.py && echo 'PASS' || echo 'FAIL'"
+      ],
+      "blockedBy": [],
+      "memoryId": "cn-1cg9p77.3"
+    }
+  ],
+  "planVerify": [
+    "python3 -m py_compile scripts/workflow_validate.py",
+    "python3 scripts/workflow_validate.py",
+    "grep -q 'model: opus' .claude/agents/debugger.md",
+    "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert 'staleIndicatorMinutes' in cfg['agentTeams']\""
+  ],
+  "commitMessage": "feat(multi-agent-enhancements): config, schema, and validation groundwork\n\n- Set debugger agent model to opus for better root cause analysis\n- Add agentTeams.staleIndicatorMinutes to WORKFLOW.json\n- Update workflow_validate.py to accept parallelizable plan field",
+  "timestamp": "2026-02-14T00:00:00Z"
+}

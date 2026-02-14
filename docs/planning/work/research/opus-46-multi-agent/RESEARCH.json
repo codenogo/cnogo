@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "topic": "Opus 4.6 multi-agent patterns, Claude Code subagents, Anthropic Agent SDK, and multi-agent orchestration best practices 2026",
+  "slug": "opus-46-multi-agent",
+  "timestamp": "2026-02-14T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    { "type": "web", "ref": "https://code.claude.com/docs/en/agent-teams", "title": "Claude Code Agent Teams — Official Docs" },
+    { "type": "web", "ref": "https://code.claude.com/docs/en/sub-agents", "title": "Claude Code Sub-agents — Official Docs" },
+    { "type": "web", "ref": "https://claude.com/blog/building-agents-with-the-claude-agent-sdk", "title": "Building Agents with the Claude Agent SDK — Anthropic Blog" },
+    { "type": "web", "ref": "https://www.anthropic.com/news/claude-opus-4-6", "title": "Claude Opus 4.6 Announcement — Anthropic" },
+    { "type": "repo", "ref": ".claude/agents/implementer.md", "title": "cnogo implementer agent definition" },
+    { "type": "repo", "ref": ".claude/agents/debugger.md", "title": "cnogo debugger agent definition" },
+    { "type": "repo", "ref": ".claude/commands/team.md", "title": "cnogo team orchestration command" },
+    { "type": "repo", "ref": ".claude/commands/implement.md", "title": "cnogo implement command (serial vs team)" },
+    { "type": "repo", "ref": "scripts/memory/bridge.py", "title": "Plan-to-task bridge module" },
+    { "type": "repo", "ref": "scripts/memory/__init__.py", "title": "Memory engine public API" },
+    { "type": "repo", "ref": "scripts/memory/storage.py", "title": "SQLite storage layer" },
+    { "type": "repo", "ref": "docs/planning/WORKFLOW.json", "title": "Workflow and Agent Teams config" },
+    { "type": "repo", "ref": "docs/planning/PROJECT.md", "title": "Project constraints" }
+  ],
+  "summary": [
+    "Agent Teams is the primary multi-agent framework: team lead + teammates + shared task list + messaging",
+    "Subagents (fire-and-forget) and Agent Teams (persistent) use same Task tool — differ in lifecycle",
+    "Opus 4.6 is the model; Claude Code is the runtime — no special agent mode in the model",
+    "Claude Agent SDK provides programmatic agents for automation, not interactive development",
+    "Best practices: 2-5 teammates, clear file boundaries, delegate mode, serial fallback for overlaps",
+    "cnogo already implements these patterns: implementer/debugger agents, memory bridge, file conflict detection",
+    "Key limitation: no nested agents, no nested teams, one team per session",
+    "Opus 4.6 brings 1M context, better tool use, context compaction — all benefit multi-agent workloads"
+  ],
+  "recommendation": "Continue with current architecture (Agent Teams + memory bridge). Enhance with heartbeat detection, model selection per task type, and parallelism hints in plan JSON. Defer Agent SDK adoption until CI/CD automation is needed."
+}

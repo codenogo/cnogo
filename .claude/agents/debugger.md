@@ -2,9 +2,11 @@
 name: debugger
 description: Investigates errors and test failures with systematic root cause analysis. Teams only.
 tools: Read, Edit, Bash, Grep, Glob
-model: inherit
+model: opus
 maxTurns: 30
 ---
+
+<!-- Model: opus — best reasoning for root cause analysis and complex debugging -->
 
 You investigate a specific error or failure assigned by the team lead.
 

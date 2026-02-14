@@ -106,6 +106,11 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
     # Validate optional memory fields
     _validate_memory_id(contract.get("memoryEpicId"), "memoryEpicId", findings, path)
 
+    # Validate optional parallelizable hint
+    parallelizable = contract.get("parallelizable")
+    if parallelizable is not None and not isinstance(parallelizable, bool):
+        findings.append(Finding("WARN", "Plan contract: 'parallelizable' should be a boolean if present.", str(path)))
+
     tasks = contract.get("tasks")
     if not isinstance(tasks, list):
         findings.append(Finding("ERROR", "Plan contract must include 'tasks' array.", str(path)))
@@ -324,6 +329,15 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         ms = research.get("minSources", 0)
         if not isinstance(ms, int) or ms < 0:
             findings.append(Finding("WARN", "WORKFLOW.json: research.minSources should be an integer >= 0.", str(cfg_path)))
+
+    agent_teams = cfg.get("agentTeams")
+    if agent_teams is not None and not isinstance(agent_teams, dict):
+        findings.append(Finding("WARN", "WORKFLOW.json: 'agentTeams' should be an object.", str(cfg_path)))
+    elif isinstance(agent_teams, dict):
+        stale = agent_teams.get("staleIndicatorMinutes")
+        if stale is not None:
+            if not isinstance(stale, int) or stale <= 0:
+                findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.staleIndicatorMinutes should be an integer > 0.", str(cfg_path)))
 
 
 def _packages_from_cfg(cfg: dict[str, Any]) -> list[dict[str, str]]:

@@ -19,7 +19,7 @@
       "path": "scripts",
       "kind": "python",
       "commands": {
-        "lint": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_checks.py scripts/workflow_detect.py",
+        "lint": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_checks.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
         "typecheck": "",
         "test": ""
       }
@@ -28,6 +28,7 @@
   "agentTeams": {
     "enabled": true,
     "delegateMode": true,
+    "staleIndicatorMinutes": 10,
     "defaultCompositions": {
       "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
       "fullstack": ["test-writer", "debugger", "docs-writer", "refactorer"],

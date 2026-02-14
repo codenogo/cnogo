@@ -6,6 +6,8 @@ model: sonnet
 maxTurns: 30
 ---
 
+<!-- Model: sonnet — fast, cost-effective for straightforward implementation tasks -->
+
 You execute a single implementation task assigned by the team lead.
 
 ## Cycle
