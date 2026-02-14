@@ -13,7 +13,18 @@
     "monorepoVerifyScope": "warn",
     "karpathyChecklist": "warn"
   },
-  "packages": [],
+  "packages": [
+    {
+      "name": "cnogo-scripts",
+      "path": "scripts",
+      "kind": "python",
+      "commands": {
+        "lint": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_checks.py scripts/workflow_detect.py",
+        "typecheck": "",
+        "test": ""
+      }
+    }
+  ],
   "agentTeams": {
     "enabled": true,
     "delegateMode": true,

@@ -204,7 +204,7 @@ def _detect_repo_shape(root: Path) -> dict[str, Any]:
                 kind = str(p.get("kind", "other"))
                 kind_counts[kind] = kind_counts.get(kind, 0) + 1
         manifest_total = sum(kind_counts.values())
-        languages = len(kind_counts - {"other"})
+        languages = len(kind_counts.keys() - {"other"})
         return {
             "package_json": kind_counts.get("node", 0),
             "pom_xml": kind_counts.get("java", 0),

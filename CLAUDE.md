@@ -43,3 +43,76 @@ docs/planning/               # Planning docs, feature work, research
 | `scripts/memory/bridge.py` | Translates plans to agent task descriptions |
 | `.claude/settings.json` | Permissions, hooks, env vars |
 | `docs/planning/WORKFLOW.json` | Workflow config (research mode, enforcement) |
+
+## Architecture Rules
+
+### Do
+- Follow the command template pattern (one `.md` per slash command in `.claude/commands/`)
+- Use the memory API (`scripts/memory/`) for task state — not files
+- Pair every planning artifact with a JSON contract (`CONTEXT.md` + `CONTEXT.json`)
+- Verify with `python3 scripts/workflow_validate.py` before committing workflow artifacts
+- Use `repo_root()` or relative paths — never hardcode absolute paths
+
+### Don't
+- Don't add external Python dependencies — stdlib only
+- Don't bypass workflow contracts (every CONTEXT/PLAN/SUMMARY/REVIEW needs a JSON pair)
+- Don't put cnogo's own project content in template files (`docs/templates/` is for installs)
+- Don't exceed 3 tasks per plan
+- Don't modify `.claude/settings.json` hooks without testing the hook scripts
+
+## Testing
+
+No test suite yet (tracked as v2.0 future work). Current verification:
+
+```bash
+python3 scripts/workflow_validate.py                    # Validate all workflow artifacts
+python3 -m py_compile scripts/workflow_validate.py      # Syntax check
+python3 -c "from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"  # Memory engine smoke test
+```
+
+## Troubleshooting
+
+### Memory not initialized
+```bash
+python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import init; init(root=__import__('pathlib').Path('.'))"
+```
+
+### Workflow validation fails
+Check for missing JSON contracts (every `.md` artifact needs a `.json` pair) and ensure feature slugs are kebab-case.
+
+### install.sh target already exists
+Use `bash install.sh -y /path/to/project` to auto-accept merge with existing directories.
+
+---
+
+## Planning Docs
+
+- Project vision: `docs/planning/PROJECT.md`
+- Roadmap: `docs/planning/ROADMAP.md`
+- Feature work: `docs/planning/work/features/`
+- Quick tasks: `docs/planning/work/quick/`
+
+## Memory Engine
+
+Optional structured task tracking (initialize via `/init` or `python3 scripts/workflow_memory.py init`):
+
+```bash
+python3 scripts/workflow_memory.py ready          # Show unblocked tasks
+python3 scripts/workflow_memory.py prime           # Token-efficient context summary
+python3 scripts/workflow_memory.py stats           # Aggregate statistics
+python3 scripts/workflow_memory.py create "title"  # Create an issue
+python3 scripts/workflow_memory.py show <id>       # Show issue details
+```
+
+```python
+# Python API access (from commands/scripts)
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, create, ready, claim, close, prime
+```
+
+## Karpathy-Inspired Operating Principles
+
+1. **Think Before Coding**: don't assume; surface confusion/tradeoffs; ask when ambiguous.
+2. **Simplicity First**: minimum code that solves the problem; no speculative abstractions.
+3. **Surgical Changes**: touch only what's needed; don't refactor unrelated areas.
+4. **Goal-Driven Execution**: define success criteria; verify with commands/tests; loop until proven.
