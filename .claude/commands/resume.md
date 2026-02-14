@@ -78,6 +78,40 @@ if is_initialized(root):
 
 When memory is available, the structured task state replaces the need to parse markdown handoff prose. The `prime()` output gives a compact summary of open work, ready tasks, and blockers.
 
+#### Team Implementation Recovery
+
+Detect interrupted team implementations (in-progress epics with incomplete children):
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, list_issues
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    epics = list_issues(issue_type='epic', root=root)
+    for epic in epics:
+        if epic.status == 'closed':
+            continue
+        children = list_issues(parent=epic.id, root=root)
+        if not children:
+            continue
+        done = [c for c in children if c.status == 'closed']
+        active = [c for c in children if c.status == 'in_progress']
+        remaining = [c for c in children if c.status == 'open']
+        if active or remaining:
+            print(f'### Interrupted: {epic.title}')
+            print(f'  Completed: {len(done)}, In Progress: {len(active)}, Remaining: {len(remaining)}')
+            for c in active:
+                print(f'  > {c.id} {c.title} (@{c.assignee}) — was in progress')
+            for c in remaining[:5]:
+                print(f'  - {c.id} {c.title} — ready to resume')
+            print(f'  Resume with: /team implement {epic.feature_slug} {epic.plan_number}')
+"
+```
+
+When resuming a team implementation, the memory engine preserves all task state. The new team session will see which tasks are done, which were in progress (and need re-claiming), and which are still blocked.
+
 ### Step 4: Load Feature Context
 
 If working on a feature:
@@ -111,6 +145,9 @@ cat docs/planning/work/features/[feature]/*-SUMMARY.md 2>/dev/null
 ### Context Loaded
 - `path/to/file.ts` — [purpose]
 - `path/to/other.ts` — [purpose]
+
+### Team Recovery (if applicable)
+[Show interrupted team implementations from memory and suggest `/team implement` to resume]
 
 ### Mental Notes
 [Mental state from handoff]

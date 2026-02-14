@@ -239,6 +239,30 @@ These principles are inspired by the repo [`forrestchang/andrej-karpathy-skills`
 
 ---
 
+## Team Implementation
+
+**When**: executing a multi-task plan with Agent Teams for parallel implementation.
+
+**Checklist**:
+- Verify plan exists: `NN-PLAN.json` with tasks, files, verify commands
+- Verify memory is initialized: `is_initialized(Path('.'))`
+- Generate task descriptions: `plan_to_task_descriptions(plan_path, root)`
+- Create team: `TeamCreate` with name `impl-<feature>-<plan>`
+- Spawn implementers: one `general-purpose` teammate per task with task description
+- Activate delegate mode: Shift+Tab (leader coordinates, doesn't code)
+- Monitor progress: `/team status` or TaskList
+- Handle failures: retry once, then reassign or escalate
+- Close epic when all tasks complete
+- Sync state: `memory.sync(root)` before pausing
+
+**File Boundary Rule**: Each task owns its `files[]` — no two teammates should edit the same file.
+
+**Dependency Rule**: Tasks within a plan run in parallel unless `blockedBy` is set. Plans run sequentially (plan 02 waits for plan 01).
+
+**Recovery**: If interrupted, `/resume` detects in-progress tasks from memory state.
+
+---
+
 ## Memory Task Management
 
 **When**: working with the memory engine for structured task tracking across sessions.

@@ -55,3 +55,5 @@ if is_initialized(root):
 ```
 
 Use `memory.show(issue_id)` to get full details on a specific issue. Use `memory.ready()` to find unblocked tasks. If working on a team task, use `memory.claim(issue_id, actor='<your-name>')` before starting and `memory.close(issue_id)` when done.
+
+**Team Context**: If working alongside `implementer` teammates in a team, coordinate via TaskList. Use `memory.list_issues(status='in_progress')` to see what's being implemented. Avoid reviewing files that are still being actively changed by an implementer.
