@@ -9,9 +9,9 @@ Current position, decisions, and blockers. Updated as work progresses.
 - **Branch:** main
 - **Memory Epic:** cn-9xdhpc
 - **Plan 01:** ✅ Complete (bridge module + implementer agent)
-- **Plan 02:** Pending (command wiring)
+- **Plan 02:** ✅ Complete (command wiring)
 - **Plan 03:** Pending (recovery/docs)
-- **Next:** `/implement team-implement-integration 02`
+- **Next:** `/implement team-implement-integration 03`
 
 ## Active Work
 
@@ -19,7 +19,7 @@ Current position, decisions, and blockers. Updated as work progresses.
 
 | Feature | Status | Plans | Next Action |
 |---------|--------|-------|-------------|
-| team-implement-integration | In Progress | 01 ✅, 02 ⏳, 03 ⏳ | `/implement team-implement-integration 02` |
+| team-implement-integration | In Progress | 01 ✅, 02 ✅, 03 ⏳ | `/implement team-implement-integration 03` |
 
 ### Quick Tasks
 
@@ -39,6 +39,7 @@ When pausing mid-work, capture here:
 
 | Date | Decision | Context |
 |------|----------|---------|
+| 2026-02-14 | Plan 02 complete | Wired bridge into /team, /implement, /status commands |
 | 2026-02-14 | Plan 01 complete | Bridge module, implementer agent, public API exposure |
 | 2026-02-14 | Discussed team-implement-integration | Bridge memory engine + Agent Teams for parallel /implement execution |
 | 2026-02-14 | Memory engine built and reviewed | 7-phase implementation, 9 review findings fixed, 26 tests passing |

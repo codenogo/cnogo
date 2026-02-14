@@ -59,6 +59,26 @@ claim('<memoryId>', actor='<session-id>', root=Path('.'))
 "
 ```
 
+### Step 1c: Team Mode (If Requested)
+
+If team-based parallel execution is requested or applicable:
+
+**Detection logic:**
+1. If `$ARGUMENTS` contains `--team` → delegate to `/team implement <feature> <plan>`
+2. Else if the plan has >1 task AND Agent Teams is available (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`):
+   - Suggest: "This plan has N tasks. Run `/team implement <feature> <plan>` for parallel execution?"
+   - If user confirms, delegate to `/team implement`
+   - If user declines, continue with standard serial execution below
+3. Otherwise → standard serial execution (unchanged)
+
+**When delegating to team mode:**
+- Run `/team implement <feature> <plan>` which uses the bridge module to generate task descriptions, spawn implementer teammates, and coordinate execution
+- The team lead monitors via TaskList and handles failures
+- After all tasks complete, the team lead runs plan verification and creates summary artifacts
+
+**When continuing with serial mode:**
+- Proceed to Step 2 below (existing single-agent sequential flow, unchanged)
+
 ### Step 2: Execute Tasks
 
 For each task in the plan:

@@ -77,6 +77,34 @@ else:
 
 Include the memory output in the status report alongside the git and artifact state.
 
+#### Team Implementation Progress
+
+If a team implementation is active, show task completion progress:
+
+```bash
+python3 -c "
+import sys; sys.path.insert(0, '.')
+from scripts.memory import is_initialized, list_issues
+from pathlib import Path
+root = Path('.')
+if is_initialized(root):
+    epics = list_issues(issue_type='epic', status='in_progress', root=root)
+    for epic in epics:
+        children = list_issues(parent=epic.id, root=root)
+        if not children:
+            continue
+        done = sum(1 for c in children if c.status == 'closed')
+        active = sum(1 for c in children if c.status == 'in_progress')
+        total = len(children)
+        print(f'### Team Implementation: {epic.title}')
+        print(f'  Progress: {done}/{total} tasks complete, {active} in progress')
+        for c in children:
+            icon = '✅' if c.status == 'closed' else '🔄' if c.status == 'in_progress' else '⏳'
+            assignee = f' (@{c.assignee})' if c.assignee else ''
+            print(f'  {icon} {c.id} {c.title}{assignee}')
+"
+```
+
 ### Step 4: Generate Status Report
 
 Output:
@@ -123,6 +151,7 @@ Based on state, suggest:
 - If uncommitted changes: "Ready to `/review` and `/ship`?"
 - If mid-plan: "Continue with `/implement [feature] [plan]`"
 - If plans complete: "Ready for `/review`"
+- If team implementation active: "Monitor with `/team status` for detailed teammate progress"
 - If nothing in progress: "Start with `/discuss [feature]` or `/quick [task]`"
 
 ## Output
