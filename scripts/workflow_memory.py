@@ -23,7 +23,14 @@ Commands:
     import              Import from JSONL
     sync                Export + git add
     prime               Generate context summary
+    checkpoint          Generate compact objective/progress checkpoint
+    history <id>        Show recent event history for an issue
+    phase-get <feature> Get current workflow phase for feature
+    phase-set <feature> Set workflow phase for feature
     graph <feature>     Show dependency graph
+    session-status      Show active worktree session status
+    session-merge       Merge active worktree session branches
+    session-cleanup     Cleanup active worktree session
 
 No external dependencies. Python 3.9+ required.
 """
@@ -44,7 +51,9 @@ if str(_repo_root) not in sys.path:
 from scripts.memory import (  # noqa: E402
     blocks,
     blockers,
+    checkpoint,
     claim,
+    cleanup_session,
     close,
     create,
     dep_add,
@@ -53,13 +62,18 @@ from scripts.memory import (  # noqa: E402
     import_jsonl,
     init,
     is_initialized,
+    history,
     list_issues,
+    load_session,
+    get_phase,
+    merge_session,
     prime,
     ready,
     reopen,
     show,
     show_graph,
     stats,
+    set_phase,
     sync,
     update,
 )
@@ -85,6 +99,8 @@ def _print_issue(issue, *, verbose: bool = False) -> None:
             print(f"        desc: {issue.description[:120]}")
         if issue.feature_slug:
             print(f"        feature: {issue.feature_slug}")
+        if getattr(issue, "phase", ""):
+            print(f"        phase: {issue.phase}")
         if issue.labels:
             print(f"        labels: {', '.join(issue.labels)}")
         if issue.close_reason:
@@ -93,7 +109,20 @@ def _print_issue(issue, *, verbose: bool = False) -> None:
 
 def _print_json(data) -> None:
     """Print as formatted JSON."""
-    print(json.dumps(data, indent=2, default=str))
+    print(json.dumps(data, indent=2, default=str, sort_keys=True))
+
+
+def _parse_metadata(raw: str | None) -> dict | None:
+    """Parse --metadata JSON and enforce object shape."""
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid --metadata JSON: {e.msg}") from e
+    if not isinstance(parsed, dict):
+        raise ValueError("Invalid --metadata JSON: expected an object")
+    return parsed
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -106,20 +135,24 @@ def cmd_init(args: argparse.Namespace) -> int:
 def cmd_create(args: argparse.Namespace) -> int:
     root = _root()
     labels = args.labels.split(",") if args.labels else None
-    metadata = json.loads(args.metadata) if args.metadata else None
-    issue = create(
-        args.title,
-        issue_type=args.type,
-        parent=args.parent,
-        feature_slug=args.feature,
-        plan_number=args.plan,
-        priority=args.priority,
-        labels=labels,
-        description=args.description,
-        metadata=metadata,
-        actor=args.actor,
-        root=root,
-    )
+    try:
+        metadata = _parse_metadata(args.metadata)
+        issue = create(
+            args.title,
+            issue_type=args.type,
+            parent=args.parent,
+            feature_slug=args.feature,
+            plan_number=args.plan,
+            priority=args.priority,
+            labels=labels,
+            description=args.description,
+            metadata=metadata,
+            actor=args.actor,
+            root=root,
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     if args.json:
         _print_json(issue.to_dict())
     else:
@@ -153,17 +186,21 @@ def cmd_show(args: argparse.Namespace) -> int:
 
 def cmd_update(args: argparse.Namespace) -> int:
     root = _root()
-    metadata = json.loads(args.metadata) if args.metadata else None
-    issue = update(
-        args.id,
-        title=args.title,
-        description=args.description,
-        priority=args.priority,
-        metadata=metadata,
-        comment=args.comment,
-        actor=args.actor,
-        root=root,
-    )
+    try:
+        metadata = _parse_metadata(args.metadata)
+        issue = update(
+            args.id,
+            title=args.title,
+            description=args.description,
+            priority=args.priority,
+            metadata=metadata,
+            comment=args.comment,
+            actor=args.actor,
+            root=root,
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     print(f"Updated: {issue.id}")
     _print_issue(issue, verbose=True)
     return 0
@@ -340,8 +377,50 @@ def cmd_sync_fn(args: argparse.Namespace) -> int:
 
 def cmd_prime(args: argparse.Namespace) -> int:
     root = _root()
-    output = prime(limit=args.limit, root=root)
+    output = prime(limit=args.limit, verbose=args.verbose, root=root)
     print(output)
+    return 0
+
+
+def cmd_checkpoint(args: argparse.Namespace) -> int:
+    root = _root()
+    output = checkpoint(
+        feature_slug=args.feature,
+        limit=args.limit,
+        root=root,
+    )
+    print(output)
+    return 0
+
+
+def cmd_history(args: argparse.Namespace) -> int:
+    root = _root()
+    output = history(args.id, limit=args.limit, root=root)
+    print(output)
+    return 0
+
+
+def cmd_phase_get(args: argparse.Namespace) -> int:
+    root = _root()
+    phase = get_phase(args.feature, root=root)
+    if args.json:
+        _print_json({"feature": args.feature, "phase": phase})
+    else:
+        print(f"{args.feature}: {phase}")
+    return 0
+
+
+def cmd_phase_set(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        count = set_phase(args.feature, args.phase, root=root)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json({"feature": args.feature, "phase": args.phase, "updated": count})
+    else:
+        print(f"Set phase for {args.feature}: {args.phase} ({count} issues updated)")
     return 0
 
 
@@ -350,6 +429,66 @@ def cmd_graph(args: argparse.Namespace) -> int:
     output = show_graph(args.feature, root=root)
     print(output)
     return 0
+
+
+def cmd_session_status(args: argparse.Namespace) -> int:
+    root = _root()
+    session = load_session(root)
+    if args.json:
+        _print_json(session.to_dict() if session else {"session": None})
+        return 0
+    if not session:
+        print("No active worktree session")
+        return 0
+    total = len(session.worktrees)
+    done = sum(1 for w in session.worktrees if w.status in {"completed", "merged", "cleaned"})
+    print(f"Feature: {session.feature}")
+    print(f"Plan: {session.plan_number}")
+    print(f"Phase: {session.phase}")
+    print(f"Progress: {done}/{total}")
+    for wt in session.worktrees:
+        print(f"- Task {wt.task_index}: {wt.name} [{wt.status}]")
+    return 0
+
+
+def cmd_session_merge(args: argparse.Namespace) -> int:
+    root = _root()
+    session = load_session(root)
+    if not session:
+        payload = {"success": False, "error": "No active worktree session"}
+        if args.json:
+            _print_json(payload)
+        else:
+            print(payload["error"])
+        return 1
+    result = merge_session(session, root)
+    payload = {
+        "success": result.success,
+        "merged": result.merged_indices,
+        "conflictIndex": result.conflict_index,
+        "conflictFiles": result.conflict_files,
+        "error": result.error_message,
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        if result.success:
+            print(f"Merged tasks: {result.merged_indices}")
+        else:
+            print(f"Merge stopped at task {result.conflict_index}: {result.conflict_files}")
+    return 0 if result.success else 1
+
+
+def cmd_session_cleanup(args: argparse.Namespace) -> int:
+    root = _root()
+    session = load_session(root)
+    if not session:
+        print("No active worktree session")
+        return 0
+    cleanup_session(session, root)
+    print("Worktrees cleaned")
+    return 0
+
 
 
 def main() -> int:
@@ -466,10 +605,43 @@ def main() -> int:
     # prime
     p = sub.add_parser("prime", help="Generate context summary")
     p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--verbose", action="store_true", help="Include file hints and restore commands")
+
+    # checkpoint
+    p = sub.add_parser("checkpoint", help="Generate compact objective/progress checkpoint")
+    p.add_argument("--feature", help="Feature slug (auto-detect if omitted)")
+    p.add_argument("--limit", type=int, default=3)
+
+    # history
+    p = sub.add_parser("history", help="Show event history for an issue")
+    p.add_argument("id", help="Issue ID")
+    p.add_argument("--limit", type=int, default=10)
+
+    # phase-get
+    p = sub.add_parser("phase-get", help="Get current workflow phase for a feature")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--json", action="store_true")
+
+    # phase-set
+    p = sub.add_parser("phase-set", help="Set workflow phase for a feature")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("phase", choices=["discuss", "plan", "implement", "review", "ship"])
+    p.add_argument("--json", action="store_true")
 
     # graph
     p = sub.add_parser("graph", help="Show dependency graph")
     p.add_argument("feature", help="Feature slug")
+
+    # session-status
+    p = sub.add_parser("session-status", help="Show active worktree session")
+    p.add_argument("--json", action="store_true")
+
+    # session-merge
+    p = sub.add_parser("session-merge", help="Merge active worktree session branches")
+    p.add_argument("--json", action="store_true")
+
+    # session-cleanup
+    sub.add_parser("session-cleanup", help="Cleanup active worktree session worktrees")
 
     args = parser.parse_args()
 
@@ -505,7 +677,14 @@ def main() -> int:
         "import": cmd_import,
         "sync": cmd_sync_fn,
         "prime": cmd_prime,
+        "checkpoint": cmd_checkpoint,
+        "history": cmd_history,
+        "phase-get": cmd_phase_get,
+        "phase-set": cmd_phase_set,
         "graph": cmd_graph,
+        "session-status": cmd_session_status,
+        "session-merge": cmd_session_merge,
+        "session-cleanup": cmd_session_cleanup,
     }
 
     handler = dispatch.get(args.command)

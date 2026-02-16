@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Hash-based ID generation for the cnogo memory engine.
 
-IDs are deterministic given the same inputs, require no coordination between
-agents, and work offline across branches and machines.
+IDs are generated locally with time-based entropy, require no coordination
+between agents, and work offline across branches and machines.
+Given the same title/creator inputs, IDs are intentionally non-deterministic.
 
 Format:  cn-<base36>          (e.g. cn-a3f8)
 Child:   cn-<base36>.<N>      (e.g. cn-a3f8.1)
@@ -42,7 +43,8 @@ def generate_id(
       4. Encode as base36
       5. Return "cn-{base36}"
 
-    Caller is responsible for collision checks (see storage.id_exists).
+    Because timestamp entropy is included, this is non-deterministic across
+    calls. Caller is responsible for collision checks (see storage.id_exists).
     """
     ts = str(time.time_ns())
     raw = f"{title}\x00{creator}\x00{ts}\x00{nonce}"

@@ -24,6 +24,7 @@ class Issue:
     assignee: str = ""
     feature_slug: str = ""
     plan_number: str = ""
+    phase: str = "discuss"
     close_reason: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
     created_at: str = ""
@@ -43,6 +44,7 @@ class Issue:
             "status": self.status,
             "issue_type": self.issue_type,
             "priority": self.priority,
+            "phase": self.phase,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }

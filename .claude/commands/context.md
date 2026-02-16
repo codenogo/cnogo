@@ -1,104 +1,40 @@
 # Context: $ARGUMENTS
 <!-- effort: low -->
 
-Load relevant files for a feature or area of the codebase.
+Build a focused context pack for a feature/topic.
 
 ## Your Task
 
-Build a context pack for "$ARGUMENTS".
-
-### Step 1: Search for Related Code
-
+1. Locate relevant code/docs/tests with fast search:
 ```bash
-# Keyword search
-rg -l "$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go,rs,kt}' -t code
-
-# Find by naming convention
-find . -type f \( -name "*$ARGUMENTS*" -o -name "*[related-term]*" \) | grep -v node_modules | grep -v target | grep -v build
-
-# Check imports/dependencies
-rg "import.*$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go}' -t code
+rg -l "$ARGUMENTS" .
 ```
+Exclude generated/vendor dirs.
 
-### Step 2: Identify Hotspots
-
-Files with high churn are dragons:
-
+2. Identify risk hotspots:
 ```bash
-# Most changed files (last 3 months)
 git log --since="3 months ago" --name-only --pretty=format: | sort | uniq -c | sort -rn | head -20
 ```
+Prioritize files that are both relevant and high-churn.
 
-Cross-reference with search results—churny + related = extra caution.
+3. Find related tests and configs:
+- tests by name/keyword match
+- configs (`yml/yaml/json/toml/xml/properties`) containing topic keywords
 
-### Step 3: Find Tests
+4. Check planning artifacts if present:
+- `docs/planning/work/features/*<topic>*/CONTEXT.md`
+- adjacent plan/review/summary artifacts
 
-```bash
-# Related test files
-find . -type f \( -name "*$ARGUMENTS*test*" -o -name "*$ARGUMENTS*spec*" -o -name "*Test$ARGUMENTS*" \) | grep -v node_modules
-```
+5. Produce context pack with:
+- core files (top 3-5)
+- tests
+- configs
+- hotspots/risk notes
+- dependency touchpoints
+- explicit “don’t break” contracts
 
-### Step 4: Check Configs
-
-```bash
-# Config files that might be relevant
-rg -l "$ARGUMENTS" -g "*.{yml,yaml,json,properties,toml,xml}" | head -10
-```
-
-### Step 5: Read Planning Docs
-
-```bash
-# Check if feature has existing docs
-ls docs/planning/work/features/*$ARGUMENTS*/ 2>/dev/null
-cat docs/planning/work/features/*$ARGUMENTS*/CONTEXT.md 2>/dev/null
-```
-
-### Step 6: Generate Context Pack
-
-Output:
-
-```markdown
-## Context Pack: $ARGUMENTS
-
-### Core Files (read these first)
-| File | Relevance |
-|------|-----------|
-| `src/services/[feature].ts` | Main implementation |
-| `src/controllers/[feature].ts` | API layer |
-
-### Tests
-| File | Coverage |
-|------|----------|
-| `tests/[feature].test.ts` | Unit tests |
-
-### Configs
-| File | Purpose |
-|------|---------|
-| `config/[feature].yml` | Feature config |
-
-### Hotspots ⚠️
-| File | Churn | Risk |
-|------|-------|------|
-| `src/utils/helpers.ts` | 47 changes | High - many dependencies |
-
-### Dependencies
-| This feature uses | Used by |
-|-------------------|---------|
-| `AuthService` | `UserController` |
-
-### Related Docs
-- `docs/planning/work/features/[feature]/CONTEXT.md`
-- `docs/adr/003-[related-decision].md`
-
-### Don't Break
-- [ ] `src/api/contracts/[feature].ts` - Public API
-- [ ] `src/db/migrations/` - Schema changes need migration
-```
-
-### Step 7: Load Key Files
-
-Read the top 3-5 most relevant files to have them in context.
+6. Load the top files into working context.
 
 ## Output
 
-Structured context pack with files loaded and ready for work.
+A concise context pack with file paths, relevance notes, and immediate next investigation targets.

@@ -1,24 +1,110 @@
 {
-  "schemaVersion": 1,
-  "timestamp": "2026-02-14T00:00:00Z",
-  "feature": "template-self-separation",
-  "branch": "main",
   "automated": [
-    { "name": "lint", "result": "pass" },
-    { "name": "tests", "result": "skipped" },
-    { "name": "security", "result": "pass" },
-    { "name": "types", "result": "skipped" },
-    { "name": "deps", "result": "skipped" },
-    { "name": "workflow-validate", "result": "warn" },
-    { "name": "install-e2e", "result": "pass" },
-    { "name": "memory-smoke", "result": "pass" }
+    {
+      "name": "lint",
+      "result": "pass"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    },
+    {
+      "name": "security",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "deps",
+      "result": "skipped"
+    },
+    {
+      "name": "workflow-validate",
+      "result": "warn"
+    },
+    {
+      "name": "install-e2e",
+      "result": "pass"
+    },
+    {
+      "name": "memory-smoke",
+      "result": "pass"
+    }
   ],
-  "verdict": "warn",
   "blockers": [],
+  "branch": "main",
+  "feature": "template-self-separation",
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "CONTEXT.md captured all decisions before implementation",
+      "status": "pass"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "Minimal changes \u2014 copy templates, update one line in install.sh, fill docs",
+      "status": "pass"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "Only touched files listed in plan; one opportunistic bugfix (latent TypeError)",
+      "status": "pass"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "Each task had explicit verify commands; E2E test caught cp destination bug",
+      "status": "pass"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "",
+      "status": "todo"
+    }
+  ],
+  "schemaVersion": 2,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "verdict": "warn",
   "warnings": [
-    { "file": "CHANGELOG.md", "line": 35, "issue": "Command count says 27 but actual is 28", "severity": "medium" },
-    { "file": "CLAUDE.md", "line": 70, "issue": "Smoke test command missing is_initialized() guard", "severity": "medium" },
-    { "file": "docs/planning/WORKFLOW.json", "line": 22, "issue": "Lint command only covers 3 of 7 Python files", "severity": "medium" },
-    { "file": "docs/planning/ROADMAP.md", "line": 23, "issue": "quick command may be double-counted between v1.0 and v1.1", "severity": "low" }
+    {
+      "file": "CHANGELOG.md",
+      "issue": "Command count says 27 but actual is 28",
+      "line": 35,
+      "severity": "medium"
+    },
+    {
+      "file": "CLAUDE.md",
+      "issue": "Smoke test command missing is_initialized() guard",
+      "line": 70,
+      "severity": "medium"
+    },
+    {
+      "file": "docs/planning/WORKFLOW.json",
+      "issue": "Lint command only covers 3 of 7 Python files",
+      "line": 22,
+      "severity": "medium"
+    },
+    {
+      "file": "docs/planning/ROADMAP.md",
+      "issue": "quick command may be double-counted between v1.0 and v1.1",
+      "line": 23,
+      "severity": "low"
+    }
   ]
 }

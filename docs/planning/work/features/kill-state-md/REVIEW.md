@@ -95,11 +95,15 @@ Zero STATE.md references remain in any command file.
 ### Karpathy Checklist
 
 | Principle | Status | Notes |
-|----------|--------|------|
+|----------|--------|-------|
 | Think Before Coding | ✅ | 3-plan structure separated risk boundaries (foundation → commands → cleanup) |
 | Simplicity First | ✅ | Minimal changes per file — replaced reads with prime(), deleted update sections |
 | Surgical Changes | ✅ | No drive-by refactors; diff matches intent exactly |
 | Goal-Driven Execution | ✅ | Nuclear grep verified zero STATE.md refs; memory prime() tested working |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ## Verdict
 

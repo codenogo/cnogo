@@ -66,6 +66,10 @@ These are all pre-existing and outside the scope of this feature. Tracked for fu
 | Simplicity First | ✅ | Minimal changes — config flags, schema validation, display logic only |
 | Surgical Changes | ✅ | Only touched files specified in plans, no drive-by refactors |
 | Goal-Driven Execution | ✅ | All 6 tasks verified with grep/assert commands before closing |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ## Verdict
 

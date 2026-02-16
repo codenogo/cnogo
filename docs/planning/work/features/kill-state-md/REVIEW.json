@@ -1,41 +1,98 @@
 {
-  "schemaVersion": 1,
-  "timestamp": "2026-02-14T00:00:00Z",
-  "feature": "kill-state-md",
-  "branch": "main",
   "automated": [
-    { "name": "lint", "result": "skipped" },
-    { "name": "tests", "result": "skipped" },
-    { "name": "security", "result": "pass" },
-    { "name": "types", "result": "skipped" },
-    { "name": "deps", "result": "skipped" }
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    },
+    {
+      "name": "security",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "deps",
+      "result": "skipped"
+    }
   ],
-  "packages": [],
-  "verdict": "warn",
   "blockers": [],
+  "branch": "main",
+  "feature": "kill-state-md",
+  "packages": [],
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "3-plan structure separated risk boundaries (foundation \u2192 commands \u2192 cleanup)",
+      "status": "pass"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "Minimal changes per file \u2014 replaced reads with prime(), deleted update sections",
+      "status": "pass"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "No drive-by refactors; diff matches intent exactly",
+      "status": "pass"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "Nuclear grep verified zero STATE.md refs; memory prime() tested working",
+      "status": "pass"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "",
+      "status": "todo"
+    }
+  ],
+  "schemaVersion": 2,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "verdict": "warn",
   "warnings": [
     {
       "file": "CHANGELOG.md",
-      "line": 14,
       "issue": "/close description still references STATE.md",
+      "line": 14,
       "severity": "medium"
     },
     {
       "file": "scripts/workflow_checks.py",
-      "line": 66,
       "issue": "Bare except Exception: pass swallows all errors silently",
+      "line": 66,
       "severity": "low"
     },
     {
       "file": "install.sh",
-      "line": 187,
       "issue": "STATE.md migration deletes without backup",
+      "line": 187,
       "severity": "low"
     },
     {
       "file": "install.sh",
-      "line": 195,
       "issue": "Memory auto-init suppresses errors with 2>/dev/null",
+      "line": 195,
       "severity": "low"
     }
   ]

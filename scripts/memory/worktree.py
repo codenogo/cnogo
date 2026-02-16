@@ -174,6 +174,15 @@ def _current_branch(root: Path) -> str:
     return result.stdout.strip()
 
 
+def _branch_ahead_count(root: Path, base_commit: str, branch: str) -> int:
+    """Return number of commits in branch that are ahead of base_commit."""
+    result = _run_git("rev-list", "--count", f"{base_commit}..{branch}", cwd=root)
+    try:
+        return int(result.stdout.strip() or "0")
+    except ValueError:
+        return 0
+
+
 def _now() -> str:
     """UTC ISO-8601 timestamp."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -190,7 +199,7 @@ def save_session(session: WorktreeSession, root: Path) -> None:
     session_path = root / _SESSION_FILE
     session_path.parent.mkdir(parents=True, exist_ok=True)
 
-    data = json.dumps(session.to_dict(), indent=2) + "\n"
+    data = json.dumps(session.to_dict(), indent=2, sort_keys=True) + "\n"
 
     # Atomic write: write to temp file in same directory, then rename
     fd, tmp_path = tempfile.mkstemp(
@@ -309,6 +318,8 @@ def create_session(
         save_session(session, root)
 
         # Transition to executing
+        for wt in session.worktrees:
+            wt.status = "executing"
         session.phase = "executing"
         save_session(session, root)
 
@@ -336,13 +347,18 @@ def create_session(
 # ---------------------------------------------------------------------------
 
 
-def merge_session(session: WorktreeSession, root: Path) -> MergeResult:
+def merge_session(session: WorktreeSession | None, root: Path) -> MergeResult:
     """Merge agent branches sequentially in task order.
 
     Skips branches already in merged_so_far. On conflict, returns
     immediately with conflict info (does NOT abort the merge — caller
     decides whether to spawn resolver or abort).
     """
+    if session is None:
+        raise ValueError(
+            "No active worktree session. Create one with create_session() first."
+        )
+
     session.phase = "merging"
     save_session(session, root)
 
@@ -356,6 +372,15 @@ def merge_session(session: WorktreeSession, root: Path) -> MergeResult:
         )
         if wt is None:
             continue
+
+        # Capture agent progress before merge:
+        # - completed: branch has commits ahead of base
+        # - executing: branch has no commits yet
+        ahead = _branch_ahead_count(root, session.base_commit, wt.branch)
+        pre_merge_status = "completed" if ahead > 0 else "executing"
+        if wt.status != pre_merge_status:
+            wt.status = pre_merge_status
+            save_session(session, root)
 
         # Attempt merge
         try:
@@ -412,7 +437,7 @@ def merge_session(session: WorktreeSession, root: Path) -> MergeResult:
 
 
 def get_conflict_context(
-    session: WorktreeSession,
+    session: WorktreeSession | None,
     task_index: int,
     plan_json_path: Path,
     root: Path,
@@ -422,6 +447,9 @@ def get_conflict_context(
     Returns conflicted file contents (with markers), the conflicting
     task's action text, and already-merged task descriptions.
     """
+    if session is None:
+        raise ValueError("No active worktree session.")
+
     # Find the conflicting worktree
     wt = next(
         (w for w in session.worktrees if w.task_index == task_index), None
@@ -469,7 +497,7 @@ def get_conflict_context(
 # ---------------------------------------------------------------------------
 
 
-def cleanup_session(session: WorktreeSession, root: Path) -> None:
+def cleanup_session(session: WorktreeSession | None, root: Path) -> None:
     """Remove all worktrees, delete branches, and remove state file.
 
     For each worktree not already cleaned:
@@ -477,6 +505,9 @@ def cleanup_session(session: WorktreeSession, root: Path) -> None:
     2. git branch -D <branch>
     3. Update status to 'cleaned'
     """
+    if session is None:
+        return
+
     for wt in session.worktrees:
         if wt.status == "cleaned":
             continue

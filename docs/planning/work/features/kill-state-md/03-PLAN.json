@@ -20,8 +20,8 @@
     },
     {
       "name": "Update documentation and delete STATE.md",
-      "files": [".claude/CLAUDE.md", "CLAUDE.md", "docs/planning/STATE.md"],
-      "action": "Remove all STATE.md references from .claude/CLAUDE.md and CLAUDE.md. Update memory engine description from 'Optional' to 'Required'. Delete docs/planning/STATE.md.",
+      "files": [".claude/CLAUDE.md", "CLAUDE.md", "README.md", "scripts/memory/context.py", "scripts/workflow_checks.py", "docs/planning/STATE.md"],
+      "action": "Remove all STATE.md references across primary documentation and workflow support files (.claude/CLAUDE.md, CLAUDE.md, README.md, scripts/memory/context.py, scripts/workflow_checks.py). Update memory engine description from 'Optional' to 'Required'. Delete docs/planning/STATE.md.",
       "verify": [
         "grep -c 'STATE.md' .claude/CLAUDE.md CLAUDE.md 2>/dev/null; test $? -ne 0 && echo 'Clean' || echo 'References remain'",
         "test ! -f docs/planning/STATE.md && echo 'STATE.md deleted' || echo 'STATE.md still exists'",

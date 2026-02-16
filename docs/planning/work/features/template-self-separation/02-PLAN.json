@@ -26,8 +26,8 @@
     },
     {
       "name": "Fill in WORKFLOW.json and CLAUDE.md",
-      "files": ["docs/planning/WORKFLOW.json", "CLAUDE.md"],
-      "action": "Populate WORKFLOW.json packages[] with cnogo-scripts, fill in CLAUDE.md unfilled sections",
+      "files": ["docs/planning/WORKFLOW.json", "CLAUDE.md", "scripts/workflow_validate.py"],
+      "action": "Populate WORKFLOW.json packages[] with cnogo-scripts, fill in CLAUDE.md unfilled sections, and fix validator bug discovered during verification",
       "verify": [
         "python3 scripts/workflow_validate.py",
         "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert len(cfg.get('packages',[])) > 0; print('PASS: packages populated')\""

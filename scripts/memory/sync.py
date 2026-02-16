@@ -10,8 +10,10 @@ Format: one JSON object per line, sorted by ID for deterministic diffs.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,29 @@ _VALID_STATUSES = frozenset({"open", "in_progress", "closed"})
 _VALID_TYPES = frozenset({
     "epic", "task", "subtask", "bug", "quick", "background",
 })
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Write text atomically to avoid torn JSONL writes.
+
+    Writes to a temp file in the same directory and replaces the destination.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(
+        dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, str(path))
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def export_jsonl(root: Path) -> Path:
@@ -70,11 +95,9 @@ def export_jsonl(root: Path) -> Path:
                 d["labels"] = all_labels[issue.id]
             if issue.id in events_by_issue:
                 d["events"] = events_by_issue[issue.id]
-            lines.append(json.dumps(d, separators=(",", ":")))
+            lines.append(json.dumps(d, sort_keys=True, separators=(",", ":")))
 
-        jsonl_path.parent.mkdir(parents=True, exist_ok=True)
-        jsonl_path.write_text("\n".join(lines) + "\n" if lines else "",
-                              encoding="utf-8")
+        _atomic_write_text(jsonl_path, "\n".join(lines) + "\n" if lines else "")
         return jsonl_path
     finally:
         conn.close()
@@ -162,29 +185,33 @@ def import_jsonl(root: Path) -> int:
                 )
                 _st.insert_dependency(conn, dep)
 
-            # Import events if none exist locally (B-1)
+            # Merge events by content fingerprint (issue_id + event fields).
+            # This preserves remote tails without duplicating local history.
             events = obj.get("events", [])
-            if events:
-                existing_count = conn.execute(
-                    "SELECT COUNT(*) as cnt FROM events WHERE issue_id = ?",
-                    (issue_id,),
-                ).fetchone()["cnt"]
-                if existing_count == 0:
-                    for ev_obj in events:
-                        ev_data = ev_obj.get("data", {})
-                        if isinstance(ev_data, str):
-                            try:
-                                ev_data = json.loads(ev_data)
-                            except (json.JSONDecodeError, TypeError):
-                                ev_data = {}
-                        event = Event(
-                            issue_id=issue_id,
-                            event_type=ev_obj.get("event_type", ""),
-                            actor=ev_obj.get("actor", ""),
-                            data=ev_data,
-                            created_at=ev_obj.get("created_at", ""),
-                        )
-                        _st.insert_event(conn, event)
+            if isinstance(events, list) and events:
+                existing_fingerprints = _existing_event_fingerprints(conn, issue_id)
+                for ev_obj in events:
+                    if not isinstance(ev_obj, dict):
+                        continue
+                    ev_data = _normalize_event_data(ev_obj.get("data", {}))
+                    fp = _event_fingerprint(
+                        issue_id=issue_id,
+                        event_type=ev_obj.get("event_type", ""),
+                        actor=ev_obj.get("actor", ""),
+                        created_at=ev_obj.get("created_at", ""),
+                        data=ev_data,
+                    )
+                    if fp in existing_fingerprints:
+                        continue
+                    event = Event(
+                        issue_id=issue_id,
+                        event_type=ev_obj.get("event_type", ""),
+                        actor=ev_obj.get("actor", ""),
+                        data=ev_data,
+                        created_at=ev_obj.get("created_at", ""),
+                    )
+                    _st.insert_event(conn, event)
+                    existing_fingerprints.add(fp)
 
         rebuild_blocked_cache(conn)
         _rebuild_child_counters(conn)
@@ -213,6 +240,58 @@ def sync(root: Path) -> None:
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _normalize_event_data(raw: Any) -> dict[str, Any]:
+    """Normalize event data payload to a JSON object."""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else {}
+        except (json.JSONDecodeError, TypeError):
+            return {}
+    return {}
+
+
+def _event_fingerprint(
+    *,
+    issue_id: str,
+    event_type: Any,
+    actor: Any,
+    created_at: Any,
+    data: Any,
+) -> tuple[str, str, str, str, str]:
+    """Stable event identity tuple for deduplication during import."""
+    norm = _normalize_event_data(data)
+    payload = json.dumps(norm, sort_keys=True, separators=(",", ":"))
+    return (
+        issue_id,
+        str(event_type or ""),
+        str(actor or ""),
+        str(created_at or ""),
+        payload,
+    )
+
+
+def _existing_event_fingerprints(conn, issue_id: str) -> set[tuple[str, str, str, str, str]]:
+    """Load existing event fingerprints for one issue."""
+    rows = conn.execute(
+        "SELECT event_type, actor, data, created_at FROM events WHERE issue_id = ?",
+        (issue_id,),
+    ).fetchall()
+    return {
+        _event_fingerprint(
+            issue_id=issue_id,
+            event_type=row["event_type"],
+            actor=row["actor"],
+            created_at=row["created_at"],
+            data=row["data"],
+        )
+        for row in rows
+    }
+
 
 def _obj_to_issue(obj: dict[str, Any]) -> "Issue":
     """Parse a JSONL object into an Issue.
@@ -260,6 +339,7 @@ def _obj_to_issue(obj: dict[str, Any]) -> "Issue":
         assignee=obj.get("assignee", ""),
         feature_slug=obj.get("feature_slug", ""),
         plan_number=obj.get("plan_number", ""),
+        phase=_st.normalize_phase(obj.get("phase", "discuss")),
         close_reason=obj.get("close_reason", ""),
         metadata=meta if isinstance(meta, dict) else {},
         created_at=obj.get("created_at", ""),

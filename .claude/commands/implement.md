@@ -1,130 +1,102 @@
 # Implement: $ARGUMENTS
-<!-- effort: high -->
+<!-- effort: medium -->
 
-Execute a plan with verification after each task.
+Execute a plan with per-task verification.
 
 ## Arguments
 
 `/implement <feature> <plan-number> [--team]`
 
-Example: `/implement websocket-notifications 01`
-Example (team mode): `/implement websocket-notifications 01 --team`
-
-Note: If the plan JSON contains `"parallelizable": true/false`, this influences team-mode auto-detection (see Step 1c).
-
 ## Your Task
 
-Execute the specified plan for "$ARGUMENTS".
+Execute the specified plan for `$ARGUMENTS`.
 
-### Step 1: Load Plan
-
-1. Read `docs/planning/work/features/[feature]/[NN]-PLAN.md`
-2. Read `docs/planning/work/features/[feature]/[NN]-PLAN.json` (contract)
-3. Verify prerequisites are met
-
-If plan not found, list available plans and ask user to specify.
-
-### Step 1b: Memory Claim (If Enabled)
-
-If the memory engine is initialized and the plan JSON has `memoryId` fields, show ready tasks:
+### Step 0: Phase Check (Warn, Do Not Block)
 
 ```bash
-python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import is_initialized, ready; from pathlib import Path; root=Path('.'); [print(f'Ready: {t.id} {t.title}') for t in ready(feature_slug='<feature-slug>', root=root)] if is_initialized(root) else None"
+python3 scripts/workflow_memory.py phase-get <feature-slug>
 ```
 
-Before starting each task, claim it:
+Expected: `plan` or `implement`.
+
+### Step 1: Load Plan Contracts
+
+Read:
+- `docs/planning/work/features/<feature>/<NN>-PLAN.json` (source of truth)
+- `docs/planning/work/features/<feature>/<NN>-PLAN.md` (human context)
+
+If missing, stop and list available plans.
+
+### Step 1b: Memory Prep (Optional)
+
+If memory is enabled:
 
 ```bash
-python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import claim; claim('<memoryId>', actor='session', root=__import__('pathlib').Path('.'))"
+python3 scripts/workflow_memory.py ready --feature <feature-slug>
+python3 scripts/workflow_memory.py phase-set <feature-slug> implement
 ```
 
-### Step 1c: Team Mode (If Requested)
+### Step 1c: Team Mode Routing
 
-**Detection logic (in priority order):**
-1. If `$ARGUMENTS` contains `--team` → delegate to `/team implement <feature> <plan>` (explicit flag, always honored)
-2. If plan JSON has `"parallelizable": true` AND Agent Teams available → auto-delegate with worktree isolation: "Delegating to team mode with worktree isolation (plan marked parallelizable)."
-3. If plan JSON has `"parallelizable": false` → serial execution (override auto-detection)
-4. If `parallelizable` not present → fall back to heuristic:
-   a. If ALL: plan has >2 tasks AND Agent Teams available → auto-delegate with worktree isolation. File conflicts are advisory only (resolver agent handles merge conflicts).
-   b. Otherwise → standard serial execution
-
-Note: All parallel execution uses git worktree isolation. File overlap no longer blocks parallel execution — the resolver agent handles merge conflicts at merge time.
+- If `--team` passed: delegate to `/team implement <feature> <plan>`.
+- Else if plan has `"parallelizable": true` and Agent Teams available: delegate to `/team implement`.
+- Else execute serially.
 
 ### Step 2: Execute Tasks
 
-For each task in the plan:
+For each task in plan JSON:
+1. announce task start
+2. claim task memory ID if present
+3. edit only listed files
+4. run all task `verify[]` commands
+5. on success: close memory ID if present
+6. on failure: inspect history, fix, retry (max 2 attempts before escalation)
 
-1. **Announce** — "Starting Task N: [name]"
-2. **Claim** — If memory enabled, `memory.claim(task_memoryId, actor=session_id)`
-3. **Read** — Load the files mentioned in the task
-4. **Implement** — Make the changes as specified
-5. **Verify** — Run the verification command
-6. **Close** — If memory enabled and verify passes, `memory.close(task_memoryId)`
-7. **Report** — "Task N complete" or "Task N failed: [reason]"
+Retry helper commands:
 
-If verification fails:
-- Diagnose the issue, fix, re-verify
-- If memory enabled, `memory.update(task_memoryId, comment="Failed: ...")`
-- If stuck after 2 attempts, pause and ask user
+```bash
+python3 scripts/workflow_memory.py checkpoint --feature <feature-slug>
+python3 scripts/workflow_memory.py history <memory-id>
+```
 
 ### Step 3: Run Plan Verification
 
-After all tasks, run the plan's verification commands.
+Run `planVerify[]` commands from plan JSON.
+If passing and memory enabled:
+
+```bash
+python3 scripts/workflow_memory.py phase-set <feature-slug> review
+```
 
 ### Step 4: Commit
 
 ```bash
 git add -A
-git commit -m "[commit message from plan]"
+git commit -m "<commitMessage from plan>"
 ```
 
-### Step 5: Create Summary
+### Step 5: Write Summary Contract + Render
 
-Create `docs/planning/work/features/[feature]/[NN]-SUMMARY.md` and `[NN]-SUMMARY.json`.
+Create:
+- `docs/planning/work/features/<feature>/<NN>-SUMMARY.json`
 
-Summary template:
-```markdown
-# Plan NN Summary
+Minimum fields:
+- `schemaVersion`, `feature`, `planNumber`, `outcome`, `changes[]`, `verification[]`, `commit`, `timestamp`
 
-## Outcome
-✅ Complete | ⚠️ Partial | ❌ Failed
+Then render markdown summary:
 
-## Changes Made
-| File | Change |
-|------|--------|
-
-## Verification Results
-- Task 1: ✅ [output]
-- Plan verification: ✅ [output]
-
-## Issues Encountered
-[Any problems and how they were resolved]
-
-## Commit
-`abc123f` - [commit message]
-
----
-*Implemented: [date]*
+```bash
+python3 scripts/workflow_render.py docs/planning/work/features/<feature>/<NN>-SUMMARY.json
 ```
 
-Contract schema (minimal):
-```json
-{
-  "schemaVersion": 1,
-  "feature": "slug",
-  "planNumber": "01",
-  "outcome": "complete|partial|failed",
-  "changes": [{ "file": "path", "change": "what" }],
-  "verification": [{ "task": 1, "result": "pass|fail", "details": "..." }],
-  "commit": { "hash": "abc123f", "message": "..." },
-  "timestamp": "2026-01-24T00:00:00Z"
-}
+### Step 6: Validate
+
+```bash
+python3 scripts/workflow_validate.py
 ```
 
 ## Output
 
-- Summary of changes
-- Issues encountered
-- Next plan to execute (if any), or ready for `/review`
-
-Finally: `python3 scripts/workflow_validate.py`
+- Completed tasks and verification outcomes
+- Commit hash/message
+- Ready for `/review`

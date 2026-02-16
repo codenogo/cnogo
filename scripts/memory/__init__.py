@@ -34,13 +34,13 @@ __all__ = [
     # Issue CRUD
     "create", "show", "update", "claim", "close", "reopen", "release",
     # Query
-    "ready", "list_issues", "stats",
+    "ready", "list_issues", "stats", "get_phase", "set_phase",
     # Dependencies
     "dep_add", "dep_remove", "blockers", "blocks",
     # Sync
     "export_jsonl", "import_jsonl", "sync",
     # Context
-    "prime", "show_graph",
+    "prime", "checkpoint", "history", "show_graph",
     # Bridge (Agent Teams integration)
     "plan_to_task_descriptions", "generate_implement_prompt",
     "detect_file_conflicts",
@@ -105,10 +105,7 @@ def init(root: Path) -> None:
     cnogo_dir = root / _CNOGO_DIR
     cnogo_dir.mkdir(parents=True, exist_ok=True)
     conn = _st.connect(cnogo_dir / _DB_NAME)
-    try:
-        _st.migrate(conn)
-    finally:
-        conn.close()
+    conn.close()
 
 
 def is_initialized(root: Path | None = None) -> bool:
@@ -128,6 +125,7 @@ def create(
     parent: str | None = None,
     feature_slug: str | None = None,
     plan_number: str | None = None,
+    phase: str | None = None,
     priority: int = 2,
     labels: list[str] | None = None,
     description: str | None = None,
@@ -140,8 +138,10 @@ def create(
     Retries on SQLITE_BUSY with exponential backoff for multi-agent
     robustness.
     """
+    r = root or _root or Path(".")
+
     def _do_create() -> Issue:
-        conn = _conn(root)
+        conn = _conn(r)
         try:
             # Acquire write lock early for child counter atomicity (W-1)
             conn.execute("BEGIN IMMEDIATE")
@@ -149,6 +149,8 @@ def create(
 
             # Generate ID — hierarchical if parent given, hash-based otherwise
             if parent is not None:
+                if not _st.id_exists(conn, parent):
+                    raise ValueError(f"Parent issue {parent} not found")
                 child_num = _st.next_child_number(conn, parent)
                 issue_id = _child_id(parent, child_num)
             else:
@@ -181,6 +183,7 @@ def create(
                 priority=priority,
                 feature_slug=feature_slug or "",
                 plan_number=plan_number or "",
+                phase=_st.normalize_phase(phase or "discuss"),
                 metadata=metadata or {},
                 created_at=now,
                 updated_at=now,
@@ -218,7 +221,9 @@ def create(
         finally:
             conn.close()
 
-    return _with_retry(_do_create)
+    result = _with_retry(_do_create)
+    _auto_export(r)
+    return result
 
 
 def show(issue_id: str, *, root: Path | None = None) -> Issue | None:
@@ -256,7 +261,8 @@ def update(
     The ``assignee`` parameter allows direct reassignment without going
     through the release/claim cycle. Pass an empty string to unassign.
     """
-    conn = _conn(root)
+    r = root or _root or Path(".")
+    conn = _conn(r)
     try:
         existing = _st.get_issue(conn, issue_id)
         if existing is None:
@@ -297,9 +303,11 @@ def update(
             _emit(conn, issue_id, "updated", actor, changes)
 
         conn.commit()
-        return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
     finally:
         conn.close()
+    _auto_export(r)
+    return result
 
 
 def claim(
@@ -396,7 +404,8 @@ def reopen(
     root: Path | None = None,
 ) -> Issue:
     """Reopen a closed issue."""
-    conn = _conn(root)
+    r = root or _root or Path(".")
+    conn = _conn(r)
     try:
         existing = _st.get_issue(conn, issue_id)
         if existing is None:
@@ -409,9 +418,11 @@ def reopen(
         _emit(conn, issue_id, "reopened", actor)
         _rebuild_blocked_cache(conn)
         conn.commit()
-        return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
+        result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
     finally:
         conn.close()
+    _auto_export(r)
+    return result
 
 
 def release(
@@ -513,6 +524,45 @@ def stats(*, root: Path | None = None) -> dict:
         conn.close()
 
 
+def get_phase(
+    feature_slug: str,
+    *,
+    root: Path | None = None,
+) -> str:
+    """Get current workflow phase for a feature."""
+    conn = _conn(root)
+    try:
+        return _st.get_feature_phase(conn, feature_slug)
+    finally:
+        conn.close()
+
+
+def set_phase(
+    feature_slug: str,
+    phase: str,
+    *,
+    root: Path | None = None,
+) -> int:
+    """Set workflow phase for all issues in a feature.
+
+    Returns number of updated rows.
+    """
+    r = root or _root or Path(".")
+    def _do_set() -> int:
+        conn = _conn(r)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            count = _st.set_feature_phase(conn, feature_slug, phase)
+            conn.commit()
+            return count
+        finally:
+            conn.close()
+
+    count = _with_retry(_do_set)
+    _auto_export(r)
+    return count
+
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
@@ -526,7 +576,8 @@ def dep_add(
     root: Path | None = None,
 ) -> None:
     """Add dependency. Raises on cycle detection."""
-    conn = _conn(root)
+    r = root or _root or Path(".")
+    conn = _conn(r)
     try:
         # Validate both issues exist
         if not _st.id_exists(conn, issue_id):
@@ -557,6 +608,7 @@ def dep_add(
         conn.commit()
     finally:
         conn.close()
+    _auto_export(r)
 
 
 def dep_remove(
@@ -567,7 +619,8 @@ def dep_remove(
     root: Path | None = None,
 ) -> None:
     """Remove dependency. Rebuilds blocked cache."""
-    conn = _conn(root)
+    r = root or _root or Path(".")
+    conn = _conn(r)
     try:
         ok = _st.remove_dependency(conn, issue_id, depends_on)
         if ok:
@@ -578,6 +631,7 @@ def dep_remove(
         conn.commit()
     finally:
         conn.close()
+    _auto_export(r)
 
 
 def blockers(
@@ -706,10 +760,37 @@ def sync(root: Path) -> None:
     _sync(root)
 
 
-def prime(*, limit: int = 10, root: Path | None = None) -> str:
+def prime(
+    *,
+    limit: int = 10,
+    verbose: bool = False,
+    root: Path | None = None,
+) -> str:
     """Generate minimal context summary for agent injection."""
     from .context import prime as _prime
-    return _prime(limit=limit, root=root)
+    return _prime(limit=limit, verbose=verbose, root=root)
+
+
+def checkpoint(
+    *,
+    feature_slug: str | None = None,
+    limit: int = 3,
+    root: Path | None = None,
+) -> str:
+    """Generate a compact progress checkpoint."""
+    from .context import checkpoint as _checkpoint
+    return _checkpoint(feature_slug=feature_slug, limit=limit, root=root)
+
+
+def history(
+    issue_id: str,
+    *,
+    limit: int = 10,
+    root: Path | None = None,
+) -> str:
+    """Render event history for an issue."""
+    from .context import history as _history
+    return _history(issue_id, limit=limit, root=root)
 
 
 def show_graph(feature_slug: str, *, root: Path | None = None) -> str:

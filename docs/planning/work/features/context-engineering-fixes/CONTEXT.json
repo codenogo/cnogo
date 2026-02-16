@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-engineering-fixes",
+  "displayName": "Context Engineering Fixes",
+  "research": [
+    "docs/planning/work/review/2026-02-15-manus-context-engineering-REVIEW.md"
+  ],
+  "decisions": [
+    {
+      "area": "checkpoint-data-source",
+      "decision": "Memory + plan artifacts",
+      "rationale": "Richer context: includes plan objective and remaining task names alongside memory state"
+    },
+    {
+      "area": "phase-gating-storage",
+      "decision": "Explicit phase column in issues table",
+      "rationale": "More precise than artifact-derived inference; enables programmatic transitions"
+    },
+    {
+      "area": "error-learning",
+      "decision": "New history() function in context.py",
+      "rationale": "show() only returns current state; agents need formatted event trail for retry learning"
+    },
+    {
+      "area": "deterministic-json",
+      "decision": "sort_keys=True on all json.dumps",
+      "rationale": "Prevents KV-cache invalidation when artifacts become context in subsequent commands"
+    },
+    {
+      "area": "prime-compression",
+      "decision": "verbose=True param + restore hint footer",
+      "rationale": "Preserves reversibility without bloating default output"
+    },
+    {
+      "area": "example-diversity",
+      "decision": "Add illustrative-only disclaimer to templates",
+      "rationale": "Avoids template variation that would break cacheability"
+    },
+    {
+      "area": "schema-migration",
+      "decision": "SCHEMA_VERSION 1 to 2, ALTER TABLE ADD COLUMN",
+      "rationale": "Non-destructive; SQLite ADD COLUMN is atomic and backwards-compatible"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "Max 3 tasks per plan",
+    "Non-destructive schema migration",
+    "checkpoint() output under 300 tokens",
+    "history() defaults to last 10 events, 200 char data truncation"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "scripts/memory/context.py",
+    "scripts/memory/storage.py",
+    "scripts/memory/bridge.py",
+    "scripts/memory/sync.py",
+    "scripts/memory/models.py",
+    "scripts/memory/__init__.py",
+    ".claude/commands/implement.md",
+    ".claude/agents/implementer.md"
+  ],
+  "timestamp": "2026-02-15T00:00:00Z"
+}

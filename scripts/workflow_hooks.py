@@ -141,8 +141,17 @@ def run_repo_formatters(root: Path) -> int:
     if (root / "build.gradle").exists() or (root / "build.gradle.kts").exists():
         return run(["./gradlew", "spotlessApply", "-q"], cwd=root)
     if (root / "package.json").exists():
-        # If format script exists, use it; otherwise best-effort no-op.
-        return run(["npm", "run", "format", "--silent"], cwd=root)
+        # Only run npm format when the script exists; otherwise best-effort no-op.
+        try:
+            pkg = json.loads((root / "package.json").read_text(encoding="utf-8"))
+            scripts = pkg.get("scripts", {}) if isinstance(pkg, dict) else {}
+            if isinstance(scripts, dict):
+                fmt = scripts.get("format")
+                if isinstance(fmt, str) and fmt.strip():
+                    return run(["npm", "run", "format", "--silent"], cwd=root)
+        except Exception:
+            pass
+        return 0
     if (root / "pyproject.toml").exists():
         rc1 = run(["python3", "-m", "black", ".", "-q"], cwd=root) if which("black") else 0
         rc2 = run(["python3", "-m", "isort", ".", "-q"], cwd=root) if which("isort") else 0
@@ -208,4 +217,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

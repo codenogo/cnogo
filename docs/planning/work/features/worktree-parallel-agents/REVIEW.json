@@ -1,23 +1,110 @@
 {
-  "schemaVersion": 1,
-  "timestamp": "2026-02-14T00:00:00Z",
-  "feature": "worktree-parallel-agents",
-  "branch": "main",
   "automated": [
-    { "name": "lint", "result": "skipped" },
-    { "name": "tests", "result": "skipped" },
-    { "name": "security", "result": "pass" },
-    { "name": "types", "result": "pass" },
-    { "name": "deps", "result": "skipped" }
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    },
+    {
+      "name": "security",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "pass"
+    },
+    {
+      "name": "deps",
+      "result": "skipped"
+    }
   ],
-  "verdict": "pass",
   "blockers": [],
+  "branch": "main",
+  "feature": "worktree-parallel-agents",
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "Gap analysis identified 8 issues before coding; each traced end-to-end",
+      "status": "pass"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "Minimal fixes \u2014 one-line changes where possible, no new abstractions",
+      "status": "pass"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "5 files touched, all directly related to identified gaps",
+      "status": "pass"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "Each fix verified programmatically; all checks pass",
+      "status": "pass"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "",
+      "status": "todo"
+    }
+  ],
+  "schemaVersion": 2,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "verdict": "pass",
   "warnings": [
-    { "file": "scripts/memory/worktree.py", "line": 276, "issue": "No input validation for feature/plan_number used in branch names and paths", "severity": "medium" },
-    { "file": "scripts/memory/worktree.py", "line": 278, "issue": "Worktree path has no boundary assertion to prevent traversal outside parent dir", "severity": "medium" },
-    { "file": "scripts/memory/worktree.py", "line": 289, "issue": "Symlink created without checking if target already exists", "severity": "low" },
-    { "file": "scripts/memory/worktree.py", "line": 233, "issue": "create_session is 97 lines, exceeds 50-line threshold", "severity": "low" },
-    { "file": "scripts/memory/worktree.py", "line": 314, "issue": "Bare except Exception catches too broadly", "severity": "low" },
-    { "file": "scripts/memory/bridge.py", "line": 66, "issue": "Skipped tasks still carry blockedBy constraints from plan JSON", "severity": "low" }
+    {
+      "file": "scripts/memory/worktree.py",
+      "issue": "No input validation for feature/plan_number used in branch names and paths",
+      "line": 276,
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/memory/worktree.py",
+      "issue": "Worktree path has no boundary assertion to prevent traversal outside parent dir",
+      "line": 278,
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/memory/worktree.py",
+      "issue": "Symlink created without checking if target already exists",
+      "line": 289,
+      "severity": "low"
+    },
+    {
+      "file": "scripts/memory/worktree.py",
+      "issue": "create_session is 97 lines, exceeds 50-line threshold",
+      "line": 233,
+      "severity": "low"
+    },
+    {
+      "file": "scripts/memory/worktree.py",
+      "issue": "Bare except Exception catches too broadly",
+      "line": 314,
+      "severity": "low"
+    },
+    {
+      "file": "scripts/memory/bridge.py",
+      "issue": "Skipped tasks still carry blockedBy constraints from plan JSON",
+      "line": 66,
+      "severity": "low"
+    }
   ]
 }

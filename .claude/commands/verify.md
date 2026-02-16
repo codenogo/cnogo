@@ -1,195 +1,75 @@
 # Verify: $ARGUMENTS
-<!-- effort: high -->
+<!-- effort: medium -->
 
-User acceptance testing. Confirms the feature actually works as expected.
+Human acceptance verification (UAT). Confirms the feature works for real user flows.
 
 ## When to Use
 
-After all plans for a feature are implemented, before `/review`.
+After implementation, before `/review`.
 
 ## Your Task
 
-Verify "$ARGUMENTS" works end-to-end from a user's perspective.
+Verify `$ARGUMENTS` from the user's perspective and record outcomes.
 
-### Note: CI vs Human Verification
+### Step 1: Load Compact Context
 
-- Use `/verify-ci $ARGUMENTS` for non-interactive checks (CI-friendly).
-- Use `/verify $ARGUMENTS` for human acceptance testing (this command).
-
-### Step 1: Load Feature Context
+Prefer contracts over full markdown to keep context small:
 
 ```bash
-# Read what was built
-cat docs/planning/work/features/$ARGUMENTS/CONTEXT.md
-cat docs/planning/work/features/$ARGUMENTS/*-SUMMARY.md
+cat docs/planning/work/features/$ARGUMENTS/CONTEXT.json
+ls docs/planning/work/features/$ARGUMENTS/*-SUMMARY.json
+python3 scripts/workflow_memory.py checkpoint --feature $ARGUMENTS
 ```
 
-### Step 2: Extract Testable Deliverables
+Only open full `CONTEXT.md`/`*-SUMMARY.md` if contract data is insufficient.
 
-From CONTEXT.md and summaries, identify what the user should now be able to do:
+### Step 2: Define Deliverables to Validate
 
-```markdown
-## Deliverables to Verify
+Create a short checklist (3-7 items) of user-observable outcomes:
+- happy path
+- key edge case
+- key failure path
 
-1. [ ] User can [action 1]
-2. [ ] User can [action 2]
-3. [ ] System handles [edge case]
-4. [ ] Error shows when [error condition]
-```
-
-### Step 3: Walk Through Each Deliverable
+### Step 3: Run Interactive UAT
 
 For each deliverable:
+1. Ask user to test it
+2. Record result: `pass | fail | partial`
+3. Capture concise notes/evidence
 
-1. **Present** — "Can you verify: [deliverable]?"
-2. **Wait** — User tests manually
-3. **Record** — User responds: ✅ Pass | ❌ Fail | ⚠️ Partial
+If failures occur, capture:
+- repro steps
+- observed behavior
+- expected behavior
+- likely impacted files
 
-If user reports failure:
-- Ask for specific symptoms
-- Note exact error messages
-- Capture steps to reproduce
+### Step 4: Persist Verification Artifacts
 
-### Step 4: Technical Verification
-
-1. **Check Logs:**
-   ```bash
-   # If Sentry MCP is configured:
-   claude mcp use sentry query "issue.handled:no"
-   
-   # Or check local logs:
-   [grep commands for local logs]
-   ```
-
-2. **Check Coverage:**
-   If confidence is low, spawn a test generation agent:
-   ```bash
-   /spawn tests Generate integration tests for this feature
-   ```
-
-### Step 5: Diagnose Failures
-
-For each failure, spawn a debug investigation:
-
-```markdown
-## Failure: [Deliverable]
-
-**Symptoms:** [What user observed]
-**Expected:** [What should have happened]
-**Steps to reproduce:**
-1. [Step]
-2. [Step]
-
-### Investigation
-
-[Search relevant code]
-[Check logs if available]
-[Identify root cause]
-
-### Fix Required
-
-**File:** `path/to/file.ts`
-**Issue:** [What's wrong]
-**Fix:** [What needs to change]
-```
-
-### Step 6: Create Fix Plans (if failures found)
-
-For each failure, create a fix plan:
-
-`docs/planning/work/features/$ARGUMENTS/FIX-NN-PLAN.md`
-
-```markdown
-# Fix Plan: [Issue]
-
-## Problem
-[Root cause from investigation]
-
-## Tasks
-
-### Task 1: [Fix]
-**Files:** `path/to/file.ts`
-**Action:** [Specific fix]
-**Verify:** [How to verify fix]
-```
-
-### Step 7: Generate Verification Report
-
-Create:
-
-- `docs/planning/work/features/$ARGUMENTS/VERIFICATION.md`
+Write:
 - `docs/planning/work/features/$ARGUMENTS/VERIFICATION.json`
+- `docs/planning/work/features/$ARGUMENTS/VERIFICATION.md`
 
-### Contract Rules (Apply Consistently)
+`VERIFICATION.json` minimum fields:
+- `schemaVersion`
+- `feature`
+- `timestamp`
+- `results[]` (deliverable, status, notes)
+- `failed[]` (only failures/partials; include planned fix path)
 
-- **One markdown + one JSON contract** per verification: `VERIFICATION.md` + `VERIFICATION.json`.
-- **Contract required fields (minimum)**: `schemaVersion`, `feature` (slug), `timestamp`.
-- **Validation**: run `python3 scripts/workflow_validate.py` after writing the artifacts.
+`VERIFICATION.md` should be a concise human summary of the same results.
 
-`VERIFICATION.json` contract schema (minimal):
+### Step 5: If Failures Exist
 
-```json
-{
-  "schemaVersion": 1,
-  "feature": "websocket-notifications",
-  "timestamp": "2026-01-24T00:00:00Z",
-  "results": [
-    { "deliverable": "User can ...", "status": "pass|fail|partial", "notes": "..." }
-  ],
-  "failed": [{ "deliverable": "User can ...", "fixPlan": "FIX-01-PLAN.md" }]
-}
-```
+Create follow-up fix plans under the same feature directory, then route back to implementation.
 
-For the human-readable report, create `docs/planning/work/features/$ARGUMENTS/VERIFICATION.md`:
-
-```markdown
-# Verification Report: $ARGUMENTS
-
-## Summary
-
-| Status | Count |
-|--------|-------|
-| ✅ Passed | N |
-| ❌ Failed | N |
-| ⚠️ Partial | N |
-
-## Results
-
-### ✅ Passed
-
-1. User can [action] — Verified [date]
-
-### ❌ Failed
-
-1. User can [action]
-   - **Symptom:** [what happened]
-   - **Root cause:** [why]
-   - **Fix plan:** `FIX-01-PLAN.md`
-
-### ⚠️ Partial
-
-1. User can [action]
-   - **Works:** [what works]
-   - **Doesn't work:** [what doesn't]
-   - **Fix plan:** `FIX-02-PLAN.md`
-
-## Next Steps
-
-- [ ] Execute fix plans: `/implement $ARGUMENTS FIX-01`
-- [ ] Re-verify after fixes
-
----
-*Verified: [date]*
-```
-
-## Output
-
-- Verification summary
-- Fix plans created (if needed)
-- Clear next action
-
-Finally, run:
+### Step 6: Validate Workflow
 
 ```bash
 python3 scripts/workflow_validate.py
 ```
+
+## Output
+
+- UAT summary by deliverable
+- Pass/fail/partial counts
+- Follow-up fix plan references (if any)

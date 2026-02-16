@@ -1,16 +1,74 @@
 {
-  "schemaVersion": 1,
-  "timestamp": "2026-02-14T22:00:00Z",
-  "feature": "memory-engine-fixes",
-  "branch": "main",
   "automated": [
-    { "name": "lint", "result": "pass" },
-    { "name": "tests", "result": "pass" },
-    { "name": "security", "result": "pass" },
-    { "name": "types", "result": "skipped" },
-    { "name": "deps", "result": "skipped" }
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
   ],
-  "verdict": "pass",
   "blockers": [],
+  "branch": "main",
+  "feature": "memory-engine-fixes",
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [],
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "",
+      "status": "todo"
+    }
+  ],
+  "schemaVersion": 2,
+  "timestamp": "2026-02-16T00:29:34Z",
+  "verdict": "warn",
   "warnings": []
 }

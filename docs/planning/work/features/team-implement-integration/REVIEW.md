@@ -83,11 +83,15 @@
 ## Karpathy Checklist
 
 | Principle | Status | Notes |
-|----------|--------|------|
+|----------|--------|-------|
 | Think Before Coding | ✅ | Full discuss + research phase, 10 decisions documented in CONTEXT.md |
 | Simplicity First | ✅ | One-way bridge (memory→TaskList), minimal code (~235 lines bridge module) |
 | Surgical Changes | ✅ | Each plan touched only its specified files, no drive-by refactors |
 | Goal-Driven Execution | ✅ | Every task has verify commands, all 9 memory issues claimed and closed |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ## Verdict
 

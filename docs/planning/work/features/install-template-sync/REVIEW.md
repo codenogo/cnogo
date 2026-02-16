@@ -66,11 +66,15 @@
 ### Karpathy Checklist
 
 | Principle | Status | Notes |
-|----------|--------|------|
+|----------|--------|-------|
 | Think Before Coding | ✅ | Full `/discuss` with 9 decisions, 3-plan breakdown |
 | Simplicity First | ✅ | Minimal changes — 3 new files, edits to 7 existing files |
 | Surgical Changes | ✅ | Only changed what was needed; no drive-by refactors |
 | Goal-Driven Execution | ✅ | Every task has explicit verify commands; all passed |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ### Verdict
 

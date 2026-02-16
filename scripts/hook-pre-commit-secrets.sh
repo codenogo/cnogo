@@ -17,12 +17,7 @@ fi
 
 echo '🔍 Scanning for secrets...'
 SECRET_FOUND=0
-STAGED=$(git diff --cached --name-only 2>/dev/null || true)
-
-if [ -z "$STAGED" ]; then
-  echo '✅ No staged files to scan'
-  exit 0
-fi
+STAGED_COUNT=0
 
 # Combined pattern for all secret types:
 #   AWS keys, Anthropic keys, OpenAI keys, GitHub tokens, Slack tokens,
@@ -31,7 +26,8 @@ fi
 #   Database connection strings
 SECRET_PATTERN='AKIA[0-9A-Z]{16}|sk-ant-[a-zA-Z0-9-]{20,}|sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{36}|xox[baprs]-[0-9a-zA-Z-]{10,}|BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY|AccountKey=[a-zA-Z0-9+/=]{40,}|"type":\s*"service_account"|sk_live_[a-zA-Z0-9]{20,}|pk_live_[a-zA-Z0-9]{20,}|SK[a-fA-F0-9]{32}|SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}|AIza[0-9A-Za-z_-]{35}|postgres://[^:]+:[^@]+@|mongodb(\+srv)?://[^:]+:[^@]+@'
 
-for file in $STAGED; do
+while IFS= read -r -d '' file; do
+  STAGED_COUNT=1
   if [ -f "$file" ]; then
     MATCHES=$(grep -nE "$SECRET_PATTERN" "$file" 2>/dev/null || true)
     if [ -n "$MATCHES" ]; then
@@ -40,7 +36,12 @@ for file in $STAGED; do
       SECRET_FOUND=1
     fi
   fi
-done
+done < <(git diff --cached --name-only -z 2>/dev/null || true)
+
+if [ $STAGED_COUNT -eq 0 ]; then
+  echo '✅ No staged files to scan'
+  exit 0
+fi
 
 if [ $SECRET_FOUND -eq 1 ]; then
   exit 1

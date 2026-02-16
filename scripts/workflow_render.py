@@ -131,6 +131,82 @@ def render_summary(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_quick_plan(plan: dict[str, Any]) -> str:
+    """Render markdown for quick-task PLAN.json contracts."""
+    goal = str(plan.get("goal", "")).strip()
+    approach = str(plan.get("approach", "")).strip()
+    files = plan.get("files", [])
+    verify = plan.get("verify", [])
+
+    lines: list[str] = []
+    lines.append(f"# Quick: {goal or '[Quick task]'}")
+    lines.append("")
+    lines.append("## Goal")
+    lines.append(goal or "[What this accomplishes]")
+    lines.append("")
+    lines.append("## Files")
+    if isinstance(files, list) and files:
+        for fp in files:
+            lines.append(f"- `{fp}`")
+    else:
+        lines.append("- `path/to/file`")
+    lines.append("")
+    lines.append("## Approach")
+    lines.append(approach or "[Brief description]")
+    lines.append("")
+    lines.append("## Verify")
+    lines.append("```bash")
+    if isinstance(verify, list) and verify:
+        for v in verify:
+            lines.append(str(v))
+    else:
+        lines.append("[How to verify]")
+    lines.append("```")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_quick_summary(summary: dict[str, Any]) -> str:
+    """Render markdown for quick-task SUMMARY.json contracts."""
+    outcome = str(summary.get("outcome", "complete"))
+    changes = summary.get("changes", [])
+    verification = summary.get("verification", [])
+    commit = summary.get("commit", {})
+
+    lines: list[str] = []
+    lines.append("# Quick Summary")
+    lines.append("")
+    lines.append("## Outcome")
+    lines.append(outcome)
+    lines.append("")
+    lines.append("## Changes")
+    lines.append("| File | Change |")
+    lines.append("|------|--------|")
+    if isinstance(changes, list) and changes:
+        for c in changes:
+            if isinstance(c, dict):
+                lines.append(f"| `{c.get('file','')}` | {c.get('change','')} |")
+    else:
+        lines.append("| `path/to/file` | [what changed] |")
+    lines.append("")
+    lines.append("## Verification")
+    if isinstance(verification, list) and verification:
+        for v in verification:
+            lines.append(f"- {v}")
+    else:
+        lines.append("- [verification results]")
+    lines.append("")
+    lines.append("## Commit")
+    if isinstance(commit, dict):
+        h = commit.get("hash", "")
+        m = commit.get("message", "")
+        lines.append(f"`{h}` - {m}".strip())
+    else:
+        lines.append("`abc123f` - [commit message]")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Render markdown artifacts from JSON contracts.")
     parser.add_argument("json_file", help="Path to JSON contract file.")
@@ -153,10 +229,21 @@ def main() -> int:
         write(md, render_summary(data))
         print(f"✅ Rendered {md}")
         return 0
+    if jf.name == "PLAN.json":
+        md = jf.with_name("PLAN.md")
+        write(md, render_quick_plan(data))
+        print(f"✅ Rendered {md}")
+        return 0
+    if jf.name == "SUMMARY.json":
+        md = jf.with_name("SUMMARY.md")
+        write(md, render_quick_summary(data))
+        print(f"✅ Rendered {md}")
+        return 0
 
-    raise SystemExit("Unsupported contract type. Use *-PLAN.json or *-SUMMARY.json.")
+    raise SystemExit(
+        "Unsupported contract type. Use *-PLAN.json, *-SUMMARY.json, PLAN.json, or SUMMARY.json."
+    )
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

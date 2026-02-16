@@ -73,6 +73,10 @@ None.
 | Simplicity First | ✅ | Minimal changes — copy templates, update one line in install.sh, fill docs |
 | Surgical Changes | ✅ | Only touched files listed in plan; one opportunistic bugfix (latent TypeError) |
 | Goal-Driven Execution | ✅ | Each task had explicit verify commands; E2E test caught cp destination bug |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ## Verdict
 

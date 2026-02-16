@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "timestamp": "2026-02-15T00:00:00Z",
+  "branch": "main",
+  "type": "strategic-review",
+  "source": "https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus",
+  "automated": [
+    { "name": "lint", "result": "skipped" },
+    { "name": "tests", "result": "skipped" },
+    { "name": "security", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "deps", "result": "skipped" },
+    { "name": "workflow-validation", "result": "pass" },
+    { "name": "memory-engine", "result": "pass" },
+    { "name": "syntax-compilation", "result": "pass" }
+  ],
+  "verdict": "pass",
+  "findings": [
+    {
+      "id": "recitation",
+      "title": "Add goal recitation / checkpoint() for long-running agents",
+      "manus_lesson": "4-recitation-attention-management",
+      "effort": "medium",
+      "impact": "high",
+      "files": ["scripts/memory/context.py", ".claude/commands/implement.md", ".claude/agents/implementer.md"],
+      "severity": "improvement"
+    },
+    {
+      "id": "reversible-compression",
+      "title": "Make prime() compression reversible with restore hints",
+      "manus_lesson": "3-filesystem-as-memory",
+      "effort": "low",
+      "impact": "high",
+      "files": ["scripts/memory/context.py"],
+      "severity": "improvement"
+    },
+    {
+      "id": "error-feedback-loop",
+      "title": "Add error-learning feedback to retry cycles",
+      "manus_lesson": "5-preserve-errors",
+      "effort": "low",
+      "impact": "medium",
+      "files": ["scripts/memory/bridge.py", ".claude/agents/implementer.md"],
+      "severity": "improvement"
+    },
+    {
+      "id": "deterministic-json",
+      "title": "Ensure deterministic JSON key ordering in serialization",
+      "manus_lesson": "1-kv-cache-optimization",
+      "effort": "low",
+      "impact": "medium",
+      "files": ["scripts/memory/sync.py", "scripts/memory/bridge.py", "scripts/workflow_validate.py"],
+      "severity": "improvement"
+    },
+    {
+      "id": "phase-gating",
+      "title": "Add workflow phase awareness to prevent out-of-order commands",
+      "manus_lesson": "2-mask-rather-than-remove",
+      "effort": "medium",
+      "impact": "medium",
+      "files": ["scripts/memory/storage.py", ".claude/commands/"],
+      "severity": "improvement"
+    },
+    {
+      "id": "example-diversity",
+      "title": "Vary example values across command templates",
+      "manus_lesson": "6-pattern-diversity",
+      "effort": "low",
+      "impact": "low",
+      "files": [".claude/commands/"],
+      "severity": "suggestion"
+    }
+  ],
+  "blockers": [],
+  "warnings": []
+}

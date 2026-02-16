@@ -104,6 +104,10 @@
 | Simplicity First | ✅ | Minimal fixes — one-line changes where possible, no new abstractions |
 | Surgical Changes | ✅ | 5 files touched, all directly related to identified gaps |
 | Goal-Driven Execution | ✅ | Each fix verified programmatically; all checks pass |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ## Verdict
 

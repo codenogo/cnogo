@@ -146,9 +146,13 @@ def generate_implement_prompt(
         lines.append(f"- Claim: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import claim; claim('{memory_id}', actor='implementer', root=__import__('pathlib').Path('.'))\"`")
         lines.append(f"- Close: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import close; close('{memory_id}', reason='completed', root=__import__('pathlib').Path('.'))\"`")
         lines.append(f"- Context: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import show; print(show('{memory_id}', root=__import__('pathlib').Path('.')))\"`")
+        lines.append(f"- History: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import history; print(history('{memory_id}', root=__import__('pathlib').Path('.')))\"`")
+        lines.append("- Checkpoint: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import checkpoint; print(checkpoint(root=__import__('pathlib').Path('.')))\"`")
         lines.append("")
 
-    lines.append("**On failure:** fix and retry. After 2 failures, message the team lead.")
+    lines.append("**On failure:** read history, summarize the last error, fix, and retry.")
+    lines.append("**Retry loop:** after each failed verify, run the history command before next attempt.")
+    lines.append("After 2 failures, message the team lead.")
     if memory_id:
         lines.append("**If blocked:** do NOT close memory. Message the team lead.")
     lines.append("")

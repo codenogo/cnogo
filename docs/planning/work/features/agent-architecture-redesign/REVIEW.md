@@ -83,6 +83,10 @@ These 3 files still reference `docs/skills.md` which was deleted in Plan 02 (`95
 | Simplicity First | ✅ | Net -175 lines. Dissolved monolithic 287-line skills.md into 8 focused files (218 total). Agents: 11 files (average 60 lines) → 2 files (average 25 lines). |
 | Surgical Changes | ⚠️ | 3 well-scoped commits, but left 3 stale references in active commands outside plan scope. |
 | Goal-Driven Execution | ✅ | Every task had explicit verify commands (line counts, grep checks, import tests). All 9 tasks passed on first attempt. |
+| Prefer shared utility packages over hand-rolled helpers | ⬜ |  |
+| Don't probe data YOLO-style | ⬜ |  |
+| Validate boundaries | ⬜ |  |
+| Typed SDKs | ⬜ |  |
 
 ## Summary of Changes
 

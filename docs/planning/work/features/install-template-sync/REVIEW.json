@@ -1,30 +1,87 @@
 {
-  "schemaVersion": 1,
-  "timestamp": "2026-02-14T00:00:00Z",
-  "feature": "install-template-sync",
-  "branch": "main",
   "automated": [
-    { "name": "lint", "result": "skipped" },
-    { "name": "tests", "result": "skipped" },
-    { "name": "security", "result": "pass" },
-    { "name": "types", "result": "skipped" },
-    { "name": "deps", "result": "skipped" }
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    },
+    {
+      "name": "security",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "deps",
+      "result": "skipped"
+    }
   ],
-  "verdict": "warn",
   "blockers": [
     {
       "file": "install.sh",
+      "issue": "CLAUDE-generic.md not in template install loop \u2014 init.md safety check and unknown stack fallback both reference it in target project",
       "line": 209,
-      "issue": "CLAUDE-generic.md not in template install loop — init.md safety check and unknown stack fallback both reference it in target project",
-      "severity": "critical",
-      "resolution": "Added CLAUDE-generic.md to the template loop"
+      "resolution": "Added CLAUDE-generic.md to the template loop",
+      "severity": "critical"
     }
   ],
+  "branch": "main",
+  "feature": "install-template-sync",
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "Full `/discuss` with 9 decisions, 3-plan breakdown",
+      "status": "pass"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "Minimal changes \u2014 3 new files, edits to 7 existing files",
+      "status": "pass"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "Only changed what was needed; no drive-by refactors",
+      "status": "pass"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "Every task has explicit verify commands; all passed",
+      "status": "pass"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "",
+      "status": "todo"
+    }
+  ],
+  "schemaVersion": 2,
+  "timestamp": "2026-02-14T00:00:00Z",
+  "verdict": "warn",
   "warnings": [
     {
       "file": ".claude/commands/init.md",
-      "line": 161,
       "issue": "${YELLOW} and ${NC} color variables used but not defined in the command file",
+      "line": 161,
       "severity": "low"
     }
   ]
