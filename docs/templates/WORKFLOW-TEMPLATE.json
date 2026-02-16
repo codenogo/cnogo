@@ -3,7 +3,18 @@
   "repoShape": "auto",
   "performance": {
     "postEditFormat": "auto",
-    "postEditFormatScope": "changed"
+    "postEditFormatScope": "changed",
+    "tokenBudgets": {
+      "enabled": true,
+      "commandWordMax": 400,
+      "commandsTotalWordMax": 8000,
+      "contextWordMax": 1300,
+      "planWordMax": 1200,
+      "summaryWordMax": 900,
+      "reviewWordMax": 1400,
+      "researchWordMax": 2200,
+      "brainstormWordMax": 1400
+    }
   },
   "research": {
     "mode": "auto",
@@ -11,12 +22,51 @@
   },
   "enforcement": {
     "monorepoVerifyScope": "warn",
-    "karpathyChecklist": "warn"
+    "karpathyChecklist": "warn",
+    "reviewPrinciples": [
+      "Think Before Coding",
+      "Simplicity First",
+      "Surgical Changes",
+      "Goal-Driven Execution",
+      "Prefer shared utility packages over hand-rolled helpers",
+      "Don't probe data YOLO-style",
+      "Validate boundaries",
+      "Typed SDKs"
+    ]
+  },
+  "freshness": {
+    "enabled": true,
+    "contextMaxAgeDays": 30,
+    "planMaxAgeDaysWithoutSummary": 14,
+    "summaryMaxAgeDaysWithoutReview": 7
+  },
+  "invariants": {
+    "enabled": true,
+    "scanScope": "changed",
+    "maxFileLines": 800,
+    "maxLineLength": 140,
+    "todoRequiresTicket": true,
+    "pythonBareExcept": "warn",
+    "forbiddenImportPatterns": [
+      {
+        "pattern": "^\\s*from\\s+\\S+\\s+import\\s+\\*",
+        "mode": "regex",
+        "severity": "warn",
+        "message": "Avoid wildcard imports."
+      }
+    ]
+  },
+  "entropy": {
+    "enabled": true,
+    "mode": "background",
+    "maxFilesPerTask": 3,
+    "maxTasksPerRun": 3
   },
   "packages": [],
   "agentTeams": {
     "enabled": true,
     "delegateMode": true,
+    "staleIndicatorMinutes": 10,
     "defaultCompositions": {
       "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
       "fullstack": ["test-writer", "debugger", "docs-writer", "refactorer"],
@@ -24,4 +74,3 @@
     }
   }
 }
-

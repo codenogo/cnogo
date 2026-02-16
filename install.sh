@@ -32,6 +32,8 @@ done
 
 TARGET_DIR="${TARGET_DIR:-.}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMMAND_COUNT=0
+AGENT_COUNT=0
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  Universal Workflow Pack Installer v2.0    ║${NC}"
@@ -84,6 +86,7 @@ fi
 for cmd in "$SCRIPT_DIR/.claude/commands/"*.md; do
     cp "$cmd" "$TARGET_DIR/.claude/commands/"
     echo "   ├── commands/$(basename "$cmd")"
+    COMMAND_COUNT=$((COMMAND_COUNT + 1))
 done
 
 # Agent definitions
@@ -93,6 +96,7 @@ for agent in "$SCRIPT_DIR/.claude/agents/"*.md; do
     # Extract model tier from frontmatter
     MODEL=$(grep '^model:' "$agent" 2>/dev/null | head -1 | awk '{print $2}' || echo "inherit")
     echo "   ├── agents/$(basename "$agent") ($MODEL)"
+    AGENT_COUNT=$((AGENT_COUNT + 1))
 done
 
 # Agent memory scaffolding (project scope, checked in)
@@ -183,6 +187,13 @@ for file in PROJECT.md ROADMAP.md WORKFLOW.json; do
     fi
 done
 
+if [ ! -f "$TARGET_DIR/docs/planning/WORKFLOW.schema.json" ]; then
+    cp "$SCRIPT_DIR/docs/planning/WORKFLOW.schema.json" "$TARGET_DIR/docs/planning/WORKFLOW.schema.json"
+    echo "   ├── WORKFLOW.schema.json"
+else
+    echo -e "   ├── WORKFLOW.schema.json ${YELLOW}(skipped - exists)${NC}"
+fi
+
 # Migration: remove STATE.md if it exists (replaced by memory engine)
 if [ -f "$TARGET_DIR/docs/planning/STATE.md" ]; then
     rm "$TARGET_DIR/docs/planning/STATE.md"
@@ -212,7 +223,7 @@ echo ""
 echo "📁 docs/templates/"
 mkdir -p "$TARGET_DIR/docs/templates"
 
-for template in CLAUDE-generic.md CLAUDE-java.md CLAUDE-typescript.md CLAUDE-python.md CLAUDE-go.md CLAUDE-rust.md; do
+for template in CLAUDE-generic.md CLAUDE-java.md CLAUDE-typescript.md CLAUDE-python.md CLAUDE-go.md CLAUDE-rust.md WORKFLOW-TEMPLATE.json; do
     if [ -f "$SCRIPT_DIR/docs/templates/$template" ]; then
         cp "$SCRIPT_DIR/docs/templates/$template" "$TARGET_DIR/docs/templates/"
         echo "   ├── $template"
@@ -330,7 +341,7 @@ echo "  3. Edit .github/CODEOWNERS with your team structure"
 echo "  4. Run 'claude' and verify with /status"
 echo "  5. Run '/spawn' to view available subagents"
 echo ""
-echo "Commands installed (28):"
+echo "Commands installed (${COMMAND_COUNT}):"
 echo ""
 echo "  Core:     /discuss  /plan  /implement  /verify  /verify-ci  /review  /ship"
 echo "  Fast:     /quick  /tdd"
@@ -340,7 +351,7 @@ echo "  Release:  /changelog  /release  /close"
 echo "  Research: /research  /brainstorm"
 echo "  Setup:    /init  /validate"
 echo "  MCP:      /mcp"
-echo "  Agents:   /spawn  /team  /background  (3 agent definitions)"
+echo "  Agents:   /spawn  /team  /background  (${AGENT_COUNT} agent definitions)"
 echo ""
 echo "Hooks installed:"
 echo "  • PreToolUse:    Security validation (blocks dangerous commands)"
