@@ -24,6 +24,8 @@ from typing import Any
 
 from workflow_utils import load_json, load_workflow as _load_workflow_util, repo_root, write_json
 
+DEFAULT_COMMAND_TIMEOUT_SEC = 300
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
@@ -34,14 +36,23 @@ def write_text(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def run_shell(cmd: str, cwd: Path) -> tuple[int, str]:
+def run_shell(cmd: str, cwd: Path, *, timeout_sec: int = DEFAULT_COMMAND_TIMEOUT_SEC) -> tuple[int, str]:
     # WORKFLOW.json is a trusted file (equivalent to Makefile) — shell=True is intentional.
     try:
-        out = subprocess.check_output(cmd, cwd=cwd, shell=True, stderr=subprocess.STDOUT).decode(errors="replace")
+        out = subprocess.check_output(
+            cmd,
+            cwd=cwd,
+            shell=True,
+            stderr=subprocess.STDOUT,
+            timeout=timeout_sec,
+        ).decode(errors="replace")
         return 0, out
     except subprocess.CalledProcessError as e:
         out = (e.output or b"").decode(errors="replace")
         return int(e.returncode or 1), out
+    except subprocess.TimeoutExpired as e:
+        out = (e.output or b"").decode(errors="replace")
+        return 124, f"Command timed out after {timeout_sec}s.\n{out}".strip()
     except FileNotFoundError as e:
         return 127, str(e)
     except Exception as e:
@@ -111,7 +122,7 @@ REVIEW_SCHEMA_VERSION = 2
 
 
 def load_workflow(root: Path | None = None) -> dict[str, Any]:
-    return _load_workflow_util()
+    return _load_workflow_util(root)
 
 
 def packages_from_workflow(wf: dict[str, Any]) -> list[dict[str, Any]]:
@@ -216,6 +227,30 @@ def _entropy_cfg(wf: dict[str, Any]) -> dict[str, Any]:
     return cfg
 
 
+def _checks_runtime_cfg(wf: dict[str, Any]) -> dict[str, Any]:
+    """Runtime config for check scope, changed-file fallback, and command timeout."""
+    defaults: dict[str, Any] = {
+        "checkScope": "auto",  # auto -> all in CI, changed locally
+        "changedFilesFallback": "none",  # none|head
+        "commandTimeoutSec": DEFAULT_COMMAND_TIMEOUT_SEC,
+    }
+    perf = wf.get("performance")
+    if not isinstance(perf, dict):
+        return defaults
+
+    cfg = dict(defaults)
+    scope = perf.get("checkScope")
+    if scope in {"auto", "changed", "all"}:
+        cfg["checkScope"] = scope
+    fallback = perf.get("changedFilesFallback")
+    if fallback in {"none", "head"}:
+        cfg["changedFilesFallback"] = fallback
+    timeout = perf.get("commandTimeoutSec")
+    if isinstance(timeout, int) and not isinstance(timeout, bool) and timeout > 0:
+        cfg["commandTimeoutSec"] = timeout
+    return cfg
+
+
 def _review_principles(wf: dict[str, Any]) -> list[str]:
     """Load enforced review principles from WORKFLOW.json enforcement.reviewPrinciples."""
     enforcement = wf.get("enforcement") if isinstance(wf.get("enforcement"), dict) else {}
@@ -237,20 +272,26 @@ def _review_principles(wf: dict[str, Any]) -> list[str]:
 
 
 def _git_name_only(root: Path, cmd: str) -> list[str]:
-    rc, out = run_shell(cmd, cwd=root)
+    rc, out = run_shell(cmd, cwd=root, timeout_sec=30)
     if rc != 0:
         return []
     return [line.strip() for line in out.splitlines() if line.strip()]
 
 
-def _changed_files(root: Path) -> list[Path]:
-    """Return changed/untracked files, with HEAD fallback when tree is clean."""
+def _changed_relpaths(root: Path, *, fallback: str = "none") -> set[str]:
+    """Return changed/untracked relative file paths, with optional HEAD fallback."""
     names: set[str] = set()
     names.update(_git_name_only(root, "git diff --name-only --diff-filter=ACMR"))
     names.update(_git_name_only(root, "git diff --cached --name-only --diff-filter=ACMR"))
     names.update(_git_name_only(root, "git ls-files --others --exclude-standard"))
-    if not names:
+    if not names and fallback == "head":
         names.update(_git_name_only(root, "git show --name-only --pretty='' HEAD"))
+    return names
+
+
+def _changed_files(root: Path, *, fallback: str = "none") -> list[Path]:
+    """Return changed/untracked files, with configurable fallback when tree is clean."""
+    names = _changed_relpaths(root, fallback=fallback)
     files: list[Path] = []
     for name in sorted(names):
         p = (root / name).resolve()
@@ -260,19 +301,30 @@ def _changed_files(root: Path) -> list[Path]:
 
 
 def _repo_files(root: Path) -> list[Path]:
+    """Return all repo files while pruning ignored directories early."""
     files: list[Path] = []
-    for p in root.rglob("*"):
-        if not p.is_file():
-            continue
-        if any(part in _SCAN_IGNORE_PARTS for part in p.parts):
-            continue
-        files.append(p)
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _SCAN_IGNORE_PARTS]
+        dpath = Path(dirpath)
+        for name in filenames:
+            p = dpath / name
+            if p.is_file():
+                files.append(p)
     return files
 
 
-def _target_files_for_invariants(root: Path, cfg: dict[str, Any]) -> list[Path]:
+def _target_files_for_invariants(
+    root: Path,
+    cfg: dict[str, Any],
+    *,
+    changed_files_fallback: str = "none",
+) -> list[Path]:
     scope = cfg.get("scanScope", "changed")
-    candidates = _repo_files(root) if scope == "repo" else _changed_files(root)
+    candidates = (
+        _repo_files(root)
+        if scope == "repo"
+        else _changed_files(root, fallback=changed_files_fallback)
+    )
     out: list[Path] = []
     for p in candidates:
         if p.suffix.lower() not in _CODE_EXTS:
@@ -292,13 +344,22 @@ def _command_prefers_repo_root(pkg_path: str, cmd: str) -> bool:
     return marker in cmd
 
 
-def run_invariant_checks(root: Path, wf: dict[str, Any]) -> list[InvariantFinding]:
+def run_invariant_checks(
+    root: Path,
+    wf: dict[str, Any],
+    *,
+    changed_files_fallback: str = "none",
+) -> list[InvariantFinding]:
     cfg = _invariants_cfg(wf)
     if not cfg.get("enabled", True):
         return []
 
     findings: list[InvariantFinding] = []
-    files = _target_files_for_invariants(root, cfg)
+    files = _target_files_for_invariants(
+        root,
+        cfg,
+        changed_files_fallback=changed_files_fallback,
+    )
     ticket_re = re.compile(r"(?:[A-Z][A-Z0-9]+-\d+|#[0-9]+)")
     todo_re = re.compile(r"\b(?:TODO|FIXME|XXX)\b")
     bare_except_re = re.compile(r"^\s*except\s*:\s*(#.*)?$")
@@ -407,7 +468,24 @@ def summarize_invariants(findings: list[InvariantFinding]) -> dict[str, int]:
     return summary
 
 
-def run_package_checks(root: Path, pkgs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _package_has_changes(pkg_path: str, changed_relpaths: set[str]) -> bool:
+    normalized = pkg_path.strip()
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    normalized = normalized.strip("/")
+    if normalized in {"", "."}:
+        return bool(changed_relpaths)
+    prefix = normalized + "/"
+    return any(p == normalized or p.startswith(prefix) for p in changed_relpaths)
+
+
+def run_package_checks(
+    root: Path,
+    pkgs: list[dict[str, Any]],
+    *,
+    changed_relpaths: set[str] | None = None,
+    timeout_sec: int = DEFAULT_COMMAND_TIMEOUT_SEC,
+) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for p in pkgs:
         path = str(p.get("path") or ".")
@@ -417,14 +495,29 @@ def run_package_checks(root: Path, pkgs: list[dict[str, Any]]) -> list[dict[str,
 
         pkg_dir = (root / path).resolve()
         pkg_res: dict[str, Any] = {"name": name, "path": path, "kind": kind, "checks": []}
+        pkg_changed = (
+            True
+            if changed_relpaths is None
+            else _package_has_changes(path, changed_relpaths)
+        )
 
         for check_name in ["lint", "typecheck", "test"]:
             cmd = cmds.get(check_name)
             if not isinstance(cmd, str) or not cmd.strip():
                 pkg_res["checks"].append({"name": check_name, "result": "skipped", "cmd": None})
                 continue
+            if not pkg_changed:
+                pkg_res["checks"].append(
+                    {
+                        "name": check_name,
+                        "result": "skipped",
+                        "cmd": cmd,
+                        "reason": "no changed files for package",
+                    }
+                )
+                continue
             check_cwd = root if _command_prefers_repo_root(path, cmd) else pkg_dir
-            rc, out = run_shell(cmd, cwd=check_cwd)
+            rc, out = run_shell(cmd, cwd=check_cwd, timeout_sec=timeout_sec)
             pkg_res["checks"].append(
                 {
                     "name": check_name,
@@ -810,7 +903,25 @@ def main() -> int:
     args = parser.parse_args()
     root = repo_root()
     wf = load_workflow(root)
-    invariant_findings = run_invariant_checks(root, wf)
+    checks_cfg = _checks_runtime_cfg(wf)
+    check_scope_cfg = str(checks_cfg.get("checkScope", "auto"))
+    ci_env = os.getenv("CI", "").strip().lower()
+    in_ci = ci_env not in {"", "0", "false", "no"}
+    if check_scope_cfg == "all":
+        effective_check_scope = "all"
+    elif check_scope_cfg == "changed":
+        effective_check_scope = "changed"
+    else:
+        effective_check_scope = "all" if in_ci else "changed"
+
+    changed_files_fallback = str(checks_cfg.get("changedFilesFallback", "none"))
+    command_timeout_sec = int(checks_cfg.get("commandTimeoutSec", DEFAULT_COMMAND_TIMEOUT_SEC))
+
+    invariant_findings = run_invariant_checks(
+        root,
+        wf,
+        changed_files_fallback=changed_files_fallback,
+    )
     review_principles = _review_principles(wf)
 
     if args.cmd == "entropy":
@@ -852,7 +963,19 @@ def main() -> int:
         print("Optional setup: python3 scripts/workflow_detect.py --write-workflow")
         per_pkg: list[dict[str, Any]] = []
     else:
-        per_pkg = run_package_checks(root, pkgs)
+        changed_relpaths = (
+            _changed_relpaths(root, fallback=changed_files_fallback)
+            if effective_check_scope == "changed"
+            else None
+        )
+        if effective_check_scope == "changed" and not changed_relpaths:
+            print("No local changes detected; package checks skipped (checkScope=changed).")
+        per_pkg = run_package_checks(
+            root,
+            pkgs,
+            changed_relpaths=changed_relpaths,
+            timeout_sec=command_timeout_sec,
+        )
 
     if args.cmd == "verify-ci":
         return write_verify_ci(root, args.feature, per_pkg, invariant_findings)

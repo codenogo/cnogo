@@ -4,6 +4,9 @@
   "performance": {
     "postEditFormat": "auto",
     "postEditFormatScope": "changed",
+    "checkScope": "auto",
+    "changedFilesFallback": "none",
+    "commandTimeoutSec": 300,
     "tokenBudgets": {
       "enabled": true,
       "commandWordMax": 400,

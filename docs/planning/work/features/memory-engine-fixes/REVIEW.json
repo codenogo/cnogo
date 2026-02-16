@@ -2,7 +2,7 @@
   "automated": [
     {
       "name": "lint",
-      "result": "skipped"
+      "result": "pass"
     },
     {
       "name": "types",
@@ -17,14 +17,83 @@
   "branch": "main",
   "feature": "memory-engine-fixes",
   "invariants": {
-    "findings": [],
+    "findings": [
+      {
+        "file": "scripts/workflow_checks.py",
+        "line": 1,
+        "message": "File has 991 lines (max 800).",
+        "rule": "max-file-lines",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate.py",
+        "line": 1,
+        "message": "File has 1464 lines (max 800).",
+        "rule": "max-file-lines",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate.py",
+        "line": 503,
+        "message": "Line length 150 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate.py",
+        "line": 537,
+        "message": "Line length 147 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate.py",
+        "line": 862,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate.py",
+        "line": 922,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      }
+    ],
     "summary": {
       "fail": 0,
-      "total": 0,
-      "warn": 0
+      "total": 6,
+      "warn": 6
     }
   },
-  "packages": [],
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_checks.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "name": "lint",
+          "output": "",
+          "result": "pass"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
   "principles": [
     {
       "name": "Think Before Coding",
@@ -68,7 +137,50 @@
     }
   ],
   "schemaVersion": 2,
-  "timestamp": "2026-02-16T00:29:34Z",
+  "timestamp": "2026-02-16T01:06:30Z",
   "verdict": "warn",
-  "warnings": []
+  "warnings": [
+    {
+      "file": "scripts/workflow_checks.py",
+      "issue": "File has 991 lines (max 800).",
+      "line": 1,
+      "rule": "max-file-lines",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate.py",
+      "issue": "File has 1464 lines (max 800).",
+      "line": 1,
+      "rule": "max-file-lines",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate.py",
+      "issue": "Line length 150 exceeds 140.",
+      "line": 503,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate.py",
+      "issue": "Line length 147 exceeds 140.",
+      "line": 537,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 862,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 922,
+      "rule": "max-line-length",
+      "severity": "medium"
+    }
+  ]
 }

@@ -152,6 +152,9 @@ def import_jsonl(root: Path) -> int:
             parsed.append((line_num, obj))
             count += 1
 
+        issue_ids = [obj.get("id", "") for _, obj in parsed if isinstance(obj.get("id"), str)]
+        existing_event_fps_by_issue = _existing_event_fingerprints_map(conn, issue_ids)
+
         # Second pass: import deps, labels, events (after all issues exist)
         for line_num, obj in parsed:
             issue_id = obj.get("id", "")
@@ -189,7 +192,7 @@ def import_jsonl(root: Path) -> int:
             # This preserves remote tails without duplicating local history.
             events = obj.get("events", [])
             if isinstance(events, list) and events:
-                existing_fingerprints = _existing_event_fingerprints(conn, issue_id)
+                existing_fingerprints = existing_event_fps_by_issue.setdefault(issue_id, set())
                 for ev_obj in events:
                     if not isinstance(ev_obj, dict):
                         continue
@@ -291,6 +294,42 @@ def _existing_event_fingerprints(conn, issue_id: str) -> set[tuple[str, str, str
         )
         for row in rows
     }
+
+
+def _existing_event_fingerprints_map(
+    conn,
+    issue_ids: list[str],
+) -> dict[str, set[tuple[str, str, str, str, str]]]:
+    """Load existing event fingerprints for multiple issues in batches."""
+    out: dict[str, set[tuple[str, str, str, str, str]]] = {}
+    ids = [iid for iid in issue_ids if iid]
+    if not ids:
+        return out
+
+    chunk_size = 500
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        rows = conn.execute(
+            (
+                "SELECT issue_id, event_type, actor, data, created_at "
+                f"FROM events WHERE issue_id IN ({placeholders})"
+            ),
+            tuple(chunk),
+        ).fetchall()
+        for row in rows:
+            issue_id = row["issue_id"]
+            out.setdefault(issue_id, set()).add(
+                _event_fingerprint(
+                    issue_id=issue_id,
+                    event_type=row["event_type"],
+                    actor=row["actor"],
+                    created_at=row["created_at"],
+                    data=row["data"],
+                )
+            )
+
+    return out
 
 
 def _obj_to_issue(obj: dict[str, Any]) -> "Issue":

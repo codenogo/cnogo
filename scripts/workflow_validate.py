@@ -335,7 +335,7 @@ def _iter_ideas_dirs(root: Path) -> Iterable[Path]:
     return [p for p in base.iterdir() if p.is_dir()]
 
 
-def _detect_repo_shape(root: Path) -> dict[str, Any]:
+def _detect_repo_shape(root: Path, cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     """
     Heuristic repo-shape detection to support single-repo, monorepo, and polyglot repos.
     This is used only for validation warnings unless configured stricter via WORKFLOW.json.
@@ -343,8 +343,8 @@ def _detect_repo_shape(root: Path) -> dict[str, Any]:
     Optimization: if WORKFLOW.json has non-empty packages[], use that instead of rglob.
     Falls back to rglob only when repoShape is "auto" AND packages is empty.
     """
-    cfg = _load_workflow_config(root)
-    pkgs = cfg.get("packages")
+    resolved_cfg = cfg if isinstance(cfg, dict) else _load_workflow_config(root)
+    pkgs = resolved_cfg.get("packages")
 
     # Fast path: use configured packages[] if available
     if isinstance(pkgs, list) and pkgs:
@@ -365,28 +365,47 @@ def _detect_repo_shape(root: Path) -> dict[str, Any]:
             "polyglot": languages > 1,
         }
 
-    # Slow path: rglob fallback when packages[] is empty or missing
-    def count(glob: str, *, exclude_node_modules: bool = True) -> int:
-        paths = list(root.rglob(glob))
-        if exclude_node_modules:
-            paths = [p for p in paths if "node_modules" not in p.parts and ".git" not in p.parts]
-        return len(paths)
+    # Slow path: single-pass manifest walk when packages[] is empty or missing.
+    counts = {
+        "package_json": 0,
+        "pom_xml": 0,
+        "pyproject_toml": 0,
+        "go_mod": 0,
+        "cargo_toml": 0,
+    }
+    ignore_dirs = {
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        "target",
+        "__pycache__",
+    }
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in ignore_dirs]
+        name_set = set(filenames)
+        if "package.json" in name_set:
+            counts["package_json"] += 1
+        if "pom.xml" in name_set:
+            counts["pom_xml"] += 1
+        if "pyproject.toml" in name_set:
+            counts["pyproject_toml"] += 1
+        if "go.mod" in name_set:
+            counts["go_mod"] += 1
+        if "Cargo.toml" in name_set:
+            counts["cargo_toml"] += 1
 
-    pkg_json = count("package.json")
-    pom = count("pom.xml")
-    pyproject = count("pyproject.toml")
-    go_mod = count("go.mod")
-    cargo = count("Cargo.toml")
-
-    manifest_total = pkg_json + pom + pyproject + go_mod + cargo
-    languages = sum(1 for x in [pkg_json, pom, pyproject, go_mod, cargo] if x > 0)
+    manifest_total = sum(counts.values())
+    languages = sum(1 for x in counts.values() if x > 0)
 
     return {
-        "package_json": pkg_json,
-        "pom_xml": pom,
-        "pyproject_toml": pyproject,
-        "go_mod": go_mod,
-        "cargo_toml": cargo,
+        "package_json": counts["package_json"],
+        "pom_xml": counts["pom_xml"],
+        "pyproject_toml": counts["pyproject_toml"],
+        "go_mod": counts["go_mod"],
+        "cargo_toml": counts["cargo_toml"],
         "monorepo": manifest_total > 1,
         "polyglot": languages > 1,
     }
@@ -428,6 +447,17 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         scope = perf.get("postEditFormatScope", "changed")
         if scope not in {"changed", "repo"}:
             findings.append(Finding("WARN", "WORKFLOW.json: performance.postEditFormatScope should be changed|repo.", str(cfg_path)))
+        check_scope = perf.get("checkScope", "auto")
+        if check_scope not in {"auto", "changed", "all"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: performance.checkScope should be auto|changed|all.", str(cfg_path)))
+        changed_fallback = perf.get("changedFilesFallback", "none")
+        if changed_fallback not in {"none", "head"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: performance.changedFilesFallback should be none|head.", str(cfg_path)))
+        timeout = perf.get("commandTimeoutSec")
+        if timeout is not None and (
+            isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0
+        ):
+            findings.append(Finding("WARN", "WORKFLOW.json: performance.commandTimeoutSec should be an integer > 0.", str(cfg_path)))
         budgets = perf.get("tokenBudgets")
         if budgets is not None and not isinstance(budgets, dict):
             findings.append(Finding("WARN", "WORKFLOW.json: performance.tokenBudgets should be an object.", str(cfg_path)))
@@ -1241,10 +1271,20 @@ def _validate_token_budgets(
     research_word_max = int(budgets.get("researchWordMax", DEFAULT_TOKEN_BUDGETS["researchWordMax"]))
     brainstorm_word_max = int(budgets.get("brainstormWordMax", DEFAULT_TOKEN_BUDGETS["brainstormWordMax"]))
 
+    word_cache: dict[Path, int] = {}
+
+    def words_for(path: Path) -> int:
+        cached = word_cache.get(path)
+        if cached is not None:
+            return cached
+        val = _word_count(path)
+        word_cache[path] = val
+        return val
+
     def check_path(path: Path, max_words: int, label: str) -> None:
         if not path.exists() or not path.is_file() or not touched(path):
             return
-        words = _word_count(path)
+        words = words_for(path)
         if words > max_words:
             findings.append(
                 Finding(
@@ -1260,11 +1300,21 @@ def _validate_token_budgets(
     command_total = 0
     any_command_touched = False
     for path in command_files:
-        words = _word_count(path)
+        words = words_for(path)
         command_total += words
         if touched(path):
             any_command_touched = True
-        check_path(path, command_word_max, "Command artifact")
+            if words > command_word_max:
+                findings.append(
+                    Finding(
+                        "WARN",
+                        (
+                            f"Command artifact is {words} words "
+                            f"(budget {command_word_max}). Consider trimming for context efficiency."
+                        ),
+                        str(path),
+                    )
+                )
     if any_command_touched and command_total > commands_total_word_max:
         findings.append(
             Finding(
@@ -1276,6 +1326,8 @@ def _validate_token_budgets(
 
     # Feature artifacts
     for fdir in _iter_feature_dirs(root):
+        if not touched(fdir):
+            continue
         check_path(fdir / "CONTEXT.md", context_word_max, "Feature CONTEXT artifact")
         check_path(fdir / "REVIEW.md", review_word_max, "Feature REVIEW artifact")
         for plan in fdir.glob("*-PLAN.md"):
@@ -1285,17 +1337,23 @@ def _validate_token_budgets(
 
     # Quick-task artifacts
     quick_root = root / "docs" / "planning" / "work" / "quick"
-    if quick_root.exists():
+    if quick_root.exists() and touched(quick_root):
         for qdir in quick_root.iterdir():
             if not qdir.is_dir():
+                continue
+            if not touched(qdir):
                 continue
             check_path(qdir / "PLAN.md", plan_word_max, "Quick PLAN artifact")
             check_path(qdir / "SUMMARY.md", summary_word_max, "Quick SUMMARY artifact")
 
     # Research and ideas artifacts
     for rdir in _iter_research_dirs(root):
+        if not touched(rdir):
+            continue
         check_path(rdir / "RESEARCH.md", research_word_max, "Research artifact")
     for idir in _iter_ideas_dirs(root):
+        if not touched(idir):
+            continue
         check_path(idir / "BRAINSTORM.md", brainstorm_word_max, "Brainstorm artifact")
 
 
@@ -1304,7 +1362,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
 
     cfg = _load_workflow_config(root)
     _validate_workflow_config(cfg, findings, root)
-    shape = _detect_repo_shape(root)
+    shape = _detect_repo_shape(root, cfg)
     monorepo_scope_level = _get_monorepo_scope_level(cfg)
     karpathy_level = _get_karpathy_checklist_level(cfg)
     review_principles = _review_principles_cfg(cfg)
@@ -1321,15 +1379,30 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
         if not _is_git_repo(root):
             findings.append(Finding("ERROR", "--staged requires a git repository.", str(root)))
             return findings
-        staged = set(_staged_files(root))
+        staged = [p.resolve() for p in _staged_files(root)]
+        touched_cache: dict[Path, bool] = {}
+
+        def _contains_path(base: Path, target: Path) -> bool:
+            try:
+                target.relative_to(base)
+                return True
+            except ValueError:
+                return False
 
         def touched(path: Path) -> bool:
+            resolved = path.resolve()
+            cached = touched_cache.get(resolved)
+            if cached is not None:
+                return cached
             try:
                 for f in staged:
-                    if str(f).startswith(str(path)):
+                    if f == resolved or _contains_path(resolved, f):
+                        touched_cache[resolved] = True
                         return True
+                touched_cache[resolved] = False
                 return False
             except Exception:
+                touched_cache[resolved] = False
                 return False
     else:
         def touched(_path: Path) -> bool:

@@ -17,6 +17,9 @@
       "properties": {
         "postEditFormat": { "type": "string", "enum": ["auto", "off"] },
         "postEditFormatScope": { "type": "string", "enum": ["changed", "repo"] },
+        "checkScope": { "type": "string", "enum": ["auto", "changed", "all"] },
+        "changedFilesFallback": { "type": "string", "enum": ["none", "head"] },
+        "commandTimeoutSec": { "type": "integer", "minimum": 1 },
         "tokenBudgets": {
           "type": "object",
           "additionalProperties": true,
