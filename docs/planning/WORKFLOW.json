@@ -7,6 +7,36 @@
     "checkScope": "auto",
     "changedFilesFallback": "none",
     "commandTimeoutSec": 300,
+    "outputCompaction": {
+      "enabled": true,
+      "maxLines": 120,
+      "failTailLines": 80,
+      "passLines": 30,
+      "dedupe": true
+    },
+    "outputRecovery": {
+      "enabled": true,
+      "mode": "failures",
+      "minChars": 500,
+      "maxFiles": 20,
+      "maxFileSize": 1048576,
+      "directory": ".cnogo/tee"
+    },
+    "tokenTelemetry": {
+      "enabled": true
+    },
+    "hookOptimization": {
+      "enabled": true,
+      "mode": "suggest",
+      "showSuggestions": true,
+      "logFile": ".cnogo/command-usage.jsonl"
+    },
+    "bootstrapContext": {
+      "enabled": true,
+      "rootClaudeWordMax": 500,
+      "workflowClaudeWordMax": 450,
+      "commandSetWordMax": 7000
+    },
     "tokenBudgets": {
       "enabled": true,
       "commandWordMax": 400,
@@ -47,6 +77,10 @@
     "enabled": true,
     "scanScope": "changed",
     "maxFileLines": 800,
+    "maxFileLinesExceptions": [
+      "scripts/workflow_checks_core.py",
+      "scripts/workflow_validate_core.py"
+    ],
     "maxLineLength": 140,
     "todoRequiresTicket": true,
     "pythonBareExcept": "warn",
@@ -71,7 +105,7 @@
       "path": "scripts",
       "kind": "python",
       "commands": {
-        "lint": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_checks.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py"
+        "lint": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py"
       }
     }
   ],

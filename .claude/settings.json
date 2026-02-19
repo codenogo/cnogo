@@ -15,6 +15,10 @@
           {
             "type": "command",
             "command": "bash scripts/hook-pre-commit-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "python3 scripts/workflow_hooks.py pre_bash"
           }
         ]
       },
@@ -23,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/hook-sensitive-file.sh"
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-sensitive-file.sh\" ]; then bash \"$ROOT/scripts/hook-sensitive-file.sh\"; else exit 0; fi"
           }
         ]
       }
@@ -53,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if [[ \"$CLAUDE_TOOL_INPUT\" == \"git commit\"* ]]; then echo '✅ Committed:' && git log -1 --oneline; fi"
+            "command": "bash scripts/hook-commit-confirm.sh"
           }
         ]
       }

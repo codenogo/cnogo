@@ -12,7 +12,30 @@ Analyze `$ARGUMENTS`, resolve gray areas with the user, and persist decisions.
 - Treat `$ARGUMENTS` as display name unless user explicitly gives a slug.
 - Feature directory must use kebab-case slug: `docs/planning/work/features/<feature-slug>/`.
 
-### Step 0: Phase Check (Warn, Do Not Block)
+### Step 0: Branch Bootstrap (Feature Isolation)
+
+Derive `<feature-slug>` first (kebab-case), then ensure the active branch is `feature/<feature-slug>`.
+
+```bash
+git branch --show-current
+git status --porcelain
+```
+
+Rules:
+- If already on `feature/<feature-slug>`, continue.
+- If a branch switch is needed and working tree is dirty, stop and ask user to commit/stash first (do not continue on wrong branch).
+- If `feature/<feature-slug>` exists locally, switch to it.
+- Else create it from default branch:
+
+```bash
+git switch main || git switch master
+git pull --ff-only
+git switch -c feature/<feature-slug>
+```
+
+Report final active branch before writing artifacts.
+
+### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash
 python3 scripts/workflow_memory.py phase-get <feature-slug>
@@ -20,7 +43,7 @@ python3 scripts/workflow_memory.py phase-get <feature-slug>
 
 Expected before `/discuss`: `discuss` (or `plan` when revisiting).
 
-### Step 1: Read Lightweight Context
+### Step 2: Read Lightweight Context
 
 ```bash
 cat docs/planning/PROJECT.md
@@ -28,7 +51,7 @@ python3 scripts/workflow_memory.py prime --limit 5
 rg -l "$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go}' -t code
 ```
 
-### Step 1b: Research Only When Needed
+### Step 2b: Research Only When Needed
 
 If decisions depend on external standards/best-practices/high-risk domains:
 
@@ -38,7 +61,7 @@ If decisions depend on external standards/best-practices/high-risk domains:
 
 Reference resulting research artifact in context contracts.
 
-### Step 2: Drive Decision Conversation
+### Step 3: Drive Decision Conversation
 
 Ask focused questions, then record final choices in these buckets:
 - architecture/API shape
@@ -48,7 +71,7 @@ Ask focused questions, then record final choices in these buckets:
 
 Stop once open risk is low enough to plan.
 
-### Step 3: Persist Contracts (Source of Truth)
+### Step 4: Persist Contracts (Source of Truth)
 
 Create:
 - `docs/planning/work/features/<feature-slug>/CONTEXT.json`
@@ -75,7 +98,7 @@ Minimal contract shape:
 
 `CONTEXT.md` should be a concise human summary of the same information.
 
-### Step 4: Optional Memory Epic
+### Step 5: Optional Memory Epic
 
 If memory is initialized, create feature epic and store ID in `CONTEXT.json`:
 
@@ -84,7 +107,7 @@ python3 scripts/workflow_memory.py create "Feature: <feature-slug>" --type epic 
 python3 scripts/workflow_memory.py phase-set <feature-slug> discuss
 ```
 
-### Step 5: Validate
+### Step 6: Validate
 
 ```bash
 python3 scripts/workflow_validate.py

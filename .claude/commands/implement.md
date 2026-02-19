@@ -11,7 +11,28 @@ Execute a plan with per-task verification.
 
 Execute the specified plan for `$ARGUMENTS`.
 
-### Step 0: Phase Check (Warn, Do Not Block)
+### Step 0: Branch Alignment
+
+Implementation must run on `feature/<feature-slug>`.
+
+```bash
+git branch --show-current
+git status --porcelain
+```
+
+Rules:
+- If already on `feature/<feature-slug>`, continue.
+- If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
+- If `feature/<feature-slug>` exists locally, switch to it.
+- Else create it from default branch:
+
+```bash
+git switch main || git switch master
+git pull --ff-only
+git switch -c feature/<feature-slug>
+```
+
+### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash
 python3 scripts/workflow_memory.py phase-get <feature-slug>
@@ -19,7 +40,7 @@ python3 scripts/workflow_memory.py phase-get <feature-slug>
 
 Expected: `plan` or `implement`.
 
-### Step 1: Load Plan Contracts
+### Step 2: Load Plan Contracts
 
 Read:
 - `docs/planning/work/features/<feature>/<NN>-PLAN.json` (source of truth)
@@ -27,7 +48,7 @@ Read:
 
 If missing, stop and list available plans.
 
-### Step 1b: Memory Prep (Optional)
+### Step 2b: Memory Prep (Optional)
 
 If memory is enabled:
 
@@ -36,13 +57,13 @@ python3 scripts/workflow_memory.py ready --feature <feature-slug>
 python3 scripts/workflow_memory.py phase-set <feature-slug> implement
 ```
 
-### Step 1c: Team Mode Routing
+### Step 2c: Team Mode Routing
 
-- If `--team` passed: delegate to `/team implement <feature> <plan>`.
-- Else if plan has `"parallelizable": true` and Agent Teams available: delegate to `/team implement`.
+- If `--team` passed: delegate to `/team implement <feature> <plan-number>`.
+- Else if plan has `"parallelizable": true` and Agent Teams available: delegate to `/team implement <feature> <plan-number>`.
 - Else execute serially.
 
-### Step 2: Execute Tasks
+### Step 3: Execute Tasks
 
 For each task in plan JSON:
 1. announce task start
@@ -52,6 +73,8 @@ For each task in plan JSON:
 5. on success: close memory ID if present
 6. on failure: inspect history, fix, retry (max 2 attempts before escalation)
 
+If task files touch memory sync/import paths (for example `scripts/memory/sync.py` or `.cnogo/issues.jsonl` flows), apply `.claude/skills/memory-sync-reconciliation.md`.
+
 Retry helper commands:
 
 ```bash
@@ -59,7 +82,7 @@ python3 scripts/workflow_memory.py checkpoint --feature <feature-slug>
 python3 scripts/workflow_memory.py history <memory-id>
 ```
 
-### Step 3: Run Plan Verification
+### Step 4: Run Plan Verification
 
 Run `planVerify[]` commands from plan JSON.
 If passing and memory enabled:
@@ -68,14 +91,14 @@ If passing and memory enabled:
 python3 scripts/workflow_memory.py phase-set <feature-slug> review
 ```
 
-### Step 4: Commit
+### Step 5: Commit
 
 ```bash
 git add -A
 git commit -m "<commitMessage from plan>"
 ```
 
-### Step 5: Write Summary Contract + Render
+### Step 6: Write Summary Contract + Render
 
 Create:
 - `docs/planning/work/features/<feature>/<NN>-SUMMARY.json`
@@ -89,7 +112,9 @@ Then render markdown summary:
 python3 scripts/workflow_render.py docs/planning/work/features/<feature>/<NN>-SUMMARY.json
 ```
 
-### Step 6: Validate
+Use `.claude/skills/workflow-contract-integrity.md` before final validation.
+
+### Step 7: Validate
 
 ```bash
 python3 scripts/workflow_validate.py

@@ -40,7 +40,8 @@ python3 scripts/workflow_memory.py sync
 ```
 If feature IDs are known, close shipped issues and set phase accordingly.
 
-7. Optional local cleanup after confirmation (switch back to main and pull).
+7. Apply `.claude/skills/feature-lifecycle-closure.md` checklist before final handoff.
+8. Optional local cleanup after confirmation (switch back to main and pull).
 
 ## Output
 

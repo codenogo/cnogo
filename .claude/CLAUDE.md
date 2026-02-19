@@ -26,6 +26,7 @@ python3 scripts/workflow_memory.py prime           # Token-efficient context sum
 python3 scripts/workflow_memory.py stats           # Aggregate statistics
 python3 scripts/workflow_memory.py create "title"  # Create an issue
 python3 scripts/workflow_memory.py show <id>       # Show issue details
+python3 scripts/workflow_checks.py discover --since-days 30  # Missed token-savings report
 ```
 
 ```python
@@ -52,9 +53,10 @@ Key files:
 
 Reusable domain expertise, lazy-loaded by commands:
 - `.claude/skills/` — code review, security scanning, performance analysis, API review, test writing, debug investigation, refactor safety, release readiness
+- workflow skills: contract integrity, worktree merge recovery, memory sync reconciliation, changed-scope verification, artifact token budgeting, boundary/SDK enforcement, feature lifecycle closure
 
 ## Security
 
 - Never commit: secrets, keys, credentials, `.env` files
-- Pre-commit hooks scan for secrets and dangerous commands
+- PreToolUse hooks block dangerous commands, scan commit input for secrets, and log token-optimization hints
 - Always validate user input at system boundaries

@@ -12,6 +12,7 @@ Example: `/close websocket-notifications`
 ## Your Task
 
 After a feature is merged, close memory epic and clean up artifacts.
+Apply `.claude/skills/feature-lifecycle-closure.md` as the closure checklist.
 
 ### Step 1: Confirm Merge
 
@@ -81,4 +82,3 @@ python3 scripts/workflow_validate.py
 - Memory epic and issues closed
 - Whether artifacts were archived
 - Next recommended action (`/brainstorm`, `/discuss`, or `/quick`)
-

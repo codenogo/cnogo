@@ -89,6 +89,17 @@ for cmd in "$SCRIPT_DIR/.claude/commands/"*.md; do
     COMMAND_COUNT=$((COMMAND_COUNT + 1))
 done
 
+# Migrate legacy cnogo /init command to avoid collisions with global /init commands.
+LEGACY_INIT="$TARGET_DIR/.claude/commands/init.md"
+if [ -f "$LEGACY_INIT" ]; then
+    if grep -q "^# Init" "$LEGACY_INIT" && grep -q "python3 scripts/workflow_detect.py --write-workflow" "$LEGACY_INIT"; then
+        rm -f "$LEGACY_INIT"
+        echo -e "   ├── commands/init.md ${YELLOW}(removed legacy cnogo command; use /cnogo-init)${NC}"
+    else
+        echo -e "   ├── commands/init.md ${YELLOW}(kept existing custom command; cnogo setup uses /cnogo-init)${NC}"
+    fi
+fi
+
 # Agent definitions
 mkdir -p "$TARGET_DIR/.claude/agents"
 for agent in "$SCRIPT_DIR/.claude/agents/"*.md; do
@@ -304,6 +315,8 @@ ENTRIES=(
     ".cnogo/memory.db"
     ".cnogo/memory.db-wal"
     ".cnogo/memory.db-shm"
+    ".cnogo/tee/"
+    ".cnogo/command-usage.jsonl"
     ""
     "# Worktree session state (transient, contains absolute paths)"
     ".cnogo/worktree-session.json"
@@ -311,7 +324,7 @@ ENTRIES=(
 
 if [ -f "$GITIGNORE" ]; then
     MISSING=false
-    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json"; do
+    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json" ".cnogo/tee/" ".cnogo/command-usage.jsonl"; do
         if ! grep -qF "$entry" "$GITIGNORE"; then
             MISSING=true
             break
@@ -335,7 +348,7 @@ fi
 
 echo ""
 echo "Next steps:"
-echo "  1. Run '/init' to auto-detect your stack and populate CLAUDE.md"
+echo "  1. Run '/cnogo-init' to auto-detect your stack and populate CLAUDE.md"
 echo "  2. Edit docs/planning/PROJECT.md with your project details"
 echo "  3. Edit .github/CODEOWNERS with your team structure"
 echo "  4. Run 'claude' and verify with /status"
@@ -349,14 +362,15 @@ echo "  Session:  /status  /pause  /resume  /sync  /context"
 echo "  Debug:    /debug  /bug  /rollback"
 echo "  Release:  /changelog  /release  /close"
 echo "  Research: /research  /brainstorm"
-echo "  Setup:    /init  /validate"
+echo "  Setup:    /cnogo-init  /validate"
 echo "  MCP:      /mcp"
 echo "  Agents:   /spawn  /team  /background  (${AGENT_COUNT} agent definitions)"
 echo ""
 echo "Hooks installed:"
 echo "  • PreToolUse:    Security validation (blocks dangerous commands)"
+echo "  • PreToolUse:    Token optimization telemetry + suggestions"
 echo "  • SubagentStop:  Teammate completion logging"
 echo "  • PostToolUse:   Auto-format on edit (stack-detected)"
-echo "  • PreCommit:     Secret scanning"
-echo "  • PostCommit:    Commit confirmation"
+echo "  • PreToolUse:    Secret scanning on 'git commit'"
+echo "  • PostToolUse:   Commit confirmation on 'git commit'"
 echo ""

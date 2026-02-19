@@ -17,6 +17,8 @@ build/
 .cnogo/memory.db
 .cnogo/memory.db-wal
 .cnogo/memory.db-shm
+.cnogo/tee/
+.cnogo/command-usage.jsonl
 
 # Worktree session state (transient, contains absolute paths)
 .cnogo/worktree-session.json

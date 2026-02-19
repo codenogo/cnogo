@@ -47,7 +47,14 @@ def guess_kind(dir_path: Path) -> str:
         return "node"
     if (dir_path / "pom.xml").exists() or (dir_path / "build.gradle").exists() or (dir_path / "build.gradle.kts").exists():
         return "java"
-    if (dir_path / "pyproject.toml").exists() or (dir_path / "setup.py").exists():
+    if (
+        (dir_path / "pyproject.toml").exists()
+        or (dir_path / "setup.py").exists()
+        or (dir_path / "setup.cfg").exists()
+        or (dir_path / "requirements.txt").exists()
+        or (dir_path / "Pipfile").exists()
+        or (dir_path / "poetry.lock").exists()
+    ):
         return "python"
     if (dir_path / "go.mod").exists():
         return "go"
@@ -85,26 +92,67 @@ def _node_commands(dir_path: Path) -> dict[str, str]:
     return cmds
 
 
+def _safe_read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _maven_has_spotless(pom_path: Path) -> bool:
+    text = _safe_read_text(pom_path)
+    return "spotless-maven-plugin" in text
+
+
+def _is_maven_aggregator(pom_path: Path) -> bool:
+    text = _safe_read_text(pom_path).lower()
+    if "<packaging>pom</packaging>" in text:
+        return True
+    if "<modules>" in text and "</modules>" in text:
+        return True
+    return False
+
+
+def _gradle_has_spotless(dir_path: Path) -> bool:
+    for name in ("build.gradle", "build.gradle.kts"):
+        path = dir_path / name
+        if path.exists() and "spotless" in _safe_read_text(path).lower():
+            return True
+    return False
+
+
 def _java_commands(dir_path: Path) -> dict[str, str]:
     cmds: dict[str, str] = {}
-    if (dir_path / "pom.xml").exists():
+    pom_path = dir_path / "pom.xml"
+    if pom_path.exists():
+        if _is_maven_aggregator(pom_path):
+            return cmds
         cmds["test"] = "mvn -q test -DskipITs"
         cmds["build"] = "mvn -q -DskipTests package"
-        cmds["format"] = "mvn -q spotless:apply"
-        cmds["lint"] = "mvn -q spotless:check"
+        if _maven_has_spotless(pom_path):
+            cmds["format"] = "mvn -q spotless:apply"
+            cmds["lint"] = "mvn -q spotless:check"
         return cmds
     if (dir_path / "build.gradle").exists() or (dir_path / "build.gradle.kts").exists():
         cmds["test"] = "./gradlew -q test"
         cmds["build"] = "./gradlew -q build -x test"
-        cmds["format"] = "./gradlew -q spotlessApply"
-        cmds["lint"] = "./gradlew -q spotlessCheck"
+        if _gradle_has_spotless(dir_path):
+            cmds["format"] = "./gradlew -q spotlessApply"
+            cmds["lint"] = "./gradlew -q spotlessCheck"
         return cmds
     return cmds
 
 
 def _python_commands(dir_path: Path) -> dict[str, str]:
     cmds: dict[str, str] = {}
-    if (dir_path / "pyproject.toml").exists() or (dir_path / "setup.py").exists():
+    if (
+        (dir_path / "pyproject.toml").exists()
+        or (dir_path / "setup.py").exists()
+        or (dir_path / "setup.cfg").exists()
+        or (dir_path / "requirements.txt").exists()
+        or (dir_path / "Pipfile").exists()
+        or (dir_path / "poetry.lock").exists()
+    ):
         cmds["test"] = "pytest -q --tb=short"
         cmds["lint"] = "ruff check ."
         cmds["format"] = "python3 -m black . && python3 -m isort ."
@@ -122,7 +170,20 @@ def _rust_commands(_dir_path: Path) -> dict[str, str]:
 def build_packages(root: Path) -> list[Package]:
     # Identify candidate package directories by manifest files.
     manifests = []
-    for name in ["package.json", "pom.xml", "build.gradle", "build.gradle.kts", "pyproject.toml", "setup.py", "go.mod", "Cargo.toml"]:
+    for name in [
+        "package.json",
+        "pom.xml",
+        "build.gradle",
+        "build.gradle.kts",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+        "go.mod",
+        "Cargo.toml",
+    ]:
         manifests.extend(find_files(root, name))
 
     dirs = sorted({p.parent for p in manifests})
@@ -236,4 +297,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

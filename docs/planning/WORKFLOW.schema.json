@@ -34,6 +34,56 @@
             "researchWordMax": { "type": "integer", "minimum": 1 },
             "brainstormWordMax": { "type": "integer", "minimum": 1 }
           }
+        },
+        "outputCompaction": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "maxLines": { "type": "integer", "minimum": 1 },
+            "failTailLines": { "type": "integer", "minimum": 1 },
+            "passLines": { "type": "integer", "minimum": 1 },
+            "dedupe": { "type": "boolean" }
+          }
+        },
+        "outputRecovery": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "mode": { "type": "string", "enum": ["failures", "always", "never"] },
+            "minChars": { "type": "integer", "minimum": 1 },
+            "maxFiles": { "type": "integer", "minimum": 1 },
+            "maxFileSize": { "type": "integer", "minimum": 1 },
+            "directory": { "type": "string", "minLength": 1 }
+          }
+        },
+        "tokenTelemetry": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" }
+          }
+        },
+        "hookOptimization": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "mode": { "type": "string", "enum": ["suggest", "enforce", "off"] },
+            "showSuggestions": { "type": "boolean" },
+            "logFile": { "type": "string", "minLength": 1 }
+          }
+        },
+        "bootstrapContext": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "rootClaudeWordMax": { "type": "integer", "minimum": 1 },
+            "workflowClaudeWordMax": { "type": "integer", "minimum": 1 },
+            "commandSetWordMax": { "type": "integer", "minimum": 1 }
+          }
         }
       }
     },
@@ -75,6 +125,10 @@
         "enabled": { "type": "boolean" },
         "scanScope": { "type": "string", "enum": ["changed", "repo"] },
         "maxFileLines": { "type": "integer", "minimum": 1 },
+        "maxFileLinesExceptions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
         "maxLineLength": { "type": "integer", "minimum": 1 },
         "todoRequiresTicket": { "type": "boolean" },
         "pythonBareExcept": { "type": "string", "enum": ["off", "warn", "fail"] },

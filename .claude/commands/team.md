@@ -21,8 +21,10 @@ Coordinate multi-agent work with explicit task boundaries and worktree sessions.
 
 1. Split request into specialized teammates (small team, clear file boundaries, no overlap).
 2. Create team + tasks via TeamCreate/TaskCreate.
-3. Spawn `general-purpose` teammates with relevant skill context.
-4. If memory initialized, create an epic issue tagged `team`.
+3. Spawn teammates with deterministic specialization->skill mapping from `/spawn`.
+4. For architecture/contract-heavy tasks, include `.claude/skills/workflow-contract-integrity.md` in lead or reviewer prompts.
+5. For safety-critical tasks, include `.claude/skills/boundary-and-sdk-enforcement.md`.
+6. If memory initialized, create an epic issue tagged `team`.
 
 ## Action: `implement`
 
@@ -45,15 +47,16 @@ Coordinate multi-agent work with explicit task boundaries and worktree sessions.
 ```bash
 python3 scripts/workflow_memory.py session-merge --json
 ```
-If merge conflict, run resolver agent and retry (max 2 attempts).
+If merge conflict, run resolver agent with `.claude/skills/worktree-merge-recovery.md` and retry (max 2 attempts).
 12. Run `planVerify` commands from plan JSON.
-13. Write summary artifacts, commit, and set phase `review` (if memory enabled).
+13. Write summary artifacts using contract integrity checks, commit, and set phase `review` (if memory enabled).
 14. Cleanup:
 ```bash
 python3 scripts/workflow_memory.py session-cleanup
 python3 scripts/workflow_validate.py --json
 ```
-15. Dismiss team.
+15. Before dismiss, run `.claude/skills/feature-lifecycle-closure.md` checklist for phase/worktree/memory closure.
+16. Dismiss team.
 
 ## Action: `status`
 

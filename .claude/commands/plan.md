@@ -12,7 +12,28 @@ Break `$ARGUMENTS` into atomic, executable plans.
 - `$ARGUMENTS` must be the feature slug (`kebab-case`) matching `docs/planning/work/features/<feature-slug>/`.
 - If user gives a display name, route through `/discuss "<display name>"` first.
 
-### Step 0: Phase Check (Warn, Do Not Block)
+### Step 0: Branch Alignment
+
+Plan work must run on `feature/$ARGUMENTS`.
+
+```bash
+git branch --show-current
+git status --porcelain
+```
+
+Rules:
+- If already on `feature/$ARGUMENTS`, continue.
+- If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
+- If `feature/$ARGUMENTS` exists locally, switch to it.
+- Else create it from default branch:
+
+```bash
+git switch main || git switch master
+git pull --ff-only
+git switch -c feature/$ARGUMENTS
+```
+
+### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash
 python3 scripts/workflow_memory.py phase-get $ARGUMENTS
@@ -20,25 +41,25 @@ python3 scripts/workflow_memory.py phase-get $ARGUMENTS
 
 Expected before `/plan`: `discuss` or `plan`.
 
-### Step 1: Load Minimal Context
+### Step 2: Load Minimal Context
 
 ```bash
 cat docs/planning/work/features/$ARGUMENTS/CONTEXT.json
 python3 scripts/workflow_memory.py prime --limit 5
 ```
 
-Open `CONTEXT.md` only if contract fields are insufficient.
-
-### Step 2: Partition Work
+### Step 3: Partition Work
 
 Split by boundaries:
-- service/component boundary
-- layer boundary (API/domain/data/UI)
-- risk boundary (safe refactor vs behavior change)
+- service/component
+- layer (API/domain/data/UI)
+- risk (refactor vs behavior change)
 
-Use principles from `CLAUDE.md` (do not duplicate long explanations here).
+Apply:
+- `.claude/skills/workflow-contract-integrity.md` for contract/lifecycle correctness
+- `.claude/skills/artifact-token-budgeting.md` to keep plans concise
 
-### Step 3: Author `NN-PLAN.json` (Source of Truth)
+### Step 4: Author `NN-PLAN.json` (Source of Truth)
 
 Write:
 - `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`
@@ -77,7 +98,7 @@ Minimal contract shape:
 - task starts only when all referenced tasks are complete
 - optional; empty means runnable immediately
 
-### Step 4: Render `NN-PLAN.md` from Contract
+### Step 5: Render `NN-PLAN.md` from Contract
 
 ```bash
 python3 scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json
@@ -85,7 +106,7 @@ python3 scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLA
 
 Then make any small human-readable edits needed (rationale/notes), while keeping JSON as source of truth.
 
-### Step 5: Optional Memory Tracking
+### Step 6: Optional Memory Tracking
 
 If memory is initialized, set feature phase and optionally create tracking issues:
 
@@ -99,7 +120,7 @@ Optional task issue creation example:
 python3 scripts/workflow_memory.py create "Task title" --type task --feature $ARGUMENTS --plan NN
 ```
 
-### Step 6: Validate
+### Step 7: Validate
 
 ```bash
 python3 scripts/workflow_validate.py

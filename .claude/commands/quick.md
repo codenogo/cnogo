@@ -11,15 +11,26 @@ Use for small, low-risk tasks (typically ≤1 hour, limited file set).
 
 Execute `$ARGUMENTS` with minimal ceremony.
 
-### Step 0: Branch
+### Step 0: Branch Bootstrap
+
+Derive `<slug>` from `$ARGUMENTS` and ensure the active branch is `fix/<slug>`.
 
 ```bash
-git checkout main
-git pull
-git checkout -b fix/<slug>
+git branch --show-current
+git status --porcelain
 ```
 
-(Use `master` if that is the repo default.)
+Rules:
+- If already on `fix/<slug>`, continue.
+- If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
+- If `fix/<slug>` exists locally, switch to it.
+- Else create it from default branch:
+
+```bash
+git switch main || git switch master
+git pull --ff-only
+git switch -c fix/<slug>
+```
 
 ### Step 1: Scope
 

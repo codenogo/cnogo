@@ -41,9 +41,14 @@ If feature slug is unknown, omit the flag:
 python3 scripts/workflow_checks.py review
 ```
 
+If `WORKFLOW.json` has empty `packages[]`, the checker auto-runs:
+`python3 scripts/workflow_detect.py --write-workflow`
+then continues.
+
 This writes:
 - `docs/planning/work/features/<feature>/REVIEW.md`
 - `docs/planning/work/features/<feature>/REVIEW.json`
+- Includes token telemetry (`tokenTelemetry`) and compact output with optional `fullOutputPath` hints for failed checks.
 
 Or (if no feature inferred):
 - `docs/planning/work/review/<timestamp>-REVIEW.md`
@@ -64,6 +69,12 @@ Review high-risk areas not fully covered by automated checks:
 - Test quality (edge cases and non-flaky behavior)
 - Scope hygiene (no drive-by refactors)
 
+Apply these skills in order for consistent review quality:
+- `.claude/skills/code-review.md`
+- `.claude/skills/boundary-and-sdk-enforcement.md`
+- `.claude/skills/workflow-contract-integrity.md`
+- `.claude/skills/artifact-token-budgeting.md`
+
 Use Karpathy principles from `CLAUDE.md` as the decision rubric. Do not restate full principle text in artifacts; fill `principles[]` status/notes in `REVIEW.json`.
 
 ### Step 4: Verdict
@@ -83,4 +94,5 @@ python3 scripts/workflow_memory.py phase-set <feature-slug> ship
 
 - Review verdict (`pass|warn|fail`)
 - Key blockers/warnings with file references
+- Token-savings summary from automated checks
 - Clear next action (`fix`, `ship`, or `follow-up`)

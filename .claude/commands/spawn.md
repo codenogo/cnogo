@@ -7,30 +7,41 @@ Launch a focused subagent with specialization-specific guidance.
 
 `/spawn <specialization> <task>`
 
-Specializations:
-- `security`
-- `tests`
-- `perf`
-- `api`
-- `review`
-- `refactor`
-- `debug`
+Specialization -> skill/agent mapping:
+- `security` -> `.claude/skills/security-scan.md`
+- `tests` -> `.claude/skills/test-writing.md`
+- `perf` -> `.claude/skills/perf-analysis.md`
+- `api` -> `.claude/skills/api-review.md`
+- `review` -> `.claude/skills/code-review.md` + `.claude/skills/boundary-and-sdk-enforcement.md`
+- `refactor` -> `.claude/skills/refactor-safety.md`
+- `debug` -> `.claude/agents/debugger.md` + `.claude/skills/debug-investigation.md`
+- `workflow` -> `.claude/skills/workflow-contract-integrity.md`
+- `merge` -> `.claude/skills/worktree-merge-recovery.md`
+- `memory` -> `.claude/skills/memory-sync-reconciliation.md`
+- `verify` -> `.claude/skills/changed-scope-verification.md`
+- `artifact` -> `.claude/skills/artifact-token-budgeting.md`
+- `boundary` -> `.claude/skills/boundary-and-sdk-enforcement.md`
+- `lifecycle` -> `.claude/skills/feature-lifecycle-closure.md`
+- `release` -> `.claude/skills/release-readiness.md`
 
 ## Your Task
 
 1. Parse specialization and task text from `$ARGUMENTS`.
-2. Resolve execution mode:
-- `debug` -> debugger subagent type
-- others -> `general-purpose` with matching skill file context
-3. Load only the matching skill/agent instructions.
-4. Spawn Task with prompt containing:
-- role/specialization contract
+2. Validate specialization against the mapping above. If invalid, return supported values and do not spawn.
+3. Resolve execution mode:
+- `debug` uses `subagent_type: debugger`
+- all others use `subagent_type: general-purpose`
+4. Load only mapped skill/agent instructions (no unrelated skills).
+5. Spawn Task prompt with:
+- selected specialization contract
 - user task
-- expected output format (findings, diffs, tests, risks)
-5. Report launch status and track completion.
+- expected output format (findings/diffs/tests/risks)
+- explicit file references if provided by user
+6. For multi-skill specializations (for example `review`), apply checklists in order listed.
+7. Report launch status and track completion.
 
 ## Output
 
-- Subagent type + loaded skill path
+- Subagent type + loaded skill path(s)
 - Task summary
 - Completion handoff with concrete results

@@ -30,6 +30,10 @@ Create a short checklist (3-7 items) of user-observable outcomes:
 - key edge case
 - key failure path
 
+Use:
+- `.claude/skills/workflow-contract-integrity.md` for artifact consistency
+- `.claude/skills/boundary-and-sdk-enforcement.md` for boundary/SDK correctness on failure analysis
+
 ### Step 3: Run Interactive UAT
 
 For each deliverable:

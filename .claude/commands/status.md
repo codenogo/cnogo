@@ -38,6 +38,7 @@ Report:
 - current branch + dirty/clean state
 - active feature/plan progress from memory
 - commits ahead of remote
+- token optimization drift from `python3 scripts/workflow_checks.py discover --since-days 7` (optional)
 - immediate next action
 
 ### Step 5: Recommended Next Command

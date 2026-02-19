@@ -1,0 +1,272 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "main",
+  "feature": "event-hardening",
+  "invariants": {
+    "findings": [
+      {
+        "file": "scripts/workflow_checks_core.py",
+        "line": 43,
+        "message": "Line length 143 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 550,
+        "message": "Line length 146 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 553,
+        "message": "Line length 148 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 584,
+        "message": "Line length 146 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 587,
+        "message": "Line length 145 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 590,
+        "message": "Line length 148 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 625,
+        "message": "Line length 150 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 659,
+        "message": "Line length 147 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 720,
+        "message": "Line length 152 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 998,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 1058,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      }
+    ],
+    "summary": {
+      "fail": 0,
+      "total": 11,
+      "warn": 11
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "fullOutputPath": null,
+          "name": "lint",
+          "output": "",
+          "outputReducer": "empty",
+          "result": "pass",
+          "tokenTelemetry": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "savedTokens": 0,
+            "savingsPct": 0.0
+          }
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "",
+      "status": "todo"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "",
+      "status": "todo"
+    }
+  ],
+  "schemaVersion": 2,
+  "timestamp": "2026-02-18T00:03:04Z",
+  "tokenTelemetry": {
+    "checksRun": 1,
+    "checksSkipped": 2,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "warn",
+  "warnings": [
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "issue": "Line length 143 exceeds 140.",
+      "line": 43,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 146 exceeds 140.",
+      "line": 550,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 148 exceeds 140.",
+      "line": 553,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 146 exceeds 140.",
+      "line": 584,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 145 exceeds 140.",
+      "line": 587,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 148 exceeds 140.",
+      "line": 590,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 150 exceeds 140.",
+      "line": 625,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 147 exceeds 140.",
+      "line": 659,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 152 exceeds 140.",
+      "line": 720,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 998,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 1058,
+      "rule": "max-line-length",
+      "severity": "medium"
+    }
+  ]
+}

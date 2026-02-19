@@ -31,18 +31,24 @@ Ask 3–5 questions:
 
 ### Step 3: Branch Safety (before committing)
 
-Regardless of path, ensure you’re not committing to `main/master`:
+Regardless of path, derive a bug slug from `$ARGUMENTS` and ensure branch isolation.
 
 ```bash
 git branch --show-current
+git status --porcelain
 ```
 
-If on `main/master`, create a fix branch:
+Rules:
+- Target branch is `fix/<slug>`.
+- If already on `fix/<slug>`, continue.
+- If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
+- If `fix/<slug>` exists locally, switch to it.
+- Else create it from default branch:
 
 ```bash
-git checkout main
-git pull
-git checkout -b fix/<slug>
+git switch main || git switch master
+git pull --ff-only
+git switch -c fix/<slug>
 ```
 
 ### Step 4: Regression Test Guidance
@@ -57,4 +63,3 @@ If the bug is non-trivial, recommend adding a regression test:
 - The recommended workflow command to run next
 - The suggested branch name (`fix/<slug>`)
 - What verification should prove the bug is fixed
-

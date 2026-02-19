@@ -1,11 +1,11 @@
-# Init
+# Cnogo Init
 <!-- effort: medium -->
 
 Bootstrap workflow config and templates for this repo.
 
 ## Arguments
 
-`/init` or `/init force`
+`/cnogo-init` or `/cnogo-init force`
 
 ## Your Task
 

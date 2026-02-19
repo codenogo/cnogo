@@ -143,11 +143,11 @@ def generate_implement_prompt(
                 "Expected pattern: cn-<base36>[.<digits>]*"
             )
         lines.append(f"**Memory:** `{memory_id}`")
-        lines.append(f"- Claim: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import claim; claim('{memory_id}', actor='implementer', root=__import__('pathlib').Path('.'))\"`")
-        lines.append(f"- Close: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import close; close('{memory_id}', reason='completed', root=__import__('pathlib').Path('.'))\"`")
-        lines.append(f"- Context: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import show; print(show('{memory_id}', root=__import__('pathlib').Path('.')))\"`")
-        lines.append(f"- History: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import history; print(history('{memory_id}', root=__import__('pathlib').Path('.')))\"`")
-        lines.append("- Checkpoint: `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import checkpoint; print(checkpoint(root=__import__('pathlib').Path('.')))\"`")
+        lines.append(f"- Claim: `python3 scripts/workflow_memory.py claim {memory_id} --actor implementer`")
+        lines.append(f"- Close: `python3 scripts/workflow_memory.py close {memory_id} --reason completed`")
+        lines.append(f"- Context: `python3 scripts/workflow_memory.py show {memory_id}`")
+        lines.append(f"- History: `python3 scripts/workflow_memory.py history {memory_id}`")
+        lines.append("- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`")
         lines.append("")
 
     lines.append("**On failure:** read history, summarize the last error, fix, and retry.")

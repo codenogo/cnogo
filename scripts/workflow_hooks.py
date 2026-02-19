@@ -2,7 +2,9 @@
 """
 Workflow hooks runner to reduce latency.
 
-Used by .claude/settings.json PostToolUse hooks to format only edited files when possible.
+Used by .claude/settings.json hooks:
+- PreToolUse (Bash): token optimization telemetry + compact command suggestions
+- PostToolUse (Write|Edit): format only edited files when possible
 No external dependencies.
 """
 
@@ -14,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -48,6 +51,286 @@ PATH_LIKE_RE = re.compile(r"""(?x)
   (?:\./|/)?[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+
 )
 """)
+
+
+_TEST_CMD_RE = re.compile(
+    r"(^|[\s;&|])(pytest|python3 -m pytest|cargo test|go test|npm test|pnpm test|yarn test|mvn test|\./gradlew test)([\s;&|]|$)"
+)
+_GIT_STATUS_COMPACT_RE = re.compile(r"git status\s+.*(--short|--porcelain)")
+_GIT_DIFF_COMPACT_RE = re.compile(r"git diff\s+.*(--name-only|--stat)")
+_LIST_COMPACT_RE = re.compile(r"(rg --files|find\s+\.\s+-type\s+f)")
+_INLINE_SECRET_PATTERNS = [
+    re.compile(r"sk-ant-[A-Za-z0-9-]{10,}"),
+    re.compile(r"sk-[A-Za-z0-9]{16,}"),
+    re.compile(r"ghp_[A-Za-z0-9]{20,}"),
+    re.compile(r"AKIA[0-9A-Z]{16}"),
+]
+_FLAG_SECRET_RE = re.compile(
+    r"(?i)(--?(?:password|pass|token|secret|apikey|api-key)\s+)(\S+)"
+)
+_KV_SECRET_RE = re.compile(
+    r"(?i)((?:password|pass|token|secret|apikey|api[-_]?key)=)([^\s]+)"
+)
+_COMMAND_KEYS = ("command", "cmd", "shell_command", "bash_command", "input", "text")
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _hook_optimization_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "enabled": True,
+        "mode": "suggest",  # suggest|enforce|off
+        "showSuggestions": True,
+        "logFile": ".cnogo/command-usage.jsonl",
+    }
+    perf = cfg.get("performance")
+    if not isinstance(perf, dict):
+        return defaults
+    raw = perf.get("hookOptimization")
+    if not isinstance(raw, dict):
+        return defaults
+
+    out = dict(defaults)
+    enabled = raw.get("enabled")
+    if isinstance(enabled, bool):
+        out["enabled"] = enabled
+    mode = raw.get("mode")
+    if mode in {"suggest", "enforce", "off"}:
+        out["mode"] = mode
+    show = raw.get("showSuggestions")
+    if isinstance(show, bool):
+        out["showSuggestions"] = show
+    log_file = raw.get("logFile")
+    if isinstance(log_file, str) and log_file.strip():
+        out["logFile"] = log_file.strip()
+    return out
+
+
+def _command_log_path(root: Path, cfg: dict[str, Any]) -> Path:
+    raw = str(cfg.get("logFile") or ".cnogo/command-usage.jsonl")
+    p = Path(raw)
+    return p if p.is_absolute() else (root / p)
+
+
+def _normalize_cmd(raw: str) -> str:
+    return " ".join(raw.strip().split())
+
+
+def _extract_bash_command(raw_input: str) -> str:
+    raw = raw_input.strip()
+    if not raw:
+        return ""
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return raw
+    if isinstance(payload, str):
+        return payload.strip() or raw
+
+    def pick(obj: Any) -> str:
+        if isinstance(obj, dict):
+            for key in _COMMAND_KEYS:
+                value = obj.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            for value in obj.values():
+                found = pick(value)
+                if found:
+                    return found
+            return ""
+        if isinstance(obj, list):
+            for item in obj:
+                found = pick(item)
+                if found:
+                    return found
+            return ""
+        return ""
+
+    extracted = pick(payload)
+    return extracted if extracted else raw
+
+
+def _redact_for_log(command: str) -> str:
+    out = command
+    for pattern in _INLINE_SECRET_PATTERNS:
+        out = pattern.sub("[REDACTED]", out)
+    out = _FLAG_SECRET_RE.sub(r"\1[REDACTED]", out)
+    out = _KV_SECRET_RE.sub(r"\1[REDACTED]", out)
+    return out
+
+
+def _classify_command(command: str) -> dict[str, Any]:
+    normalized = _normalize_cmd(command)
+    lower = normalized.lower()
+
+    # Already using compact cnogo-first paths.
+    if lower.startswith("python3 scripts/workflow_checks.py review") or lower.startswith(
+        "python3 scripts/workflow_checks.py verify-ci"
+    ):
+        return {
+            "status": "optimized",
+            "category": "workflow-checks",
+            "suggestion": "",
+            "estimatedSavingsPct": 0,
+            "estimatedRawTokens": 0,
+            "estimatedSaveableTokens": 0,
+        }
+
+    if lower.startswith("python3 scripts/workflow_memory.py prime") or lower.startswith(
+        "python3 scripts/workflow_memory.py checkpoint"
+    ):
+        return {
+            "status": "optimized",
+            "category": "memory-context",
+            "suggestion": "",
+            "estimatedSavingsPct": 0,
+            "estimatedRawTokens": 0,
+            "estimatedSaveableTokens": 0,
+        }
+
+    if lower.startswith("git status") and _GIT_STATUS_COMPACT_RE.search(lower):
+        return {
+            "status": "optimized",
+            "category": "git-status",
+            "suggestion": "",
+            "estimatedSavingsPct": 0,
+            "estimatedRawTokens": 0,
+            "estimatedSaveableTokens": 0,
+        }
+
+    if lower.startswith("git diff") and _GIT_DIFF_COMPACT_RE.search(lower):
+        return {
+            "status": "optimized",
+            "category": "git-diff",
+            "suggestion": "",
+            "estimatedSavingsPct": 0,
+            "estimatedRawTokens": 0,
+            "estimatedSaveableTokens": 0,
+        }
+
+    if lower.startswith("ls") and _LIST_COMPACT_RE.search(lower):
+        return {
+            "status": "optimized",
+            "category": "listing",
+            "suggestion": "",
+            "estimatedSavingsPct": 0,
+            "estimatedRawTokens": 0,
+            "estimatedSaveableTokens": 0,
+        }
+
+    # Missed compact path opportunities.
+    if _TEST_CMD_RE.search(lower):
+        pct = 82
+        raw_tokens = 900
+        saveable = int(raw_tokens * pct / 100)
+        return {
+            "status": "missed",
+            "category": "tests",
+            "suggestion": "python3 scripts/workflow_checks.py verify-ci <feature>",
+            "estimatedSavingsPct": pct,
+            "estimatedRawTokens": raw_tokens,
+            "estimatedSaveableTokens": saveable,
+        }
+
+    if lower.startswith("git status") and not _GIT_STATUS_COMPACT_RE.search(lower):
+        pct = 70
+        raw_tokens = 120
+        saveable = int(raw_tokens * pct / 100)
+        return {
+            "status": "missed",
+            "category": "git-status",
+            "suggestion": "git status --porcelain",
+            "estimatedSavingsPct": pct,
+            "estimatedRawTokens": raw_tokens,
+            "estimatedSaveableTokens": saveable,
+        }
+
+    if lower.startswith("git diff") and not _GIT_DIFF_COMPACT_RE.search(lower):
+        pct = 68
+        raw_tokens = 360
+        saveable = int(raw_tokens * pct / 100)
+        return {
+            "status": "missed",
+            "category": "git-diff",
+            "suggestion": "git diff --name-only",
+            "estimatedSavingsPct": pct,
+            "estimatedRawTokens": raw_tokens,
+            "estimatedSaveableTokens": saveable,
+        }
+
+    if lower.startswith("ls") and not _LIST_COMPACT_RE.search(lower):
+        pct = 62
+        raw_tokens = 180
+        saveable = int(raw_tokens * pct / 100)
+        return {
+            "status": "missed",
+            "category": "listing",
+            "suggestion": "rg --files | head -n 200",
+            "estimatedSavingsPct": pct,
+            "estimatedRawTokens": raw_tokens,
+            "estimatedSaveableTokens": saveable,
+        }
+
+    return {
+        "status": "neutral",
+        "category": "other",
+        "suggestion": "",
+        "estimatedSavingsPct": 0,
+        "estimatedRawTokens": 0,
+        "estimatedSaveableTokens": 0,
+    }
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(payload, sort_keys=True) + "\n")
+
+
+def pre_bash() -> int:
+    raw_input = os.environ.get("CLAUDE_TOOL_INPUT", "").strip()
+    if not raw_input:
+        return 0
+
+    try:
+        command = _extract_bash_command(raw_input)
+        if not command:
+            return 0
+        root = repo_root()
+        wf = load_workflow(root)
+        cfg = _hook_optimization_cfg(wf)
+        if not cfg.get("enabled", True) or cfg.get("mode") == "off":
+            return 0
+
+        classification = _classify_command(command)
+        safe_cmd = _redact_for_log(_normalize_cmd(command))
+        payload = {
+            "timestamp": _now_iso(),
+            "command": safe_cmd,
+            **classification,
+            "source": "pre_bash_hook",
+        }
+        _append_jsonl(_command_log_path(root, cfg), payload)
+
+        if classification.get("status") == "missed":
+            suggestion = str(classification.get("suggestion") or "").strip()
+            if cfg.get("showSuggestions", True) and suggestion:
+                print(
+                    f"Token hint: prefer `{suggestion}` (est. -{classification.get('estimatedSavingsPct', 0)}%).",
+                    file=sys.stderr,
+                )
+            if cfg.get("mode") == "enforce":
+                print(
+                    "Blocked by token-optimization policy. Use the suggested compact command.",
+                    file=sys.stderr,
+                )
+                return 2
+        return 0
+    except Exception:
+        # Never block work on hook telemetry/suggestion failure.
+        return 0
 
 
 def extract_edited_files(raw_input: str, root: Path) -> list[Path]:
@@ -206,9 +489,11 @@ def run_changed_formatters(root: Path, files: list[Path]) -> int:
 
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: workflow_hooks.py post_edit", file=sys.stderr)
+        print("Usage: workflow_hooks.py <pre_bash|post_edit>", file=sys.stderr)
         return 2
     cmd = sys.argv[1]
+    if cmd == "pre_bash":
+        return pre_bash()
     if cmd == "post_edit":
         return post_edit()
     print(f"Unknown command: {cmd}", file=sys.stderr)

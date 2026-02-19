@@ -120,8 +120,10 @@ From the target project root:
 ```bash
 cd /path/to/your/project
 claude
-/init
+/cnogo-init
 ```
+
+`/cnogo-init` is intentionally namespaced to avoid collisions with other global `/init` commands.
 
 #### Recommended: Enable Package-Aware Checks (Monorepos/Polyglots)
 
@@ -135,6 +137,7 @@ This powers package-aware execution for:
 
 - `python3 scripts/workflow_checks.py review`
 - `python3 scripts/workflow_checks.py verify-ci <feature-slug>`
+- `python3 scripts/workflow_checks.py discover --since-days 30`
 
 Then edit these once (they are your long-term “source of truth”):
 
@@ -159,6 +162,7 @@ Use this when work is non-trivial (new API, multi-file changes, riskier changes,
 
 Outputs:
 
+- Creates or switches to `feature/<feature-slug>` (fails fast if branch switch is blocked by uncommitted changes)
 - `docs/planning/work/features/<feature-slug>/CONTEXT.md`
 - `docs/planning/work/features/<feature-slug>/CONTEXT.json`
 - Creates memory epic for the feature
@@ -252,6 +256,7 @@ Use this for small fixes (bug fix, tiny config tweak, docs update).
 
 Outputs:
 
+- Creates or switches to `fix/<slug>` (fails fast if branch switch is blocked by uncommitted changes)
 - `docs/planning/work/quick/NNN-<slug>/PLAN.md` + `PLAN.json`
 - `docs/planning/work/quick/NNN-<slug>/SUMMARY.md` + `SUMMARY.json`
 - A commit
@@ -271,7 +276,7 @@ If you have a bug report and you’re not sure whether it’s “quick” or “
 /bug "describe the bug"
 ```
 
-It routes you to `/quick`, `/debug`, or `/discuss` and ensures branch safety and verification guidance.
+It routes you to `/quick`, `/debug`, or `/discuss`, and enforces `fix/<slug>` branch safety before committing.
 
 ### Post-Merge Cleanup
 
@@ -462,7 +467,7 @@ claude --teleport session_xxx
 
 | Command | Purpose |
 |---------|---------|
-| `/init` | Auto-populate templates based on stack detection |
+| `/cnogo-init` | Auto-populate templates based on stack detection |
 | `/close <feature>` | Post-merge cleanup (memory close + optional archive) |
 
 ### MCP Integrations
@@ -576,11 +581,13 @@ your-project/
 
 ## Hooks
 
-### PreToolUse (Security Validation)
+### PreToolUse (Security + Token Optimization)
 
 Validates commands **before** execution:
 - **Bash commands:** Blocks dangerous patterns (`rm -rf /`, `sudo rm`, `chmod 777`, disk operations)
 - **Read operations:** Requires approval for sensitive files (`.env`, credentials, private keys)
+- **Token optimization telemetry:** Logs Bash command usage to `.cnogo/command-usage.jsonl` and suggests compact alternatives
+- **Commit secret scan:** Scans staged files when a `git commit` command is issued
 
 ### PostToolUse (Auto-format on edit)
 
@@ -589,19 +596,19 @@ By default, formatting runs **after edits** but is optimized for latency:
 - Uses `python3 scripts/workflow_hooks.py post_edit` to format **only the files Claude edited** when possible
 - Configurable via `docs/planning/WORKFLOW.json` (`performance.postEditFormat*`)
 
-### PreCommit
+### Discover (Missed Savings)
 
-1. **Secret scanning** — Blocks commits containing:
-   - AWS access keys (`AKIA...`)
-   - Anthropic API keys (`sk-ant-...`)
-   - OpenAI API keys (`sk-...`)
-   - GitHub tokens (`ghp_...`)
-   - Slack tokens (`xox...`)
-   - Azure storage keys (`AccountKey=...`)
-   - GCP service account JSON
-   - Private keys (`BEGIN PRIVATE KEY`)
+Use discover to find where command habits are wasting tokens:
 
-2. **Tests** — Runs test suite for your stack
+```bash
+python3 scripts/workflow_checks.py discover --since-days 30
+python3 scripts/workflow_checks.py discover --since-days 7 --format json
+```
+
+This reads `.cnogo/command-usage.jsonl` and reports:
+- already-optimized command rate
+- missed compact-command opportunities
+- estimated saveable tokens
 
 ### PostCommit
 
