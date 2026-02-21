@@ -45,6 +45,10 @@ __all__ = [
     "prime", "checkpoint", "history", "show_graph",
     # Worktree (parallel agent isolation)
     "merge_session", "cleanup_session", "load_session",
+    "create_session", "save_session", "get_conflict_context",
+    # Bridge (plan → task descriptions)
+    "plan_to_task_descriptions", "generate_implement_prompt",
+    "detect_file_conflicts", "generate_run_id",
     # Reconcile (compaction recovery)
     "reconcile_session",
     # Cost tracking
@@ -947,6 +951,69 @@ def load_session(root: Path) -> Any:
     """Read and deserialize worktree session state. Returns None if no file."""
     from .worktree import load_session as _load
     return _load(root)
+
+
+def create_session(
+    plan_json_path: Path,
+    root: Path,
+    task_descriptions: list[dict[str, Any]],
+    *,
+    run_id: str = "",
+) -> Any:
+    """Create worktrees for parallel agent execution."""
+    from .worktree import create_session as _create
+    return _create(plan_json_path, root, task_descriptions, run_id=run_id)
+
+
+def save_session(session: Any, root: Path) -> None:
+    """Serialize session to JSON, write atomically."""
+    from .worktree import save_session as _save
+    _save(session, root)
+
+
+def get_conflict_context(
+    session: Any,
+    task_index: int,
+    plan_json_path: Path,
+    root: Path,
+) -> dict[str, Any]:
+    """Build context dict for the resolver agent."""
+    from .worktree import get_conflict_context as _get
+    return _get(session, task_index, plan_json_path, root)
+
+
+# ---------------------------------------------------------------------------
+# Bridge (plan → task descriptions)
+# ---------------------------------------------------------------------------
+
+
+def plan_to_task_descriptions(
+    plan_json_path: Path,
+    root: Path,
+) -> list[dict[str, Any]]:
+    """Read plan JSON and generate TaskDesc V2 objects."""
+    from .bridge import plan_to_task_descriptions as _ptd
+    return _ptd(plan_json_path, root)
+
+
+def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
+    """Render a TaskDesc V2 dict into a markdown agent prompt."""
+    from .bridge import generate_implement_prompt as _gip
+    return _gip(taskdesc)
+
+
+def detect_file_conflicts(
+    tasks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Check for file overlaps across tasks (advisory)."""
+    from .bridge import detect_file_conflicts as _dfc
+    return _dfc(tasks)
+
+
+def generate_run_id(feature: str) -> str:
+    """Generate a unique run ID for a team execution session."""
+    from .bridge import generate_run_id as _gri
+    return _gri(feature)
 
 
 # ---------------------------------------------------------------------------
