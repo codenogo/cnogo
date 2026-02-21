@@ -155,6 +155,12 @@ def generate_implement_prompt(
     lines.append("After 2 failures, message the team lead.")
     if memory_id:
         lines.append("**If blocked:** do NOT close memory. Message the team lead.")
+        lines.append(
+            f"**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. "
+            f"(2) LAST action before finishing: close this issue and confirm closure in your final message by writing "
+            f'"Memory closed: {memory_id}". '
+            f"(3) If blocked and cannot complete, do NOT close — message the team lead instead."
+        )
     lines.append("")
 
     return "\n".join(lines)
