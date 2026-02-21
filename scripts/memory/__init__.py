@@ -960,7 +960,7 @@ def create_session(
     *,
     run_id: str = "",
 ) -> Any:
-    """Create worktrees for parallel agent execution."""
+    """Create worktrees for parallel agent execution. Requires TaskDesc V2."""
     from .worktree import create_session as _create
     return _create(plan_json_path, root, task_descriptions, run_id=run_id)
 

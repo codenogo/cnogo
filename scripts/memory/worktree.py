@@ -263,8 +263,8 @@ def create_session(
     3. For each non-skipped task: create branch, worktree, symlink .cnogo/
     4. Write session state file
 
-    Accepts TaskDesc V2 dicts (task_id, title, file_scope) with fallback
-    to V1 fields (memoryId, name) for backward compatibility.
+    Requires TaskDesc V2 dicts (task_id, title, file_scope).
+    Raises ValueError if V1-only fields are detected without V2 equivalents.
 
     On failure, cleans up all worktrees created so far.
     """
@@ -297,9 +297,14 @@ def create_session(
             if desc.get("skipped"):
                 continue
 
-            # V2: title, task_id; V1 fallback: name, memoryId
-            task_name = desc.get("title") or desc.get("name", f"task-{i}")
-            memory_id = desc.get("task_id") or desc.get("memoryId", "")
+            # V2 required — fail fast on V1-only input
+            if "title" not in desc and "name" in desc:
+                raise ValueError(
+                    f"Task {i} has V1 field 'name' but no V2 'title'. "
+                    "Pass TaskDesc V2 dicts from plan_to_task_descriptions()."
+                )
+            task_name = desc.get("title", f"task-{i}")
+            memory_id = desc.get("task_id", "")
 
             branch_name = f"{_BRANCH_PREFIX}{feature}-{plan_number}-task-{i}"
             wt_dir = f"{project_name}-wt-{feature}-{plan_number}-{i}"
