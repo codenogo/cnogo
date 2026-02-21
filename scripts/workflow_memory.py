@@ -74,12 +74,14 @@ from scripts.memory import (  # noqa: E402
     reconcile_session,
     record_cost_event,
     reopen,
+    report_done,
     show,
     show_graph,
     stats,
     set_phase,
     sync,
     update,
+    verify_and_close,
 )
 
 
@@ -229,6 +231,35 @@ def cmd_close(args: argparse.Namespace) -> int:
             actor=args.actor, root=root,
         )
         print(f"Closed: {issue.id} ({issue.close_reason})")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_report_done(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        outputs = None
+        if args.outputs:
+            outputs = json.loads(args.outputs)
+        issue = report_done(
+            args.id, actor=args.actor, outputs=outputs, root=root,
+        )
+        print(f"Reported done: {issue.id} (state={issue.state})")
+        return 0
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+def cmd_verify_close(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        issue = verify_and_close(
+            args.id, reason=args.reason, actor=args.actor, root=root,
+        )
+        print(f"Verified and closed: {issue.id} (state={issue.state})")
         return 0
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
@@ -618,6 +649,18 @@ def main() -> int:
     p.add_argument("--comment", help="Closing comment")
     p.add_argument("--actor", default="claude")
 
+    # report-done
+    p = sub.add_parser("report-done", help="Worker reports task done")
+    p.add_argument("id", help="Issue ID")
+    p.add_argument("--actor", required=True, help="Actor name")
+    p.add_argument("--outputs", help="Optional JSON outputs string")
+
+    # verify-close
+    p = sub.add_parser("verify-close", help="Leader verifies and closes a task")
+    p.add_argument("id", help="Issue ID")
+    p.add_argument("--reason", default="completed")
+    p.add_argument("--actor", default="claude")
+
     # reopen
     p = sub.add_parser("reopen", help="Reopen a closed issue")
     p.add_argument("id", help="Issue ID")
@@ -755,6 +798,8 @@ def main() -> int:
         "update": cmd_update,
         "claim": cmd_claim,
         "close": cmd_close,
+        "report-done": cmd_report_done,
+        "verify-close": cmd_verify_close,
         "reopen": cmd_reopen,
         "ready": cmd_ready,
         "list": cmd_list,
