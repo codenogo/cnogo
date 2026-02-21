@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "001",
+  "slug": "dead-submodule-functions",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/memory/bridge.py",
+      "description": "Deleted entirely (239 lines). All 3 public functions (plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts) and 2 internal helpers (_is_already_closed, _ensure_memory_issue) had zero external callers after __init__.py wrapper removal."
+    },
+    {
+      "file": "scripts/memory/ledger.py",
+      "description": "Deleted entirely (99 lines). All 4 public functions (load_ledger, save_ledger, create_ledger, update_ledger) and 1 helper (generate_run_id) had zero external callers. No .cnogo/run.json file existed."
+    }
+  ],
+  "verification": [
+    {
+      "command": "from scripts.memory import * — wildcard import",
+      "result": "pass"
+    },
+    {
+      "command": "from scripts.memory import init, create, ready, claim, close, prime — core API",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py — no errors",
+      "result": "pass"
+    },
+    {
+      "command": "test ! -f scripts/memory/bridge.py — file deleted",
+      "result": "pass"
+    },
+    {
+      "command": "test ! -f scripts/memory/ledger.py — file deleted",
+      "result": "pass"
+    }
+  ],
+  "commit": "13b6af5",
+  "timestamp": "2026-02-21T14:35:00Z"
+}
