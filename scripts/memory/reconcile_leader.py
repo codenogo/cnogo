@@ -18,6 +18,32 @@ from pathlib import Path
 from typing import Any
 
 
+def _set_ready_and_close(
+    issue_id: str,
+    *,
+    actor: str = "leader",
+    root: Path | None = None,
+) -> None:
+    """Set ready_to_close then close, with retry for SQLITE_BUSY."""
+    from . import close
+    from . import storage as _st
+
+    r = root or Path(".")
+    db_path = r / ".cnogo" / "memory.db"
+
+    def _do() -> None:
+        conn = _st.connect(db_path)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            _st.update_issue_fields(conn, issue_id, state="ready_to_close")
+            conn.commit()
+        finally:
+            conn.close()
+
+    _st.with_retry(_do)
+    close(issue_id, actor_role="leader", actor=actor, root=root)
+
+
 def reconcile(
     epic_id: str,
     *,
@@ -94,20 +120,9 @@ def reconcile(
             fresh_plan = show(plan.id, root=root)
             if fresh_plan and fresh_plan.state != "closed":
                 try:
-                    # Set ready_to_close then close
-                    from . import storage as _st_inner
-                    r = root or Path(".")
-                    conn = _st_inner.connect(
-                        r / ".cnogo" / "memory.db"
+                    _set_ready_and_close(
+                        plan.id, actor=actor, root=root,
                     )
-                    try:
-                        _st_inner.update_issue_fields(
-                            conn, plan.id, state="ready_to_close"
-                        )
-                        conn.commit()
-                    finally:
-                        conn.close()
-                    close(plan.id, actor_role="leader", actor=actor, root=root)
                     summary["plans_closed"] += 1
                 except Exception as exc:
                     summary["errors"].append(
@@ -133,19 +148,9 @@ def reconcile(
         fresh_epic = show(epic_id, root=root)
         if fresh_epic and fresh_epic.state != "closed":
             try:
-                from . import storage as _st_inner
-                r = root or Path(".")
-                conn = _st_inner.connect(
-                    r / ".cnogo" / "memory.db"
+                _set_ready_and_close(
+                    epic_id, actor=actor, root=root,
                 )
-                try:
-                    _st_inner.update_issue_fields(
-                        conn, epic_id, state="ready_to_close"
-                    )
-                    conn.commit()
-                finally:
-                    conn.close()
-                close(epic_id, actor_role="leader", actor=actor, root=root)
                 summary["epic_closed"] = True
             except Exception as exc:
                 summary["errors"].append(

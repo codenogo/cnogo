@@ -425,10 +425,11 @@ def report_done(
                 raise ValueError(
                     f"report_done only works on tasks, got {existing.issue_type!r}"
                 )
-            if actor_role == "hook" and existing.owner_actor and existing.owner_actor != actor:
-                raise ValueError(
-                    "Hook can only report_done for owned tasks"
-                )
+            if actor_role == "hook":
+                if not existing.owner_actor or existing.owner_actor != actor:
+                    raise ValueError(
+                        "Hook can only report_done for owned tasks"
+                    )
 
             _validate_transition(existing, existing.state, "done_by_worker", actor_role)
             _st.update_issue_fields(conn, issue_id, state="done_by_worker")
