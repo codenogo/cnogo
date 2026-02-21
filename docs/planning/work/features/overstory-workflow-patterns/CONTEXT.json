@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "feature": "overstory-workflow-patterns",
+  "displayName": "Overstory Workflow Patterns",
+  "research": [
+    "docs/planning/work/research/overstory-workflow-patterns/RESEARCH.json"
+  ],
+  "decisions": [
+    {
+      "area": "scope",
+      "decision": "All 4 patterns: tiered merge, /doctor command, transcript cost tracking, agent health monitoring",
+      "rationale": "All scored HIGH or MEDIUM value with LOW-MEDIUM effort. Batch delivery maximizes the Overstory research investment."
+    },
+    {
+      "area": "merge-resolution",
+      "decision": "Add tiers 1-2 to worktree.py:merge_session(). Tier 1: clean merge (existing). Tier 2: auto-resolve-keep-incoming, gated on detect_file_conflicts() confirming disjoint files. Skip tier 2 if files overlap.",
+      "rationale": "Catches 60-80% of conflicts mechanically. Gate prevents silent data loss on shared files."
+    },
+    {
+      "area": "merge-tracking",
+      "decision": "Add resolvedTier field to MergeResult and WorktreeInfo. Track per-merge resolution tier in session state.",
+      "rationale": "Enables historical analysis of conflict patterns. Mirrors Overstory's learning-from-outcomes pattern."
+    },
+    {
+      "area": "doctor-location",
+      "decision": "Add 'doctor' as new subcommand of workflow_checks.py alongside verify-ci, review, discover",
+      "rationale": "Consistent with existing architecture. Reuses workflow_checks_core.py infrastructure."
+    },
+    {
+      "area": "doctor-checks",
+      "decision": "Run 5 checks sequentially: (1) workflow_validate.py, (2) PRAGMA integrity_check on memory.db, (3) orphaned worktree detection via git worktree list, (4) stale issue scan (open >30 days unassigned), (5) hook config sanity (settings.json exists, hooks point to valid scripts)",
+      "rationale": "Covers the critical diagnostic gaps identified in research. Each check is independent and fast."
+    },
+    {
+      "area": "cost-storage",
+      "decision": "Store per-agent cost data as events in existing memory.db events table. Event type: 'cost_report'. Data field: JSON with inputTokens, outputTokens, cacheTokens, model, estimatedCostUsd.",
+      "rationale": "Ties cost to issues/features via existing API. Queryable without new tables. Events already have issue_id linkage."
+    },
+    {
+      "area": "cost-parsing",
+      "decision": "New scripts/memory/costs.py module. Parse ~/.claude/projects/{slug}/{session}.jsonl for assistant entries. Model-specific pricing: Opus $15/$75, Sonnet $3/$15, Haiku $0.80/$4 per M tokens.",
+      "rationale": "Matches Overstory's proven transcript parsing approach. Defensive parsing with fallback to zero on malformed data."
+    },
+    {
+      "area": "watchdog-strategy",
+      "decision": "Log stale tasks to memory events + notify team lead. No automatic termination. Stale threshold: staleIndicatorMinutes from WORKFLOW.json (default 10). Surface in /team status and /doctor.",
+      "rationale": "Conservative escalation avoids killing slow-but-valid tasks. Team lead retains control. Aligns with cnogo's no-runtime-services constraint."
+    },
+    {
+      "area": "watchdog-location",
+      "decision": "New scripts/memory/watchdog.py module. Callable from /team status and /doctor. Checks worktree-session.json timestamps and task in_progress duration.",
+      "rationale": "Lives in memory package since it reads memory DB. No daemon — runs on-demand only (respects no-runtime-services constraint)."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no external dependencies",
+    "No daemon/background processes — watchdog is on-demand polling only",
+    "Tier 2 auto-resolve gated on disjoint file pre-validation",
+    "Transcript JSONL parsing must be defensive — format is Claude Code internal and may change",
+    "Cost pricing constants must be easy to update (single dict, not spread across code)",
+    "Doctor checks must each complete in <5s to keep total runtime acceptable",
+    "Max 3 tasks per plan (will need multiple plans for all 4 features)"
+  ],
+  "openQuestions": [
+    "Should cost tracking parse historical transcripts or only current session?",
+    "Should /doctor have a --fix flag for auto-remediation (e.g., prune orphaned worktrees)?",
+    "Should watchdog create memory issues for stale tasks or just log events?"
+  ],
+  "relatedCode": [
+    "scripts/memory/worktree.py",
+    "scripts/memory/bridge.py",
+    "scripts/workflow_checks.py",
+    "scripts/workflow_checks_core.py",
+    "scripts/workflow_validate.py",
+    "scripts/workflow_hooks.py",
+    ".claude/skills/worktree-merge-recovery.md",
+    ".claude/commands/team.md",
+    ".claude/commands/status.md",
+    "docs/planning/WORKFLOW.json"
+  ],
+  "memoryEpicId": "cn-12vmyu0",
+  "timestamp": "2026-02-21T00:00:00Z"
+}
