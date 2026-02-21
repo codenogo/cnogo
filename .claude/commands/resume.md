@@ -39,7 +39,12 @@ If resuming team execution:
 ```bash
 python3 scripts/workflow_memory.py list --type epic --status in_progress --limit 5
 python3 scripts/workflow_memory.py session-status
+python3 scripts/workflow_memory.py session-reconcile
 ```
+
+This auto-closes any memory issues whose worktrees were already merged/cleaned, fixing orphaned state from context compaction.
+
+If reconcile found orphaned issues, they are now closed. Check memory status with `python3 scripts/workflow_memory.py prime`.
 
 If an active worktree session exists, continue with `/team implement <feature> <plan>`; otherwise continue with normal `/implement`.
 
