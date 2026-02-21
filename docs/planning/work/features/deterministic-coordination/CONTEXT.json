@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "feature": "deterministic-coordination",
+  "displayName": "Deterministic Coordination",
+  "memoryEpicId": "cn-uvutix",
+  "decisions": [
+    {
+      "area": "data-model",
+      "decision": "Add mandatory Issue.type enum: EPIC | PLAN | TASK",
+      "rationale": "Current type field is a free-text string with no enforcement. Object hierarchy must be explicit to enforce ownership and permission rules."
+    },
+    {
+      "area": "data-model",
+      "decision": "Add Issue.owner_actor field, mandatory for TASK (single owner), leader-owned for PLAN/EPIC",
+      "rationale": "Workers must only operate on TASKs they own. PLAN/EPIC are leader-only coordination objects."
+    },
+    {
+      "area": "data-model",
+      "decision": "Add Issue.state field with type-specific state machines",
+      "rationale": "Binary open/closed is insufficient. TASK needs OPEN -> IN_PROGRESS -> DONE_BY_WORKER -> VERIFIED -> CLOSED. PLAN/EPIC need OPEN -> READY_TO_CLOSE -> CLOSED. status=CLOSED only when state=CLOSED."
+    },
+    {
+      "area": "data-model",
+      "decision": "Make close_reason a structured enum + optional note instead of free text",
+      "rationale": "Currently close_reason is free text ('completed' x12). Structured enum prevents ambiguity."
+    },
+    {
+      "area": "permissions",
+      "decision": "Define ActorRole = LEADER | WORKER | HOOK with hard enforcement in close()/transition()",
+      "rationale": "Without enforcement, conventions are ignored. WORKER may only set TASK.state=DONE_BY_WORKER and add outputs. HOOK same but only for current worker's owned TASKs. LEADER may set VERIFIED/CLOSED and close PLANs/EPICs."
+    },
+    {
+      "area": "api",
+      "decision": "Implement two-phase completion: report_done() for workers, verify_and_close() for leader",
+      "rationale": "Workers signal completion (Phase A: DONE_BY_WORKER + outputs), leader commits closure (Phase B: VERIFIED -> CLOSED). Separates 'task completion' from 'issue closure'."
+    },
+    {
+      "area": "api",
+      "decision": "Remove auto-close-parent cascade from close()",
+      "rationale": "Current close() auto-closes parent epic when all siblings close. This causes workers to accidentally close epics. Parent closure belongs exclusively in leader reconciliation."
+    },
+    {
+      "area": "hooks",
+      "decision": "SubagentStop hook becomes a reporter, never a closer",
+      "rationale": "Current hook regex-scans all cn-* IDs from last message and closes everything it finds (including epics/plans). New behavior: only call report_done() for TASKs where type=TASK AND owner_actor==current_agent."
+    },
+    {
+      "area": "hooks",
+      "decision": "Require structured TASK_DONE footer from workers instead of regex scanning",
+      "rationale": "Regex scanning cn-* IDs from message text accidentally matches epics, plans, and mentioned-but-not-owned IDs. Structured footer 'TASK_DONE: [cn-123, cn-456]' is explicit and safe."
+    },
+    {
+      "area": "coordination",
+      "decision": "Leader reconciliation is the only component that closes PLAN/EPIC objects",
+      "rationale": "Deterministic algorithm: Load Epic -> Plans -> Tasks. Close TASKs that are DONE_BY_WORKER + verified. Close PLANs when all TASKs closed. Close EPIC when all PLANs closed. No other path to closure."
+    },
+    {
+      "area": "lifecycle",
+      "decision": "Team lifecycle must use try/finally with guaranteed TeamDelete on teardown",
+      "rationale": "Current cleanup is best-effort, causing 'Already leading team' deadlocks. TeamCreate once per run, TeamDelete always in teardown (even on failure). Add unique team name per run with run_id suffix."
+    },
+    {
+      "area": "lifecycle",
+      "decision": "Persist team_id in run ledger to prevent orphaning on compaction/restart",
+      "rationale": "Agent records become zombies when agents exit but membership records remain. Run ledger prevents compaction from losing team context."
+    },
+    {
+      "area": "validation",
+      "decision": "Persist validation baseline per branch/run and report diffs only",
+      "rationale": "Current 'warnings are pre-existing' is asserted without proof. Baseline snapshot (.cnogo/validate-baseline.json) enables diffing: new warnings, resolved warnings, unchanged warnings."
+    },
+    {
+      "area": "token-optimization",
+      "decision": "Add run ledger (.cnogo/run.json) as single-file coordination state for compaction resilience",
+      "rationale": "Leader can restart any time by reading 1 file and reconciling. Workers never get full history — only task id, acceptance criteria, files, and 'report_done, don't close'. Minimizes token spend per worker and survives compaction/restart."
+    },
+    {
+      "area": "token-optimization",
+      "decision": "Run ledger schema: run_id, phase, team_id, issue_ids, states, outputs_hash",
+      "rationale": "Single source of truth for run state. issue_ids maps all tracked issues, states tracks current state per issue, outputs_hash enables verification without re-reading outputs. Phase tracks overall run progress."
+    },
+    {
+      "area": "token-optimization",
+      "decision": "Workers receive minimal context only: task id, acceptance criteria, files, 'report_done don't close'",
+      "rationale": "Current bridge.py embeds full memory commands and lifecycle instructions. Workers don't need history, epic context, or close permissions. Minimal prompt = fewer tokens per worker spawn."
+    }
+  ],
+  "constraints": [
+    "Python code is stdlib-only (no external dependencies)",
+    "Memory engine uses SQLite + JSONL sync format",
+    "Plans are small-batch (max 3 tasks per plan)",
+    "All state transitions must be enforced in the Python API, not just by convention",
+    "SubagentStop hook must complete in < 3 seconds",
+    "Backward compatibility: existing issues.jsonl data must migrate cleanly",
+    "No worker may close PLAN or EPIC objects under any circumstances",
+    "Hook must never close anything — only report_done() for owned TASKs"
+  ],
+  "openQuestions": [
+    "Migration strategy: how to handle existing issues.jsonl entries that lack type/state/owner_actor fields",
+    "close_reason enum values: what specific values beyond 'completed' (e.g., rejected, superseded, blocked)?"
+  ],
+  "relatedCode": [
+    "scripts/memory/__init__.py",
+    "scripts/memory/models.py",
+    "scripts/memory/bridge.py",
+    "scripts/memory/storage.py",
+    "scripts/hook-subagent-stop.py",
+    "scripts/workflow_memory.py",
+    "scripts/workflow_validate.py",
+    ".claude/agents/implementer.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/team.md",
+    ".claude/settings.json"
+  ],
+  "timestamp": "2026-02-21T12:00:00Z"
+}

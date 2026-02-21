@@ -137,6 +137,7 @@ def create(
     labels: list[str] | None = None,
     description: str | None = None,
     metadata: dict | None = None,
+    owner_actor: str = "",
     actor: str = "claude",
     root: Path | None = None,
 ) -> Issue:
@@ -186,8 +187,11 @@ def create(
                 content_hash=chash,
                 description=description or "",
                 status="open",
+                state="open",
                 issue_type=issue_type,
                 priority=priority,
+                assignee="",
+                owner_actor=owner_actor or "",
                 feature_slug=feature_slug or "",
                 plan_number=plan_number or "",
                 phase=_st.normalize_phase(phase or "discuss"),
@@ -347,6 +351,7 @@ def claim(
                     f"Issue {issue_id} already claimed by {existing.assignee!r}"
                 )
 
+            _st.update_issue_fields(conn, issue_id, state="in_progress")
             _emit(conn, issue_id, "claimed", actor)
             conn.commit()
             return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
@@ -385,6 +390,7 @@ def close(
             if not ok:
                 raise ValueError(f"Issue {issue_id} is already closed")
 
+            _st.update_issue_fields(conn, issue_id, state="closed")
             _emit(conn, issue_id, "closed", actor, {
                 "reason": reason,
                 "comment": comment or "",

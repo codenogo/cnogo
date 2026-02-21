@@ -28,7 +28,7 @@ _JSONL_NAME = "issues.jsonl"
 # Schema validation constants (W-4)
 _VALID_STATUSES = frozenset({"open", "in_progress", "closed"})
 _VALID_TYPES = frozenset({
-    "epic", "task", "subtask", "bug", "quick", "background",
+    "epic", "plan", "task", "subtask", "bug", "quick", "background",
 })
 
 
@@ -373,9 +373,11 @@ def _obj_to_issue(obj: dict[str, Any]) -> "Issue":
         title=title,
         description=obj.get("description", ""),
         status=status,
+        state=obj.get("state", "open"),
         issue_type=issue_type,
         priority=priority,
         assignee=obj.get("assignee", ""),
+        owner_actor=obj.get("owner_actor", ""),
         feature_slug=obj.get("feature_slug", ""),
         plan_number=obj.get("plan_number", ""),
         phase=_st.normalize_phase(obj.get("phase", "discuss")),
