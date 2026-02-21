@@ -59,6 +59,7 @@ from scripts.memory import (  # noqa: E402
     dep_add,
     dep_remove,
     export_jsonl,
+    get_cost_summary,
     import_jsonl,
     init,
     is_initialized,
@@ -69,6 +70,7 @@ from scripts.memory import (  # noqa: E402
     merge_session,
     prime,
     ready,
+    record_cost_event,
     reopen,
     show,
     show_graph,
@@ -490,6 +492,55 @@ def cmd_session_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_costs(args: argparse.Namespace) -> int:
+    if args.project_slug:
+        from scripts.memory.costs import summarize_project_costs
+        summary = summarize_project_costs(args.project_slug)
+        print(f"Project: {summary['project']}")
+        print(f"  Input tokens:         {summary['total_input_tokens']:,}")
+        print(f"  Output tokens:        {summary['total_output_tokens']:,}")
+        print(f"  Cache read tokens:    {summary['total_cache_read_tokens']:,}")
+        print(f"  Cache creation tokens:{summary['total_cache_creation_tokens']:,}")
+        print(f"  Estimated cost (USD): ${summary['total_estimated_cost_usd']:.4f}")
+        if summary["sessions"]:
+            print(f"  Sessions ({len(summary['sessions'])}):")
+            for s in summary["sessions"]:
+                print(f"    {s['path']}  model={s['model']}  tokens={s['tokens']:,}  cost=${s['cost_usd']:.4f}")
+    elif args.feature:
+        root = _root()
+        summary = get_cost_summary(args.feature, root=root)
+        print(f"Feature: {summary['feature_slug']}")
+        print(f"  Total tokens:     {summary['total_tokens']:,}")
+        print(f"  Total cost (USD): ${summary['total_cost_usd']:.4f}")
+        print(f"  Events recorded:  {summary['event_count']}")
+    else:
+        print("Specify --feature or --project-slug")
+        return 1
+    return 0
+
+
+def cmd_cost_record(args: argparse.Namespace) -> int:
+    from scripts.memory.costs import parse_transcript, estimate_cost
+    session_path = Path(args.session_path)
+    if not session_path.exists():
+        print(f"Error: {session_path} not found", file=sys.stderr)
+        return 1
+    usage = parse_transcript(session_path)
+    cost = estimate_cost(usage)
+    record_cost_event(
+        args.issue_id,
+        input_tokens=usage.input_tokens,
+        output_tokens=usage.output_tokens,
+        cache_tokens=usage.cache_read_tokens + usage.cache_creation_tokens,
+        model=usage.model,
+        cost_usd=cost,
+        root=_root(),
+    )
+    print(f"Recorded cost event for {args.issue_id}: "
+          f"tokens={usage.input_tokens + usage.output_tokens:,}  "
+          f"cost=${cost:.4f}  model={usage.model}")
+    return 0
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -643,6 +694,16 @@ def main() -> int:
     # session-cleanup
     sub.add_parser("session-cleanup", help="Cleanup active worktree session worktrees")
 
+    # costs
+    p = sub.add_parser("costs", help="Show cost tracking summary")
+    p.add_argument("--feature", help="Feature slug to query recorded cost events")
+    p.add_argument("--project-slug", help="Claude Code project slug to parse transcripts")
+
+    # cost-record
+    p = sub.add_parser("cost-record", help="Parse transcript and record cost event")
+    p.add_argument("issue_id", help="Issue ID to attach cost event to")
+    p.add_argument("session_path", help="Path to Claude Code session JSONL transcript")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -650,7 +711,9 @@ def main() -> int:
         return 1
 
     # Check initialization for non-init commands
-    if args.command != "init" and not is_initialized(_root()):
+    # 'costs --project-slug' reads transcripts only, no DB needed
+    _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
+    if args.command != "init" and _needs_db and not is_initialized(_root()):
         print(
             "Memory engine not initialized. Run: "
             "python3 scripts/workflow_memory.py init",
@@ -685,6 +748,8 @@ def main() -> int:
         "session-status": cmd_session_status,
         "session-merge": cmd_session_merge,
         "session-cleanup": cmd_session_cleanup,
+        "costs": cmd_costs,
+        "cost-record": cmd_cost_record,
     }
 
     handler = dispatch.get(args.command)
