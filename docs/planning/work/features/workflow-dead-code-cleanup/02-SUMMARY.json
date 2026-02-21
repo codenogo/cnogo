@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "feature": "workflow-dead-code-cleanup",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "docs/planning/work/archive/event-hardening/",
+      "description": "Moved from docs/planning/work/features/ via git mv. REVIEW-only directory with no CONTEXT/PLANs."
+    },
+    {
+      "file": "docs/planning/work/archive/context-engineering-fixes/",
+      "description": "Moved from docs/planning/work/features/ via git mv. CONTEXT + REVIEW but no PLANs/SUMMARYs."
+    },
+    {
+      "file": "docs/planning/work/archive/overstory-workflow-patterns/",
+      "description": "Moved from docs/planning/work/features/ via git mv. 3 PLANs without SUMMARYs, last touched 2026-02-14."
+    },
+    {
+      "file": ".cnogo/issues.jsonl",
+      "description": "Closed epic cn-12vmyu0 and 3 child tasks (cn-12vmyu0.1, cn-12vmyu0.2, cn-12vmyu0.3) with reason 'archived — stale feature moved to archive'."
+    }
+  ],
+  "verification": [
+    {
+      "command": "test -d docs/planning/work/archive/event-hardening",
+      "result": "pass"
+    },
+    {
+      "command": "test -d docs/planning/work/archive/context-engineering-fixes",
+      "result": "pass"
+    },
+    {
+      "command": "test -d docs/planning/work/archive/overstory-workflow-patterns",
+      "result": "pass"
+    },
+    {
+      "command": "test ! -d docs/planning/work/features/event-hardening",
+      "result": "pass"
+    },
+    {
+      "command": "test ! -d docs/planning/work/features/context-engineering-fixes",
+      "result": "pass"
+    },
+    {
+      "command": "test ! -d docs/planning/work/features/overstory-workflow-patterns",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py show cn-12vmyu0 — confirmed closed",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py — no errors",
+      "result": "pass"
+    }
+  ],
+  "commit": "0e5b508",
+  "timestamp": "2026-02-21T14:00:00Z"
+}
