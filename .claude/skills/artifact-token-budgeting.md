@@ -1,3 +1,8 @@
+---
+name: artifact-token-budgeting
+tags: [workflow, quality, performance]
+appliesTo: [review, plan, spawn]
+---
 # Artifact Token Budgeting
 
 Use this skill when editing command docs or planning artifacts.

@@ -1,3 +1,8 @@
+---
+name: perf-analysis
+tags: [domain, performance]
+appliesTo: [spawn]
+---
 # Performance Analysis
 
 Profiling and optimization checklist.

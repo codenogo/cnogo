@@ -1,3 +1,8 @@
+---
+name: api-review
+tags: [domain, quality]
+appliesTo: [spawn]
+---
 # API Design Review
 
 Checklist for adding or modifying endpoints, contracts, and schemas.

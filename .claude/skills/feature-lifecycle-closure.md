@@ -1,3 +1,8 @@
+---
+name: feature-lifecycle-closure
+tags: [workflow, release]
+appliesTo: [ship, close, spawn]
+---
 # Feature Lifecycle Closure
 
 Use this skill for `/ship`, `/close`, and phase-completion checks.

@@ -1,3 +1,8 @@
+---
+name: memory-sync-reconciliation
+tags: [workflow, quality]
+appliesTo: [implement, spawn]
+---
 # Memory Sync Reconciliation
 
 Use this skill for `.cnogo/issues.jsonl` and SQLite reconciliation issues.

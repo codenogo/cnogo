@@ -1,3 +1,8 @@
+---
+name: workflow-contract-integrity
+tags: [workflow, quality]
+appliesTo: [review, plan, verify-ci, verify, implement, team, spawn]
+---
 # Workflow Contract Integrity
 
 Use this skill when authoring or reviewing planning artifacts.

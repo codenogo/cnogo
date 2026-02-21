@@ -1,3 +1,8 @@
+---
+name: code-review
+tags: [domain, quality, security]
+appliesTo: [review, spawn]
+---
 # Code Review
 
 Review checklist for code quality, security, and maintainability.

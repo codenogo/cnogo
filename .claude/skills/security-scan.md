@@ -1,3 +1,8 @@
+---
+name: security-scan
+tags: [domain, security]
+appliesTo: [spawn]
+---
 # Security Scan
 
 OWASP-based security review for application code.
