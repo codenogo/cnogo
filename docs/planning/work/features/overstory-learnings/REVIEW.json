@@ -1,0 +1,80 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/overstory-learnings",
+  "feature": "overstory-learnings",
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {"pattern": "surgical-changes", "status": "pass", "notes": "56 insertions across 5 files, all scoped to plan tasks"},
+    {"pattern": "stdlib-only", "status": "pass", "notes": "No new imports — uses existing run_shell, subprocess, json"},
+    {"pattern": "backward-compatible", "status": "pass", "notes": "Merge tier adds new 'tiers' key; existing consumers unaffected"}
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    {"axis": "correctness", "score": 2, "notes": "All implementations match plan. Doctor check uses existing patterns. Merge tier reads existing resolved_tier field."},
+    {"axis": "security", "score": 2, "notes": "No user input. Shell commands use run_shell with timeouts. No injection vectors."},
+    {"axis": "performance", "score": 2, "notes": "Doctor check: 3 git commands with 10s timeouts. Merge tier: O(worktrees). Agent rules: ~20 words each."},
+    {"axis": "maintainability", "score": 2, "notes": "Follows existing code patterns. Doctor check mirrors checks 1-5 structure."},
+    {"axis": "contract_compliance", "score": 2, "notes": "CONTEXT, PLAN, RESEARCH artifacts present with correct schemas. Changes match plan scope."},
+    {"axis": "test_coverage", "score": 1, "notes": "No new tests. Verify commands pass. Acceptable for config and advisory checks."},
+    {"axis": "documentation", "score": 2, "notes": "Docstring updated 5->6 checks. Agent rules self-documenting."}
+  ],
+  "schemaVersion": 3,
+  "securityFindings": [],
+  "timestamp": "2026-02-21T20:35:26Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}
