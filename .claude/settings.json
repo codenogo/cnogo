@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Subagent completed: '\"$CLAUDE_AGENT_TYPE\""
+            "command": "python3 scripts/hook-subagent-stop.py"
           }
         ]
       }
