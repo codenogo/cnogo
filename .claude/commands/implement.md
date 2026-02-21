@@ -80,10 +80,10 @@ This validates blockedBy indices, creates memory issues if needed, and skips alr
 For each task in the TaskDescV2 list from Step 2d:
 1. skip if `task['skipped']` is true
 1b. announce task start, review Operating Principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
-2. if `task['task_id']` present, run `task['commands']['claim']`
+2. if `task['task_id']` present, run `python3 scripts/workflow_memory.py claim <task_id> --actor implementer`
 3. execute `task['action']`, editing only files in `task['file_scope']['paths']`
 4. run all `task['commands']['verify']` commands
-5. on success: run `task['commands']['report_done']` if task_id present
+5. on success if task_id present: run `python3 scripts/workflow_memory.py report-done <task_id> --actor implementer`
 6. on failure: inspect history, fix, retry (max 2 attempts before escalation)
 
 **Important:** Workers NEVER close memory issues — only report done. The leader handles closure.

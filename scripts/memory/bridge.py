@@ -89,18 +89,9 @@ def plan_to_task_descriptions(
                     f"Task {i} has self-referencing blockedBy index {idx}"
                 )
 
-        # Build commands object
+        # Build commands object — only non-derivable commands persisted.
+        # claim/report_done/context are derived from task_id at render time.
         commands: dict[str, Any] = {"verify": verify}
-        if memory_id:
-            commands["claim"] = (
-                f"python3 scripts/workflow_memory.py claim {memory_id} --actor implementer"
-            )
-            commands["report_done"] = (
-                f"python3 scripts/workflow_memory.py report-done {memory_id} --actor implementer"
-            )
-            commands["context"] = (
-                f"python3 scripts/workflow_memory.py show {memory_id}"
-            )
 
         # Build completion footer
         completion_footer = f"TASK_DONE: [{memory_id}]" if memory_id else ""
@@ -169,15 +160,16 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
                 "Expected pattern: cn-<base36>[.<digits>]*"
             )
         lines.append(f"**Memory:** `{task_id}`")
-        claim = commands.get("claim", "")
-        report_done = commands.get("report_done", "")
-        context = commands.get("context", "")
-        if claim:
-            lines.append(f"- Claim: `{claim}`")
-        if report_done:
-            lines.append(f"- Report done: `{report_done}`")
-        if context:
-            lines.append(f"- Context: `{context}`")
+        # Derive claim/report_done/context from task_id (not persisted)
+        lines.append(
+            f"- Claim: `python3 scripts/workflow_memory.py claim {task_id} --actor implementer`"
+        )
+        lines.append(
+            f"- Report done: `python3 scripts/workflow_memory.py report-done {task_id} --actor implementer`"
+        )
+        lines.append(
+            f"- Context: `python3 scripts/workflow_memory.py show {task_id}`"
+        )
         lines.append(f"- History: `python3 scripts/workflow_memory.py history {task_id}`")
         lines.append("- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`")
         lines.append("")
