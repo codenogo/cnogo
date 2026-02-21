@@ -10,15 +10,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/hook-dangerous-cmd.sh"
+            "timeout": 3000,
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-dangerous-cmd.sh\" ]; then bash \"$ROOT/scripts/hook-dangerous-cmd.sh\"; else exit 0; fi"
           },
           {
             "type": "command",
-            "command": "bash scripts/hook-pre-commit-secrets.sh"
+            "timeout": 3000,
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-pre-commit-secrets.sh\" ]; then bash \"$ROOT/scripts/hook-pre-commit-secrets.sh\"; else exit 0; fi"
           },
           {
             "type": "command",
-            "command": "python3 scripts/workflow_hooks.py pre_bash"
+            "timeout": 3000,
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/workflow_hooks.py\" ]; then python3 \"$ROOT/scripts/workflow_hooks.py\" pre_bash; else exit 0; fi"
           }
         ]
       },
@@ -27,6 +30,7 @@
         "hooks": [
           {
             "type": "command",
+            "timeout": 2000,
             "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-sensitive-file.sh\" ]; then bash \"$ROOT/scripts/hook-sensitive-file.sh\"; else exit 0; fi"
           }
         ]
@@ -48,7 +52,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 scripts/workflow_hooks.py post_edit || true"
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/workflow_hooks.py\" ]; then python3 \"$ROOT/scripts/workflow_hooks.py\" post_edit; else exit 0; fi"
           }
         ]
       },
@@ -57,7 +61,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash scripts/hook-commit-confirm.sh"
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-commit-confirm.sh\" ]; then bash \"$ROOT/scripts/hook-commit-confirm.sh\"; else exit 0; fi"
           }
         ]
       }
