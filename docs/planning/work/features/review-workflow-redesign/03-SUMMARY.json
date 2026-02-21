@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-workflow-redesign",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "action": "Removed REVIEW_PRINCIPLES_REQUIRED_SCHEMA, DEFAULT_REVIEW_PRINCIPLES, _review_principles_cfg(). Renamed _get_karpathy_checklist_level() to _get_operating_principles_level() with backward-compat fallback. Updated _validate_workflow_config() to validate operatingPrinciples (accept karpathyChecklist fallback), removed reviewPrinciples validation. Rewrote _validate_ci_verification() to validate securityFindings/performanceFindings/patternCompliance for schemaVersion>=3, accept old schema silently. Updated _validate_features() and validate_repo() signatures."
+    },
+    {
+      "file": ".claude/commands/implement.md",
+      "action": "Added Operating Principles reminder (step 1b) after task start announcement in Step 3"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m py_compile scripts/workflow_validate_core.py",
+      "result": "pass"
+    },
+    {
+      "command": "grep -q 'Operating Principles' .claude/commands/implement.md",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py",
+      "result": "pass (pre-existing warnings only)"
+    }
+  ],
+  "commit": "93e1cf5",
+  "timestamp": "2026-02-21T00:00:00Z"
+}

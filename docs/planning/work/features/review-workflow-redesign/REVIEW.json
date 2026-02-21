@@ -1,0 +1,205 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/review-workflow-redesign",
+  "feature": "review-workflow-redesign",
+  "invariants": {
+    "findings": [
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 540,
+        "message": "Line length 146 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 543,
+        "message": "Line length 148 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 574,
+        "message": "Line length 146 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 577,
+        "message": "Line length 145 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 580,
+        "message": "Line length 148 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 635,
+        "message": "Line length 147 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 696,
+        "message": "Line length 152 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_validate_core.py",
+        "line": 956,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      }
+    ],
+    "summary": {
+      "fail": 0,
+      "total": 8,
+      "warn": 8
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "fullOutputPath": null,
+          "name": "lint",
+          "output": "",
+          "outputReducer": "empty",
+          "reason": null,
+          "result": "pass",
+          "tokenTelemetry": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "savedTokens": 0,
+            "savingsPct": 0.0
+          }
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {"area": "api-consistency", "status": "pass", "notes": "New REVIEW.json fields follow existing array-of-objects pattern"},
+    {"area": "schema-versioning", "status": "pass", "notes": "schemaVersion bumped to 3, old versions accepted silently"},
+    {"area": "config-migration", "status": "warn", "notes": "WORKFLOW.schema.json still has karpathyChecklist/reviewPrinciples — should be updated to operatingPrinciples"}
+  ],
+  "performanceFindings": [
+    {"area": "code-reduction", "status": "pass", "notes": "Net -86 lines in validator, -86 in checks_core — reduced complexity"}
+  ],
+  "principleNotes": [
+    {"principle": "Surgical Changes", "notes": "Each plan touched only its target files; net code reduction across both Python files"},
+    {"principle": "Simplicity First", "notes": "Removed speculative abstraction (review-scoped principles config) in favor of always-on coding-time enforcement"}
+  ],
+  "schemaVersion": 3,
+  "securityFindings": [
+    {"area": "secrets", "status": "pass", "notes": "No secrets/credentials introduced or exposed"},
+    {"area": "input-validation", "status": "pass", "notes": "Config parsing validates types and enum values"}
+  ],
+  "timestamp": "2026-02-21T12:13:20Z",
+  "tokenTelemetry": {
+    "checksRun": 1,
+    "checksSkipped": 2,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": [
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 146 exceeds 140.",
+      "line": 540,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 148 exceeds 140.",
+      "line": 543,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 146 exceeds 140.",
+      "line": 574,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 145 exceeds 140.",
+      "line": 577,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 148 exceeds 140.",
+      "line": 580,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 147 exceeds 140.",
+      "line": 635,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 152 exceeds 140.",
+      "line": 696,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 956,
+      "rule": "max-line-length",
+      "severity": "medium"
+    }
+  ]
+}

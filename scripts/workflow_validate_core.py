@@ -606,7 +606,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         mvs = enf.get("monorepoVerifyScope", "warn")
         if mvs not in {"warn", "error"}:
             findings.append(Finding("WARN", "WORKFLOW.json: enforcement.monorepoVerifyScope should be warn|error.", str(cfg_path)))
-        op = enf.get("operatingPrinciples") or enf.get("karpathyChecklist", "warn")
+        op = enf.get("operatingPrinciples", "warn")
         if op not in {"off", "warn", "error"}:
             findings.append(Finding("WARN", "WORKFLOW.json: enforcement.operatingPrinciples should be off|warn|error.", str(cfg_path)))
 
@@ -776,7 +776,7 @@ def _get_monorepo_scope_level(cfg: dict[str, Any]) -> str:
 
 def _get_operating_principles_level(cfg: dict[str, Any]) -> str:
     enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
-    level = enforcement.get("operatingPrinciples") or enforcement.get("karpathyChecklist", "warn")
+    level = enforcement.get("operatingPrinciples", "warn")
     if level not in {"off", "warn", "error"}:
         return "warn"
     return level
