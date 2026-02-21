@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "feature": "workflow-dead-code-cleanup",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/memory/__init__.py",
+      "description": "Removed 11 dead function wrappers from __all__ and their function definitions: plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, create_session, get_conflict_context, save_session, run_watchdog_checks, load_ledger, save_ledger, create_ledger, check_stale_tasks. Removed entire Bridge and Ledger sections. Kept merge_session, cleanup_session, load_session, check_stale_issues (used externally). Updated 2 outdated section comments: removed Phase 2/3 references from Blocked Cache and Sync headers."
+    }
+  ],
+  "verification": [
+    {
+      "command": "from scripts.memory import * — wildcard import",
+      "result": "pass"
+    },
+    {
+      "command": "from scripts.memory import merge_session, cleanup_session, load_session, check_stale_issues — kept exports",
+      "result": "pass"
+    },
+    {
+      "command": "assert 'plan_to_task_descriptions' not in __all__ — dead exports removed",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py — no new errors",
+      "result": "pass"
+    }
+  ],
+  "commit": "8eed963",
+  "timestamp": "2026-02-21T13:15:00Z"
+}
