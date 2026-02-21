@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "feature": "workflow-dead-code-cleanup",
+  "displayName": "Workflow Dead Code Cleanup",
+  "decisions": [
+    {
+      "area": "dead-functions",
+      "decision": "Remove 11 unused public API wrappers from scripts/memory/__init__.py",
+      "rationale": "These functions are exported in __all__ but never called externally by any workflow script or command: plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, create_session, get_conflict_context, save_session, run_watchdog_checks, load_ledger, save_ledger, create_ledger, check_stale_tasks. Removing them reduces maintenance surface and confusion."
+    },
+    {
+      "area": "stale-artifacts",
+      "decision": "Archive 3 orphaned/incomplete feature directories",
+      "rationale": "event-hardening (REVIEW-only, no CONTEXT/PLANs), context-engineering-fixes (CONTEXT + REVIEW but no PLANs/SUMMARYs), and overstory-workflow-patterns (3 PLANs without SUMMARYs, last touched 2026-02-14) are stale. Move to docs/planning/work/archive/ to declutter active feature space."
+    },
+    {
+      "area": "outdated-comments",
+      "decision": "Remove outdated Phase 3 stubs in memory/__init__.py",
+      "rationale": "Comments referencing future Phase 3 work that has already been completed or superseded. Keeping them creates false expectations."
+    },
+    {
+      "area": "wrapper-consolidation",
+      "decision": "Keep wrapper script pattern as-is",
+      "rationale": "workflow_checks.py and workflow_validate.py use dynamic globals() re-export from *_core.py. This is intentional for backwards compatibility with existing commands that reference the wrapper paths. Not worth disrupting."
+    },
+    {
+      "area": "repo-root-variant",
+      "decision": "Keep _repo_root() in workflow_validate_core.py as-is",
+      "rationale": "The specialized _repo_root(start) variant takes a start parameter for traversal, which serves a different purpose than the shared repo_root(). Functional difference, not duplication."
+    },
+    {
+      "area": "historical-refs",
+      "decision": "Leave old config key references in historical planning docs",
+      "rationale": "32 references to karpathyChecklist/reviewPrinciples exist only in completed feature planning artifacts. These are historical records, not active code. Editing them would falsify the record."
+    }
+  ],
+  "constraints": [
+    "stdlib-only: no new dependencies",
+    "All removals must pass workflow_validate.py after changes",
+    "Dead function removal must not break any import paths used by commands or skills",
+    "Archive directory must preserve original structure for auditability",
+    "Do not modify historical planning artifacts"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "scripts/memory/__init__.py",
+    "scripts/memory/core.py",
+    "scripts/memory/sync.py",
+    "scripts/memory/ledger.py",
+    "scripts/memory/sessions.py",
+    "scripts/memory/watchdog.py",
+    "scripts/workflow_validate_core.py",
+    "docs/planning/work/features/event-hardening/",
+    "docs/planning/work/features/context-engineering-fixes/",
+    "docs/planning/work/features/overstory-workflow-patterns/"
+  ],
+  "timestamp": "2026-02-21T13:00:00Z"
+}

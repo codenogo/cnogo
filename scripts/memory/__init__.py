@@ -43,20 +43,14 @@ __all__ = [
     "export_jsonl", "import_jsonl", "sync",
     # Context
     "prime", "checkpoint", "history", "show_graph",
-    # Bridge (Agent Teams integration)
-    "plan_to_task_descriptions", "generate_implement_prompt",
-    "detect_file_conflicts",
     # Worktree (parallel agent isolation)
-    "create_session", "merge_session", "cleanup_session",
-    "get_conflict_context", "load_session", "save_session",
+    "merge_session", "cleanup_session", "load_session",
     # Reconcile (compaction recovery)
     "reconcile_session",
     # Cost tracking
     "record_cost_event", "get_cost_summary", "cost_summary", "parse_transcript",
     # Health monitoring (watchdog)
-    "check_stale_tasks", "check_stale_issues", "run_watchdog_checks",
-    # Ledger (team coordination)
-    "load_ledger", "save_ledger", "create_ledger",
+    "check_stale_issues",
     # Leader reconciliation
     "reconcile",
 ]
@@ -835,7 +829,7 @@ def blocks(
 
 
 # ---------------------------------------------------------------------------
-# Blocked Cache & Cycle Detection (inline — Phase 2 adds graph.py)
+# Blocked Cache & Cycle Detection
 # ---------------------------------------------------------------------------
 
 _CYCLE_MAX_ITERATIONS = 10_000
@@ -873,7 +867,7 @@ def _would_create_cycle(conn, issue_id: str, depends_on_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Sync (stubs — Phase 3 adds sync.py / context.py)
+# Sync & Context
 # ---------------------------------------------------------------------------
 
 def export_jsonl(root: Path) -> Path:
@@ -934,64 +928,8 @@ def show_graph(feature_slug: str, *, root: Path | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Bridge (Agent Teams integration)
-# ---------------------------------------------------------------------------
-
-def plan_to_task_descriptions(
-    plan_json_path: Path,
-    root: Path,
-) -> list[dict[str, Any]]:
-    """Read an NN-PLAN.json and generate task descriptions for agent teammates."""
-    from .bridge import plan_to_task_descriptions as _bridge
-    return _bridge(plan_json_path, root)
-
-
-def generate_implement_prompt(
-    *,
-    task_name: str,
-    action: str,
-    files: list[str],
-    verify: list[str],
-    memory_id: str = "",
-) -> str:
-    """Generate the full agent prompt for an implementer teammate."""
-    from .bridge import generate_implement_prompt as _gen
-    return _gen(
-        task_name=task_name,
-        action=action,
-        files=files,
-        verify=verify,
-        memory_id=memory_id,
-    )
-
-
-def detect_file_conflicts(
-    tasks: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Check for file overlaps that may produce merge conflicts (advisory).
-
-    Returns a list of conflict dicts: [{file, tasks, severity}].
-    Severity is always "advisory" — worktree isolation prevents runtime
-    interference, and the resolver agent handles merge conflicts at merge time.
-    Empty list = no overlaps detected.
-    """
-    from .bridge import detect_file_conflicts as _detect
-    return _detect(tasks)
-
-
-# ---------------------------------------------------------------------------
 # Worktree (parallel agent isolation)
 # ---------------------------------------------------------------------------
-
-def create_session(
-    plan_json_path: Path,
-    root: Path,
-    task_descriptions: list[dict[str, Any]],
-) -> Any:
-    """Create worktrees for parallel agent execution."""
-    from .worktree import create_session as _create
-    return _create(plan_json_path, root, task_descriptions)
-
 
 def merge_session(session: Any, root: Path) -> Any:
     """Merge agent branches sequentially in task order."""
@@ -1005,27 +943,10 @@ def cleanup_session(session: Any, root: Path) -> None:
     _cleanup(session, root)
 
 
-def get_conflict_context(
-    session: Any,
-    task_index: int,
-    plan_json_path: Path,
-    root: Path,
-) -> dict[str, Any]:
-    """Build context dict for the resolver agent."""
-    from .worktree import get_conflict_context as _ctx
-    return _ctx(session, task_index, plan_json_path, root)
-
-
 def load_session(root: Path) -> Any:
     """Read and deserialize worktree session state. Returns None if no file."""
     from .worktree import load_session as _load
     return _load(root)
-
-
-def save_session(session: Any, root: Path) -> None:
-    """Serialize worktree session to JSON, write atomically."""
-    from .worktree import save_session as _save
-    _save(session, root)
 
 
 # ---------------------------------------------------------------------------
@@ -1110,51 +1031,10 @@ def parse_transcript(path: Path) -> Any:
 # Health monitoring (watchdog)
 # ---------------------------------------------------------------------------
 
-def check_stale_tasks(root: Path, stale_minutes: int = 10) -> list:
-    """Check for stale executing tasks in worktree sessions."""
-    from .watchdog import check_stale_tasks as _check
-    return _check(root, stale_minutes)
-
-
 def check_stale_issues(root: Path, stale_days: int = 30) -> list:
     """Check for stale open issues with no assignee."""
     from .watchdog import check_stale_issues as _check
     return _check(root, stale_days)
-
-
-def run_watchdog_checks(root: Path, config: dict | None = None) -> dict:
-    """Run all health monitoring checks."""
-    from .watchdog import run_all_checks as _run
-    return _run(root, config)
-
-
-# ---------------------------------------------------------------------------
-# Ledger (team coordination)
-# ---------------------------------------------------------------------------
-
-def load_ledger(root: Path) -> dict[str, Any] | None:
-    """Read .cnogo/run.json. Returns None if missing."""
-    from .ledger import load_ledger as _load
-    return _load(root)
-
-
-def save_ledger(root: Path, data: dict[str, Any]) -> None:
-    """Atomic write of .cnogo/run.json."""
-    from .ledger import save_ledger as _save
-    _save(root, data)
-
-
-def create_ledger(
-    root: Path,
-    *,
-    run_id: str,
-    feature: str,
-    team_id: str,
-    epic_id: str,
-) -> dict[str, Any]:
-    """Create a new run ledger with phase='setup'."""
-    from .ledger import create_ledger as _create
-    return _create(root, run_id=run_id, feature=feature, team_id=team_id, epic_id=epic_id)
 
 
 # ---------------------------------------------------------------------------
