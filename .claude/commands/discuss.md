@@ -21,6 +21,23 @@ git branch --show-current
 git status --porcelain
 ```
 
+**Step 0a: Clean up merged branches** before creating new work:
+
+```bash
+git branch --merged main
+```
+
+Delete any local branches already merged into main (excluding `main` itself):
+
+```bash
+git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
+git remote prune origin
+```
+
+Report deleted branches if any.
+
+**Step 0b: Switch or create feature branch:**
+
 Rules:
 - If already on `feature/<feature-slug>`, continue.
 - If a branch switch is needed and working tree is dirty, stop and ask user to commit/stash first (do not continue on wrong branch).
