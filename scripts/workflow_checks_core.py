@@ -1639,6 +1639,135 @@ def _autobootstrap_packages_if_empty(
     return refreshed
 
 
+def _cmd_doctor(root: Path, wf: dict, json_output: bool = False) -> int:
+    """Run 5 diagnostic checks and report pass/warn/fail."""
+    import sqlite3
+    checks = []
+
+    # Check 1: Workflow validation
+    try:
+        result = subprocess.run(
+            ["python3", "scripts/workflow_validate.py", "--json"],
+            capture_output=True, text=True, timeout=30, cwd=str(root)
+        )
+        if result.returncode == 0:
+            checks.append({"name": "workflow_validation", "status": "pass", "details": "WORKFLOW.json and contracts valid"})
+        else:
+            details = result.stdout.strip()[:200] or result.stderr.strip()[:200] or "Validation failed"
+            checks.append({"name": "workflow_validation", "status": "fail", "details": details})
+    except Exception as exc:
+        checks.append({"name": "workflow_validation", "status": "fail", "details": str(exc)[:200]})
+
+    # Check 2: Memory DB integrity
+    db_path = root / ".cnogo" / "memory.db"
+    if db_path.exists():
+        try:
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            result = conn.execute("PRAGMA integrity_check").fetchone()
+            conn.close()
+            if result and result[0] == "ok":
+                checks.append({"name": "memory_db_integrity", "status": "pass", "details": "PRAGMA integrity_check: ok"})
+            else:
+                checks.append({"name": "memory_db_integrity", "status": "fail", "details": f"integrity_check: {result[0] if result else 'no result'}"})
+        except Exception as exc:
+            checks.append({"name": "memory_db_integrity", "status": "fail", "details": str(exc)[:200]})
+    else:
+        checks.append({"name": "memory_db_integrity", "status": "warn", "details": "memory.db not found (not initialized)"})
+
+    # Check 3: Orphaned worktrees
+    try:
+        wt_result = subprocess.run(
+            ["git", "worktree", "list", "--porcelain"],
+            capture_output=True, text=True, timeout=10, cwd=str(root)
+        )
+        session_file = root / ".cnogo" / "worktree-session.json"
+        tracked_paths = set()
+        if session_file.exists():
+            import json as _json
+            with open(session_file) as f:
+                session_data = _json.load(f)
+            for wt in session_data.get("worktrees", []):
+                tracked_paths.add(wt.get("path", ""))
+
+        # Parse porcelain output
+        worktree_paths = []
+        for line in wt_result.stdout.splitlines():
+            if line.startswith("worktree "):
+                wp = line[len("worktree "):]
+                # Skip the main worktree
+                if wp != str(root):
+                    worktree_paths.append(wp)
+
+        orphaned = [p for p in worktree_paths if p not in tracked_paths]
+        if orphaned:
+            checks.append({"name": "orphaned_worktrees", "status": "warn", "details": f"{len(orphaned)} orphaned worktree(s): {', '.join(orphaned[:3])}"})
+        else:
+            checks.append({"name": "orphaned_worktrees", "status": "pass", "details": f"No orphaned worktrees ({len(worktree_paths)} tracked)"})
+    except Exception as exc:
+        checks.append({"name": "orphaned_worktrees", "status": "warn", "details": str(exc)[:200]})
+
+    # Check 4: Stale issues
+    try:
+        from scripts.memory.watchdog import check_stale_issues
+        stale = check_stale_issues(root)
+        if stale:
+            titles = [s.get("title", s.get("id", "?"))[:40] for s in stale[:3]]
+            checks.append({"name": "stale_issues", "status": "warn", "details": f"{len(stale)} stale issue(s): {', '.join(titles)}"})
+        else:
+            checks.append({"name": "stale_issues", "status": "pass", "details": "No stale issues found"})
+    except Exception as exc:
+        checks.append({"name": "stale_issues", "status": "warn", "details": f"Could not check: {exc}"})
+
+    # Check 5: Hook config sanity
+    settings_path = root / ".claude" / "settings.json"
+    if settings_path.exists():
+        try:
+            import json as _json
+            with open(settings_path) as f:
+                settings = _json.load(f)
+            hooks = settings.get("hooks", {})
+            missing_scripts = []
+            for hook_name, hook_entries in hooks.items():
+                if isinstance(hook_entries, list):
+                    for entry in hook_entries:
+                        cmd = entry.get("command", "") if isinstance(entry, dict) else ""
+                        # Extract script path from command (first arg after bash/python3)
+                        parts = cmd.split()
+                        for part in parts:
+                            if part.endswith((".sh", ".py")) and not part.startswith("-"):
+                                script_path = root / part
+                                if not script_path.exists():
+                                    missing_scripts.append(part)
+            if missing_scripts:
+                checks.append({"name": "hook_config", "status": "warn", "details": f"Missing hook scripts: {', '.join(missing_scripts[:3])}"})
+            else:
+                checks.append({"name": "hook_config", "status": "pass", "details": "All hook script paths valid"})
+        except Exception as exc:
+            checks.append({"name": "hook_config", "status": "fail", "details": str(exc)[:200]})
+    else:
+        checks.append({"name": "hook_config", "status": "warn", "details": ".claude/settings.json not found"})
+
+    # Output
+    has_fail = any(c["status"] == "fail" for c in checks)
+
+    if json_output:
+        print(json.dumps({"checks": checks}, indent=2))
+    else:
+        status_icons = {"pass": "✅", "warn": "⚠️", "fail": "❌"}
+        print("cnogo doctor — diagnostic checks\n")
+        for c in checks:
+            icon = status_icons.get(c["status"], "?")
+            print(f"  {icon} {c['name']}: {c['details']}")
+        print()
+        if has_fail:
+            print("Some checks failed. Run with --json for machine-readable output.")
+        else:
+            print("All checks passed.")
+
+    return 1 if has_fail else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run package-aware workflow checks.")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -1664,6 +1793,9 @@ def main() -> int:
     d.add_argument("--since-days", type=int, default=DEFAULT_COMMAND_USAGE_SINCE_DAYS, help="Telemetry lookback window in days.")
     d.add_argument("--limit", type=int, default=10, help="Max rows per section.")
     d.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
+
+    doc = sub.add_parser("doctor", help="Run diagnostic health checks on the workflow environment.")
+    doc.add_argument("--json", action="store_true", dest="json_output", help="Output results as JSON.")
 
     args = parser.parse_args()
     root = repo_root()
@@ -1710,6 +1842,9 @@ def main() -> int:
         else:
             _print_discover_text(report)
         return 0
+
+    if args.cmd == "doctor":
+        return _cmd_doctor(root, wf, json_output=getattr(args, 'json_output', False))
 
     invariant_findings = run_invariant_checks(
         root,
