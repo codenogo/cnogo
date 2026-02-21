@@ -24,8 +24,10 @@ from typing import Any, Callable, Iterable
 
 try:
     from workflow_utils import load_json as _load_json
+    from workflow_utils import parse_skill_frontmatter as _parse_skill_frontmatter
 except ModuleNotFoundError:
     from .workflow_utils import load_json as _load_json  # type: ignore
+    from .workflow_utils import parse_skill_frontmatter as _parse_skill_frontmatter  # type: ignore
 
 
 FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -1461,6 +1463,57 @@ def _validate_bootstrap_context(
             )
 
 
+_SKILL_REF_RE = re.compile(r"`?\.claude/skills/([^`\s]+\.md)`?")
+
+
+def _validate_skills(
+    root: Path,
+    findings: list[Finding],
+    touched: Callable[[Path], bool],
+) -> None:
+    """Validate skill frontmatter and command cross-references."""
+    skills_dir = root / ".claude" / "skills"
+    if not skills_dir.is_dir():
+        return
+
+    # (1) Check all skill files have valid frontmatter (name field)
+    for md_path in sorted(skills_dir.glob("*.md")):
+        if not touched(md_path):
+            continue
+        info = _parse_skill_frontmatter(md_path)
+        if info["name"] is None:
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"Skill file missing frontmatter 'name' field.",
+                    str(md_path),
+                )
+            )
+
+    # (2) Check command skill references resolve to existing files
+    cmd_dir = root / ".claude" / "commands"
+    if not cmd_dir.is_dir():
+        return
+    for cmd_path in sorted(cmd_dir.glob("*.md")):
+        if not touched(cmd_path):
+            continue
+        try:
+            text = cmd_path.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        for m in _SKILL_REF_RE.finditer(text):
+            skill_file = m.group(1)
+            skill_path = root / ".claude" / "skills" / skill_file
+            if not skill_path.exists():
+                findings.append(
+                    Finding(
+                        "WARN",
+                        f"Skill reference '.claude/skills/{skill_file}' not found.",
+                        str(cmd_path),
+                    )
+                )
+
+
 def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -1528,6 +1581,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     _validate_worktree_session(root, findings)
     _validate_token_budgets(root, findings, touched, token_budgets_cfg)
     _validate_bootstrap_context(root, findings, bootstrap_context_cfg)
+    _validate_skills(root, findings, touched)
 
     return findings
 
