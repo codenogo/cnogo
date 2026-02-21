@@ -2,6 +2,14 @@
 
 Use this skill when `session-merge` reports conflicts in team implementation.
 
+## Resolution Tiers
+
+Merge conflicts are resolved automatically where possible, falling back to manual resolution only when needed.
+
+- **Tier 1 — Clean Merge**: `git merge --no-ff` succeeds with no conflicts. Automatic. `resolved_tier: "clean-merge"`
+- **Tier 2 — Auto-Resolve (Keep Incoming)**: When files are disjoint across branches, conflict markers are parsed and incoming (agent) changes are kept. Automatic. Gated on `_check_disjoint_files()`. `resolved_tier: "auto-resolve"`
+- **Tier 3 — Resolver Agent (Manual)**: When files overlap, the resolver agent performs intent-aware resolution using task descriptions. This is the existing behavior. `resolved_tier: ""`
+
 ## Goal
 
 Resolve merge conflicts deterministically, preserve task order, and resume safely.
@@ -17,6 +25,7 @@ git status --porcelain
 
 2. Triage conflict:
 - identify `conflictIndex` and `conflictFiles`
+- Check `resolvedTier` in the worktree session state — if a branch shows `auto-resolve`, tier 2 already ran. If empty, no automatic resolution was attempted.
 - confirm whether conflict is mechanical (format/import/order) or semantic
 
 3. Resolution rules:
