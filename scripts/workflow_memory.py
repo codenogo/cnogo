@@ -497,12 +497,17 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
             print(payload["error"])
         return 1
     result = merge_session(session, root)
+    tiers = {}
+    for wt in session.worktrees:
+        if wt.task_index in result.merged_indices:
+            tiers[str(wt.task_index)] = wt.resolved_tier or "unknown"
     payload = {
         "success": result.success,
         "merged": result.merged_indices,
         "conflictIndex": result.conflict_index,
         "conflictFiles": result.conflict_files,
         "error": "",
+        "tiers": tiers,
     }
     if args.json:
         _print_json(payload)
@@ -511,6 +516,11 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
             print(f"Merged tasks: {result.merged_indices}")
         else:
             print(f"Merge stopped at task {result.conflict_index}: {result.conflict_files}")
+        tier_counts = {}
+        for t in tiers.values():
+            tier_counts[t] = tier_counts.get(t, 0) + 1
+        if tier_counts:
+            print(f"Resolution tiers: {tier_counts}")
     return 0 if result.success else 1
 
 
