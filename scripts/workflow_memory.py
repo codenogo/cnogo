@@ -31,6 +31,7 @@ Commands:
     session-status      Show active worktree session status
     session-merge       Merge active worktree session branches
     session-cleanup     Cleanup active worktree session
+    session-reconcile   Fix orphaned issues after compaction
 
 No external dependencies. Python 3.9+ required.
 """
@@ -69,6 +70,7 @@ from scripts.memory import (  # noqa: E402
     merge_session,
     prime,
     ready,
+    reconcile_session,
     reopen,
     show,
     show_graph,
@@ -489,6 +491,26 @@ def cmd_session_cleanup(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_session_reconcile(args: argparse.Namespace) -> int:
+    from scripts.memory.reconcile import reconcile_session
+    root = _root()
+    result = reconcile_session(root)
+    if getattr(args, 'json', False):
+        _print_json(result)
+    else:
+        for entry in result.get("reconciled", []):
+            print(f"Closed: {entry['id']} ({entry.get('status', '')})")
+        for entry in result.get("skipped", []):
+            print(f"Skipped: {entry['id']} ({entry.get('reason', '')})")
+        for entry in result.get("errors", []):
+            print(f"Error: {entry['id']}: {entry.get('error', '')}")
+        total = len(result.get("reconciled", [])) + len(result.get("skipped", [])) + len(result.get("errors", []))
+        if total == 0:
+            print("No orphaned issues found")
+        else:
+            print(f"\nTotal: {len(result.get('reconciled', []))} closed, {len(result.get('skipped', []))} skipped, {len(result.get('errors', []))} errors")
+    return 0
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -642,6 +664,10 @@ def main() -> int:
     # session-cleanup
     sub.add_parser("session-cleanup", help="Cleanup active worktree session worktrees")
 
+    # session-reconcile
+    p = sub.add_parser("session-reconcile", help="Fix orphaned issues after compaction")
+    p.add_argument("--json", action="store_true")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -684,6 +710,7 @@ def main() -> int:
         "session-status": cmd_session_status,
         "session-merge": cmd_session_merge,
         "session-cleanup": cmd_session_cleanup,
+        "session-reconcile": cmd_session_reconcile,
     }
 
     handler = dispatch.get(args.command)
