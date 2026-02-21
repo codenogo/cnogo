@@ -1,0 +1,45 @@
+[
+  {
+    "name": "Create PreCompact hook script",
+    "description": "# Implement: Create PreCompact hook script\n\nCreate a new Python script that reads PreCompact hook input from stdin as JSON (`{hook_event_name, trigger, custom_instructions}`). The script should: (1) Parse stdin JSON, extract `trigger` ('auto'|'manual'). (2) Read `.cnogo/worktree-session.json` if it exists \u2014 extract feature, planNumber, phase, and worktree statuses. (3) Read team config from `~/.claude/teams/` directory \u2014 find any active team configs and extract team name + member names. (4) Write `.cnogo/compaction-checkpoint.json` with: `{schemaVersion: 1, trigger, timestamp, session: {feature, planNumber, phase, worktrees: [{taskIndex, name, status, memoryId}]}, team: {name, members: [name]}}`. If no session exists, write `session: null`. If no team, write `team: null`. (5) Append one telemetry line to `.cnogo/command-usage.jsonl`: `{type: 'compaction', trigger, timestamp, hasSession: bool, worktreeCount: int}`. (6) MUST complete in < 3 seconds. Wrap everything in try/except, always exit 0. Log actions to stderr. Shebang: `#!/usr/bin/env python3`. Python stdlib only. Use atomic write (tempfile + os.replace) for the checkpoint file.\n\n**Files (ONLY touch these):**\n`scripts/hook-pre-compact.py`\n\n**Verify (must ALL pass):**\n- `python3 -m py_compile scripts/hook-pre-compact.py`\n- `echo '{\"hook_event_name\":\"PreCompact\",\"trigger\":\"auto\",\"custom_instructions\":\"\"}' | python3 scripts/hook-pre-compact.py; echo \"exit: $?\"`\n\n**Memory:** `cn-h5po21.7`\n- Claim: `python3 scripts/workflow_memory.py claim cn-h5po21.7 --actor implementer`\n- Close: `python3 scripts/workflow_memory.py close cn-h5po21.7 --reason completed`\n- Context: `python3 scripts/workflow_memory.py show cn-h5po21.7`\n- History: `python3 scripts/workflow_memory.py history cn-h5po21.7`\n- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`\n\n**On failure:** read history, summarize the last error, fix, and retry.\n**Retry loop:** after each failed verify, run the history command before next attempt.\nAfter 2 failures, message the team lead.\n**If blocked:** do NOT close memory. Message the team lead.\n**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. (2) LAST action before finishing: close this issue and confirm closure in your final message by writing \"Memory closed: cn-h5po21.7\". (3) If blocked and cannot complete, do NOT close \u2014 message the team lead instead.\n",
+    "memoryId": "cn-h5po21.7",
+    "files": [
+      "scripts/hook-pre-compact.py"
+    ],
+    "verify": [
+      "python3 -m py_compile scripts/hook-pre-compact.py",
+      "echo '{\"hook_event_name\":\"PreCompact\",\"trigger\":\"auto\",\"custom_instructions\":\"\"}' | python3 scripts/hook-pre-compact.py; echo \"exit: $?\""
+    ],
+    "blockedBy": [],
+    "skipped": false
+  },
+  {
+    "name": "Create reconcile module",
+    "description": "# Implement: Create reconcile module\n\nCreate `scripts/memory/reconcile.py` with a `reconcile_session(root: Path) -> dict` function. The function should: (1) Load `.cnogo/worktree-session.json` via `worktree.load_session()`. If no session, check `.cnogo/compaction-checkpoint.json` for stale session data. (2) For each worktree entry with a `memoryId` and status in ('merged', 'cleaned'): close the memory issue via the memory engine's `close()` function with reason='completed' and actor='session-reconcile'. Ignore already-closed issues. (3) For each worktree entry with status not in ('merged', 'cleaned'): check git if the branch was merged into the base branch (use `git merge-base --is-ancestor`). If merged, close the memory issue. (4) Return a summary dict: `{reconciled: [{id, action, status}], skipped: [{id, reason}], errors: [{id, error}]}`. (5) Import from sibling modules using relative imports (from . import storage, from .worktree import load_session). (6) Handle missing/corrupt files gracefully (return empty summary, don't raise). Python stdlib only.\n\n**Files (ONLY touch these):**\n`scripts/memory/reconcile.py`\n\n**Verify (must ALL pass):**\n- `python3 -m py_compile scripts/memory/reconcile.py`\n- `python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.reconcile import reconcile_session; r = reconcile_session(type('P',(),{'__truediv__':lambda s,o:type('P',(),{'exists':lambda s:False})(),'resolve':lambda s:s})()); assert isinstance(r, dict) and 'reconciled' in r\"`\n\n**Memory:** `cn-h5po21.8`\n- Claim: `python3 scripts/workflow_memory.py claim cn-h5po21.8 --actor implementer`\n- Close: `python3 scripts/workflow_memory.py close cn-h5po21.8 --reason completed`\n- Context: `python3 scripts/workflow_memory.py show cn-h5po21.8`\n- History: `python3 scripts/workflow_memory.py history cn-h5po21.8`\n- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`\n\n**On failure:** read history, summarize the last error, fix, and retry.\n**Retry loop:** after each failed verify, run the history command before next attempt.\nAfter 2 failures, message the team lead.\n**If blocked:** do NOT close memory. Message the team lead.\n**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. (2) LAST action before finishing: close this issue and confirm closure in your final message by writing \"Memory closed: cn-h5po21.8\". (3) If blocked and cannot complete, do NOT close \u2014 message the team lead instead.\n",
+    "memoryId": "cn-h5po21.8",
+    "files": [
+      "scripts/memory/reconcile.py"
+    ],
+    "verify": [
+      "python3 -m py_compile scripts/memory/reconcile.py",
+      "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.reconcile import reconcile_session; r = reconcile_session(type('P',(),{'__truediv__':lambda s,o:type('P',(),{'exists':lambda s:False})(),'resolve':lambda s:s})()); assert isinstance(r, dict) and 'reconciled' in r\""
+    ],
+    "blockedBy": [],
+    "skipped": false
+  },
+  {
+    "name": "Register PreCompact hook in settings.json",
+    "description": "# Implement: Register PreCompact hook in settings.json\n\nAdd a new `PreCompact` hook entry in `.claude/settings.json` under the `hooks` key. Add it after the `SubagentStop` entry. Structure: `\"PreCompact\": [{\"hooks\": [{\"type\": \"command\", \"command\": \"python3 scripts/hook-pre-compact.py\"}]}]`. Keep all existing hooks unchanged.\n\n**Files (ONLY touch these):**\n`.claude/settings.json`\n\n**Verify (must ALL pass):**\n- `python3 -c \"import json; s=json.load(open('.claude/settings.json')); hooks=[h for e in s['hooks'].get('PreCompact',[]) for h in e.get('hooks',[])]; assert any('hook-pre-compact.py' in h.get('command','') for h in hooks), 'PreCompact not registered'\"`\n\n**Memory:** `cn-h5po21.9`\n- Claim: `python3 scripts/workflow_memory.py claim cn-h5po21.9 --actor implementer`\n- Close: `python3 scripts/workflow_memory.py close cn-h5po21.9 --reason completed`\n- Context: `python3 scripts/workflow_memory.py show cn-h5po21.9`\n- History: `python3 scripts/workflow_memory.py history cn-h5po21.9`\n- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`\n\n**On failure:** read history, summarize the last error, fix, and retry.\n**Retry loop:** after each failed verify, run the history command before next attempt.\nAfter 2 failures, message the team lead.\n**If blocked:** do NOT close memory. Message the team lead.\n**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. (2) LAST action before finishing: close this issue and confirm closure in your final message by writing \"Memory closed: cn-h5po21.9\". (3) If blocked and cannot complete, do NOT close \u2014 message the team lead instead.\n",
+    "memoryId": "cn-h5po21.9",
+    "files": [
+      ".claude/settings.json"
+    ],
+    "verify": [
+      "python3 -c \"import json; s=json.load(open('.claude/settings.json')); hooks=[h for e in s['hooks'].get('PreCompact',[]) for h in e.get('hooks',[])]; assert any('hook-pre-compact.py' in h.get('command','') for h in hooks), 'PreCompact not registered'\""
+    ],
+    "blockedBy": [
+      0
+    ],
+    "skipped": false
+  }
+]

@@ -26,6 +26,7 @@ python3 scripts/workflow_memory.py prime           # Token-efficient context sum
 python3 scripts/workflow_memory.py stats           # Aggregate statistics
 python3 scripts/workflow_memory.py create "title"  # Create an issue
 python3 scripts/workflow_memory.py show <id>       # Show issue details
+python3 scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction
 python3 scripts/workflow_checks.py discover --since-days 30  # Missed token-savings report
 ```
 

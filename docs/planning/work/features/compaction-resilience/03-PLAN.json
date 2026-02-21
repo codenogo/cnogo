@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "feature": "compaction-resilience",
+  "planNumber": "03",
+  "goal": "Wire reconcile into CLI, export public API, and update recovery commands",
+  "memoryEpicId": "cn-h5po21",
+  "tasks": [
+    {
+      "name": "Add session-reconcile subcommand and public API export",
+      "files": ["scripts/workflow_memory.py", "scripts/memory/__init__.py"],
+      "action": "In `scripts/memory/__init__.py`: (1) Add import: `from .reconcile import reconcile_session`. (2) Add `reconcile_session` to the `__all__` list under a new comment group `# Reconcile (compaction recovery)`. In `scripts/workflow_memory.py`: (1) Add `reconcile_session` to the import block from `scripts.memory`. (2) Add a `cmd_session_reconcile(args)` function that calls `reconcile_session(_root())`, prints summary in human-readable format (or JSON if `--json`), and returns 0. (3) Add `session-reconcile` subparser with `--json` flag after the `session-cleanup` subparser. (4) Add `'session-reconcile': cmd_session_reconcile` to the dispatch dict. (5) Update the module docstring to include `session-reconcile` in the commands list.",
+      "verify": [
+        "python3 -m py_compile scripts/workflow_memory.py",
+        "python3 -m py_compile scripts/memory/__init__.py",
+        "python3 scripts/workflow_memory.py session-reconcile --json 2>/dev/null; echo \"exit: $?\""
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Update resume command with reconcile step",
+      "files": [".claude/commands/resume.md"],
+      "action": "In `.claude/commands/resume.md`, update Step 4 (Team/Worktree Recovery Check) to add reconciliation. After the existing `session-status` command, add: `python3 scripts/workflow_memory.py session-reconcile`. Add a note: 'This auto-closes any memory issues whose worktrees were already merged/cleaned, fixing orphaned state from context compaction.' Update the conditional text to mention: 'If reconcile found orphaned issues, they are now closed. Check memory status with `python3 scripts/workflow_memory.py prime`.'",
+      "verify": [
+        "python3 -c \"text=open('.claude/commands/resume.md').read(); assert 'session-reconcile' in text, 'resume.md missing session-reconcile'\""
+      ],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Update CLAUDE.md with session-reconcile documentation",
+      "files": [".claude/CLAUDE.md"],
+      "action": "In `.claude/CLAUDE.md`, under the Memory Engine section's CLI access code block, add one new line after the `show` command: `python3 scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction`. Keep it concise — one line only.",
+      "verify": [
+        "python3 -c \"text=open('.claude/CLAUDE.md').read(); assert 'session-reconcile' in text, 'CLAUDE.md missing session-reconcile'\""
+      ],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -m py_compile scripts/workflow_memory.py",
+    "python3 -m py_compile scripts/memory/__init__.py",
+    "python3 scripts/workflow_validate.py"
+  ],
+  "commitMessage": "feat(compaction-resilience): wire session-reconcile CLI, update resume and docs",
+  "timestamp": "2026-02-21T05:00:00Z"
+}

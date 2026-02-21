@@ -23,6 +23,9 @@ build/
 # Worktree session state (transient, contains absolute paths)
 .cnogo/worktree-session.json
 
+# Compaction checkpoint (runtime snapshot, not source)
+.cnogo/compaction-checkpoint.json
+
 # Sensitive files
 *.pem
 *.key

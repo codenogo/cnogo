@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Add session-reconcile subcommand and public API export",
+    "description": "# Implement: Add session-reconcile subcommand and public API export\n\nTwo files need changes:\n\n## scripts/memory/__init__.py\n1. Add import: `from .reconcile import reconcile_session`\n2. Add `reconcile_session` to the `__all__` list under a new comment group `# Reconcile (compaction recovery)` — place it after the Worktree group.\n\n## scripts/workflow_memory.py\n1. Add `reconcile_session` to the import block from `scripts.memory` (line ~51-79).\n2. Add a `cmd_session_reconcile(args)` function after `cmd_session_cleanup`. It should:\n   - Call `reconcile_session(_root())`\n   - If `--json`, print the result dict as JSON\n   - Else print human-readable summary: for each reconciled entry print `Closed: {id} ({status})`, for each skipped print `Skipped: {id} ({reason})`, for each error print `Error: {id}: {error}`. Print totals at the end.\n   - Return 0\n3. Add `session-reconcile` subparser with `--json` flag after the `session-cleanup` subparser line.\n4. Add `'session-reconcile': cmd_session_reconcile` to the dispatch dict after `session-cleanup`.\n5. Update the module docstring to include `session-reconcile  Fix orphaned issues after compaction` in the commands list after `session-cleanup`.\n\n**Files (ONLY touch these):**\n`scripts/workflow_memory.py`, `scripts/memory/__init__.py`\n\n**Verify (must ALL pass):**\n- `python3 -m py_compile scripts/workflow_memory.py`\n- `python3 -m py_compile scripts/memory/__init__.py`\n- `python3 scripts/workflow_memory.py session-reconcile --json 2>/dev/null; echo \"exit: $?\"`\n\n**Memory:** `cn-h5po21.10`\n- Claim: `python3 scripts/workflow_memory.py claim cn-h5po21.10 --actor implementer`\n- Close: `python3 scripts/workflow_memory.py close cn-h5po21.10 --reason completed`\n\n**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. (2) LAST action before finishing: close this issue and confirm closure in your final message by writing \"Memory closed: cn-h5po21.10\".\n",
+    "memoryId": "cn-h5po21.10",
+    "files": [
+      "scripts/workflow_memory.py",
+      "scripts/memory/__init__.py"
+    ],
+    "verify": [
+      "python3 -m py_compile scripts/workflow_memory.py",
+      "python3 -m py_compile scripts/memory/__init__.py",
+      "python3 scripts/workflow_memory.py session-reconcile --json 2>/dev/null; echo \"exit: $?\""
+    ],
+    "blockedBy": [],
+    "skipped": false
+  },
+  {
+    "name": "Update resume command with reconcile step",
+    "description": "# Implement: Update resume command with reconcile step\n\nUpdate `.claude/commands/resume.md` to add reconciliation in Step 4 (Team/Worktree Recovery Check).\n\nAfter the existing `session-status` command in Step 4, add:\n```bash\npython3 scripts/workflow_memory.py session-reconcile\n```\n\nAdd a note: 'This auto-closes any memory issues whose worktrees were already merged/cleaned, fixing orphaned state from context compaction.'\n\nUpdate the conditional text to mention: 'If reconcile found orphaned issues, they are now closed. Check memory status with `python3 scripts/workflow_memory.py prime`.'\n\n**Files (ONLY touch these):**\n`.claude/commands/resume.md`\n\n**Verify (must ALL pass):**\n- `python3 -c \"text=open('.claude/commands/resume.md').read(); assert 'session-reconcile' in text, 'resume.md missing session-reconcile'\"`\n\n**Memory:** `cn-h5po21.11`\n- Claim: `python3 scripts/workflow_memory.py claim cn-h5po21.11 --actor implementer`\n- Close: `python3 scripts/workflow_memory.py close cn-h5po21.11 --reason completed`\n\n**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. (2) LAST action before finishing: close this issue and confirm closure in your final message by writing \"Memory closed: cn-h5po21.11\".\n",
+    "memoryId": "cn-h5po21.11",
+    "files": [
+      ".claude/commands/resume.md"
+    ],
+    "verify": [
+      "python3 -c \"text=open('.claude/commands/resume.md').read(); assert 'session-reconcile' in text, 'resume.md missing session-reconcile'\""
+    ],
+    "blockedBy": [0],
+    "skipped": false
+  },
+  {
+    "name": "Update CLAUDE.md with session-reconcile documentation",
+    "description": "# Implement: Update CLAUDE.md with session-reconcile documentation\n\nIn `.claude/CLAUDE.md`, under the Memory Engine section's CLI access code block, add one new line after the `show` command line:\n```\npython3 scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction\n```\n\nKeep it concise — one line only. Do not change anything else.\n\n**Files (ONLY touch these):**\n`.claude/CLAUDE.md`\n\n**Verify (must ALL pass):**\n- `python3 -c \"text=open('.claude/CLAUDE.md').read(); assert 'session-reconcile' in text, 'CLAUDE.md missing session-reconcile'\"`\n\n**Memory:** `cn-h5po21.12`\n- Claim: `python3 scripts/workflow_memory.py claim cn-h5po21.12 --actor implementer`\n- Close: `python3 scripts/workflow_memory.py close cn-h5po21.12 --reason completed`\n\n**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. (2) LAST action before finishing: close this issue and confirm closure in your final message by writing \"Memory closed: cn-h5po21.12\".\n",
+    "memoryId": "cn-h5po21.12",
+    "files": [
+      ".claude/CLAUDE.md"
+    ],
+    "verify": [
+      "python3 -c \"text=open('.claude/CLAUDE.md').read(); assert 'session-reconcile' in text, 'CLAUDE.md missing session-reconcile'\""
+    ],
+    "blockedBy": [0],
+    "skipped": false
+  }
+]

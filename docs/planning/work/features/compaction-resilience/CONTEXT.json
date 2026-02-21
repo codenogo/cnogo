@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "feature": "compaction-resilience",
+  "displayName": "Compaction Resilience",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "Four-layer defense: prompt enforcement, SubagentStop hook, PreCompact hook, /resume recovery",
+      "rationale": "Belt-and-suspenders. Each layer catches failures the previous missed. Prompt is soft (agent may ignore), SubagentStop is hard (fires automatically), PreCompact checkpoints ephemeral state, /resume reconstructs from persistent state."
+    },
+    {
+      "area": "sync-gap",
+      "decision": "SubagentStop hook auto-closes memory issues by parsing agent_id from stdin JSON and matching to session worktree memoryId",
+      "rationale": "SubagentStop fires reliably when an agent process ends. The session file maps agent branches to memory IDs. Hook reads session file, finds the agent's worktree by matching agent metadata, and closes the corresponding memory issue."
+    },
+    {
+      "area": "prompt-enforcement",
+      "decision": "Bridge prompt template adds explicit 'MUST close memory issue before completion' instruction with claim-at-start and close-at-end lifecycle",
+      "rationale": "Soft enforcement via prompt engineering. Agents already get memory CLI examples; strengthen wording to make close mandatory, not optional."
+    },
+    {
+      "area": "checkpoint",
+      "decision": "PreCompact hook writes .cnogo/compaction-checkpoint.json with current task/team state snapshot",
+      "rationale": "PreCompact fires before context is wiped. Dump team name, task states, agent-to-memory-issue mappings, and timestamp. This is the bridge between ephemeral Task state and persistent disk state."
+    },
+    {
+      "area": "recovery",
+      "decision": "Add session-reconcile subcommand to workflow_memory.py that reads persistent state and fixes orphaned issues",
+      "rationale": "After compaction or crash, leader calls session-reconcile. It reads: (1) worktree-session.json for task status, (2) git log for merged branches, (3) memory DB for open issues. Closes any issues whose corresponding worktree is merged/cleaned."
+    },
+    {
+      "area": "telemetry",
+      "decision": "PreCompact hook logs compaction events to .cnogo/command-usage.jsonl with trigger type and context metrics",
+      "rationale": "Enables tracking compaction frequency and correlation with agent failures. Minimal overhead (single JSONL append)."
+    },
+    {
+      "area": "hook-performance",
+      "decision": "All new hooks must complete in < 3 seconds with graceful failure (never block compaction or agent shutdown)",
+      "rationale": "Learned from compaction-hook-hang: slow hooks cause cascading failures. All hooks use timeout guards and exit 0 on error."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only (no external dependencies)",
+    "Hooks must complete in < 3 seconds",
+    "Hook failures must never block compaction or agent shutdown (exit 0 on error)",
+    "Must handle partial/corrupt state files gracefully",
+    "SubagentStop hook reads stdin JSON (not environment variables)",
+    "PreCompact hook receives {trigger: 'auto'|'manual'} via stdin JSON",
+    "No PostCompact hook exists — recovery must be on-demand via /resume or session-reconcile"
+  ],
+  "openQuestions": [
+    "What agent metadata is available in SubagentStop stdin to reliably match an agent to its memory issue? Need to verify agent_id matches worktree session agent tracking.",
+    "Should session-reconcile auto-run on session start (via SessionStart hook) or only be manual?",
+    "How to handle the case where an agent partially completed work (committed some files but not all verify commands passed)?"
+  ],
+  "relatedCode": [
+    "scripts/memory/bridge.py",
+    "scripts/memory/worktree.py",
+    "scripts/memory/watchdog.py",
+    "scripts/memory/__init__.py",
+    "scripts/workflow_memory.py",
+    "scripts/workflow_hooks.py",
+    ".claude/settings.json"
+  ],
+  "memoryEpicId": "cn-h5po21",
+  "timestamp": "2026-02-21T04:14:09Z"
+}
