@@ -1,444 +1,144 @@
-# Universal Development Workflow Pack
+# cnogo
 
-A portable workflow system combining Boris Cherny's parallel session approach with GSD's context engineering, adapted for enterprise-grade projects.
+A zero-dependency workflow engine for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that provides structured development lifecycle management with 29 slash commands, a SQLite-backed memory engine, and Agent Teams coordination.
 
-## Features
+## Overview
 
-- **28 slash commands** for the full development lifecycle (including brainstorming + research + bug routing + close + team orchestration)
-- **Deep research artifact** support for de-risking decisions (`/research`)
-- **Parallel session coordination** across multiple checkouts
-- **Secret scanning** built into pre-commit hooks
-- **Stack auto-detection** (Java, TypeScript, Python, Go, Rust)
-- **Enterprise templates** (ADR, CODEOWNERS, PR template, release notes)
-- **SBOM generation** support (CycloneDX)
+cnogo installs into any git repository and gives Claude Code a repeatable, artifact-driven development workflow. Work is organized into small batches (max 3 tasks per plan) with verification at every step.
 
-## Quick Start
+**Key capabilities:**
+
+- **29 slash commands** covering the full SDLC: discuss, plan, implement, verify, review, ship
+- **Memory engine** — SQLite-backed issue tracking with JSONL sync for git persistence
+- **Agent Teams** — multi-agent coordination with structured task descriptions (TaskDesc V2) and conflict detection
+- **16 skills** — lazy-loaded domain expertise (code review, security scan, performance analysis, etc.)
+- **Package-aware checks** — monorepo/polyglot support with per-package lint, test, and type checking
+- **Token optimization** — command telemetry, artifact budgeting, and compact context management
+
+**Requirements:** Python 3.10+ (stdlib only), Git, Claude Code. Optional: GitHub CLI (`gh`) for PR creation.
+
+## Install
 
 ```bash
-# Option 1: Run install script
+# Into a project
 ./install.sh /path/to/your/project
 
-# Option 2: Manual copy
-cp -r .claude your-project/
-cp -r docs your-project/
-cp -r .github your-project/
-cp CLAUDE.md your-project/
-cp CHANGELOG.md your-project/
-
-# Verify installation
-cd your-project && claude
-/status
-```
-
-## Global Install (Recommended)
-
-If you want to apply this workflow to many repos, do a “global” install by keeping **one copy** of the pack on your machine and running its `install.sh` against any target repo.
-
-### 1) Clone once
-
-```bash
-mkdir -p ~/.workflowy
-git clone git@github.com:codenogo/workflowy.git ~/.workflowy/workflowy
-```
-
-### 2) Add a shell helper command
-
-#### zsh (`~/.zshrc`)
-
-```bash
-workflowy() {
-  ~/.workflowy/workflowy/install.sh "$1"
-}
-```
-
-#### bash (`~/.bashrc` or `~/.bash_profile`)
-
-```bash
-workflowy() {
-  ~/.workflowy/workflowy/install.sh "$1"
-}
-```
-
-Reload your shell:
-
-```bash
-source ~/.zshrc 2>/dev/null || true
-source ~/.bashrc 2>/dev/null || true
-```
-
-### 3) Install/upgrade any repo
-
-```bash
-workflowy /absolute/path/to/your/project
-```
-
-If prompted to merge, choose `y` to upgrade in place.
-
-### 4) Keep your global copy updated
-
-```bash
-cd ~/.workflowy/workflowy
-git pull
-```
-
-Then re-run `workflowy /path/to/your/project` to upgrade that repo to the latest pack.
-
-## How to Use This Workflow (End-to-End)
-
-This pack is designed to turn Claude into a reliable SDLC copilot by making work **artifact-driven** (docs + contracts), **small-batch** (≤3 tasks/plan), and **verifiable** (task-level checks + review gates).
-
-### Prerequisites
-
-- **Claude Code** installed and available as `claude`
-- **Git** available as `git`
-- **Python 3** available as `python3` (used for the validator + fast hooks runner; stdlib only)
-- **GitHub CLI** (`gh`) optional (used by `/ship` for PR creation)
-
-### Install Into a Project
-
-You can install this pack into any repository (single app repo, monorepo, or polyglot).
-
-- **Option A (recommended)**: use the installer
-
-```bash
-./install.sh /path/to/your/project
-```
-
-- **Option B (manual)**: copy the pack files
-
-```bash
-cp -r .claude /path/to/your/project/
-cp -r .github /path/to/your/project/
-cp -r docs /path/to/your/project/
-cp CLAUDE.md CHANGELOG.md /path/to/your/project/
-```
-
-### First Run Checklist (Required)
-
-From the target project root:
-
-```bash
+# First run (from the target project)
 cd /path/to/your/project
 claude
 /cnogo-init
 ```
 
-`/cnogo-init` is intentionally namespaced to avoid collisions with other global `/init` commands.
-
-#### Recommended: Enable Package-Aware Checks (Monorepos/Polyglots)
-
-If your repo is a monorepo or polyglot, run the detector once to populate `WORKFLOW.json` with `packages[]` and suggested per-package commands:
+### Global install (recommended for multiple repos)
 
 ```bash
-python3 scripts/workflow_detect.py --write-workflow
+# Clone once
+git clone git@github.com:codenogo/workflowy.git ~/.workflowy/workflowy
+
+# Add shell helper (~/.zshrc or ~/.bashrc)
+workflowy() { ~/.workflowy/workflowy/install.sh "$1"; }
+
+# Install/upgrade any repo
+workflowy /path/to/your/project
 ```
 
-This powers package-aware execution for:
+## Workflow
 
-- `python3 scripts/workflow_checks.py review`
-- `python3 scripts/workflow_checks.py verify-ci <feature-slug>`
-- `python3 scripts/workflow_checks.py discover --since-days 30`
+```
+Feature work (non-trivial changes):
+  /discuss → /plan → /implement → /review → /ship
 
-Then edit these once (they are your long-term “source of truth”):
+Quick fixes (small, low-risk):
+  /quick → /review → /ship
 
-- **`docs/planning/PROJECT.md`**: vision, constraints, architecture patterns
-- **`docs/planning/WORKFLOW.json`**: enforcement + performance knobs (monorepo packages, scoping strictness)
+Bug triage:
+  /bug → routes to /quick, /debug, or /discuss
+```
 
-Finally:
+### Feature lifecycle
+
+**1. Discuss** — capture decisions before coding.
 
 ```bash
-/status
+/discuss "feature display name"
 ```
 
-### Daily Usage: Feature Work (Tier 2–3)
+Creates `feature/<slug>` branch, `CONTEXT.json`/`CONTEXT.md`, and a memory epic.
 
-Use this when work is non-trivial (new API, multi-file changes, riskier changes, schema work, etc.).
-
-#### 1) Discuss (decisions first)
-
-```bash
-/discuss "<feature display name>"
-```
-
-Outputs:
-
-- Creates or switches to `feature/<feature-slug>` (fails fast if branch switch is blocked by uncommitted changes)
-- `docs/planning/work/features/<feature-slug>/CONTEXT.md`
-- `docs/planning/work/features/<feature-slug>/CONTEXT.json`
-- Creates memory epic for the feature
-
-#### (Optional) Deep Research (when uncertainty is high)
-
-If the subject requires best-practice/standard knowledge (auth, security, payments, distributed systems, compliance, etc.), run:
-
-```bash
-/research "<topic>"
-```
-
-Outputs:
-
-- `docs/planning/work/research/<slug>/RESEARCH.md`
-- `docs/planning/work/research/<slug>/RESEARCH.json`
-
-Then link it from the feature `CONTEXT.md`/`CONTEXT.json`.
-
-#### 2) Plan (small batches, ≤3 tasks each)
+**2. Plan** — break work into small batches.
 
 ```bash
 /plan <feature-slug>
 ```
 
-Outputs (per plan):
+Creates `NN-PLAN.json`/`NN-PLAN.md` with max 3 tasks, explicit file scopes, and verification commands.
 
-- `docs/planning/work/features/<feature-slug>/NN-PLAN.md`
-- `docs/planning/work/features/<feature-slug>/NN-PLAN.json`
-
-#### 3) Implement (execute one plan at a time)
+**3. Implement** — execute one plan at a time.
 
 ```bash
 /implement <feature-slug> 01
 ```
 
-Outputs:
+Runs each task with verification, writes `NN-SUMMARY.json`/`NN-SUMMARY.md`, creates an atomic commit.
 
-- A commit (atomic)
-- `docs/planning/work/features/<feature-slug>/01-SUMMARY.md`
-- `docs/planning/work/features/<feature-slug>/01-SUMMARY.json`
-- Closes memory tasks as each is verified
-
-Repeat for `02`, `03`, etc.
-
-#### 4) Verify (human UAT) + Verify CI (automation)
-
-- **Automation / CI friendly**:
+For parallel execution with Agent Teams:
 
 ```bash
-/verify-ci <feature-slug>
+/team implement <feature-slug> 01
 ```
 
-- **Human acceptance**:
-
-```bash
-/verify <feature-slug>
-```
-
-Outputs:
-
-- `VERIFICATION-CI.md` + `VERIFICATION-CI.json` (CI)
-- `VERIFICATION.md` + `VERIFICATION.json` (human)
-
-#### 5) Review (quality gates)
+**4. Review** — quality gates.
 
 ```bash
 /review
 ```
 
-Outputs:
+Runs automated package-aware checks, 7-axis manual scoring, writes `REVIEW.json`/`REVIEW.md`.
 
-- `docs/planning/work/features/<feature-slug>/REVIEW.md` + `REVIEW.json` (if a feature is active)
-  - or `docs/planning/work/review/<timestamp>-REVIEW.md` + `.json` otherwise
-
-#### 6) Ship (PR)
+**5. Ship** — push and open PR.
 
 ```bash
 /ship
 ```
 
-Creates a PR via `gh` (if available) and closes the memory epic.
+## Commands
 
-### Daily Usage: Quick Fixes (Tier 1)
-
-Use this for small fixes (bug fix, tiny config tweak, docs update).
-
-```bash
-/quick "fix typo in README"
-```
-
-Outputs:
-
-- Creates or switches to `fix/<slug>` (fails fast if branch switch is blocked by uncommitted changes)
-- `docs/planning/work/quick/NNN-<slug>/PLAN.md` + `PLAN.json`
-- `docs/planning/work/quick/NNN-<slug>/SUMMARY.md` + `SUMMARY.json`
-- A commit
-
-Then:
-
-```bash
-/review
-/ship
-```
-
-### Bug Workflow (Recommended Entry Point)
-
-If you have a bug report and you’re not sure whether it’s “quick” or “deep”, start with:
-
-```bash
-/bug "describe the bug"
-```
-
-It routes you to `/quick`, `/debug`, or `/discuss`, and enforces `fix/<slug>` branch safety before committing.
-
-### Post-Merge Cleanup
-
-After a feature is merged into `main`, clean up state and optionally archive feature artifacts:
-
-```bash
-/close <feature-slug>
-```
-
-### Enforcement: Validate Anytime
-
-Run this anytime you want a fast “are we still following the workflow?” check:
-
-```bash
-/validate
-```
-
-Under the hood, it runs `python3 scripts/workflow_validate.py`.
-
-### CI Usage (Recommended)
-
-In CI, run the validator and (optionally) CI verification:
-
-```bash
-python3 scripts/workflow_validate.py
-# Optionally: call /verify-ci in a Claude-run CI job OR mirror its checks in your pipeline
-```
-
-This repo includes a ready-to-use GitHub Actions workflow:
-
-- `.github/workflows/workflow-validate.yml`
-
-If you’ve populated `docs/planning/WORKFLOW.json` → `packages[].commands`, you can also run package-aware checks in CI:
-
-```bash
-python3 scripts/workflow_checks.py review
-```
-
-### Monorepo / Polyglot Setup (Recommended)
-
-To make plan verification scoping smarter, populate `docs/planning/WORKFLOW.json` with packages:
-
-```json
-{
-  "version": 1,
-  "repoShape": "auto",
-  "enforcement": { "monorepoVerifyScope": "warn" },
-  "packages": [
-    { "name": "api", "path": "packages/api", "kind": "node" },
-    { "name": "web", "path": "packages/web", "kind": "node" },
-    { "name": "orders", "path": "services/orders", "kind": "java" }
-  ]
-}
-```
-
-You can auto-populate this using:
-
-```bash
-python3 scripts/workflow_detect.py --write-workflow
-```
-
-Then in plan contracts prefer `task.cwd` or scoped verify commands (`cd <pkg> && ...`).
-
-## The Workflow
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        FEATURE WORK (Tier 2-3)                       │
-│                                                                      │
-│   /discuss ──► /plan ──► /implement ──► /verify ──► /review ──► /ship│
-│       │          │            │            │           │          │  │
-│   Decisions   Tasks≤3    Fresh ctx    Does it     Quality      PR    │
-│   captured    each       per plan     work?       gates              │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────┐
-│                        QUICK FIXES (Tier 1)                          │
-│                                                                      │
-│   /quick ──► /review ──► /ship                                      │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────┐
-│                        ENFORCEMENT & CI                               │
-│                                                                      │
-│   /validate ──► /verify-ci ──► /research ──► /brainstorm             │
-└─────────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────────┐
-│                        RELEASES                                      │
-│                                                                      │
-│   /changelog ──► /release [major|minor|patch]                       │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## Parallel Sessions (Boris Cherny Style)
-
-### Local (5 terminals)
-
-```bash
-# Create separate checkouts per workstream
-git clone git@github.com:you/project.git project-main
-git clone git@github.com:you/project.git project-feature
-git clone git@github.com:you/project.git project-bugfix
-git clone git@github.com:you/project.git project-refactor
-git clone git@github.com:you/project.git project-tests
-
-# Each terminal gets its own checkout
-cd project-feature && claude
-```
-
-### Remote (5-10 on claude.ai/code)
-
-```bash
-# Start remote sessions from CLI
-& Implement the retry logic for failed deliveries
-& Add pagination to the search endpoint
-
-# Monitor
-/tasks
-
-# Bring back to local
-claude --teleport session_xxx
-```
-
-### Coordinate Across Sessions
-
-```bash
-# See what's happening in all sessions
-/sync
-
-# Update this session's status
-/sync update
-
-# Claim a file to avoid conflicts
-/sync claim src/services/notification.ts
-```
-
-## Commands Reference
-
-### Core Workflow
+### Core workflow
 
 | Command | Purpose |
 |---------|---------|
 | `/discuss <feature>` | Capture decisions before coding |
-| `/research <topic>` | Deep research artifact (repo + MCP + optional web) |
-| `/brainstorm <idea>` | Narrow ideas via Q&A + options before `/discuss` |
-| `/plan <feature>` | Create implementation tasks (≤3 per plan) |
-| `/implement <feature> <plan>` | Execute a plan with verification |
-| `/verify <feature>` | User acceptance testing |
-| `/verify-ci <feature>` | Non-interactive verification (CI-friendly) |
-| `/review` | Quality gates (lint, test, security, SAST) |
+| `/plan <feature>` | Create implementation plans (max 3 tasks each) |
+| `/implement <feature> <plan>` | Execute a plan with per-task verification |
+| `/review` | Automated + manual quality gates |
 | `/ship` | Commit, push, create PR |
-| `/validate` | Enforce workflow rules (contracts, slugs, task limits) |
+| `/quick <task>` | Fast path for small fixes |
 
-### Fast Path
+### Research and exploration
 
 | Command | Purpose |
 |---------|---------|
-| `/quick <task>` | Small fixes without full ceremony |
-| `/tdd <feature>` | Test-driven development flow |
+| `/research <topic>` | Deep research artifact (repo + optional web) |
+| `/brainstorm <idea>` | Narrow ideas via Q&A before `/discuss` |
+| `/context <topic>` | Build focused context pack for a feature/topic |
 
-### Session Management
+### Verification and enforcement
+
+| Command | Purpose |
+|---------|---------|
+| `/verify <feature>` | Human acceptance testing |
+| `/verify-ci <feature>` | Non-interactive verification (CI-friendly) |
+| `/validate` | Enforce workflow contracts (schemas, slugs, task limits) |
+
+### Debugging and recovery
+
+| Command | Purpose |
+|---------|---------|
+| `/bug <description>` | Bug triage router (quick vs debug vs discuss) |
+| `/debug <issue>` | Systematic debugging with state tracking |
+| `/rollback` | Revert changes (last, commit-hash, or branch) |
+
+### Session management
 
 | Command | Purpose |
 |---------|---------|
@@ -446,308 +146,202 @@ claude --teleport session_xxx
 | `/pause` | Create handoff for later resume |
 | `/resume` | Restore from paused session |
 | `/sync` | Coordinate across parallel sessions |
-| `/context <feature>` | Load relevant files for a feature |
-
-### Debugging & Recovery
-
-| Command | Purpose |
-|---------|---------|
-| `/debug <issue>` | Systematic debugging with state tracking |
-| `/bug <description>` | Bug triage router (quick vs debug vs discuss) |
-| `/rollback` | Revert changes (last, commit-hash, or branch) |
+| `/close <feature>` | Post-merge cleanup (memory close + optional archive) |
 
 ### Release
 
 | Command | Purpose |
 |---------|---------|
 | `/changelog` | Generate changelog from git history |
-| `/release <version>` | Create release with notes, tag, SBOM |
+| `/release <version>` | Create release with notes and tag |
 
-### Setup
-
-| Command | Purpose |
-|---------|---------|
-| `/cnogo-init` | Auto-populate templates based on stack detection |
-| `/close <feature>` | Post-merge cleanup (memory close + optional archive) |
-
-### MCP Integrations
+### Agents and teams
 
 | Command | Purpose |
 |---------|---------|
-| `/mcp` | Manage Model Context Protocol connections (GitHub, Jira, Sentry, etc.) |
-
-### Agents
-
-| Command | Purpose |
-|---------|---------|
-| `/background <task>` | Fire-and-forget long-running tasks |
-| `/spawn <type> <task>` | Launch specialized subagents (security, tests, docs, perf) |
 | `/team <action>` | Orchestrate Agent Teams (create, status, message, dismiss) |
+| `/spawn <type> <task>` | Launch specialized subagents |
+| `/background <task>` | Fire-and-forget long-running tasks |
 
-## Agent Definitions
+### Other
 
-The pack includes 10 custom subagent definitions in `.claude/agents/`, each with a specialized system prompt, model tier, and toolset.
+| Command | Purpose |
+|---------|---------|
+| `/tdd <feature>` | Test-driven development flow |
+| `/mcp` | Manage MCP connections |
+| `/doctor` | Diagnose workflow health |
+| `/cnogo-init` | First-run setup and stack detection |
 
-| Agent | Model | Specialization |
-|-------|-------|---------------|
-| `explorer` | haiku | Fast codebase scanning and navigation |
-| `docs-writer` | haiku | Documentation generation |
-| `code-reviewer` | sonnet | Code quality and best-practice analysis |
-| `security-scanner` | sonnet | Vulnerability auditing (OWASP, secrets, auth) |
-| `perf-analyzer` | sonnet | Performance bottleneck analysis |
-| `api-reviewer` | sonnet | API design review (REST, GraphQL, contracts) |
-| `test-writer` | inherit | Test generation (unit, integration, edge cases) |
-| `debugger` | inherit | Root cause analysis and systematic debugging |
-| `refactorer` | inherit | Code quality improvement and pattern migration |
-| `migrate` | inherit | Framework/dependency upgrades |
+## Memory engine
 
-**Invoke agents** via `/spawn <type> <task>` or by directly requesting them (e.g., "use the security-scanner agent to audit auth").
-
-**Persistent memory**: Agents with `memory: project` (all except explorer and docs-writer) accumulate institutional knowledge in `.claude/agent-memory/`, shared via version control.
-
-**Custom agents**: Add project-specific agents by creating `.claude/agents/your-agent.md` with YAML frontmatter (`name`, `description`, `model`, `tools`).
-
-## Agent Teams (Experimental)
-
-> Requires `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (enabled by default in this pack).
-
-Agent Teams let you spawn multiple agents that collaborate via shared task lists and direct messaging.
+SQLite-backed issue tracking with git-portable JSONL sync. Tracks features, plans, tasks, and their lifecycle across context switches and compaction.
 
 ```bash
-# Create a review team (3 parallel reviewers)
-/team create Review PR #142 for quality, security, and performance
-
-# Check team progress
-/team status
-
-# Send guidance to a teammate
-/team message debugger Focus on the session middleware
-
-# Shut down the team
-/team dismiss
+python3 scripts/workflow_memory.py prime           # Token-efficient context summary
+python3 scripts/workflow_memory.py ready           # Show unblocked tasks
+python3 scripts/workflow_memory.py stats           # Aggregate statistics
+python3 scripts/workflow_memory.py create "title"  # Create an issue
+python3 scripts/workflow_memory.py show <id>       # Show issue details
 ```
 
-**Recommended compositions:**
-- **Review team**: code-reviewer + security-scanner + perf-analyzer
-- **Full-stack team**: test-writer + debugger + refactorer + docs-writer
-- **Debug team**: 3x debugger (competing hypotheses)
-- **Migration team**: migrate + test-writer
+Key modules in `scripts/memory/`:
 
-**Keyboard shortcuts**: `Shift+Up/Down` (select teammate), `Shift+Tab` (toggle delegate mode), `Ctrl+T` (task list), `Ctrl+B` (background task).
+| Module | Purpose |
+|--------|---------|
+| `storage.py` | SQLite persistence layer |
+| `bridge.py` | Plan JSON → TaskDesc V2 translation for agent execution |
+| `worktree.py` | Git worktree session management for parallel agents |
+| `reconcile_leader.py` | Bottom-up issue closure (task → plan → epic) |
+| `sync.py` | SQLite ↔ JSONL bidirectional sync |
+| `identity.py` | Hierarchical ID generation (`cn-<base36>[.N]*`) |
+| `models.py` | Issue/metadata dataclasses |
 
-For lighter coordination across parallel sessions, use `/sync` instead.
+## Agent Teams
 
-## File Structure
+Multi-agent coordination using structured TaskDesc V2 contracts. The bridge translates plan JSON into task descriptions with file scopes, verification commands, and conflict detection.
+
+3 built-in agent definitions in `.claude/agents/`:
+
+| Agent | Specialization |
+|-------|---------------|
+| `implementer` | Executes plan tasks with memory-backed claim/close cycle |
+| `debugger` | Investigates errors with systematic root cause analysis |
+| `resolver` | Resolves git merge conflicts using task context |
+
+Safety guarantees:
+- Workers call `report-done` only — leaders handle closure
+- File conflict detection before spawning parallel agents
+- Bottom-up reconciliation: task → plan → epic
+
+## Skills
+
+16 lazy-loaded skill files in `.claude/skills/` provide domain expertise for review, security, and workflow integrity:
+
+`code-review` · `security-scan` · `perf-analysis` · `api-review` · `test-writing` · `debug-investigation` · `refactor-safety` · `release-readiness` · `performance-review` · `artifact-token-budgeting` · `boundary-and-sdk-enforcement` · `changed-scope-verification` · `feature-lifecycle-closure` · `memory-sync-reconciliation` · `workflow-contract-integrity` · `worktree-merge-recovery`
+
+## Project structure
 
 ```
 your-project/
 ├── .claude/
-│   ├── settings.json           # Permissions + hooks
-│   ├── commands/               # 28 slash commands
-│   ├── agents/                 # 10 subagent definitions
-│   └── agent-memory/           # Persistent agent knowledge (project scope)
+│   ├── settings.json          # Permissions + hooks
+│   ├── commands/              # 29 slash commands
+│   ├── agents/                # 3 agent definitions
+│   └── skills/                # 16 domain expertise skills
 │
-├── .github/
-│   ├── CODEOWNERS              # Code ownership
-│   └── PULL_REQUEST_TEMPLATE.md
+├── .cnogo/
+│   ├── memory.db              # SQLite runtime (gitignored)
+│   └── issues.jsonl           # Git-tracked sync format
+│
+├── scripts/
+│   ├── memory/                # Memory engine package (stdlib only)
+│   ├── workflow_checks.py     # Package-aware review/verify + token telemetry
+│   ├── workflow_validate.py   # Contract + freshness + budget validation
+│   ├── workflow_detect.py     # Stack/package auto-detection
+│   ├── workflow_render.py     # JSON contract → Markdown renderer
+│   ├── workflow_hooks.py      # Post-edit formatting + pre-bash optimization
+│   ├── workflow_memory.py     # Memory engine CLI
+│   └── hook-*.py/.sh          # Git/Claude hooks
 │
 ├── docs/planning/
-│   ├── PROJECT.md              # Vision, constraints, patterns
-│   ├── ROADMAP.md              # Phases and progress
-│   ├── WORKFLOW.json           # Optional enforcement config (validator/monorepo)
-│   ├── adr/                    # Architecture Decision Records
-│   │   └── ADR-TEMPLATE.md
+│   ├── PROJECT.md             # Vision, constraints, architecture
+│   ├── ROADMAP.md             # Phases and progress
+│   ├── WORKFLOW.json          # Enforcement + performance config
 │   └── work/
-│       ├── quick/              # Tier 1: hotfixes
-│       ├── features/           # Tier 2-3: full cycle
-│       │   └── CONTEXT-TEMPLATE.md
-│       ├── debug/              # Debug sessions
-│       ├── background/         # Background tasks
-│       ├── review/             # Persisted review reports
-│       ├── research/           # Research artifacts
-│       └── ideas/              # Brainstorm artifacts
+│       ├── features/          # Feature artifacts (CONTEXT/PLAN/SUMMARY/REVIEW)
+│       ├── quick/             # Quick fix artifacts
+│       ├── research/          # Research artifacts
+│       └── review/            # Standalone review reports
 │
-├── docs/templates/             # Stack-specific CLAUDE.md templates
-│   ├── CLAUDE-java.md
-│   ├── CLAUDE-typescript.md
-│   ├── CLAUDE-python.md
-│   ├── CLAUDE-go.md
-│   └── CLAUDE-rust.md
+├── .github/
+│   ├── CODEOWNERS
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── workflows/workflow-validate.yml
 │
-├── CLAUDE.md                   # Agent instructions
-├── .claude/skills/             # Lazy-loaded domain expertise (security, review, perf, etc.)
-└── CHANGELOG.md                # Release history
+├── tests/                     # Unit tests
+├── CLAUDE.md                  # Agent instructions
+└── CHANGELOG.md               # Release history
+```
+
+## Artifact contracts
+
+All workflow artifacts use paired JSON + Markdown files. JSON is the source of truth for automation; Markdown is the human-readable summary.
+
+Standard fields across all contracts: `schemaVersion`, `feature`, `timestamp`.
+
+```bash
+# Render markdown from JSON contract
+python3 scripts/workflow_render.py docs/planning/work/features/<slug>/01-PLAN.json
+
+# Validate all contracts
+python3 scripts/workflow_validate.py
+```
+
+## Monorepo support
+
+Auto-detect packages and configure per-package checks:
+
+```bash
+python3 scripts/workflow_detect.py --write-workflow
+```
+
+This populates `docs/planning/WORKFLOW.json` with `packages[]`, enabling scoped lint/test/typecheck in `/review` and `/verify-ci`.
+
+## CI
+
+```yaml
+# .github/workflows/workflow-validate.yml (included)
+- run: python3 scripts/workflow_validate.py
+- run: python3 scripts/workflow_checks.py review  # if packages configured
 ```
 
 ## Hooks
 
-### PreToolUse (Security + Token Optimization)
+| Hook | Trigger | Purpose |
+|------|---------|---------|
+| `hook-dangerous-cmd.sh` | PreToolUse (Bash) | Block destructive commands |
+| `hook-sensitive-file.sh` | PreToolUse (Read) | Gate access to secrets/credentials |
+| `hook-pre-commit-secrets.sh` | PreToolUse (Bash) | Scan staged files for secrets on commit |
+| `hook-subagent-stop.py` | PostToolUse (SubAgentStop) | Parse TASK_DONE footer, call report-done |
+| `hook-pre-compact.py` | PreToolUse (Compact) | Checkpoint memory before context compaction |
+| `hook-commit-confirm.sh` | PostToolUse (Bash) | Confirm commit with hash and message |
+| `workflow_hooks.py` | PostToolUse (Edit/Write) | Auto-format edited files |
 
-Validates commands **before** execution:
-- **Bash commands:** Blocks dangerous patterns (`rm -rf /`, `sudo rm`, `chmod 777`, disk operations)
-- **Read operations:** Requires approval for sensitive files (`.env`, credentials, private keys)
-- **Token optimization telemetry:** Logs Bash command usage to `.cnogo/command-usage.jsonl` and suggests compact alternatives
-- **Commit secret scan:** Scans staged files when a `git commit` command is issued
+## Customization
 
-### PostToolUse (Auto-format on edit)
-
-By default, formatting runs **after edits** but is optimized for latency:
-
-- Uses `python3 scripts/workflow_hooks.py post_edit` to format **only the files Claude edited** when possible
-- Configurable via `docs/planning/WORKFLOW.json` (`performance.postEditFormat*`)
-
-### Discover (Missed Savings)
-
-Use discover to find where command habits are wasting tokens:
+**Add project-specific commands:**
 
 ```bash
-python3 scripts/workflow_checks.py discover --since-days 30
-python3 scripts/workflow_checks.py discover --since-days 7 --format json
+# Create .claude/commands/your-command.md
+# Use $ARGUMENTS for user input
 ```
 
-This reads `.cnogo/command-usage.jsonl` and reports:
-- already-optimized command rate
-- missed compact-command opportunities
-- estimated saveable tokens
-
-### PostCommit
-
-Confirms commit with hash and message.
-
-## Security
-
-### Permissions
-
-The settings.json includes:
-- **Allowed:** Standard dev tools (git, build tools, grep, etc.)
-- **Denied:**
-  - Destructive commands (`rm -rf /`, `sudo`)
-  - Reading secrets (`.env`, `*-prod.yml`, `*.pem`, `*.key`)
-  - Pipe to shell (`curl | bash`)
-
-### Review Command
-
-`/review` runs:
-1. Linting (stack-specific)
-2. Tests
-3. Secret detection
-4. Dependency vulnerability scanning (`npm audit`, `pip-audit`, etc.)
-5. SAST via Semgrep (if installed)
-6. Type checking
-
-## Customisation
-
-### Add Stack-Specific Hooks
-
-Edit `.claude/settings.json`:
+**Configure enforcement** in `docs/planning/WORKFLOW.json`:
 
 ```json
-"PostToolUse": [
-  {
-    "matcher": "Write|Edit",
-    "hooks": [
-      {
-        "type": "command",
-        "command": "your-formatter-command || true"
-      }
-    ]
+{
+  "enforcement": {
+    "monorepoVerifyScope": "warn",
+    "operatingPrinciples": "warn"
   }
-]
+}
 ```
 
-### Add Project-Specific Commands
-
-Create `.claude/commands/your-command.md`:
-
-```markdown
-# Your Command: $ARGUMENTS
-
-[Instructions for Claude]
-```
-
-### Extend Templates
-
-- `docs/planning/PROJECT.md` — Add your patterns
-- `docs/planning/adr/ADR-TEMPLATE.md` — Adjust for your org
-- `.github/CODEOWNERS` — Set your teams
+**Add custom agents** by creating `.claude/agents/your-agent.md` with YAML frontmatter.
 
 ## Principles
 
-1. **Fresh context per plan** — Never let Claude degrade. Max 3 tasks per plan.
-2. **Atomic commits** — One commit per task. Git bisect works. Reverts are clean.
-3. **Discuss before plan** — Capture decisions upfront. Avoid rework.
-4. **Verify before ship** — Trust but verify. Does it actually work?
-5. **State survives sessions** — Memory engine persists across context switches.
-6. **Security by default** — Secret scanning, dependency audits, SAST.
-
-### Operating Principles
-
-These strengthen the workflow’s reliability and reduce common LLM pitfalls.
-
-1. **Think Before Coding**
-2. **Simplicity First**
-3. **Surgical Changes**
-4. **Goal-Driven Execution**
-
-## Monorepos & Polyglots
-
-This pack supports single-repo apps, monorepos, and enterprise polyglots.
-
-- **Default behavior**: the validator will **warn** when plan verify commands look unscoped in monorepos.
-- **Configure enforcement** in `docs/planning/WORKFLOW.json`:
-  - `enforcement.monorepoVerifyScope`: `"warn"` (default) or `"error"`
-  - `enforcement.operatingPrinciples`: `"off" | "warn" | "error"` (operating principles enforcement level)
-
-## Artifact Contracts (JSON)
-
-For key workflow artifacts, write a machine-checkable `*.json` contract next to the markdown file.
-
-- **Standard fields** (recommended across all contracts):
-  - `schemaVersion` (number)
-  - `feature` (feature slug)
-  - `timestamp` (ISO-8601)
-
-### Avoiding JSON/Markdown Drift
-
-To prevent contracts and markdown from diverging:
-
-- **Treat JSON as canonical** for enforcement and automation.
-- **Treat Markdown as human-readable** narrative/summary.
-- When creating artifacts, prefer: **write/update JSON first**, then write markdown to match it.
-
-## WORKFLOW.json Schema
-
-- **Config file**: `docs/planning/WORKFLOW.json`
-- **Editor schema**: `docs/planning/WORKFLOW.schema.json` (helps catch typos in IDEs)
-
-## Latency / Performance Tuning
-
-This pack is designed to be safe by default, but you can reduce iteration latency:
-
-- **Fast post-edit formatting (default)**: the Claude hook now tries to format **only the files Claude edited**.
-- **Configure** via `docs/planning/WORKFLOW.json`:
-  - `performance.postEditFormat`: `"auto"` or `"off"`
-  - `performance.postEditFormatScope`: `"changed"` (default) or `"repo"`
-
-If you see formatting slowing you down in very large repos, set `postEditFormat` to `"off"` and rely on `/review` + CI format checks instead.
-
-## Enforcement Outside Claude (Optional)
-
-To enforce workflow validation + secret scanning when committing outside Claude:
-
-```bash
-chmod +x .githooks/pre-commit scripts/install-githooks.sh
-./scripts/install-githooks.sh
-```
-
-This configures `core.hooksPath=.githooks` for the repository.
+1. **Fresh context per plan** — max 3 tasks per plan prevents context degradation
+2. **Atomic commits** — one commit per plan, git bisect works, reverts are clean
+3. **Discuss before plan** — capture decisions upfront, avoid rework
+4. **Verify before ship** — task-level and plan-level verification gates
+5. **State survives sessions** — memory engine persists across context switches
+6. **Security by default** — secret scanning, dangerous command blocking, sensitive file gating
 
 ## Credits
 
-- **Boris Cherny** — Parallel session workflow, plan mode, fresh context pattern
-- **GSD (TÂCHES)** — Context engineering, memory engine, discuss → plan → execute → verify cycle
-- **Keep a Changelog** — Changelog format
-- **Conventional Commits** — Commit message format
+- [Boris Cherny](https://blog.borischerny.com/) — parallel session workflow, fresh context pattern
+- [GSD](https://github.com/gsd-framework) — context engineering, discuss → plan → execute → verify cycle
 
 ## License
 
