@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "feature": "skills-usage-audit",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".claude/skills/performance-review.md",
+      "description": "Created composite Performance Review (Final Gate) skill with YAML frontmatter, 6-step deterministic procedure (Scope+Intent, Code Review, Contract Compliance, Security/OWASP, PRR-lite, Validation Baseline), 7-axis scoring rubric (0-2 each, pass >= 11/14), multi-agent safety rules, and structured output format."
+    },
+    {
+      "file": ".claude/commands/review.md",
+      "description": "Updated Step 3 (Focused Manual Pass → Performance Review Final Gate) to use performance-review.md as the primary final-gate procedure. Updated Step 4 (Verdict) to reference the scoring rubric pass/warn/fail thresholds."
+    }
+  ],
+  "verification": [
+    {
+      "command": "parse_skill_frontmatter('performance-review.md') — name and appliesTo correct",
+      "result": "pass"
+    },
+    {
+      "command": "discover_skills() — 16 skills including performance-review",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py — no new warnings",
+      "result": "pass"
+    }
+  ],
+  "commit": "113b895",
+  "timestamp": "2026-02-21T00:00:00Z"
+}

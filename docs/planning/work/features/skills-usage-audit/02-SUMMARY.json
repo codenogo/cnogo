@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "feature": "skills-usage-audit",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".claude/skills/*.md (15 files)",
+      "description": "Added YAML frontmatter (name, tags, appliesTo) to all 15 skill files. Tags categorize skills by domain/workflow/quality/security/testing/debug/release/performance. appliesTo maps each skill to commands that reference it."
+    },
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "description": "Replaced 3 hardcoded review tables (Security, Performance, Design Patterns — 28 lines) with a single Manual Review section referencing .claude/skills/code-review.md as the authoritative source. REVIEW.json fields remain the structured data target."
+    }
+  ],
+  "verification": [
+    {
+      "command": "discover_skills() — all 15 skills have valid frontmatter",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py — 0 skill frontmatter warnings",
+      "result": "pass"
+    },
+    {
+      "command": "import scripts.workflow_checks_core",
+      "result": "pass"
+    }
+  ],
+  "commit": "a66f83b",
+  "timestamp": "2026-02-21T00:00:00Z"
+}
