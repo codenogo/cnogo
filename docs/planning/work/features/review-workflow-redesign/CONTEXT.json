@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-workflow-redesign",
+  "displayName": "Review Workflow Redesign",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "Three CLAUDE.md layers: root CLAUDE.md (host project, skip-if-exists), .claude/CLAUDE.md (cnogo shell, always overwritten), and language templates (docs/templates/CLAUDE-*.md)",
+      "rationale": "cnogo is installed into other projects. .claude/CLAUDE.md is the shell — always-on context loaded alongside the host project's own CLAUDE.md. This is the correct home for Operating Principles."
+    },
+    {
+      "area": "naming",
+      "decision": "Remove all 'Karpathy' branding; call them 'Operating Principles'",
+      "rationale": "User directive: principles are generic best practices, not attributed to a single person. Remove GitHub link attribution."
+    },
+    {
+      "area": "enforcement-timing",
+      "decision": "Principles enforced at coding/implementation time via .claude/CLAUDE.md (always-on) and /implement preamble, NOT as review-time checklist",
+      "rationale": ".claude/CLAUDE.md is always overwritten on install and always loaded by Claude — this is the coding-time enforcement point. Review should verify outcomes, not re-check intent."
+    },
+    {
+      "area": "review-focus",
+      "decision": "Review restructured around security, performance, and design pattern alignment",
+      "rationale": "User directive: review should catch real defects (security holes, perf regressions, pattern violations), not re-validate coding principles"
+    },
+    {
+      "area": "review-principles-optional",
+      "decision": "Principles become optional notes in REVIEW.json, not a mandatory checklist",
+      "rationale": "Some principles may be highlighted during review (e.g. 'Simplicity First' if over-engineering detected) but not as a required section"
+    },
+    {
+      "area": "config",
+      "decision": "Rename WORKFLOW.json enforcement.karpathyChecklist to enforcement.operatingPrinciples; remove reviewPrinciples array (principles no longer review-scoped)",
+      "rationale": "Config key should reflect the new name. reviewPrinciples array was review-time enforcement — no longer needed since principles are coding-time via CLAUDE.md"
+    },
+    {
+      "area": "review-artifact-schema",
+      "decision": "REVIEW.json: replace mandatory principles[] with securityFindings[], performanceFindings[], patternCompliance[], and optional principleNotes[]",
+      "rationale": "Review artifacts should reflect what review actually checks: security, performance, patterns"
+    },
+    {
+      "area": "review-md-structure",
+      "decision": "REVIEW.md: replace '## Karpathy Checklist' with '## Security', '## Performance', '## Design Patterns' sections",
+      "rationale": "Human-readable review should mirror the structured JSON review focus areas"
+    },
+    {
+      "area": "template-consistency",
+      "decision": "Update WORKFLOW-TEMPLATE.json and all CLAUDE-*.md templates to use new naming",
+      "rationale": "New installs must get the updated config keys and principle naming from day one"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no external dependencies",
+    "Backward-compatible: existing REVIEW.json with principles[] must still parse (warn, not error)",
+    "WORKFLOW.json must accept both old key (karpathyChecklist) and new key (operatingPrinciples) during migration",
+    "All 8 existing principles remain as Operating Principles, just renamed and relocated",
+    ".claude/CLAUDE.md is always overwritten on install — safe to modify without migration concerns",
+    "Root CLAUDE.md templates (docs/templates/CLAUDE-*.md) must also be updated for new installs"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "docs/planning/WORKFLOW.json",
+    "docs/templates/WORKFLOW-TEMPLATE.json",
+    "scripts/workflow_checks_core.py",
+    "scripts/workflow_validate_core.py",
+    ".claude/CLAUDE.md",
+    "CLAUDE.md",
+    ".claude/commands/review.md",
+    ".claude/commands/implement.md",
+    ".claude/skills/code-review.md",
+    "docs/templates/CLAUDE-generic.md",
+    "docs/templates/CLAUDE-python.md",
+    "docs/templates/CLAUDE-java.md",
+    "docs/templates/CLAUDE-typescript.md",
+    "docs/templates/CLAUDE-go.md",
+    "docs/templates/CLAUDE-rust.md",
+    "README.md",
+    "install.sh"
+  ],
+  "timestamp": "2026-02-21T00:00:00Z"
+}

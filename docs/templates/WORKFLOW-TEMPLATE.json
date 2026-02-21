@@ -55,17 +55,7 @@
   },
   "enforcement": {
     "monorepoVerifyScope": "warn",
-    "karpathyChecklist": "warn",
-    "reviewPrinciples": [
-      "Think Before Coding",
-      "Simplicity First",
-      "Surgical Changes",
-      "Goal-Driven Execution",
-      "Prefer shared utility packages over hand-rolled helpers",
-      "Don't probe data YOLO-style",
-      "Validate boundaries",
-      "Typed SDKs"
-    ]
+    "operatingPrinciples": "warn"
   },
   "freshness": {
     "enabled": true,

@@ -4,7 +4,7 @@ Workflow engine documentation. Claude reads this automatically alongside your pr
 
 ## Operating Principles
 
-Apply these on every non-trivial task. Inspired by [forrestchang/andrej-karpathy-skills](https://github.com/forrestchang/andrej-karpathy-skills).
+Apply these on every non-trivial task.
 
 1. **Think Before Coding** — surface confusion and tradeoffs; ask when ambiguous
 2. **Simplicity First** — minimum code that solves the problem; no speculative abstractions

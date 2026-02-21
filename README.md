@@ -680,9 +680,9 @@ Create `.claude/commands/your-command.md`:
 5. **State survives sessions** — Memory engine persists across context switches.
 6. **Security by default** — Secret scanning, dependency audits, SAST.
 
-### Karpathy-Inspired Claude Coding Principles
+### Operating Principles
 
-These strengthen the workflow’s reliability and reduce common LLM pitfalls. Source: [`forrestchang/andrej-karpathy-skills`](https://github.com/forrestchang/andrej-karpathy-skills).
+These strengthen the workflow’s reliability and reduce common LLM pitfalls.
 
 1. **Think Before Coding**
 2. **Simplicity First**
@@ -696,7 +696,7 @@ This pack supports single-repo apps, monorepos, and enterprise polyglots.
 - **Default behavior**: the validator will **warn** when plan verify commands look unscoped in monorepos.
 - **Configure enforcement** in `docs/planning/WORKFLOW.json`:
   - `enforcement.monorepoVerifyScope`: `"warn"` (default) or `"error"`
-  - `enforcement.karpathyChecklist`: `"off" | "warn" | "error"` (enforce Karpathy checklist in review artifacts)
+  - `enforcement.operatingPrinciples`: `"off" | "warn" | "error"` (operating principles enforcement level)
 
 ## Artifact Contracts (JSON)
 
