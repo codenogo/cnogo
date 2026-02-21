@@ -12,9 +12,9 @@ Break `$ARGUMENTS` into atomic, executable plans.
 - `$ARGUMENTS` must be the feature slug (`kebab-case`) matching `docs/planning/work/features/<feature-slug>/`.
 - If user gives a display name, route through `/discuss "<display name>"` first.
 
-### Step 0: Branch Alignment
+### Step 0: Branch Verification (verify-only — do NOT create)
 
-Plan work must run on `feature/$ARGUMENTS`.
+Plan work must run on `feature/$ARGUMENTS`. The branch should already exist from `/discuss`.
 
 ```bash
 git branch --show-current
@@ -23,15 +23,10 @@ git status --porcelain
 
 Rules:
 - If already on `feature/$ARGUMENTS`, continue.
-- If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
-- If `feature/$ARGUMENTS` exists locally, switch to it.
-- Else create it from default branch:
-
-```bash
-git switch main || git switch master
-git pull --ff-only
-git switch -c feature/$ARGUMENTS
-```
+- If `feature/$ARGUMENTS` exists locally but is not the current branch:
+  - If working tree is dirty, stop and ask user to commit/stash first.
+  - Else switch to it and pull latest: `git switch feature/$ARGUMENTS && git pull --ff-only`
+- If `feature/$ARGUMENTS` does **not** exist, stop and tell the user to run `/discuss $ARGUMENTS` first to create the branch.
 
 ### Step 1: Phase Check (Warn, Do Not Block)
 
