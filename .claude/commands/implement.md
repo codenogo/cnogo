@@ -67,6 +67,7 @@ python3 scripts/workflow_memory.py phase-set <feature-slug> implement
 
 For each task in plan JSON:
 1. announce task start
+1b. review applicable Operating Principles from `.claude/CLAUDE.md` before coding (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
 2. claim task memory ID if present
 3. edit only listed files
 4. run all task `verify[]` commands
