@@ -40,9 +40,9 @@ git status --porcelain
 
 Rules:
 - Target branch is `fix/<slug>`.
-- If already on `fix/<slug>`, continue.
+- If already on `fix/<slug>`, pull latest: `git pull --ff-only` (ignore failure if no upstream yet), then continue.
 - If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
-- If `fix/<slug>` exists locally, switch to it.
+- If `fix/<slug>` exists locally, switch and sync: `git switch fix/<slug> && git pull --ff-only` (ignore failure if no upstream yet).
 - Else create it from default branch:
 
 ```bash

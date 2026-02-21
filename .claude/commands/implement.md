@@ -11,9 +11,9 @@ Execute a plan with per-task verification.
 
 Execute the specified plan for `$ARGUMENTS`.
 
-### Step 0: Branch Alignment
+### Step 0: Branch Verification (verify-only — do NOT create)
 
-Implementation must run on `feature/<feature-slug>`.
+Implementation must run on `feature/<feature-slug>`. The branch should already exist from `/discuss`.
 
 ```bash
 git branch --show-current
@@ -22,15 +22,10 @@ git status --porcelain
 
 Rules:
 - If already on `feature/<feature-slug>`, continue.
-- If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
-- If `feature/<feature-slug>` exists locally, switch to it.
-- Else create it from default branch:
-
-```bash
-git switch main || git switch master
-git pull --ff-only
-git switch -c feature/<feature-slug>
-```
+- If `feature/<feature-slug>` exists locally but is not the current branch:
+  - If working tree is dirty, stop and ask user to commit/stash first.
+  - Else switch to it and pull latest: `git switch feature/<feature-slug> && git pull --ff-only`
+- If `feature/<feature-slug>` does **not** exist, stop and tell the user to run `/discuss <feature-name>` first to create the branch.
 
 ### Step 1: Phase Check (Warn, Do Not Block)
 
