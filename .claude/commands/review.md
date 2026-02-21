@@ -60,29 +60,31 @@ Then validate workflow artifacts:
 python3 scripts/workflow_validate.py
 ```
 
-### Step 3: Focused Manual Pass
+### Step 3: Performance Review (Final Gate)
 
-Review high-risk areas not fully covered by automated checks:
-- Security boundaries (auth, input validation, secrets, sensitive logging)
-- Contract compatibility (API/schema/backward compatibility)
-- Failure behavior (timeouts, retries, error surfaces)
-- Test quality (edge cases and non-flaky behavior)
-- Scope hygiene (no drive-by refactors)
+Apply `.claude/skills/performance-review.md` as the primary final-gate review procedure. This orchestrates sub-skills in a deterministic 6-step sequence with a 7-axis scoring rubric:
 
-Apply these skills in order for consistent review quality:
-- `.claude/skills/code-review.md`
+1. **Scope + Intent** — changes match plan goal, no out-of-scope modifications
+2. **Code Review Checklist** — via `.claude/skills/code-review.md`
+3. **Contract Compliance** — planning artifacts + multi-agent safety
+4. **Security / OWASP Quick Pass** — via `.claude/skills/security-scan.md`
+5. **PRR-lite** — via `.claude/skills/release-readiness.md`
+6. **Validation Baseline Diff** — verify-before vs verify-after
+
+Additional skill checks for workflow-specific concerns:
 - `.claude/skills/boundary-and-sdk-enforcement.md`
 - `.claude/skills/workflow-contract-integrity.md`
 - `.claude/skills/artifact-token-budgeting.md`
 
-Fill `securityFindings[]`, `performanceFindings[]`, `patternCompliance[]` in `REVIEW.json` based on manual review. Optionally add `principleNotes[]` if Operating Principles are relevant to specific findings.
+Fill `securityFindings[]`, `performanceFindings[]`, `patternCompliance[]` in `REVIEW.json`. Record scoring summary in `principleNotes[]`.
 
 ### Step 4: Verdict
 
-Use `REVIEW.json.verdict`:
-- `fail`: block merge; list blockers
-- `warn`: call out risks and ask user whether to proceed
-- `pass`: ready for `/ship`
+Score 7 axes (0-2 each) per `.claude/skills/performance-review.md` rubric:
+
+- **Pass** (≥ 11/14, no 0 in Correctness/Security/Contract Compliance): ready for `/ship`
+- **Warn** (≥ 11/14 with concerns, or 9-10): call out risks and ask user whether to proceed
+- **Fail** (< 9, or any 0 in Correctness/Security/Contract Compliance): block merge; list blockers
 
 If accepted (`pass` or approved `warn`) and memory is enabled:
 
