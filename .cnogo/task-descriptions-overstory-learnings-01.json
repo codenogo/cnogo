@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "feature": "overstory-learnings",
+  "plan_number": "01",
+  "generated_at": "2026-02-21T20:16:15.075737Z",
+  "tasks": [
+    {
+      "task_id": "",
+      "plan_task_index": 0,
+      "title": "Agent failure modes and propulsion principle",
+      "action": "For each agent .md file, add to the existing Rules section: (1) 3-5 inline 'Do NOT' failure prevention rules specific to that agent role, and (2) a propulsion line 'Execute immediately \u2014 do not ask for confirmation or propose a plan.' Keep additions under 40 words per file. Specific failure modes per agent:\n\n**implementer.md**: Add: Do NOT use TaskOutput \u2014 report via TaskList/SendMessage. Do NOT report done before ALL verify commands pass. Do NOT modify files outside your task description.\n\n**debugger.md**: Add: Execute immediately \u2014 do not ask for confirmation. Do NOT fix bugs outside the assigned failure scope. Do NOT skip hypothesis testing \u2014 form 2-3 theories before committing to a fix. Do NOT modify files outside your scope without messaging the team lead first.\n\n**resolver.md**: Add: Execute immediately \u2014 resolve conflicts without asking for confirmation. Do NOT leave conflict markers in files \u2014 every <<<<<<< must be resolved. Do NOT stage partial resolutions \u2014 all conflicted files must be resolved before committing.",
+      "file_scope": {
+        "paths": [
+          ".claude/agents/implementer.md",
+          ".claude/agents/debugger.md",
+          ".claude/agents/resolver.md"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 scripts/workflow_validate.py --json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)\""
+        ]
+      },
+      "completion_footer": "",
+      "blockedBy": [],
+      "skipped": false
+    },
+    {
+      "task_id": "",
+      "plan_task_index": 1,
+      "title": "Doctor git state health check",
+      "action": "Add Check 6 'git_state' to _cmd_doctor() in workflow_checks_core.py, inserted after Check 5 (hook config). The check should:\n\n1. Run `git status --porcelain` \u2014 warn if dirty working tree (uncommitted changes)\n2. Run `git symbolic-ref HEAD` \u2014 warn if detached HEAD\n3. Run `git branch --merged main` and count branches (excluding main) \u2014 warn if >3 stale merged branches exist\n\nReturn status: 'pass' if all clean, 'warn' if any issues found (never 'fail' since these are advisory). Keep the check fast (<2s). Update the doctor output label count from '5 diagnostic checks' to '6 diagnostic checks' in the docstring.",
+      "file_scope": {
+        "paths": [
+          "scripts/workflow_checks_core.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -c \"from scripts.workflow_checks_core import _cmd_doctor; print('import ok')\"",
+          "python3 scripts/workflow_checks.py doctor --json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); checks=[c['name'] for c in d['checks']]; assert 'git_state' in checks, f'missing git_state check in {checks}'\""
+        ]
+      },
+      "completion_footer": "",
+      "blockedBy": [],
+      "skipped": false
+    },
+    {
+      "task_id": "",
+      "plan_task_index": 2,
+      "title": "Merge tier logging in session-merge output",
+      "action": "Enhance cmd_session_merge() to include per-task resolved_tier information in the JSON output. After line 505 (`'error': ''`), add a 'tiers' key that maps each merged task index to its resolved_tier from the session worktree info:\n\n```python\ntiers = {}\nfor wt in session.worktrees:\n    if wt.task_index in result.merged_indices:\n        tiers[str(wt.task_index)] = wt.resolved_tier or \"unknown\"\npayload[\"tiers\"] = tiers\n```\n\nAlso update the text output (else branch) to include tier summary:\n```python\ntier_counts = {}\nfor t in tiers.values():\n    tier_counts[t] = tier_counts.get(t, 0) + 1\nif tier_counts:\n    print(f\"Resolution tiers: {tier_counts}\")\n```\n\nThis is backward compatible \u2014 existing consumers that don't read 'tiers' are unaffected.",
+      "file_scope": {
+        "paths": [
+          "scripts/workflow_memory.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -c \"import scripts.workflow_memory; print('import ok')\"",
+          "python3 -c \"import ast; tree=ast.parse(open('scripts/workflow_memory.py').read()); funcs=[n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]; assert 'cmd_session_merge' in funcs\""
+        ]
+      },
+      "completion_footer": "",
+      "blockedBy": [],
+      "skipped": false
+    }
+  ]
+}

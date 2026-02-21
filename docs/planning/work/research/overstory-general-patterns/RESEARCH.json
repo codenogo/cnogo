@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "topic": "General patterns in Overstory swarm orchestration system",
+  "slug": "overstory-general-patterns",
+  "timestamp": "2026-02-21T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory",
+      "finding": "Project-agnostic swarm system: TypeScript/Bun, 8 agent roles, zero runtime deps, 2000+ tests"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/CLAUDE.md",
+      "finding": "Operating model: orchestrator-lead-worker hierarchy, two-layer agent definitions, SQLite WAL, zero deps, propulsion principle"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/agents/coordinator.md",
+      "finding": "Coordinator is read-only, spawns leads only, monitors via mail, merges on merge_ready signal"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/agents/builder.md",
+      "finding": "Leaf agents: worktree-isolated, file-scoped, propulsion-driven, mandatory worker_done signal"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/agents/supervisor.md",
+      "finding": "Mid-tier: decomposes tasks, enforces non-overlapping file ownership, signals merge_ready"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/agents/merger.md",
+      "finding": "4-tier merge escalation: clean → auto-resolve → AI-resolve → reimagine"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/agents/monitor.md",
+      "finding": "Tier 2 watchdog: adaptive patrol cadence, progressive nudging, pattern detection"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/src/types.ts",
+      "finding": "Typed system: 8 capabilities, 10 message types, 4 resolution tiers, session checkpoints"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/src/errors.ts",
+      "finding": "9 typed error classes with machine-readable codes and domain-specific context"
+    },
+    {
+      "type": "web",
+      "path": "https://github.com/jayminwest/overstory/blob/main/STEELMAN.md",
+      "finding": "Self-critique: error compounding, cost amplification, architectural drift, debugging complexity"
+    },
+    {
+      "type": "repo",
+      "path": "docs/planning/work/research/overstory-workflow-patterns/RESEARCH.md",
+      "finding": "Prior cnogo research identified 7 borrowable patterns with adopt/skip recommendations"
+    }
+  ],
+  "summary": [
+    "15 distinct patterns identified across architecture, communication, isolation, testing, and error handling",
+    "Core philosophy: prevention over resolution (non-overlapping file scopes prevent most merge conflicts)",
+    "Immediate execution (propulsion principle) avoids token-expensive approval loops",
+    "Zero runtime dependency constraint independently converged with cnogo's stdlib-only rule",
+    "Named failure modes in agent definitions serve as referenceable documentation and monitoring hooks",
+    "SQLite mail with typed payloads provides auditable communication history vs ephemeral native messaging",
+    "Self-aware risk assessment (STEELMAN.md) acknowledges swarms only justified for truly independent tasks"
+  ],
+  "recommendation": "Use as architectural reference for cnogo's agent team evolution. Most impactful patterns to adopt: tiered merge resolution, named failure modes (already started in team.md fix), and colocated testing. Avoid: full SQLite mail (overkill for current scale), reimagine merge tier (cost risk)."
+}
