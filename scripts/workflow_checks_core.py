@@ -580,17 +580,7 @@ class InvariantFinding:
     message: str
 
 
-DEFAULT_REVIEW_PRINCIPLES = [
-    "Think Before Coding",
-    "Simplicity First",
-    "Surgical Changes",
-    "Goal-Driven Execution",
-    "Prefer shared utility packages over hand-rolled helpers",
-    "Don't probe data YOLO-style",
-    "Validate boundaries",
-    "Typed SDKs",
-]
-REVIEW_SCHEMA_VERSION = 2
+REVIEW_SCHEMA_VERSION = 3
 
 
 def load_workflow(root: Path | None = None) -> dict[str, Any]:
@@ -811,25 +801,6 @@ def _checks_runtime_cfg(wf: dict[str, Any]) -> dict[str, Any]:
 
     return cfg
 
-
-def _review_principles(wf: dict[str, Any]) -> list[str]:
-    """Load enforced review principles from WORKFLOW.json enforcement.reviewPrinciples."""
-    enforcement = wf.get("enforcement") if isinstance(wf.get("enforcement"), dict) else {}
-    raw = enforcement.get("reviewPrinciples")
-    if not isinstance(raw, list):
-        return list(DEFAULT_REVIEW_PRINCIPLES)
-
-    out: list[str] = []
-    seen: set[str] = set()
-    for item in raw:
-        if not isinstance(item, str):
-            continue
-        value = item.strip()
-        if not value or value in seen:
-            continue
-        seen.add(value)
-        out.append(value)
-    return out if out else list(DEFAULT_REVIEW_PRINCIPLES)
 
 
 def _git_name_only(root: Path, cmd: str) -> list[str]:
@@ -1343,7 +1314,6 @@ def write_review(
     feature: str | None,
     per_pkg: list[dict[str, Any]],
     invariant_findings: list[InvariantFinding],
-    principles: list[str],
 ) -> int:
     ts = now_iso()
     branch = git_branch(root)
@@ -1405,10 +1375,10 @@ def write_review(
             ],
         },
         "tokenTelemetry": tokens,
-        "principles": [
-            {"name": p, "status": "todo", "notes": ""}
-            for p in principles
-        ],
+        "securityFindings": [],
+        "performanceFindings": [],
+        "patternCompliance": [],
+        "principleNotes": [],
         "verdict": verdict,
         "blockers": blockers[:100],
         "warnings": warnings[:200],
@@ -1474,13 +1444,34 @@ def write_review(
         md_lines.append("")
     md_lines.append(f"## Verdict\n\n**{verdict.upper()}**\n")
 
-    # Enforced section (validator checks for presence)
-    md_lines.append("## Karpathy Checklist")
+    md_lines.append("## Security")
     md_lines.append("")
-    md_lines.append("| Principle | Status | Notes |")
-    md_lines.append("|----------|--------|------|")
-    for principle in principles:
-        md_lines.append(f"| {principle} | ⬜ | |")
+    md_lines.append("| Area | Status | Notes |")
+    md_lines.append("|------|--------|-------|")
+    md_lines.append("| Auth / access control | - | |")
+    md_lines.append("| Input validation | - | |")
+    md_lines.append("| Secrets / credential handling | - | |")
+    md_lines.append("| Injection (SQL, command, XSS) | - | |")
+    md_lines.append("| Sensitive logging | - | |")
+    md_lines.append("")
+
+    md_lines.append("## Performance")
+    md_lines.append("")
+    md_lines.append("| Area | Status | Notes |")
+    md_lines.append("|------|--------|-------|")
+    md_lines.append("| N+1 queries | - | |")
+    md_lines.append("| Unbounded loops / collections | - | |")
+    md_lines.append("| Memory / resource leaks | - | |")
+    md_lines.append("| Timeouts / retries | - | |")
+    md_lines.append("")
+
+    md_lines.append("## Design Patterns")
+    md_lines.append("")
+    md_lines.append("| Area | Status | Notes |")
+    md_lines.append("|------|--------|-------|")
+    md_lines.append("| Codebase pattern alignment | - | |")
+    md_lines.append("| API consistency | - | |")
+    md_lines.append("| Abstractions (minimal, justified) | - | |")
     md_lines.append("")
 
     write_text(md_path, "\n".join(md_lines).strip() + "\n")
@@ -1855,7 +1846,6 @@ def main() -> int:
         wf,
         changed_files_fallback=changed_files_fallback,
     )
-    review_principles = _review_principles(wf)
 
     if args.cmd == "entropy":
         ecfg = _entropy_cfg(wf)
@@ -1929,7 +1919,7 @@ def main() -> int:
         return write_verify_ci(root, args.feature, per_pkg, invariant_findings)
 
     if args.cmd == "review":
-        return write_review(root, feature_for_scope, per_pkg, invariant_findings, review_principles)
+        return write_review(root, feature_for_scope, per_pkg, invariant_findings)
 
     return 2
 
