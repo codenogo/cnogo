@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "003",
+  "slug": "readme-workflow-accuracy",
+  "goal": "Rewrite README to accurately represent workflow capabilities, remove all fabricated content (fake agents, teleport commands, SBOM claims, agent-memory dir)",
+  "files": ["README.md"],
+  "verify": [
+    "python3 scripts/workflow_validate.py"
+  ],
+  "timestamp": "2026-02-21T17:00:00Z"
+}

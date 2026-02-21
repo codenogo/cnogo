@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "003",
+  "slug": "readme-workflow-accuracy",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "README.md",
+      "change": "Complete rewrite focused on accurate workflow capabilities: removed 10 fake agents, teleport commands, SBOM claims, agent-memory dir; documented actual 29 commands, 3 agents, 16 skills, 13 memory modules, 9 automation scripts, 6 hook scripts, WORKFLOW.json configuration, and planning artifact structure"
+    }
+  ],
+  "verification": [
+    {"command": "python3 scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"}
+  ],
+  "commit": "",
+  "timestamp": "2026-02-21T17:15:00Z"
+}
