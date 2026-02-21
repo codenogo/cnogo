@@ -1,0 +1,127 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/workflow-dead-code-cleanup",
+  "feature": "workflow-dead-code-cleanup",
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {
+      "pattern": "Dead code verification before removal",
+      "status": "compliant",
+      "detail": "All 11 functions verified unused via grep across codebase before removal"
+    },
+    {
+      "pattern": "git mv for history preservation",
+      "status": "compliant",
+      "detail": "Archive moves used git mv to preserve file history"
+    },
+    {
+      "pattern": "Memory phase progression",
+      "status": "compliant",
+      "detail": "discuss → plan → implement → review — correct lifecycle"
+    },
+    {
+      "pattern": "Worker closure rules",
+      "status": "compliant",
+      "detail": "Issues closed via CLI (leader role), not by worker agents"
+    }
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    "Surgical Changes (2/2): only planned files touched, no drive-by refactors",
+    "Simplicity First (2/2): pure deletion, no new abstractions introduced",
+    "Goal-Driven Execution (2/2): every removal verified by grep before planning, imports verified after execution",
+    "Correctness (2/2): all dead functions verified unused; kept exports confirmed used externally",
+    "Security (2/2): no new code, only deletions and renames",
+    "Contract Compliance (2/2): full CONTEXT → PLAN → SUMMARY chain for both plans",
+    "Test Coverage (2/2): dead code removal requires no new tests; import verification sufficient"
+  ],
+  "rubric": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "performance": 2,
+    "maintainability": 2,
+    "testCoverage": 2,
+    "scopeDiscipline": 2
+  },
+  "score": 14,
+  "maxScore": 14,
+  "schemaVersion": 3,
+  "securityFindings": [],
+  "timestamp": "2026-02-21T14:15:00Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": [],
+  "commits": [
+    {
+      "hash": "8eed963",
+      "message": "refactor(memory): remove 11 dead function wrappers and outdated comments"
+    },
+    {
+      "hash": "0e5b508",
+      "message": "chore(planning): archive 3 stale feature directories"
+    },
+    {
+      "hash": "ca7de21",
+      "message": "docs(planning): add Plan 02 summary for workflow-dead-code-cleanup"
+    }
+  ],
+  "diffStats": {
+    "filesChanged": 28,
+    "insertions": 431,
+    "deletions": 128
+  }
+}
