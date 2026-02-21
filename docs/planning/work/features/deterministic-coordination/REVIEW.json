@@ -1,0 +1,123 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    },
+    {
+      "name": "workflow_validate",
+      "result": "pass"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/deterministic-coordination",
+  "feature": "deterministic-coordination",
+  "findings": [
+    {
+      "severity": "blocker",
+      "status": "fixed",
+      "file": "scripts/memory/__init__.py",
+      "description": "Hook ownership validation incomplete in report_done() — allowed hooks to report_done for unowned tasks when owner_actor was empty."
+    },
+    {
+      "severity": "warning",
+      "status": "fixed",
+      "file": "scripts/memory/reconcile_leader.py",
+      "description": "Plan/epic closure used raw DB connections without retry wrapper — vulnerable to SQLITE_BUSY under contention."
+    },
+    {
+      "severity": "note",
+      "status": "accepted",
+      "file": "scripts/memory/storage.py",
+      "description": "v3 migration backfills state only when state='open'. Low likelihood edge case — acceptable."
+    },
+    {
+      "severity": "note",
+      "status": "accepted",
+      "file": "scripts/memory/__init__.py",
+      "description": "verify_and_close() is not idempotent (raises on already-closed). By design."
+    },
+    {
+      "severity": "note",
+      "status": "accepted",
+      "file": "scripts/workflow_validate_core.py",
+      "description": "save_baseline() uses direct write instead of atomic temp+rename. Acceptable for single-threaded CLI."
+    }
+  ],
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 5,
+      "warn": 0
+    }
+  },
+  "principles": [
+    {
+      "name": "Think Before Coding",
+      "notes": "10 CONTEXT contracts defined before implementation",
+      "status": "pass"
+    },
+    {
+      "name": "Simplicity First",
+      "notes": "stdlib-only, minimal API surface",
+      "status": "pass"
+    },
+    {
+      "name": "Surgical Changes",
+      "notes": "Each plan touches only listed files",
+      "status": "pass"
+    },
+    {
+      "name": "Goal-Driven Execution",
+      "notes": "All task/plan verify commands pass",
+      "status": "pass"
+    },
+    {
+      "name": "Prefer shared utility packages over hand-rolled helpers",
+      "notes": "Reuses storage.with_retry, existing memory APIs",
+      "status": "pass"
+    },
+    {
+      "name": "Don't probe data YOLO-style",
+      "notes": "State machine with explicit transitions",
+      "status": "pass"
+    },
+    {
+      "name": "Validate boundaries",
+      "notes": "Role enforcement at API boundary, hook ownership validated",
+      "status": "pass"
+    },
+    {
+      "name": "Typed SDKs",
+      "notes": "N/A — no external APIs",
+      "status": "pass"
+    }
+  ],
+  "schemaVersion": 2,
+  "security": {
+    "inputValidation": "pass — _ALLOWED_FIELDS whitelist, actor_role enum, state machine enforcement",
+    "authorization": "pass — role enforcement on close/report_done/verify_and_close, hook ownership fixed",
+    "secrets": "pass — no credentials in code or artifacts",
+    "injection": "pass — parameterized SQL, list-based subprocess"
+  },
+  "timestamp": "2026-02-21T16:00:00Z",
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 2,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}

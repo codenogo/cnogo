@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "feature": "deterministic-coordination",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/memory/__init__.py",
+      "description": "Added report_done() for worker task completion (sets done_by_worker state). Added verify_and_close() for leader-only two-phase verification (done_by_worker -> verified -> closed). Added role enforcement to close(). Removed _try_auto_close_parent() cascade."
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "description": "Added report-done and verify-close CLI subcommands with argparse registration."
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m py_compile scripts/memory/__init__.py", "result": "pass"},
+    {"command": "python3 -m py_compile scripts/workflow_memory.py", "result": "pass"},
+    {"command": "python3 scripts/workflow_validate.py", "result": "pass"}
+  ],
+  "commit": "cd1818c",
+  "timestamp": "2026-02-21T13:30:00Z"
+}

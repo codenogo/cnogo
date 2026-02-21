@@ -16,7 +16,7 @@ from typing import Any
 
 from .models import Dependency, Event, Issue
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 WORKFLOW_PHASES = ("discuss", "plan", "implement", "review", "ship")
 _VALID_PHASES = frozenset(WORKFLOW_PHASES)
 
@@ -28,11 +28,14 @@ CREATE TABLE IF NOT EXISTS issues (
     description TEXT DEFAULT '',
     status TEXT DEFAULT 'open'
         CHECK(status IN ('open', 'in_progress', 'closed')),
+    state TEXT DEFAULT 'open'
+        CHECK(state IN ('open', 'in_progress', 'done_by_worker', 'verified', 'closed', 'ready_to_close')),
     issue_type TEXT DEFAULT 'task'
-        CHECK(issue_type IN ('epic', 'task', 'subtask', 'bug', 'quick', 'background')),
+        CHECK(issue_type IN ('epic', 'plan', 'task', 'subtask', 'bug', 'quick', 'background')),
     priority INTEGER DEFAULT 2
         CHECK(priority >= 0 AND priority <= 4),
     assignee TEXT DEFAULT '',
+    owner_actor TEXT DEFAULT '',
     feature_slug TEXT DEFAULT '',
     plan_number TEXT DEFAULT '',
     phase TEXT DEFAULT 'discuss'
@@ -127,19 +130,22 @@ def normalize_phase(phase: str | None) -> str:
 
 
 def _row_to_issue(row: sqlite3.Row) -> Issue:
+    keys = row.keys()
     return Issue(
         id=row["id"],
         content_hash=row["content_hash"] or "",
         title=row["title"],
         description=row["description"] or "",
         status=row["status"],
+        state=row["state"] if "state" in keys else "open",
         issue_type=row["issue_type"],
         priority=row["priority"],
         assignee=row["assignee"] or "",
+        owner_actor=row["owner_actor"] if "owner_actor" in keys else "",
         feature_slug=row["feature_slug"] or "",
         plan_number=row["plan_number"] or "",
         phase=normalize_phase(
-            row["phase"] if "phase" in row.keys() else "discuss"
+            row["phase"] if "phase" in keys else "discuss"
         ),
         close_reason=row["close_reason"] or "",
         metadata=_parse_json(row["metadata"]),
@@ -204,6 +210,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     if current < 2:
         _migrate_to_v2(conn)
         current = 2
+    if current < 3:
+        _migrate_to_v3(conn)
+        current = 3
     if _column_exists(conn, "issues", "phase"):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_phase ON issues(phase)")
     conn.execute(
@@ -244,22 +253,51 @@ def _migrate_to_v2(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE issues SET phase = 'ship' WHERE status = 'closed'")
 
 
+def _migrate_to_v3(conn: sqlite3.Connection) -> None:
+    """Schema v3: add state and owner_actor columns for deterministic coordination."""
+    if not _column_exists(conn, "issues", "state"):
+        try:
+            conn.execute(
+                "ALTER TABLE issues ADD COLUMN state TEXT DEFAULT 'open'"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+    if not _column_exists(conn, "issues", "owner_actor"):
+        try:
+            conn.execute(
+                "ALTER TABLE issues ADD COLUMN owner_actor TEXT DEFAULT ''"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
+    # Backfill state from status
+    conn.execute("UPDATE issues SET state = 'closed' WHERE status = 'closed' AND state = 'open'")
+    conn.execute("UPDATE issues SET state = 'in_progress' WHERE status = 'in_progress' AND state = 'open'")
+    # Create indexes
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_owner ON issues(owner_actor)")
+
+
 # ---------------------------------------------------------------------------
 # Issue CRUD
 # ---------------------------------------------------------------------------
 
 def insert_issue(conn: sqlite3.Connection, issue: Issue) -> None:
     phase = normalize_phase(getattr(issue, "phase", "discuss"))
+    state = getattr(issue, "state", "open") or "open"
+    owner_actor = getattr(issue, "owner_actor", "") or ""
     conn.execute(
         """INSERT INTO issues
-           (id, content_hash, title, description, status, issue_type, priority,
-            assignee, feature_slug, plan_number, phase, close_reason, metadata,
-            created_at, updated_at, closed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (id, content_hash, title, description, status, state, issue_type,
+            priority, assignee, owner_actor, feature_slug, plan_number, phase,
+            close_reason, metadata, created_at, updated_at, closed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             issue.id, issue.content_hash, issue.title, issue.description,
-            issue.status, issue.issue_type, issue.priority, issue.assignee,
-            issue.feature_slug, issue.plan_number, phase, issue.close_reason,
+            issue.status, state, issue.issue_type, issue.priority,
+            issue.assignee, owner_actor, issue.feature_slug,
+            issue.plan_number, phase, issue.close_reason,
             json.dumps(issue.metadata, sort_keys=True, separators=(",", ":")),
             issue.created_at, issue.updated_at,
             issue.closed_at,
@@ -270,16 +308,19 @@ def insert_issue(conn: sqlite3.Connection, issue: Issue) -> None:
 def upsert_issue(conn: sqlite3.Connection, issue: Issue) -> None:
     """Insert or replace (for JSONL import)."""
     phase = normalize_phase(getattr(issue, "phase", "discuss"))
+    state = getattr(issue, "state", "open") or "open"
+    owner_actor = getattr(issue, "owner_actor", "") or ""
     conn.execute(
         """INSERT OR REPLACE INTO issues
-           (id, content_hash, title, description, status, issue_type, priority,
-            assignee, feature_slug, plan_number, phase, close_reason, metadata,
-            created_at, updated_at, closed_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (id, content_hash, title, description, status, state, issue_type,
+            priority, assignee, owner_actor, feature_slug, plan_number, phase,
+            close_reason, metadata, created_at, updated_at, closed_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             issue.id, issue.content_hash, issue.title, issue.description,
-            issue.status, issue.issue_type, issue.priority, issue.assignee,
-            issue.feature_slug, issue.plan_number, phase, issue.close_reason,
+            issue.status, state, issue.issue_type, issue.priority,
+            issue.assignee, owner_actor, issue.feature_slug,
+            issue.plan_number, phase, issue.close_reason,
             json.dumps(issue.metadata, sort_keys=True, separators=(",", ":")),
             issue.created_at, issue.updated_at,
             issue.closed_at,
@@ -302,8 +343,8 @@ def id_exists(conn: sqlite3.Connection, issue_id: str) -> bool:
 
 
 _ALLOWED_FIELDS = frozenset({
-    "content_hash", "title", "description", "status", "issue_type",
-    "priority", "assignee", "feature_slug", "plan_number",
+    "content_hash", "title", "description", "status", "state", "issue_type",
+    "priority", "assignee", "owner_actor", "feature_slug", "plan_number",
     "phase", "close_reason", "metadata", "closed_at", "updated_at",
 })
 

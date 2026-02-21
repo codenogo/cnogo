@@ -26,6 +26,10 @@ build/
 # Compaction checkpoint (runtime snapshot, not source)
 .cnogo/compaction-checkpoint.json
 
+# Validation baselines (per-branch runtime snapshots)
+.cnogo/validate-baseline.json
+.cnogo/validate-latest.json
+
 # Sensitive files
 *.pem
 *.key

@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "feature": "deterministic-coordination",
+  "planNumber": "04",
+  "goal": "Add leader reconciliation algorithm and .cnogo/run.json coordination ledger with guaranteed team lifecycle (Contracts 07, 08, 10-leader)",
+  "memoryEpicId": "cn-uvutix",
+  "tasks": [
+    {
+      "name": "Create run ledger module",
+      "files": ["scripts/memory/ledger.py"],
+      "action": "Create new module scripts/memory/ledger.py (stdlib only). Implements read/write for .cnogo/run.json. Data shape: {run_id: str, feature: str, phase: str (setup|running|reconciling|done|failed), team_id: str, epic_id: str, plan_ids: [str], issue_states: {issue_id: state_str}, outputs_hash: str, created_at: str, updated_at: str}. Functions: (1) load_ledger(root: Path) -> dict | None — reads .cnogo/run.json, returns None if missing. (2) save_ledger(root: Path, data: dict) -> None — atomic write (write to .tmp, rename). (3) update_ledger(root: Path, **fields) -> dict — load, merge fields, set updated_at, save, return. (4) create_ledger(root: Path, *, run_id: str, feature: str, team_id: str, epic_id: str) -> dict — create new ledger with phase='setup'. (5) generate_run_id() -> str — returns f'{feature}-{YYYYMMDD}-{HHMMSS}' format using UTC time. All timestamps UTC ISO-8601. Add to __init__.py __all__: load_ledger, save_ledger, create_ledger.",
+      "verify": [
+        "python3 -m py_compile scripts/memory/ledger.py",
+        "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.ledger import load_ledger, save_ledger, create_ledger, generate_run_id; rid = generate_run_id('test'); assert 'test-' in rid; print('OK')\""
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Create leader reconciliation module",
+      "files": ["scripts/memory/reconcile_leader.py"],
+      "action": "Create new module scripts/memory/reconcile_leader.py (stdlib only). Implements the deterministic leader-only closure algorithm from Contract 08. Main function: reconcile(epic_id: str, *, actor: str = 'leader', root: Path | None = None) -> dict. Algorithm: (1) Load epic issue. (2) Find all PLANs under epic (parent-child deps where parent=epic_id, issue_type='plan'). (3) For each PLAN, find all TASKs under it (parent-child deps where parent=plan_id, issue_type='task'). (4) For each TASK: if state='done_by_worker', call verify_and_close(task_id, actor=actor). Track results. (5) For each PLAN: if ALL child TASKs have state='closed', set plan.state='ready_to_close' then close plan via close(plan_id, actor_role='leader'). (6) For EPIC: if ALL PLANs have state='closed', set epic.state='ready_to_close' then close epic via close(epic_id, actor_role='leader'). Return summary dict: {tasks_verified: int, tasks_closed: int, plans_closed: int, epic_closed: bool, errors: [str]}. Handle errors per-item (don't abort on single failure). Import from scripts.memory: show, close, verify_and_close, list_issues. Add reconcile to __init__.py __all__.",
+      "verify": [
+        "python3 -m py_compile scripts/memory/reconcile_leader.py",
+        "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory.reconcile_leader import reconcile; print('OK')\""
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Update team.md with guaranteed lifecycle and ledger integration",
+      "files": [".claude/commands/team.md"],
+      "action": "Rewrite the team lifecycle section in team.md to enforce Contract 07. Key changes: (1) At start, generate unique team name: `impl-{feature}-{run_id}` where run_id comes from generate_run_id(). (2) Create run ledger immediately after TeamCreate: `python3 -c \"from scripts.memory.ledger import create_ledger; ...\"`. (3) Wrap the entire task execution + reconciliation in a try/finally structure. The instructions must explicitly state: 'The finally block MUST execute TeamDelete even if tasks fail.' (4) After all tasks complete, run reconciliation: `python3 -c \"from scripts.memory.reconcile_leader import reconcile; ...\"`. (5) Update ledger phase at each stage (setup->running->reconciling->done/failed). (6) If TeamDelete fails in finally: retry once, then log error and continue (don't deadlock). (7) Remove any best-effort cleanup language — replace with 'guaranteed teardown'.",
+      "verify": [
+        "python3 -c \"f=open('.claude/commands/team.md').read(); assert 'try' in f.lower() or 'finally' in f.lower() or 'guaranteed' in f.lower(); assert 'run_id' in f or 'run.json' in f or 'ledger' in f; print('OK')\""
+      ],
+      "blockedBy": [0, 1]
+    }
+  ],
+  "planVerify": [
+    "python3 -m py_compile scripts/memory/ledger.py",
+    "python3 -m py_compile scripts/memory/reconcile_leader.py",
+    "python3 scripts/workflow_validate.py"
+  ],
+  "commitMessage": "feat(deterministic-coordination): add leader reconciliation, run ledger, and guaranteed team lifecycle",
+  "timestamp": "2026-02-21T12:30:00Z"
+}

@@ -9,6 +9,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+# ---------------------------------------------------------------------------
+# Deterministic coordination type system (Contract 01, 03)
+# ---------------------------------------------------------------------------
+
+OBJECT_TYPES = frozenset({'epic', 'plan', 'task'})
+ACTOR_ROLES = frozenset({'leader', 'worker', 'hook'})
+TASK_STATES = ('open', 'in_progress', 'done_by_worker', 'verified', 'closed')
+PLAN_EPIC_STATES = ('open', 'ready_to_close', 'closed')
+CLOSE_REASONS = frozenset({'completed', 'rejected', 'superseded', 'blocked', 'failed'})
+
 
 @dataclass
 class Issue:
@@ -19,9 +29,11 @@ class Issue:
     content_hash: str = ""
     description: str = ""
     status: str = "open"
+    state: str = "open"
     issue_type: str = "task"
     priority: int = 2
     assignee: str = ""
+    owner_actor: str = ""
     feature_slug: str = ""
     plan_number: str = ""
     phase: str = "discuss"
@@ -58,6 +70,10 @@ class Issue:
             d["feature_slug"] = self.feature_slug
         if self.plan_number:
             d["plan_number"] = self.plan_number
+        if self.state != "open":
+            d["state"] = self.state
+        if self.owner_actor:
+            d["owner_actor"] = self.owner_actor
         if self.close_reason:
             d["close_reason"] = self.close_reason
         if self.metadata:
@@ -69,6 +85,12 @@ class Issue:
         if self.deps:
             d["deps"] = [dep.to_dict() for dep in self.deps]
         return d
+
+    def valid_states(self) -> tuple[str, ...]:
+        """Return valid state transitions for this issue type."""
+        if self.issue_type in ('plan', 'epic'):
+            return PLAN_EPIC_STATES
+        return TASK_STATES
 
 
 @dataclass
