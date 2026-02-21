@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "feature": "execution-coordination",
+  "displayName": "Execution Coordination — unified harness with bridge contract",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "One harness, two execution modes. Both /implement (serial) and /team implement (parallel) call bridge.plan_to_task_descriptions() to get validated TaskDescV2 objects from plan JSON.",
+      "rationale": "Serial flow currently reads plan JSON directly — adding bridge gives it validation (blockedBy checks, memory issue bootstrapping, skip-already-closed). Team flow needs standalone agent prompts. Shared entry point means one place to fix lifecycle rules."
+    },
+    {
+      "area": "architecture",
+      "decision": "Restore bridge.py from git history (ea99a65^) and upgrade to emit TaskDesc V2. Public API: plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id.",
+      "rationale": "Working code with real coordination value. V1 baked all structured fields into a markdown description string, losing action as a first-class field. V2 keeps structured data separate and renders markdown only at spawn-time."
+    },
+    {
+      "area": "architecture",
+      "decision": "Kill ledger.py permanently. Do NOT resurrect run.json. Move generate_run_id() into bridge.py as a simple helper.",
+      "rationale": "Ledger state is redundant: team identity in ~/.claude/teams/, task assignments in TaskList/TaskCreate, feature phase in memory phase-get/phase-set, worktree state in worktree-session.json. Pre-compact hook checkpoints what matters. Ledger was never executed — run.json never existed on disk."
+    },
+    {
+      "area": "contract",
+      "decision": "TaskDesc V2 is the ONLY persisted format. Shape: {task_id, plan_task_index, title, action, file_scope: {paths, forbidden}, commands: {verify, claim, report_done, context}, completion_footer, blockedBy, skipped, schema_version: 2}. The description markdown field is NOT persisted.",
+      "rationale": "V1 description field duplicated all structured fields as baked markdown — action from plan JSON was buried inside and not accessible as a first-class field. V2 keeps structured data queryable. Markdown prompt rendering happens at spawn-time only via generate_implement_prompt(taskdesc)."
+    },
+    {
+      "area": "contract",
+      "decision": "Persisted task-descriptions artifact uses a versioned wrapper: {schema_version: 2, feature, plan_number, generated_at, tasks: TaskDescV2[]}. Consumers fail fast on schema_version != 2.",
+      "rationale": "Versioned wrapper lets consumers detect stale V1 artifacts and error clearly instead of silently misreading fields. Old .cnogo/task-descriptions-*.json files (V1) should be deleted during migration."
+    },
+    {
+      "area": "api",
+      "decision": "generate_implement_prompt() becomes a pure renderer: input TaskDescV2 dict -> output markdown string. No longer called inside plan_to_task_descriptions(). Called at spawn-time only by team flow.",
+      "rationale": "Serial flow never needs the markdown prompt (agent has full plan context). Team flow renders at spawn-time because that's the only consumer. Decoupling generation from rendering makes both paths cleaner."
+    },
+    {
+      "area": "api",
+      "decision": "Re-export missing worktree functions through __init__.py: create_session, save_session, get_conflict_context. Also add bridge re-exports: plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id.",
+      "rationale": "Functions exist in worktree.py and bridge.py but __init__.py wrappers were removed in workflow-dead-code-cleanup. Team flow (team.md) references them and is broken at runtime."
+    },
+    {
+      "area": "integration",
+      "decision": "Serial flow (/implement): call plan_to_task_descriptions() at start for validation + memory bootstrapping. Iterate TaskDescV2 results, use structured fields (action, file_scope, commands) directly. Do NOT call generate_implement_prompt().",
+      "rationale": "Serial agent has full plan context in its window. It doesn't need standalone prompts. But it benefits from bridge's validation (blockedBy check, memory issue creation, skip-already-closed on resume) and uses V2 structured fields directly."
+    },
+    {
+      "area": "integration",
+      "decision": "Team flow (/team implement): call plan_to_task_descriptions() to get TaskDescV2 list. Persist as versioned wrapper artifact. At spawn-time, call generate_implement_prompt(taskdesc) to render standalone agent prompts. Use detect_file_conflicts() for advisory warnings. Use generate_run_id() from bridge (not ledger). Store run_id in worktree-session.json.",
+      "rationale": "Team flow needs standalone prompts because agents run in isolated worktrees with their own context. Rendering at spawn-time means the persisted artifact stays structured. Ledger imports replaced by bridge.generate_run_id()."
+    },
+    {
+      "area": "data-flow",
+      "decision": "Add run_id field to WorktreeSession schema. Update create_session() to read V2 fields (task_id, title, file_scope.paths, skipped) instead of V1 fields (name, memoryId, files).",
+      "rationale": "worktree-session.json is already checkpointed by pre-compact hook. Adding run_id there gives resumability. create_session() must match the V2 shape it receives."
+    },
+    {
+      "area": "data-flow",
+      "decision": "detect_file_conflicts() updated to read file_scope.paths and file_scope.forbidden from TaskDescV2 instead of flat files[] from V1.",
+      "rationale": "V2 splits file access into paths (touch these) and forbidden (never touch). Conflict detection should flag overlaps in paths and warn if any task's paths appear in another's forbidden list."
+    },
+    {
+      "area": "hook",
+      "decision": "hook-subagent-stop.py is already correct — parses structured TASK_DONE footer, calls report-done only. No changes needed.",
+      "rationale": "Audit confirmed: hook uses TASK_DONE regex on structured footer (not arbitrary text scanning), calls report-done (not close). Contract 06 is intact."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no external dependencies",
+    "bridge.py public API: plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id",
+    "TaskDescV2 is the ONLY persisted format — no description markdown in artifacts",
+    "generate_implement_prompt() is a pure renderer, called at spawn-time only",
+    "Persisted wrapper uses schema_version: 2, consumers fail fast on mismatch",
+    "worktree.py re-exports via __init__.py: create_session, save_session, get_conflict_context",
+    "Workers NEVER close issues — only report-done via structured TASK_DONE footer",
+    "Leader-only closure via reconcile_leader.reconcile()",
+    "hook-subagent-stop.py unchanged — already correct",
+    "Old V1 task-descriptions-*.json files deleted during migration"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "scripts/memory/bridge.py (restore from ea99a65^ + upgrade to V2)",
+    "scripts/memory/__init__.py",
+    "scripts/memory/worktree.py",
+    "scripts/memory/reconcile_leader.py",
+    "scripts/hook-subagent-stop.py",
+    ".claude/commands/team.md",
+    ".claude/commands/implement.md"
+  ],
+  "memoryEpicId": "cn-lrp9mm",
+  "timestamp": "2026-02-21T17:00:00Z"
+}

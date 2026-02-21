@@ -110,6 +110,7 @@ class WorktreeSession:
     schema_version: int = 1
     feature: str = ""
     plan_number: str = ""
+    run_id: str = ""
     base_commit: str = ""
     base_branch: str = ""
     phase: str = "setup"
@@ -123,6 +124,7 @@ class WorktreeSession:
             "schemaVersion": self.schema_version,
             "feature": self.feature,
             "planNumber": self.plan_number,
+            "runId": self.run_id,
             "baseCommit": self.base_commit,
             "baseBranch": self.base_branch,
             "phase": self.phase,
@@ -138,6 +140,7 @@ class WorktreeSession:
             schema_version=d.get("schemaVersion", 1),
             feature=d.get("feature", ""),
             plan_number=d.get("planNumber", ""),
+            run_id=d.get("runId", ""),
             base_commit=d.get("baseCommit", ""),
             base_branch=d.get("baseBranch", ""),
             phase=d.get("phase", "setup"),
@@ -250,6 +253,8 @@ def create_session(
     plan_json_path: Path,
     root: Path,
     task_descriptions: list[dict[str, Any]],
+    *,
+    run_id: str = "",
 ) -> WorktreeSession:
     """Create worktrees for parallel agent execution.
 
@@ -257,6 +262,9 @@ def create_session(
     2. Record base commit/branch
     3. For each non-skipped task: create branch, worktree, symlink .cnogo/
     4. Write session state file
+
+    Requires TaskDesc V2 dicts (task_id, title, file_scope).
+    Raises ValueError if V1-only fields are detected without V2 equivalents.
 
     On failure, cleans up all worktrees created so far.
     """
@@ -275,6 +283,7 @@ def create_session(
     session = WorktreeSession(
         feature=feature,
         plan_number=plan_number,
+        run_id=run_id,
         base_commit=base_commit,
         base_branch=base_branch,
         phase="setup",
@@ -288,7 +297,15 @@ def create_session(
             if desc.get("skipped"):
                 continue
 
-            task_name = desc.get("name", f"task-{i}")
+            # V2 required — fail fast on V1-only input
+            if "title" not in desc and "name" in desc:
+                raise ValueError(
+                    f"Task {i} has V1 field 'name' but no V2 'title'. "
+                    "Pass TaskDesc V2 dicts from plan_to_task_descriptions()."
+                )
+            task_name = desc.get("title", f"task-{i}")
+            memory_id = desc.get("task_id", "")
+
             branch_name = f"{_BRANCH_PREFIX}{feature}-{plan_number}-task-{i}"
             wt_dir = f"{project_name}-wt-{feature}-{plan_number}-{i}"
             wt_path = (root / ".." / wt_dir).resolve()
@@ -310,7 +327,7 @@ def create_session(
                 branch=branch_name,
                 path=str(wt_path),
                 status="created",
-                memory_id=desc.get("memoryId", ""),
+                memory_id=memory_id,
             )
             created_worktrees.append(wt_info)
 

@@ -63,27 +63,39 @@ python3 scripts/workflow_memory.py phase-set <feature-slug> implement
 - Else if plan has `"parallelizable": true` and Agent Teams available: delegate to `/team implement <feature> <plan-number>`.
 - Else execute serially.
 
-### Step 3: Execute Tasks
+### Step 2d: Bridge Validation
 
-For each task in plan JSON:
-1. announce task start
-1b. review applicable Operating Principles from `.claude/CLAUDE.md` before coding (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
-2. claim task memory ID if present
-3. edit only listed files
-4. run all task `verify[]` commands
-5. on success: report-done on memory ID if present (via `python3 scripts/workflow_memory.py report-done <id> --actor implementer`)
+Generate TaskDescV2 list via bridge for validation and memory bootstrapping:
+
+```python
+from scripts.memory.bridge import plan_to_task_descriptions
+from pathlib import Path
+tasks = plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<NN>-PLAN.json'), Path('.'))
+```
+
+This validates blockedBy indices, creates memory issues if needed, and skips already-closed tasks on resume.
+
+### Step 3: Execute Tasks (TaskDescV2)
+
+For each task in the TaskDescV2 list from Step 2d:
+1. skip if `task['skipped']` is true
+1b. announce task start, review Operating Principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
+2. if `task['task_id']` present, run `task['commands']['claim']`
+3. execute `task['action']`, editing only files in `task['file_scope']['paths']`
+4. run all `task['commands']['verify']` commands
+5. on success: run `task['commands']['report_done']` if task_id present
 6. on failure: inspect history, fix, retry (max 2 attempts before escalation)
 
-**Important:** Workers NEVER close memory issues — only report done via `report-done`. The leader handles closure.
-After completing all tasks, include a `TASK_DONE: [cn-xxx, cn-yyy]` footer listing all completed memory IDs.
+**Important:** Workers NEVER close memory issues — only report done. The leader handles closure.
+After all tasks, include each task's `completion_footer` in a combined footer: `TASK_DONE: [cn-xxx, cn-yyy]`
 
-If task files touch memory sync/import paths (for example `scripts/memory/sync.py` or `.cnogo/issues.jsonl` flows), apply `.claude/skills/memory-sync-reconciliation.md`.
+If task files touch memory sync/import paths, apply `.claude/skills/memory-sync-reconciliation.md`.
 
 Retry helper commands:
 
 ```bash
 python3 scripts/workflow_memory.py checkpoint --feature <feature-slug>
-python3 scripts/workflow_memory.py history <memory-id>
+python3 scripts/workflow_memory.py history <task_id>
 ```
 
 ### Step 4: Run Plan Verification
