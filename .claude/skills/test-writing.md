@@ -1,3 +1,8 @@
+---
+name: test-writing
+tags: [domain, testing, quality]
+appliesTo: [spawn]
+---
 # Test Writing
 
 Test strategy and patterns for unit and integration tests.

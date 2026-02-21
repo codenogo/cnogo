@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "feature": "skills-usage-audit",
+  "displayName": "Skills System Rework",
+  "decisions": [
+    {
+      "area": "discovery",
+      "decision": "Auto-discover skills from .claude/skills/ directory using YAML frontmatter in each .md file",
+      "rationale": "No config needed in WORKFLOW.json. Skills self-describe with name, tags, and appliesTo fields. Validator scans directory and cross-references command references."
+    },
+    {
+      "area": "frontmatter-schema",
+      "decision": "Each skill file gets a YAML frontmatter header: name (required), tags[] (optional), appliesTo[] (optional, command names)",
+      "rationale": "Minimal metadata that enables validation and discoverability without heavy infrastructure. appliesTo is optional because /spawn already maps all skills."
+    },
+    {
+      "area": "parser-location",
+      "decision": "Add parse_skill_frontmatter() to workflow_utils.py",
+      "rationale": "Shared utility module — both validator and future consumers can use it. Stdlib-only (no pyyaml), parse simple YAML-like frontmatter with regex."
+    },
+    {
+      "area": "validation",
+      "decision": "Validator checks: (1) all .claude/skills/*.md have valid frontmatter, (2) all skill references in commands resolve to existing files, (3) WARN severity (non-blocking)",
+      "rationale": "WARN is consistent with other validator findings. Catches broken references without blocking shipping."
+    },
+    {
+      "area": "deduplication",
+      "decision": "Skills are authoritative source for checklist content. REVIEW.md tables reference skill sections but don't duplicate them. code-review.md owns Security/Performance/Design Patterns checklists.",
+      "rationale": "Single source of truth. Review generation should pull from skill definitions rather than hardcoding duplicate content."
+    },
+    {
+      "area": "schema-cleanup",
+      "decision": "Update WORKFLOW.schema.json: replace karpathyChecklist with operatingPrinciples, remove reviewPrinciples",
+      "rationale": "Leftover from review-workflow-redesign that was noted as follow-up."
+    },
+    {
+      "area": "performance-review-skill",
+      "decision": "Add a Performance Review (Final Gate) composite skill that orchestrates sub-skills in a deterministic 6-step procedure: (A) Scope+Intent, (B) Code Review Checklist, (C) Contract Compliance, (D) Security/OWASP Quick Pass, (E) PRR-lite, (F) Validation Baseline Diff",
+      "rationale": "Existing skills (code-review, security-scan, perf-analysis, release-readiness) cover individual concerns but lack a sequenced final-gate orchestrator. The Performance Review provides a deterministic, token-efficient review pass that subsumes sub-skills and adds multi-agent contract compliance and validation baseline diffing."
+    },
+    {
+      "area": "skill-hierarchy",
+      "decision": "Performance Review is a composite orchestrator. Sub-skills (code-review, security-scan, perf-analysis, release-readiness) remain standalone for ad-hoc use but are also invoked as steps within the orchestrator. No sub-skill content is duplicated in the orchestrator — it references them.",
+      "rationale": "Keeps sub-skills independently useful (e.g., /spawn security-focused agent uses security-scan.md directly) while providing a unified final gate. Consistent with the 'skills are authoritative' dedup decision."
+    },
+    {
+      "area": "scoring-rubric",
+      "decision": "Performance Review uses a 7-axis scoring rubric: Correctness, Security, Contract Compliance, Performance, Maintainability, Test Coverage, Scope Discipline. Each axis scores 0-2 (blocker/concern/clear). Pass rule: total >= 11/14 with no 0 (blocker) in Correctness, Security, or Contract Compliance.",
+      "rationale": "Deterministic pass/fail criteria that maps cleanly to REVIEW.json verdict (0 in hard-blocker axis = fail, total < 11 = warn, else pass). Removes subjective judgment from the final gate."
+    },
+    {
+      "area": "multi-agent-safety",
+      "decision": "Contract Compliance step (Step C) validates multi-agent boundaries: workers/hooks cannot close PLAN/EPIC/shared issues, SubagentStop only marks DONE_BY_WORKER, closure is leader-only via reconciliation. No auto-close-parent semantics.",
+      "rationale": "Prevents orphaned or prematurely closed tracking issues in multi-agent workflows. Enforces the existing memory engine contract that only leaders reconcile and close."
+    },
+    {
+      "area": "review-integration",
+      "decision": "Performance Review scoring maps to REVIEW.json: rubric scores populate securityFindings/performanceFindings/patternCompliance arrays, verdict derived from pass rule. Token-minimal inputs via pointers (diff ref, validation paths) — no full-file re-reads.",
+      "rationale": "Integrates with existing REVIEW.json schema v3 without adding new top-level fields. Scoring rubric is recorded in principleNotes[] for auditability."
+    }
+  ],
+  "constraints": [
+    "Stdlib-only Python (no pyyaml dependency)",
+    "Frontmatter parser must handle missing/malformed frontmatter gracefully (WARN, not crash)",
+    "Existing skill files must work without frontmatter during migration (WARN for missing frontmatter)",
+    "No changes to how Claude reads skill content — frontmatter is metadata for tooling only",
+    "REVIEW.md generation in workflow_checks_core.py should reference skill checklist items instead of hardcoding",
+    "Performance Review skill must be token-efficient: inputs are pointers (diff_ref, run_ledger paths, validation dirs), not full file contents",
+    "Sub-skills remain standalone — Performance Review references but never duplicates their content",
+    "Workers/hooks NEVER close PLAN/EPIC/shared issues — only report-done; leader handles closure via reconciliation"
+  ],
+  "openQuestions": [
+    "Should /spawn specialization mapping become frontmatter-driven or stay hardcoded in spawn.md?",
+    "Should there be a /skills command for agents to discover available skills at runtime?"
+  ],
+  "relatedCode": [
+    ".claude/skills/ (15 files + 1 new performance-review.md)",
+    ".claude/skills/code-review.md (subsumes into Performance Review Step B)",
+    ".claude/skills/security-scan.md (subsumes into Performance Review Step D)",
+    ".claude/skills/perf-analysis.md (subsumes into Performance Review Step B)",
+    ".claude/skills/release-readiness.md (subsumes into Performance Review Step E)",
+    "scripts/workflow_utils.py (frontmatter parser)",
+    "scripts/workflow_validate_core.py (skill validation)",
+    "scripts/workflow_checks_core.py (REVIEW.md generation — dedup + scoring integration)",
+    ".claude/commands/ (11 commands reference skills)",
+    ".claude/commands/review.md (Performance Review as final gate)",
+    "docs/planning/WORKFLOW.schema.json (karpathyChecklist cleanup)"
+  ],
+  "research": [
+    "docs/planning/work/research/skills-usage-audit/RESEARCH.json"
+  ],
+  "timestamp": "2026-02-21T00:00:00Z"
+}

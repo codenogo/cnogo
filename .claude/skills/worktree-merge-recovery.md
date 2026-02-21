@@ -1,3 +1,8 @@
+---
+name: worktree-merge-recovery
+tags: [workflow, quality, debug]
+appliesTo: [spawn]
+---
 # Worktree Merge Recovery
 
 Use this skill when `session-merge` reports conflicts in team implementation.

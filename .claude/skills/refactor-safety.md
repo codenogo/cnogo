@@ -1,3 +1,8 @@
+---
+name: refactor-safety
+tags: [quality, domain]
+appliesTo: [spawn]
+---
 # Refactor Safety
 
 Checklist for cleanup, re-architecture, and moving code.

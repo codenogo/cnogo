@@ -1,3 +1,8 @@
+---
+name: debug-investigation
+tags: [domain, debug]
+appliesTo: [spawn]
+---
 # Debug Investigation
 
 Systematic root cause analysis for errors and failures.

@@ -1,0 +1,125 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/skills-usage-audit",
+  "feature": "skills-usage-audit",
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {
+      "pattern": "stdlib-only",
+      "status": "pass",
+      "note": "All new code uses stdlib re/pathlib only, no external dependencies"
+    },
+    {
+      "pattern": "existing-validator-pattern",
+      "status": "pass",
+      "note": "_validate_skills() follows the same (root, findings, touched) signature and Finding dataclass as all other _validate_* functions"
+    },
+    {
+      "pattern": "skill-as-reference",
+      "status": "pass",
+      "note": "performance-review.md references sub-skills by path, never duplicates their content"
+    },
+    {
+      "pattern": "contract-json-source-of-truth",
+      "status": "pass",
+      "note": "All 3 PLANs have JSON contracts, all 3 SUMMARYs have JSON contracts"
+    }
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    {
+      "axis": "Correctness",
+      "score": 2,
+      "note": "Parser handles edge cases (no frontmatter, malformed YAML, missing fields) gracefully with empty defaults. Validation integrates cleanly into existing pipeline. Schema rename matches runtime code."
+    },
+    {
+      "axis": "Security",
+      "score": 2,
+      "note": "No user input handling. Local file reads only. Regex patterns are compile-time constants. No secrets, no injection surface."
+    },
+    {
+      "axis": "Contract Compliance",
+      "score": 2,
+      "note": "3 PLANs with matching SUMMARYs. Phase progression discuss->plan->implement->review correct. CONTEXT.json has 11 decisions. No multi-agent violations (serial execution)."
+    },
+    {
+      "axis": "Performance",
+      "score": 2,
+      "note": "Linear directory scans bounded by file count (~16 skills, ~20 commands). No N+1, no unbounded operations."
+    },
+    {
+      "axis": "Maintainability",
+      "score": 2,
+      "note": "Clean separation: parser in workflow_utils, validation in workflow_validate_core, review tables delegated to skill files. Good naming, docstrings, type hints."
+    },
+    {
+      "axis": "Test Coverage",
+      "score": 1,
+      "note": "No formal unit tests for parse_skill_frontmatter(). Verification commands serve as integration tests. Pre-existing pattern: workflow scripts rely on validation commands, not a test suite."
+    },
+    {
+      "axis": "Scope Discipline",
+      "score": 2,
+      "note": "All 32 changed files directly serve the skills-usage-audit feature. No drive-by refactors. Schema rename (karpathyChecklist->operatingPrinciples) was a planned task."
+    }
+  ],
+  "schemaVersion": 3,
+  "securityFindings": [],
+  "timestamp": "2026-02-21T12:48:21Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}

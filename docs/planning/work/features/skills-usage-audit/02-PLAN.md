@@ -1,0 +1,45 @@
+# Plan 02: Add YAML frontmatter to all 15 existing skill files and replace hardcoded review tables in workflow_checks_core.py with skill references
+
+## Goal
+Add YAML frontmatter to all 15 existing skill files and replace hardcoded review tables in workflow_checks_core.py with skill references
+
+## Tasks
+
+### Task 1: Add YAML frontmatter to all 15 skill files
+**Files:** `.claude/skills/api-review.md`, `.claude/skills/artifact-token-budgeting.md`, `.claude/skills/boundary-and-sdk-enforcement.md`, `.claude/skills/changed-scope-verification.md`, `.claude/skills/code-review.md`, `.claude/skills/debug-investigation.md`, `.claude/skills/feature-lifecycle-closure.md`, `.claude/skills/memory-sync-reconciliation.md`, `.claude/skills/perf-analysis.md`, `.claude/skills/refactor-safety.md`, `.claude/skills/release-readiness.md`, `.claude/skills/security-scan.md`, `.claude/skills/test-writing.md`, `.claude/skills/workflow-contract-integrity.md`, `.claude/skills/worktree-merge-recovery.md`
+**Action:**
+Prepend YAML frontmatter (--- delimited) to each skill file with: name (kebab-case matching filename without .md), tags (from: domain, workflow, quality, security, testing, debug, release, performance), appliesTo (command names that reference this skill). Use the mapping from the Explore agent research: api-review [domain,quality], artifact-token-budgeting [workflow,quality,performance], boundary-and-sdk-enforcement [domain,security,quality], changed-scope-verification [workflow,quality,performance], code-review [domain,quality,security], debug-investigation [domain,debug], feature-lifecycle-closure [workflow,release], memory-sync-reconciliation [workflow,quality], perf-analysis [domain,performance], refactor-safety [quality,domain], release-readiness [release,quality], security-scan [domain,security], test-writing [domain,testing,quality], workflow-contract-integrity [workflow,quality], worktree-merge-recovery [workflow,quality,debug]. appliesTo from command grep: code-review [review,spawn], security-scan [spawn], api-review [spawn], perf-analysis [spawn], test-writing [spawn], debug-investigation [spawn], refactor-safety [spawn], release-readiness [ship,close,spawn], workflow-contract-integrity [review,plan,verify-ci,verify,implement,team,spawn], memory-sync-reconciliation [implement,spawn], changed-scope-verification [verify-ci,spawn], artifact-token-budgeting [review,plan,spawn], boundary-and-sdk-enforcement [review,verify,team,spawn], feature-lifecycle-closure [ship,close,spawn], worktree-merge-recovery [spawn].
+
+**Verify:**
+```bash
+python3 -c "from pathlib import Path; from scripts.workflow_utils import discover_skills; skills = discover_skills(Path('.claude/skills')); missing = [s['path'] for s in skills if s.get('name') is None]; assert len(missing) == 0, f'Missing frontmatter: {missing}'; print(f'{len(skills)} skills all have frontmatter')"
+python3 scripts/workflow_validate.py
+```
+
+**Done when:** [Observable outcome]
+
+### Task 2: Replace hardcoded review tables with skill references in workflow_checks_core.py
+**Files:** `scripts/workflow_checks_core.py`
+**Action:**
+In the write_review() function (around lines 1447-1475), replace the three hardcoded sections (Security, Performance, Design Patterns) with a single 'Manual Review' section that references the authoritative skill file: '> Review criteria: see `.claude/skills/code-review.md`\n> Fill securityFindings[], performanceFindings[], patternCompliance[] in REVIEW.json'. This removes the duplicated checklist structure while keeping the REVIEW.json fields as the structured data target.
+
+**Verify:**
+```bash
+python3 -c "import scripts.workflow_checks_core; print('import ok')"
+python3 scripts/workflow_validate.py
+```
+
+**Done when:** [Observable outcome]
+
+## Verification
+
+After all tasks:
+```bash
+python3 -c "from pathlib import Path; from scripts.workflow_utils import discover_skills; skills = discover_skills(Path('.claude/skills')); assert all(s.get('name') for s in skills); print(f'All {len(skills)} skills have valid frontmatter')"
+python3 scripts/workflow_validate.py
+```
+
+## Commit Message
+```
+feat(skills-usage-audit): add frontmatter to all skills and dedup review tables
+```

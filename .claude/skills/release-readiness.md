@@ -1,3 +1,8 @@
+---
+name: release-readiness
+tags: [release, quality]
+appliesTo: [ship, close, spawn]
+---
 # Release Readiness
 
 Pre-merge and release checklist.

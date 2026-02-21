@@ -1,3 +1,8 @@
+---
+name: changed-scope-verification
+tags: [workflow, quality, performance]
+appliesTo: [verify-ci, spawn]
+---
 # Changed Scope Verification
 
 Use this skill for fast local verification and deterministic CI verification.

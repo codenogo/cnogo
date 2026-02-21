@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "feature": "skills-usage-audit",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/workflow_utils.py",
+      "description": "Added parse_skill_frontmatter() and discover_skills() functions — stdlib-only regex-based YAML frontmatter parser for .md skill files"
+    },
+    {
+      "file": "scripts/workflow_validate_core.py",
+      "description": "Added _validate_skills() — checks skill files for frontmatter name field (WARN) and validates command skill path references resolve to existing files (WARN). Imported parse_skill_frontmatter from workflow_utils."
+    },
+    {
+      "file": "docs/planning/WORKFLOW.schema.json",
+      "description": "Replaced karpathyChecklist with operatingPrinciples in enforcement properties, removed reviewPrinciples array"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -c \"from scripts.workflow_utils import parse_skill_frontmatter, discover_skills; print('ok')\"",
+      "result": "pass"
+    },
+    {
+      "command": "python3 scripts/workflow_validate.py",
+      "result": "pass (pre-existing warnings + 15 expected skill frontmatter warnings)"
+    },
+    {
+      "command": "python3 -c \"import json; ... assert 'karpathyChecklist' not in ...\"",
+      "result": "pass"
+    }
+  ],
+  "commit": "f4eda2e",
+  "timestamp": "2026-02-21T00:00:00Z"
+}

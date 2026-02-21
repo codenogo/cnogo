@@ -1,3 +1,8 @@
+---
+name: boundary-and-sdk-enforcement
+tags: [domain, security, quality]
+appliesTo: [review, verify, team, spawn]
+---
 # Boundary And SDK Enforcement
 
 Use this skill for API, security, and architecture reviews.

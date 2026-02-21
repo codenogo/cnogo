@@ -9,6 +9,7 @@ into a single module. All stdlib-only, no external dependencies.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -41,6 +42,69 @@ def write_json(path: Path, data: Any) -> None:
     """Write data to a JSON file with 2-space indent and trailing newline."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+_FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?\n)---\s*\n", re.DOTALL)
+_LIST_RE = re.compile(r"\[([^\]]*)\]")
+
+
+def parse_skill_frontmatter(path: Path) -> dict[str, Any]:
+    """Parse YAML frontmatter from a skill .md file.
+
+    Returns dict with keys: name (str|None), tags (list[str]),
+    appliesTo (list[str]), path (str), raw (str|None).
+    Never raises — returns empty defaults for missing/malformed frontmatter.
+    """
+    result: dict[str, Any] = {
+        "name": None,
+        "tags": [],
+        "appliesTo": [],
+        "path": str(path),
+        "raw": None,
+    }
+    try:
+        text = path.read_text(encoding="utf-8")
+    except Exception:
+        return result
+
+    m = _FRONTMATTER_RE.match(text)
+    if not m:
+        return result
+
+    raw = m.group(1)
+    result["raw"] = raw
+
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+
+        if key == "name":
+            result["name"] = value if value else None
+        elif key in ("tags", "appliesTo"):
+            lm = _LIST_RE.search(value)
+            if lm:
+                items = [s.strip().strip("\"'") for s in lm.group(1).split(",")]
+                result[key] = [s for s in items if s]
+            elif value:
+                result[key] = [value]
+
+    return result
+
+
+def discover_skills(skills_dir: Path) -> list[dict[str, Any]]:
+    """Scan a directory for .md skill files and parse their frontmatter."""
+    if not skills_dir.is_dir():
+        return []
+    results = []
+    for p in sorted(skills_dir.glob("*.md")):
+        results.append(parse_skill_frontmatter(p))
+    return results
 
 
 def load_workflow(root: Path | None = None) -> dict[str, Any]:
