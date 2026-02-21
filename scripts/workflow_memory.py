@@ -467,7 +467,6 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
         "merged": result.merged_indices,
         "conflictIndex": result.conflict_index,
         "conflictFiles": result.conflict_files,
-        "error": result.error_message,
     }
     if args.json:
         _print_json(payload)
