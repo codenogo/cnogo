@@ -98,8 +98,6 @@ CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 CREATE INDEX IF NOT EXISTS idx_deps_type ON dependencies(dep_type);
 CREATE INDEX IF NOT EXISTS idx_events_issue ON events(issue_id);
 CREATE INDEX IF NOT EXISTS idx_labels_label ON labels(label);
-CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state);
-CREATE INDEX IF NOT EXISTS idx_issues_owner ON issues(owner_actor);
 """
 
 

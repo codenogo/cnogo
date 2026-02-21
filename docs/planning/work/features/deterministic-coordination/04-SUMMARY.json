@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "feature": "deterministic-coordination",
+  "planNumber": "04",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/memory/ledger.py",
+      "description": "New module for .cnogo/run.json coordination ledger. Provides generate_run_id(), load/save/create/update_ledger() with atomic writes."
+    },
+    {
+      "file": "scripts/memory/reconcile_leader.py",
+      "description": "New module implementing deterministic leader-only closure algorithm. Bottom-up: TASK (verify_and_close) -> PLAN (ready_to_close -> close) -> EPIC."
+    },
+    {
+      "file": "scripts/memory/__init__.py",
+      "description": "Added forwarding functions and __all__ entries for ledger and reconciliation modules."
+    },
+    {
+      "file": ".claude/commands/team.md",
+      "description": "Rewrote implement action with guaranteed try/finally lifecycle, run ledger creation, leader reconciliation, and TeamDelete in finally block."
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m py_compile scripts/memory/ledger.py", "result": "pass"},
+    {"command": "python3 -m py_compile scripts/memory/reconcile_leader.py", "result": "pass"},
+    {"command": "python3 scripts/workflow_validate.py", "result": "pass"}
+  ],
+  "commit": "19b0099",
+  "timestamp": "2026-02-21T14:30:00Z"
+}
