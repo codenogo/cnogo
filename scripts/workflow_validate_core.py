@@ -11,6 +11,7 @@ No external dependencies.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -1618,16 +1619,123 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     return findings
 
 
+# --- Baseline infrastructure (Contract 09) ---
+
+_BASELINE_FILE = "validate-baseline.json"
+_LATEST_FILE = "validate-latest.json"
+_CNOGO_DIR = ".cnogo"
+
+
+def _finding_to_warning(f: Finding) -> dict[str, Any]:
+    """Convert a Finding to a baseline warning dict with stable signature."""
+    file_part = f.path or ""
+    raw = f"{f.level}|{file_part}|{f.message}"
+    sig = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+    return {
+        "level": f.level,
+        "file": f.path,
+        "message": f.message,
+        "signature": sig,
+    }
+
+
+def save_baseline(warnings: list[dict[str, Any]], root: Path) -> Path:
+    """Write warnings to .cnogo/validate-baseline.json, sorted by signature."""
+    out_dir = root / _CNOGO_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / _BASELINE_FILE
+    sorted_warnings = sorted(warnings, key=lambda w: w.get("signature", ""))
+    path.write_text(
+        json.dumps(sorted_warnings, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def load_baseline(root: Path) -> list[dict[str, Any]] | None:
+    """Read .cnogo/validate-baseline.json. Returns None if missing."""
+    path = root / _CNOGO_DIR / _BASELINE_FILE
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else None
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _save_latest(warnings: list[dict[str, Any]], root: Path) -> None:
+    """Write current warnings snapshot to .cnogo/validate-latest.json."""
+    out_dir = root / _CNOGO_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / _LATEST_FILE
+    sorted_warnings = sorted(warnings, key=lambda w: w.get("signature", ""))
+    path.write_text(
+        json.dumps(sorted_warnings, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def diff_baselines(
+    baseline: list[dict[str, Any]], current: list[dict[str, Any]]
+) -> dict[str, list[dict[str, Any]]]:
+    """Compare baseline and current warnings by signature.
+
+    Returns {new, resolved, unchanged}.
+    """
+    base_sigs = {w["signature"]: w for w in baseline}
+    curr_sigs = {w["signature"]: w for w in current}
+
+    new = [w for sig, w in curr_sigs.items() if sig not in base_sigs]
+    resolved = [w for sig, w in base_sigs.items() if sig not in curr_sigs]
+    unchanged = [w for sig, w in curr_sigs.items() if sig in base_sigs]
+
+    return {"new": new, "resolved": resolved, "unchanged": unchanged}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate workflow planning artifacts.")
     parser.add_argument("--root", default=".", help="Repo root (defaults to current directory).")
     parser.add_argument("--staged", action="store_true", help="Validate only areas touched by staged changes.")
     parser.add_argument("--json", action="store_true", help="Emit findings as JSON.")
+    parser.add_argument("--save-baseline", action="store_true", help="Save current warnings as baseline.")
+    parser.add_argument("--diff-baseline", action="store_true", help="Diff current warnings against saved baseline.")
     args = parser.parse_args()
 
     root = _repo_root(Path(args.root))
     findings = validate_repo(root, staged_only=args.staged)
+    warnings = [_finding_to_warning(f) for f in findings]
 
+    # --save-baseline: capture and save
+    if args.save_baseline:
+        path = save_baseline(warnings, root)
+        print(f"Baseline saved: {path} ({len(warnings)} warnings)")
+        return 0
+
+    # --diff-baseline: compare against saved baseline
+    if args.diff_baseline:
+        baseline = load_baseline(root)
+        if baseline is None:
+            print("No baseline found. Run with --save-baseline first.")
+            return 1
+        result = diff_baselines(baseline, warnings)
+        print("## Validation Diff")
+        print(f"\nNew warnings ({len(result['new'])}):")
+        for w in result["new"]:
+            loc = f" ({w['file']})" if w.get("file") else ""
+            print(f"  [{w['level']}]{loc} {w['message']}")
+        print(f"\nResolved warnings ({len(result['resolved'])}):")
+        for w in result["resolved"]:
+            loc = f" ({w['file']})" if w.get("file") else ""
+            print(f"  [{w['level']}]{loc} {w['message']}")
+        print(f"\nUnchanged warnings ({len(result['unchanged'])}):")
+        for w in result["unchanged"]:
+            loc = f" ({w['file']})" if w.get("file") else ""
+            print(f"  [{w['level']}]{loc} {w['message']}")
+        _save_latest(warnings, root)
+        return 1 if result["new"] else 0
+
+    # Normal validation output
     if args.json:
         print(
             json.dumps(
@@ -1645,6 +1753,9 @@ def main() -> int:
         else:
             for f in findings:
                 print(f.format())
+
+    # Always save latest snapshot
+    _save_latest(warnings, root)
 
     errors = [f for f in findings if f.level == "ERROR"]
     return 1 if errors else 0
