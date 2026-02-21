@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "topic": "Borrowable patterns from Overstory swarm orchestration system",
+  "slug": "overstory-workflow-patterns",
+  "timestamp": "2026-02-21T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    {
+      "type": "web",
+      "url": "https://github.com/jayminwest/overstory",
+      "description": "Overstory repository - README, CLAUDE.md, STEELMAN.md"
+    },
+    {
+      "type": "web",
+      "url": "https://raw.githubusercontent.com/jayminwest/overstory/main/src/mail/store.ts",
+      "description": "SQLite mail system - schema, message types, WAL config"
+    },
+    {
+      "type": "web",
+      "url": "https://raw.githubusercontent.com/jayminwest/overstory/main/src/mail/broadcast.ts",
+      "description": "Broadcast addressing - @all, @builders, capability routing"
+    },
+    {
+      "type": "web",
+      "url": "https://raw.githubusercontent.com/jayminwest/overstory/main/src/watchdog/daemon.ts",
+      "description": "Watchdog daemon - 4-level escalation, stale/zombie thresholds"
+    },
+    {
+      "type": "web",
+      "url": "https://raw.githubusercontent.com/jayminwest/overstory/main/src/merge/queue.ts",
+      "description": "FIFO merge queue - SQLite, status tracking, dequeue atomicity"
+    },
+    {
+      "type": "web",
+      "url": "https://raw.githubusercontent.com/jayminwest/overstory/main/src/merge/resolver.ts",
+      "description": "4-tier conflict resolution - clean, auto, AI, reimagine"
+    },
+    {
+      "type": "web",
+      "url": "https://raw.githubusercontent.com/jayminwest/overstory/main/src/metrics/transcript.ts",
+      "description": "Transcript parser - token extraction, model-specific pricing"
+    },
+    {
+      "type": "repo",
+      "path": "scripts/memory/",
+      "description": "cnogo memory engine - SQLite schema, CRUD, sync, worktree"
+    },
+    {
+      "type": "repo",
+      "path": "scripts/workflow_hooks.py",
+      "description": "cnogo hooks - token telemetry, secret scanning, post-edit format"
+    },
+    {
+      "type": "repo",
+      "path": ".claude/skills/",
+      "description": "cnogo skills library - 15 domain and workflow skills"
+    },
+    {
+      "type": "repo",
+      "path": ".claude/agents/",
+      "description": "cnogo agent definitions - implementer, debugger, resolver"
+    }
+  ],
+  "summary": [
+    "Overstory's SQLite mail system provides persistent, queryable inter-agent messaging with broadcast groups -- cnogo currently relies on ephemeral Claude Code native messaging",
+    "4-tier merge conflict resolution (clean -> auto-resolve -> AI -> reimagine) catches 60-80% of conflicts mechanically before agent escalation -- cnogo has no automatic tiers",
+    "Watchdog daemon with progressive escalation (warn -> nudge -> escalate -> terminate) detects stuck agents -- cnogo has staleIndicatorMinutes config but no implementation",
+    "Transcript-based cost tracking with model-specific pricing enables per-agent cost attribution -- cnogo only has generic token estimation",
+    "Unified doctor command runs all health checks in one pass -- cnogo has validation scattered across multiple scripts",
+    "Overstory's own STEELMAN.md warns that swarms rarely outperform single-agent workflows for interconnected work, validating cnogo's conservative small-batch approach"
+  ],
+  "recommendation": "Adopt 3 patterns immediately: (1) tiered merge resolution (tiers 1-2 only) in worktree.py, (2) unified /doctor diagnostic command, (3) transcript-based cost tracking. Defer agent health monitoring until hang frequency is quantified. Skip SQLite mail and capability-based access control -- Claude Code native features cover these adequately."
+}

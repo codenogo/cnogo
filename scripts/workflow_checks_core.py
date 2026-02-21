@@ -1709,6 +1709,10 @@ def _cmd_doctor(root: Path, wf: dict, json_output: bool = False) -> int:
 
     # Check 4: Stale issues
     try:
+        import sys as _sys
+        _repo = str(root)
+        if _repo not in _sys.path:
+            _sys.path.insert(0, _repo)
         from scripts.memory.watchdog import check_stale_issues
         stale = check_stale_issues(root)
         if stale:
