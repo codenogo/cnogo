@@ -70,8 +70,11 @@ For each task in plan JSON:
 2. claim task memory ID if present
 3. edit only listed files
 4. run all task `verify[]` commands
-5. on success: close memory ID if present
+5. on success: report-done on memory ID if present (via `python3 scripts/workflow_memory.py report-done <id> --actor implementer`)
 6. on failure: inspect history, fix, retry (max 2 attempts before escalation)
+
+**Important:** Workers NEVER close memory issues — only report done via `report-done`. The leader handles closure.
+After completing all tasks, include a `TASK_DONE: [cn-xxx, cn-yyy]` footer listing all completed memory IDs.
 
 If task files touch memory sync/import paths (for example `scripts/memory/sync.py` or `.cnogo/issues.jsonl` flows), apply `.claude/skills/memory-sync-reconciliation.md`.
 

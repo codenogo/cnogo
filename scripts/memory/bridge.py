@@ -144,7 +144,7 @@ def generate_implement_prompt(
             )
         lines.append(f"**Memory:** `{memory_id}`")
         lines.append(f"- Claim: `python3 scripts/workflow_memory.py claim {memory_id} --actor implementer`")
-        lines.append(f"- Close: `python3 scripts/workflow_memory.py close {memory_id} --reason completed`")
+        lines.append(f"- Report done: `python3 scripts/workflow_memory.py report-done {memory_id} --actor implementer`")
         lines.append(f"- Context: `python3 scripts/workflow_memory.py show {memory_id}`")
         lines.append(f"- History: `python3 scripts/workflow_memory.py history {memory_id}`")
         lines.append("- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`")
@@ -154,12 +154,12 @@ def generate_implement_prompt(
     lines.append("**Retry loop:** after each failed verify, run the history command before next attempt.")
     lines.append("After 2 failures, message the team lead.")
     if memory_id:
-        lines.append("**If blocked:** do NOT close memory. Message the team lead.")
+        lines.append("**If blocked:** do NOT report done. Message the team lead.")
+        lines.append("**NEVER close issues. Only report done. The leader handles closure.**")
+        lines.append("")
         lines.append(
-            f"**CRITICAL LIFECYCLE:** (1) FIRST action: claim this issue. "
-            f"(2) LAST action before finishing: close this issue and confirm closure in your final message by writing "
-            f'"Memory closed: {memory_id}". '
-            f"(3) If blocked and cannot complete, do NOT close — message the team lead instead."
+            f"**On completion:** Add this footer as the LAST line of your final message:\n"
+            f"`TASK_DONE: [{memory_id}]`"
         )
     lines.append("")
 
