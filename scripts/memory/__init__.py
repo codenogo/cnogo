@@ -22,6 +22,7 @@ from typing import Any
 
 from . import storage as _st
 from .identity import content_hash as _content_hash
+from .reconcile import reconcile_session
 from .identity import generate_child_id as _child_id
 from .identity import generate_id as _gen_id
 from .graph import rebuild_blocked_cache as _rebuild_blocked_cache
@@ -47,6 +48,8 @@ __all__ = [
     # Worktree (parallel agent isolation)
     "create_session", "merge_session", "cleanup_session",
     "get_conflict_context", "load_session", "save_session",
+    # Reconcile (compaction recovery)
+    "reconcile_session",
 ]
 
 # ---------------------------------------------------------------------------
