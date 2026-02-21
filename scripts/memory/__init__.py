@@ -55,6 +55,10 @@ __all__ = [
     "record_cost_event", "get_cost_summary", "cost_summary", "parse_transcript",
     # Health monitoring (watchdog)
     "check_stale_tasks", "check_stale_issues", "run_watchdog_checks",
+    # Ledger (team coordination)
+    "load_ledger", "save_ledger", "create_ledger",
+    # Leader reconciliation
+    "reconcile",
 ]
 
 # ---------------------------------------------------------------------------
@@ -1121,3 +1125,47 @@ def run_watchdog_checks(root: Path, config: dict | None = None) -> dict:
     """Run all health monitoring checks."""
     from .watchdog import run_all_checks as _run
     return _run(root, config)
+
+
+# ---------------------------------------------------------------------------
+# Ledger (team coordination)
+# ---------------------------------------------------------------------------
+
+def load_ledger(root: Path) -> dict[str, Any] | None:
+    """Read .cnogo/run.json. Returns None if missing."""
+    from .ledger import load_ledger as _load
+    return _load(root)
+
+
+def save_ledger(root: Path, data: dict[str, Any]) -> None:
+    """Atomic write of .cnogo/run.json."""
+    from .ledger import save_ledger as _save
+    _save(root, data)
+
+
+def create_ledger(
+    root: Path,
+    *,
+    run_id: str,
+    feature: str,
+    team_id: str,
+    epic_id: str,
+) -> dict[str, Any]:
+    """Create a new run ledger with phase='setup'."""
+    from .ledger import create_ledger as _create
+    return _create(root, run_id=run_id, feature=feature, team_id=team_id, epic_id=epic_id)
+
+
+# ---------------------------------------------------------------------------
+# Leader reconciliation
+# ---------------------------------------------------------------------------
+
+def reconcile(
+    epic_id: str,
+    *,
+    actor: str = "leader",
+    root: Path | None = None,
+) -> dict[str, Any]:
+    """Run deterministic leader reconciliation for an epic."""
+    from .reconcile_leader import reconcile as _reconcile
+    return _reconcile(epic_id, actor=actor, root=root)
