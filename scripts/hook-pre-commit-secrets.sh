@@ -10,6 +10,11 @@ if [ -z "$CLAUDE_TOOL_INPUT" ]; then
   exit 0
 fi
 
+# Fast exit: skip for very large inputs (>64KB) to prevent hangs.
+if [ "${#CLAUDE_TOOL_INPUT}" -gt 65536 ]; then
+  exit 0
+fi
+
 extract_command() {
   python3 - "$CLAUDE_TOOL_INPUT" <<'PY'
 import json

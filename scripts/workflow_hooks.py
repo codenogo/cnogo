@@ -283,8 +283,18 @@ def _classify_command(command: str) -> dict[str, Any]:
     }
 
 
+_MAX_LOG_BYTES = 512 * 1024  # 512KB max before rotation
+
+
 def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    # Rotate if log file exceeds limit to prevent unbounded growth.
+    try:
+        if path.exists() and path.stat().st_size > _MAX_LOG_BYTES:
+            rotated = path.with_suffix(".jsonl.old")
+            path.rename(rotated)
+    except OSError:
+        pass
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(payload, sort_keys=True) + "\n")
 
@@ -292,6 +302,11 @@ def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 def pre_bash() -> int:
     raw_input = os.environ.get("CLAUDE_TOOL_INPUT", "").strip()
     if not raw_input:
+        return 0
+
+    # Fast exit: skip heavy processing for very large inputs (>64KB).
+    # Prevents hangs when context compaction produces large tool payloads.
+    if len(raw_input) > 65536:
         return 0
 
     try:
