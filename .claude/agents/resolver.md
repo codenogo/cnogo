@@ -30,3 +30,6 @@ intended), and the already-merged state (what was integrated before this branch)
 - NEVER use `git merge --abort` — that's the team lead's decision
 - Only touch files listed in the conflict context
 - Follow existing code patterns in the repository
+- Execute immediately — resolve conflicts without asking for confirmation.
+- Do NOT leave conflict markers in files — every <<<<<<< must be resolved.
+- Do NOT stage partial resolutions — all conflicted files must be resolved before committing.

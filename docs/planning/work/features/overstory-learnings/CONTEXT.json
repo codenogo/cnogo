@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "feature": "overstory-learnings",
+  "displayName": "Overstory Pattern Adoptions",
+  "decisions": [
+    {
+      "area": "agents",
+      "decision": "Add inline failure mode rules to all 3 agent definitions",
+      "rationale": "Scattered anti-pattern guidance exists but is incomplete. Inline 'Do NOT' rules (team.md style) prevent the model from inventing anti-patterns like TaskOutput misuse. Inline format adds ~20 words per agent vs ~50 for named tables."
+    },
+    {
+      "area": "agents",
+      "decision": "Add propulsion principle to all 3 agent definitions",
+      "rationale": "Debugger and resolver lack 'execute immediately' language, causing agents to enter conversational loops. Implementer already has moderate propulsion. One line per agent: 'Execute immediately — do not ask for confirmation.'"
+    },
+    {
+      "area": "doctor",
+      "decision": "Add Check 6: git state health (dirty worktree, detached HEAD, stale branches)",
+      "rationale": "The most common pre-work issue is dirty state or wrong branch. Doctor currently checks 5 things but not basic git health."
+    },
+    {
+      "area": "merge",
+      "decision": "Add merge tier summary logging to session-merge JSON output",
+      "rationale": "Tier 2 auto-resolve exists but is invisible — MergeResult only reports final success/failure. Adding per-task resolved_tier to the JSON output enables post-run analysis of merge effectiveness."
+    }
+  ],
+  "constraints": [
+    "Agent .md files must stay under ~400 words (token budget)",
+    "Python code is stdlib-only",
+    "Doctor check must be fast (<5s) and not require network",
+    "Merge logging must not change MergeResult dataclass shape (backward compatible)"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".claude/agents/implementer.md",
+    ".claude/agents/debugger.md",
+    ".claude/agents/resolver.md",
+    "scripts/workflow_checks_core.py",
+    "scripts/memory/worktree.py"
+  ],
+  "research": [
+    "docs/planning/work/research/overstory-general-patterns/RESEARCH.json",
+    "docs/planning/work/research/overstory-workflow-patterns/RESEARCH.json"
+  ],
+  "timestamp": "2026-02-21T00:00:00Z"
+}
