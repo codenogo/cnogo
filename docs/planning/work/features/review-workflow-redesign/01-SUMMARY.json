@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-workflow-redesign",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "docs/planning/WORKFLOW.json",
+      "action": "Renamed enforcement.karpathyChecklist to enforcement.operatingPrinciples, removed reviewPrinciples array"
+    },
+    {
+      "file": "docs/templates/WORKFLOW-TEMPLATE.json",
+      "action": "Same rename for new installs"
+    },
+    {
+      "file": ".claude/CLAUDE.md",
+      "action": "Removed Karpathy attribution link from Operating Principles section"
+    },
+    {
+      "file": "README.md",
+      "action": "Renamed section header and enforcement config reference"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -c 'import json; assert operatingPrinciples in ...'",
+      "result": "pass"
+    },
+    {
+      "command": "grep -rqi karpathy (target files)",
+      "result": "pass (no matches)"
+    }
+  ],
+  "commit": "5ec782c",
+  "timestamp": "2026-02-21T00:00:00Z"
+}

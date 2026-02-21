@@ -32,17 +32,6 @@ FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 QUICK_DIR_RE = re.compile(r"^[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLAN_MD_RE = re.compile(r"^(?P<num>[0-9]{2})-PLAN\.md$")
 SUMMARY_MD_RE = re.compile(r"^(?P<num>[0-9]{2})-SUMMARY\.md$")
-REVIEW_PRINCIPLES_REQUIRED_SCHEMA = 2
-DEFAULT_REVIEW_PRINCIPLES = [
-    "Think Before Coding",
-    "Simplicity First",
-    "Surgical Changes",
-    "Goal-Driven Execution",
-    "Prefer shared utility packages over hand-rolled helpers",
-    "Don't probe data YOLO-style",
-    "Validate boundaries",
-    "Typed SDKs",
-]
 DEFAULT_TOKEN_BUDGETS = {
     "enabled": True,
     "commandWordMax": 400,
@@ -617,23 +606,9 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         mvs = enf.get("monorepoVerifyScope", "warn")
         if mvs not in {"warn", "error"}:
             findings.append(Finding("WARN", "WORKFLOW.json: enforcement.monorepoVerifyScope should be warn|error.", str(cfg_path)))
-        kc = enf.get("karpathyChecklist", "warn")
-        if kc not in {"off", "warn", "error"}:
-            findings.append(Finding("WARN", "WORKFLOW.json: enforcement.karpathyChecklist should be off|warn|error.", str(cfg_path)))
-        rp = enf.get("reviewPrinciples")
-        if rp is not None:
-            if not isinstance(rp, list) or not rp:
-                findings.append(Finding("WARN", "WORKFLOW.json: enforcement.reviewPrinciples should be a non-empty array of strings.", str(cfg_path)))
-            else:
-                for i, item in enumerate(rp, start=1):
-                    if not isinstance(item, str) or not item.strip():
-                        findings.append(
-                            Finding(
-                                "WARN",
-                                f"WORKFLOW.json: enforcement.reviewPrinciples[{i}] should be a non-empty string.",
-                                str(cfg_path),
-                            )
-                        )
+        op = enf.get("operatingPrinciples", "warn")
+        if op not in {"off", "warn", "error"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: enforcement.operatingPrinciples should be off|warn|error.", str(cfg_path)))
 
     pkgs = cfg.get("packages")
     if pkgs is not None and not isinstance(pkgs, list):
@@ -799,30 +774,13 @@ def _get_monorepo_scope_level(cfg: dict[str, Any]) -> str:
     return level
 
 
-def _get_karpathy_checklist_level(cfg: dict[str, Any]) -> str:
+def _get_operating_principles_level(cfg: dict[str, Any]) -> str:
     enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
-    level = enforcement.get("karpathyChecklist", "warn")
+    level = enforcement.get("operatingPrinciples", "warn")
     if level not in {"off", "warn", "error"}:
         return "warn"
     return level
 
-
-def _review_principles_cfg(cfg: dict[str, Any]) -> list[str]:
-    enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
-    raw = enforcement.get("reviewPrinciples")
-    if not isinstance(raw, list):
-        return list(DEFAULT_REVIEW_PRINCIPLES)
-    out: list[str] = []
-    seen: set[str] = set()
-    for item in raw:
-        if not isinstance(item, str):
-            continue
-        val = item.strip()
-        if not val or val in seen:
-            continue
-        seen.add(val)
-        out.append(val)
-    return out if out else list(DEFAULT_REVIEW_PRINCIPLES)
 
 
 def _verify_cmd_scoped(cmd: str) -> bool:
@@ -861,8 +819,7 @@ def _validate_features(
     touched,
     shape: dict[str, Any],
     monorepo_scope_level: str,
-    karpathy_level: str,
-    review_principles: list[str],
+    operating_principles_level: str,
     packages_cfg: list[dict[str, str]],
     freshness_cfg: dict[str, Any],
 ) -> None:
@@ -1024,7 +981,7 @@ def _validate_features(
             if m:
                 summary_nums.add(m.group("num"))
 
-        _validate_ci_verification(feature_dir, findings, karpathy_level, review_principles)
+        _validate_ci_verification(feature_dir, findings, operating_principles_level)
         _validate_feature_lifecycle_and_freshness(
             feature_dir=feature_dir,
             context_md=context_md,
@@ -1041,8 +998,7 @@ def _validate_features(
 def _validate_ci_verification(
     feature_dir: Path,
     findings: list[Finding],
-    karpathy_level: str,
-    review_principles: list[str],
+    operating_principles_level: str,
 ) -> None:
     """Validate review, CI verification, and human verification artifacts within a feature."""
     # Review artifacts
@@ -1050,15 +1006,6 @@ def _validate_ci_verification(
     review_json = feature_dir / "REVIEW.json"
     if review_md.exists():
         _require(review_json, findings, "Missing REVIEW.json contract for REVIEW.md")
-        if karpathy_level != "off":
-            try:
-                txt = review_md.read_text(encoding="utf-8", errors="replace")
-                has = ("Karpathy" in txt) and ("Checklist" in txt or "Principles" in txt)
-                if not has:
-                    lvl = "ERROR" if karpathy_level == "error" else "WARN"
-                    findings.append(Finding(lvl, "REVIEW.md missing Karpathy checklist section (enforced by WORKFLOW.json).", str(review_md)))
-            except Exception:
-                pass
         if review_json.exists():
             try:
                 r = _load_json(review_json)
@@ -1066,56 +1013,24 @@ def _validate_ci_verification(
                     if "schemaVersion" not in r:
                         findings.append(Finding("WARN", "REVIEW.json missing schemaVersion (recommended).", str(review_json)))
                     schema_version = r.get("schemaVersion")
-                    principles = r.get("principles")
-                    requires_principles = (
+                    # New schema (v3+): validate securityFindings, performanceFindings, patternCompliance
+                    if (
                         isinstance(schema_version, int)
                         and not isinstance(schema_version, bool)
-                        and schema_version >= REVIEW_PRINCIPLES_REQUIRED_SCHEMA
-                    )
-                    if principles is None:
-                        if requires_principles:
-                            lvl = "ERROR" if karpathy_level == "error" else "WARN"
-                            findings.append(
-                                Finding(
-                                    lvl,
-                                    f"REVIEW.json schemaVersion>={REVIEW_PRINCIPLES_REQUIRED_SCHEMA} requires a principles array.",
-                                    str(review_json),
-                                )
-                            )
-                    elif not isinstance(principles, list):
-                        lvl = "ERROR" if requires_principles and karpathy_level == "error" else "WARN"
-                        findings.append(Finding(lvl, "REVIEW.json principles should be an array.", str(review_json)))
-                    else:
-                        names: set[str] = set()
-                        for i, item in enumerate(principles, start=1):
-                            if isinstance(item, str):
-                                name = item.strip()
-                            elif isinstance(item, dict):
-                                raw_name = item.get("name")
-                                name = raw_name.strip() if isinstance(raw_name, str) else ""
-                            else:
-                                name = ""
-                            if not name:
+                        and schema_version >= 3
+                    ):
+                        for field in ("securityFindings", "performanceFindings", "patternCompliance"):
+                            val = r.get(field)
+                            if val is None:
+                                lvl = "ERROR" if operating_principles_level == "error" else "WARN"
                                 findings.append(
-                                    Finding(
-                                        "WARN",
-                                        f"REVIEW.json principles[{i}] missing non-empty name.",
-                                        str(review_json),
-                                    )
+                                    Finding(lvl, f"REVIEW.json schemaVersion>=3 requires {field} array.", str(review_json))
                                 )
-                                continue
-                            names.add(name)
-                        missing = [p for p in review_principles if p not in names]
-                        if missing:
-                            lvl = "ERROR" if karpathy_level == "error" else "WARN"
-                            findings.append(
-                                Finding(
-                                    lvl,
-                                    "REVIEW.json principles missing required entries: "
-                                    + ", ".join(missing),
-                                    str(review_json),
+                            elif not isinstance(val, list):
+                                findings.append(
+                                    Finding("WARN", f"REVIEW.json {field} should be an array.", str(review_json))
                                 )
-                            )
+                    # Old schema (v1-v2): accept silently for backward compat
             except Exception:
                 pass
 
@@ -1553,8 +1468,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     _validate_workflow_config(cfg, findings, root)
     shape = _detect_repo_shape(root, cfg)
     monorepo_scope_level = _get_monorepo_scope_level(cfg)
-    karpathy_level = _get_karpathy_checklist_level(cfg)
-    review_principles = _review_principles_cfg(cfg)
+    operating_principles_level = _get_operating_principles_level(cfg)
     packages_cfg = _packages_from_cfg(cfg)
     freshness_cfg = _freshness_cfg(cfg)
     token_budgets_cfg = _token_budgets_cfg(cfg)
@@ -1604,8 +1518,7 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
         touched,
         shape,
         monorepo_scope_level,
-        karpathy_level,
-        review_principles,
+        operating_principles_level,
         packages_cfg,
         freshness_cfg,
     )

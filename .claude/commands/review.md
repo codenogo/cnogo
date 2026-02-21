@@ -75,7 +75,7 @@ Apply these skills in order for consistent review quality:
 - `.claude/skills/workflow-contract-integrity.md`
 - `.claude/skills/artifact-token-budgeting.md`
 
-Use Karpathy principles from `CLAUDE.md` as the decision rubric. Do not restate full principle text in artifacts; fill `principles[]` status/notes in `REVIEW.json`.
+Fill `securityFindings[]`, `performanceFindings[]`, `patternCompliance[]` in `REVIEW.json` based on manual review. Optionally add `principleNotes[]` if Operating Principles are relevant to specific findings.
 
 ### Step 4: Verdict
 

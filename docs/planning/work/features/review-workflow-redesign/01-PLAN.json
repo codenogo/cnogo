@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-workflow-redesign",
+  "planNumber": "01",
+  "goal": "Rename all Karpathy references to Operating Principles in config and documentation files",
+  "tasks": [
+    {
+      "name": "Rename WORKFLOW.json config keys",
+      "files": [
+        "docs/planning/WORKFLOW.json",
+        "docs/templates/WORKFLOW-TEMPLATE.json"
+      ],
+      "action": "In both files: rename enforcement.karpathyChecklist to enforcement.operatingPrinciples (keep same value 'warn'). Remove enforcement.reviewPrinciples array entirely (principles are no longer review-scoped). Keep all other config unchanged.",
+      "verify": [
+        "python3 -c \"import json; d=json.load(open('docs/planning/WORKFLOW.json')); e=d['enforcement']; assert 'operatingPrinciples' in e and 'karpathyChecklist' not in e and 'reviewPrinciples' not in e, f'keys: {list(e.keys())}'\""
+      ]
+    },
+    {
+      "name": "Remove Karpathy attribution from CLAUDE.md files",
+      "files": [
+        ".claude/CLAUDE.md",
+        "CLAUDE.md"
+      ],
+      "action": "In .claude/CLAUDE.md: remove the 'Inspired by [forrestchang/andrej-karpathy-skills]...' attribution line. Keep the '## Operating Principles' header and all 8 principles unchanged. In root CLAUDE.md: already says 'Operating Principles' — no header change needed, just verify no Karpathy references exist.",
+      "verify": [
+        "! grep -qi 'karpathy' .claude/CLAUDE.md",
+        "! grep -qi 'karpathy' CLAUDE.md"
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Remove Karpathy references from README.md",
+      "files": [
+        "README.md"
+      ],
+      "action": "Rename the '### Karpathy-Inspired Claude Coding Principles' section to '### Operating Principles'. Remove the source attribution link to forrestchang/andrej-karpathy-skills. In the Monorepos section, rename the enforcement.karpathyChecklist reference to enforcement.operatingPrinciples. Keep all other content unchanged.",
+      "verify": [
+        "! grep -qi 'karpathy' README.md"
+      ],
+      "blockedBy": []
+    }
+  ],
+  "planVerify": [
+    "python3 -c \"import json; d=json.load(open('docs/planning/WORKFLOW.json')); assert 'operatingPrinciples' in d['enforcement']\"",
+    "! grep -rqi 'karpathy' .claude/CLAUDE.md CLAUDE.md README.md docs/planning/WORKFLOW.json docs/templates/WORKFLOW-TEMPLATE.json"
+  ],
+  "commitMessage": "refactor(review-workflow): rename Karpathy references to Operating Principles in config and docs",
+  "timestamp": "2026-02-21T00:00:00Z"
+}
