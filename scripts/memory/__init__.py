@@ -49,6 +49,8 @@ __all__ = [
     "get_conflict_context", "load_session", "save_session",
     # Cost tracking
     "record_cost_event", "get_cost_summary", "cost_summary", "parse_transcript",
+    # Health monitoring (watchdog)
+    "check_stale_tasks", "check_stale_issues", "run_watchdog_checks",
 ]
 
 # ---------------------------------------------------------------------------
@@ -972,3 +974,25 @@ def parse_transcript(path: Path) -> Any:
     """Parse a single Claude Code session transcript for usage data."""
     from .costs import parse_transcript as _parse
     return _parse(path)
+
+
+# ---------------------------------------------------------------------------
+# Health monitoring (watchdog)
+# ---------------------------------------------------------------------------
+
+def check_stale_tasks(root: Path, stale_minutes: int = 10) -> list:
+    """Check for stale executing tasks in worktree sessions."""
+    from .watchdog import check_stale_tasks as _check
+    return _check(root, stale_minutes)
+
+
+def check_stale_issues(root: Path, stale_days: int = 30) -> list:
+    """Check for stale open issues with no assignee."""
+    from .watchdog import check_stale_issues as _check
+    return _check(root, stale_days)
+
+
+def run_watchdog_checks(root: Path, config: dict | None = None) -> dict:
+    """Run all health monitoring checks."""
+    from .watchdog import run_all_checks as _run
+    return _run(root, config)
