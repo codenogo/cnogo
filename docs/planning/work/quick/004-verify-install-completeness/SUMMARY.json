@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "004",
+  "slug": "verify-install-completeness",
+  "outcome": "Audited install.sh against all source directories; found and fixed 3 missing .gitignore entries for .cnogo/ runtime files",
+  "changes": [
+    {
+      "file": "install.sh",
+      "description": "Added .cnogo/compaction-checkpoint.json, .cnogo/validate-baseline.json, .cnogo/validate-latest.json to ENTRIES array and presence-check loop"
+    }
+  ],
+  "verification": [
+    "workflow_validate.py passes (pre-existing warnings only)",
+    "Manual audit: all 21 source categories covered by install.sh"
+  ],
+  "commit": "fix(install): add missing .cnogo/ gitignore entries",
+  "timestamp": "2026-02-21T00:00:00Z"
+}

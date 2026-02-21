@@ -320,11 +320,18 @@ ENTRIES=(
     ""
     "# Worktree session state (transient, contains absolute paths)"
     ".cnogo/worktree-session.json"
+    ""
+    "# Compaction checkpoint (runtime snapshot, not source)"
+    ".cnogo/compaction-checkpoint.json"
+    ""
+    "# Validation baselines (per-branch runtime snapshots)"
+    ".cnogo/validate-baseline.json"
+    ".cnogo/validate-latest.json"
 )
 
 if [ -f "$GITIGNORE" ]; then
     MISSING=false
-    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json" ".cnogo/tee/" ".cnogo/command-usage.jsonl"; do
+    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json" ".cnogo/tee/" ".cnogo/command-usage.jsonl" ".cnogo/compaction-checkpoint.json" ".cnogo/validate-baseline.json" ".cnogo/validate-latest.json"; do
         if ! grep -qF "$entry" "$GITIGNORE"; then
             MISSING=true
             break
