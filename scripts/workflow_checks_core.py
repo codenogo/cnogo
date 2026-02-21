@@ -1608,7 +1608,7 @@ def _autobootstrap_packages_if_empty(
 
 
 def _cmd_doctor(root: Path, wf: dict, json_output: bool = False) -> int:
-    """Run 5 diagnostic checks and report pass/warn/fail."""
+    """Run 6 diagnostic checks and report pass/warn/fail."""
     import sqlite3
     checks = []
 
@@ -1719,6 +1719,40 @@ def _cmd_doctor(root: Path, wf: dict, json_output: bool = False) -> int:
             checks.append({"name": "hook_config", "status": "fail", "details": str(exc)[:200]})
     else:
         checks.append({"name": "hook_config", "status": "warn", "details": ".claude/settings.json not found"})
+
+    # Check 6: Git state
+    git_issues = []
+    try:
+        rc_status, out_status = run_shell("git status --porcelain", cwd=root, timeout_sec=10)
+        if rc_status == 0 and out_status.strip():
+            git_issues.append("dirty working tree (uncommitted changes)")
+    except Exception as exc:
+        git_issues.append(f"could not check working tree: {exc}")
+
+    try:
+        rc_head, out_head = run_shell("git symbolic-ref HEAD", cwd=root, timeout_sec=10)
+        if rc_head != 0:
+            git_issues.append("detached HEAD")
+    except Exception as exc:
+        git_issues.append(f"could not check HEAD: {exc}")
+
+    try:
+        rc_merged, out_merged = run_shell("git branch --merged main", cwd=root, timeout_sec=10)
+        if rc_merged == 0:
+            stale_branches = [
+                b.strip().lstrip("* ")
+                for b in out_merged.splitlines()
+                if b.strip() and b.strip().lstrip("* ") not in {"main", "master", ""}
+            ]
+            if len(stale_branches) > 3:
+                git_issues.append(f"{len(stale_branches)} stale merged branches (exclude main)")
+    except Exception as exc:
+        git_issues.append(f"could not check merged branches: {exc}")
+
+    if git_issues:
+        checks.append({"name": "git_state", "status": "warn", "details": "; ".join(git_issues)})
+    else:
+        checks.append({"name": "git_state", "status": "pass", "details": "clean working tree, no detached HEAD, merged branches ok"})
 
     # Output
     has_fail = any(c["status"] == "fail" for c in checks)
