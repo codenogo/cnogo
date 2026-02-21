@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "id": "004",
   "slug": "verify-install-completeness",
-  "outcome": "Audited install.sh against all source directories; found and fixed 3 missing .gitignore entries for .cnogo/ runtime files",
+  "outcome": "Audited install.sh against all source directories; fixed 3 missing .gitignore entries and made re-install idempotent (no duplicates)",
   "changes": [
     {
       "file": "install.sh",
-      "description": "Added .cnogo/compaction-checkpoint.json, .cnogo/validate-baseline.json, .cnogo/validate-latest.json to ENTRIES array and presence-check loop"
+      "description": "Added 3 missing .cnogo/ gitignore entries; rewrote append logic to add only missing entries individually instead of all-or-nothing"
     }
   ],
   "verification": [

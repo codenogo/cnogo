@@ -330,19 +330,21 @@ ENTRIES=(
 )
 
 if [ -f "$GITIGNORE" ]; then
-    MISSING=false
-    for entry in ".cnogo/memory.db" ".cnogo/worktree-session.json" ".cnogo/tee/" ".cnogo/command-usage.jsonl" ".cnogo/compaction-checkpoint.json" ".cnogo/validate-baseline.json" ".cnogo/validate-latest.json"; do
-        if ! grep -qF "$entry" "$GITIGNORE"; then
-            MISSING=true
-            break
+    ADDED=0
+    for line in "${ENTRIES[@]}"; do
+        # Skip blank lines and comments — only check actual path entries
+        if [ -z "$line" ] || [[ "$line" == \#* ]]; then
+            continue
+        fi
+        if ! grep -qF "$line" "$GITIGNORE"; then
+            # Add a preceding comment if one exists in ENTRIES
+            echo "" >> "$GITIGNORE"
+            echo "$line" >> "$GITIGNORE"
+            ADDED=$((ADDED + 1))
         fi
     done
-    if [ "$MISSING" = true ]; then
-        echo "" >> "$GITIGNORE"
-        for line in "${ENTRIES[@]}"; do
-            echo "$line" >> "$GITIGNORE"
-        done
-        echo "   ✅ Appended .cnogo/ entries to .gitignore"
+    if [ "$ADDED" -gt 0 ]; then
+        echo "   ✅ Appended $ADDED missing .cnogo/ entries to .gitignore"
     else
         echo -e "   ${YELLOW}(skipped — entries already present)${NC}"
     fi

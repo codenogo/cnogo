@@ -1,7 +1,7 @@
 # Quick Summary
 
 ## Outcome
-Audited install.sh against all source directories; found and fixed 3 missing .gitignore entries for .cnogo/ runtime files
+Audited install.sh against all source directories; fixed 3 missing .gitignore entries and made re-install idempotent (no duplicates)
 
 ## Changes
 | File | Change |
