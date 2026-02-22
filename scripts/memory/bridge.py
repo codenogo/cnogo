@@ -156,7 +156,10 @@ def plan_to_task_descriptions(
             # Mark covered so later iterations don't double-add
             all_covered.update(uncovered)
 
-            td["auto_expanded_paths"] = []
+            # Only clear current task's auto_expanded_paths if it's not
+            # the target (avoids overwriting when self-expanding)
+            if target_idx != j:
+                td["auto_expanded_paths"] = []
 
     # Ensure all TaskDescV2 dicts have auto_expanded_paths key
     for td in results:
@@ -340,6 +343,15 @@ def scan_deletion_callers(
             if not glob_pattern or not import_pattern_template:
                 continue
 
+            # Pre-compile regexes outside the candidate loop
+            compiled = []
+            for module in modules:
+                compiled.append(
+                    re.compile(
+                        import_pattern_template.replace("{module}", re.escape(module))
+                    )
+                )
+
             for candidate in root.rglob(glob_pattern):
                 # Skip directories in the skip list
                 if any(part in _SKIP_DIRS for part in candidate.parts):
@@ -352,16 +364,13 @@ def scan_deletion_callers(
                 except OSError:
                     continue
 
-                for module in modules:
-                    import_re = re.compile(
-                        import_pattern_template.replace("{module}", re.escape(module))
-                    )
+                for import_re in compiled:
                     if import_re.search(content):
                         rel = str(candidate.relative_to(root))
                         if rel not in seen:
                             seen.add(rel)
                             callers.append(rel)
-                        break  # matched this candidate, no need to try other modules
+                        break  # matched this candidate, no need to try other patterns
 
     return callers
 
