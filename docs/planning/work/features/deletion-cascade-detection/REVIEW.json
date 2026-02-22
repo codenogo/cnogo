@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 3,
+  "feature": "deletion-cascade-detection",
+  "branch": "feature/deletion-cascade-detection",
+  "timestamp": "2026-02-22T15:45:00Z",
+  "automated": [
+    {"name": "lint", "result": "skipped"},
+    {"name": "types", "result": "skipped"},
+    {"name": "tests", "result": "skipped"}
+  ],
+  "packages": [
+    {
+      "name": "cnogo-scripts",
+      "path": "scripts",
+      "kind": "python",
+      "checks": [
+        {"name": "lint", "cmd": "python3 -m py_compile scripts/memory/bridge.py scripts/workflow_validate_core.py", "result": "pass"},
+        {"name": "typecheck", "cmd": null, "result": "skipped"},
+        {"name": "test", "cmd": null, "result": "skipped"}
+      ]
+    }
+  ],
+  "invariants": {"findings": [], "summary": {"fail": 0, "warn": 0, "total": 0}},
+  "securityFindings": [],
+  "performanceFindings": [
+    {
+      "file": "scripts/memory/bridge.py",
+      "line": 356,
+      "severity": "medium",
+      "description": "re.compile() was called per-candidate in tight rglob loop — hoisted outside loop (fixed in review)",
+      "status": "fixed"
+    }
+  ],
+  "patternCompliance": [
+    {"pattern": "stdlib-only", "status": "pass", "note": "Uses pathlib + re + json only"},
+    {"pattern": "backwards-compatible", "status": "pass", "note": "auto_expanded_paths defaults to [] on all TaskDescV2"},
+    {"pattern": "graceful-degrade", "status": "pass", "note": "_load_cascade_patterns returns [] on missing WORKFLOW.json"}
+  ],
+  "principleNotes": [
+    {"axis": "Correctness", "score": 2, "note": "Self-expansion overwrite bug found and fixed during review. All verify commands pass."},
+    {"axis": "Security", "score": 2, "note": "No OWASP issues. File reads use errors='replace'. No user-controlled regex injection (patterns from repo config only)."},
+    {"axis": "Contract Compliance", "score": 2, "note": "PLAN.json tasks match changes. SUMMARY.json artifacts correct. Workers never close issues. Phase progression coherent."},
+    {"axis": "Performance", "score": 2, "note": "Regex compilation hoisted outside candidate loop. rglob bounded by _SKIP_DIRS. Acceptable for plan-time (not hot-path)."},
+    {"axis": "Maintainability", "score": 2, "note": "Clean separation: config in WORKFLOW.json, scanner standalone, expansion in post-pass, rendering in prompt generator."},
+    {"axis": "Test Coverage", "score": 1, "note": "No unit tests for scan_deletion_callers or cascade expansion. Verified via py_compile + workflow_validate only."},
+    {"axis": "Scope Discipline", "score": 2, "note": "+158 LOC across 4 files. No drive-by refactors. Changes match plan goals exactly."}
+  ],
+  "verdict": "pass",
+  "score": "13/14",
+  "blockers": [],
+  "warnings": [
+    "No unit tests for new functions — consider adding in follow-up"
+  ],
+  "leaderFixups": [
+    "Fixed self-expansion overwrite bug (line 159: guard with target_idx != j)",
+    "Hoisted re.compile() outside candidate loop for performance"
+  ],
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "feature": "deletion-cascade-detection",
+  "displayName": "Deletion Cascade Detection",
+  "decisions": [
+    {
+      "area": "detection",
+      "decision": "Explicit `deletions` field on plan tasks",
+      "rationale": "New optional `deletions: [\"path/to/file.py\"]` per task in NN-PLAN.json. Explicit over heuristic per operating principle #6 (Don't Probe Data YOLO-Style). No action-text parsing."
+    },
+    {
+      "area": "expansion",
+      "decision": "Auto-expand next task's file_scope.paths",
+      "rationale": "When bridge detects uncovered callers of deleted files, expand file_scope.paths of the subsequent task. Transparent to agents — they see an expanded scope without knowing it was auto-generated."
+    },
+    {
+      "area": "scanning",
+      "decision": "Configurable per-language import patterns in WORKFLOW.json",
+      "rationale": "cnogo is stack-agnostic. WORKFLOW.json gains a `cascadePatterns` section mapping language globs to import-matching regexes. Bridge reads these at scan time."
+    },
+    {
+      "area": "schema",
+      "decision": "Plan task schema gains optional `deletions` field; TaskDescV2 gains `auto_expanded_paths`",
+      "rationale": "Plan JSON: `deletions: string[]` (files being deleted). TaskDescV2: `auto_expanded_paths: string[]` (caller files added by cascade detection). Keeps original scope separate from expansions."
+    },
+    {
+      "area": "validation",
+      "decision": "workflow_validate warns when tasks have `deletions` but no subsequent task exists for caller cleanup",
+      "rationale": "Catches plans where deletion is the last task with no cleanup path. Advisory only — does not block."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — scanning uses pathlib + re, no subprocess grep",
+    "Stack-agnostic — language patterns configured in WORKFLOW.json, not hardcoded",
+    "Max 3 tasks per plan still applies — auto-expand does not create new tasks",
+    "Backwards compatible — plans without `deletions` field work unchanged"
+  ],
+  "openQuestions": [
+    "Should auto-expanded paths be logged/reported to the leader for visibility?",
+    "What default cascadePatterns ship with cnogo? (Python imports at minimum)",
+    "Should expansion apply to the NEXT task specifically, or to any task that already covers some callers?",
+    "Performance ceiling: how large a repo before stdlib pathlib scan is too slow?"
+  ],
+  "relatedCode": [
+    "scripts/memory/bridge.py",
+    "scripts/workflow_validate_core.py",
+    "docs/planning/WORKFLOW.json",
+    ".claude/commands/plan.md"
+  ],
+  "memoryEpicId": "cn-11c1zmy",
+  "timestamp": "2026-02-22T00:00:00Z"
+}

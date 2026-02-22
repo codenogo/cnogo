@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "feature": "deletion-cascade-detection",
+  "planNumber": "01",
+  "memoryEpicId": "cn-11c1zmy",
+  "goal": "Add cascade scanning to bridge.py that detects uncovered callers of deleted files and auto-expands subsequent task scopes",
+  "outcome": "complete",
+  "tasks": [
+    {
+      "name": "Add cascadePatterns config to WORKFLOW.json",
+      "files": ["docs/planning/WORKFLOW.json"],
+      "status": "complete",
+      "commit": "44969b0"
+    },
+    {
+      "name": "Add scan_deletion_callers() to bridge.py",
+      "files": ["scripts/memory/bridge.py"],
+      "status": "complete",
+      "commit": "649e3e9"
+    },
+    {
+      "name": "Wire cascade expansion into plan_to_task_descriptions()",
+      "files": ["scripts/memory/bridge.py"],
+      "status": "complete",
+      "commit": "0e11a92"
+    }
+  ],
+  "planVerifyPassed": true,
+  "filesChanged": [
+    "docs/planning/WORKFLOW.json",
+    "scripts/memory/bridge.py"
+  ],
+  "leaderFixups": [],
+  "timestamp": "2026-02-22T00:00:00Z"
+}

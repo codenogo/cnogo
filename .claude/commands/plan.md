@@ -63,6 +63,8 @@ Required constraints:
 - `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`
 - `tasks.length <= 3`
 - each task has explicit `files[]`, `action`, `verify[]`
+- `"deletions": ["path/to/file.py"]` — optional list of files being deleted by this task;
+  when present, the bridge auto-scans the repo for callers and expands the next task's file scope
 
 Minimal contract shape:
 

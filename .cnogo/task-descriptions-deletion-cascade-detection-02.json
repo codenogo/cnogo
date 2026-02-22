@@ -1,0 +1,72 @@
+{
+  "schema_version": 2,
+  "feature": "deletion-cascade-detection",
+  "plan_number": "02",
+  "generated_at": "2026-02-22T15:37:00Z",
+  "tasks": [
+    {
+      "task_id": "cn-11c1zmy.4",
+      "plan_task_index": 0,
+      "title": "Add deletion-last-task validation warning",
+      "action": "In `_validate_plan_contract()`, after the existing task validation loop, add a check: if any task has a non-empty `deletions` array and it is the last task in the plan (no subsequent task exists), emit a WARN finding: 'Task N has `deletions` but is the last task in the plan \u2014 no subsequent task to receive auto-expanded caller cleanup scope.' Also validate that `deletions` is a list of strings when present.",
+      "file_scope": {
+        "paths": [
+          "scripts/workflow_validate_core.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -m py_compile scripts/workflow_validate_core.py",
+          "python3 scripts/workflow_validate.py"
+        ]
+      },
+      "completion_footer": "TASK_DONE: [cn-11c1zmy.4]",
+      "blockedBy": [],
+      "skipped": false,
+      "auto_expanded_paths": []
+    },
+    {
+      "task_id": "cn-11c1zmy.5",
+      "plan_task_index": 1,
+      "title": "Render auto_expanded_paths in generate_implement_prompt()",
+      "action": "In `generate_implement_prompt()`, after the 'Files (ONLY touch these)' section, check for `auto_expanded_paths` in the taskdesc. If non-empty, add a section: '**Auto-expanded (callers of deleted files):**' followed by the file list. This gives the agent visibility into why its scope is larger than the plan specified.",
+      "file_scope": {
+        "paths": [
+          "scripts/memory/bridge.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -m py_compile scripts/memory/bridge.py"
+        ]
+      },
+      "completion_footer": "TASK_DONE: [cn-11c1zmy.5]",
+      "blockedBy": [],
+      "skipped": false,
+      "auto_expanded_paths": []
+    },
+    {
+      "task_id": "cn-11c1zmy.6",
+      "plan_task_index": 2,
+      "title": "Document deletions field in plan.md schema",
+      "action": "In the Step 4 section of plan.md, add `deletions` to the task schema documentation. Add a line after `files[]` explaining: `\"deletions\": [\"path/to/file.py\"]` \u2014 optional list of files being deleted by this task. When present, the bridge auto-scans the repo for callers and expands the next task's file scope. Keep the addition concise (2-3 lines max) to stay within token budget.",
+      "file_scope": {
+        "paths": [
+          ".claude/commands/plan.md"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 scripts/workflow_validate.py"
+        ]
+      },
+      "completion_footer": "TASK_DONE: [cn-11c1zmy.6]",
+      "blockedBy": [],
+      "skipped": false,
+      "auto_expanded_paths": []
+    }
+  ]
+}

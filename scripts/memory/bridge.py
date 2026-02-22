@@ -111,6 +111,60 @@ def plan_to_task_descriptions(
             "skipped": False,
         })
 
+    # Post-pass: cascade expansion for tasks with deletions
+    cascade_patterns = _load_cascade_patterns(root)
+    if cascade_patterns:
+        # Collect all file paths already covered by any task
+        all_covered: set[str] = set()
+        for td in results:
+            for p in td.get("file_scope", {}).get("paths", []):
+                all_covered.add(p)
+
+        # Build index of non-skipped tasks for next-task lookup
+        non_skipped_indices = [
+            j for j, td in enumerate(results) if not td.get("skipped", False)
+        ]
+
+        for ns_pos, j in enumerate(non_skipped_indices):
+            td = results[j]
+            plan_task = tasks[td["plan_task_index"]]
+            deletions = plan_task.get("deletions", [])
+            if not deletions:
+                td["auto_expanded_paths"] = []
+                continue
+
+            callers = scan_deletion_callers(root, deletions, cascade_patterns)
+            uncovered = [c for c in callers if c not in all_covered]
+            if not uncovered:
+                td["auto_expanded_paths"] = []
+                continue
+
+            # Add to the NEXT non-skipped task, or current if no next exists
+            if ns_pos + 1 < len(non_skipped_indices):
+                target_idx = non_skipped_indices[ns_pos + 1]
+            else:
+                target_idx = j
+
+            target_td = results[target_idx]
+            target_td["file_scope"]["paths"] = list(
+                target_td["file_scope"]["paths"]
+            ) + uncovered
+            target_td.setdefault("auto_expanded_paths", [])
+            target_td["auto_expanded_paths"] = (
+                target_td["auto_expanded_paths"] + uncovered
+            )
+            # Mark covered so later iterations don't double-add
+            all_covered.update(uncovered)
+
+            # Only clear current task's auto_expanded_paths if it's not
+            # the target (avoids overwriting when self-expanding)
+            if target_idx != j:
+                td["auto_expanded_paths"] = []
+
+    # Ensure all TaskDescV2 dicts have auto_expanded_paths key
+    for td in results:
+        td.setdefault("auto_expanded_paths", [])
+
     return results
 
 
@@ -140,6 +194,13 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
     if paths:
         lines.append("**Files (ONLY touch these):**")
         lines.append(", ".join(f"`{f}`" for f in paths))
+        lines.append("")
+
+    auto_expanded_paths = taskdesc.get("auto_expanded_paths", [])
+    if auto_expanded_paths:
+        lines.append("**Auto-expanded (callers of deleted files):**")
+        for p in auto_expanded_paths:
+            lines.append(f"`{p}`")
         lines.append("")
 
     if forbidden:
@@ -248,6 +309,72 @@ def generate_run_id(feature: str) -> str:
     return f"{feature}-{int(time.time())}"
 
 
+_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".cnogo"}
+
+
+def scan_deletion_callers(
+    root: Path,
+    deletions: list[str],
+    cascade_patterns: list[dict],
+) -> list[str]:
+    """Find files that import/reference modules being deleted.
+
+    For each deletion path, derive the module stem and dotted module path.
+    For each cascade pattern, rglob the repo for matching files, read each
+    file, and regex-match for the import pattern with {module} substituted.
+
+    Returns a deduplicated list of caller file paths relative to root.
+    Skips files inside .git, node_modules, __pycache__, .cnogo.
+    """
+    callers: list[str] = []
+    seen: set[str] = set()
+
+    for deletion in deletions:
+        deletion_path = Path(deletion)
+        # Derive module stem (e.g., "graphrag" from "src/context/graphrag.py")
+        stem = deletion_path.stem
+        # Derive dotted module path (e.g., "src.context.graphrag")
+        dotted = ".".join(deletion_path.with_suffix("").parts)
+        modules = [stem, dotted]
+
+        for pattern in cascade_patterns:
+            glob_pattern = pattern.get("glob", "")
+            import_pattern_template = pattern.get("importPattern", "")
+            if not glob_pattern or not import_pattern_template:
+                continue
+
+            # Pre-compile regexes outside the candidate loop
+            compiled = []
+            for module in modules:
+                compiled.append(
+                    re.compile(
+                        import_pattern_template.replace("{module}", re.escape(module))
+                    )
+                )
+
+            for candidate in root.rglob(glob_pattern):
+                # Skip directories in the skip list
+                if any(part in _SKIP_DIRS for part in candidate.parts):
+                    continue
+                if not candidate.is_file():
+                    continue
+
+                try:
+                    content = candidate.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+
+                for import_re in compiled:
+                    if import_re.search(content):
+                        rel = str(candidate.relative_to(root))
+                        if rel not in seen:
+                            seen.add(rel)
+                            callers.append(rel)
+                        break  # matched this candidate, no need to try other patterns
+
+    return callers
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -284,6 +411,18 @@ def _is_already_closed(root: Path, memory_id: str) -> bool:
         return False
     issue = show(memory_id, root=root)
     return issue is not None and issue.status == "closed"
+
+
+def _load_cascade_patterns(root: Path) -> list[dict]:
+    """Load cascadePatterns from WORKFLOW.json. Returns [] if missing or empty."""
+    workflow_path = root / "docs/planning/WORKFLOW.json"
+    try:
+        text = workflow_path.read_text(encoding="utf-8")
+        data = json.loads(text)
+        patterns = data.get("cascadePatterns", [])
+        return patterns if isinstance(patterns, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
 
 
 def _ensure_memory_issue(
