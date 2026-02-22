@@ -111,6 +111,57 @@ def plan_to_task_descriptions(
             "skipped": False,
         })
 
+    # Post-pass: cascade expansion for tasks with deletions
+    cascade_patterns = _load_cascade_patterns(root)
+    if cascade_patterns:
+        # Collect all file paths already covered by any task
+        all_covered: set[str] = set()
+        for td in results:
+            for p in td.get("file_scope", {}).get("paths", []):
+                all_covered.add(p)
+
+        # Build index of non-skipped tasks for next-task lookup
+        non_skipped_indices = [
+            j for j, td in enumerate(results) if not td.get("skipped", False)
+        ]
+
+        for ns_pos, j in enumerate(non_skipped_indices):
+            td = results[j]
+            plan_task = tasks[td["plan_task_index"]]
+            deletions = plan_task.get("deletions", [])
+            if not deletions:
+                td["auto_expanded_paths"] = []
+                continue
+
+            callers = scan_deletion_callers(root, deletions, cascade_patterns)
+            uncovered = [c for c in callers if c not in all_covered]
+            if not uncovered:
+                td["auto_expanded_paths"] = []
+                continue
+
+            # Add to the NEXT non-skipped task, or current if no next exists
+            if ns_pos + 1 < len(non_skipped_indices):
+                target_idx = non_skipped_indices[ns_pos + 1]
+            else:
+                target_idx = j
+
+            target_td = results[target_idx]
+            target_td["file_scope"]["paths"] = list(
+                target_td["file_scope"]["paths"]
+            ) + uncovered
+            target_td.setdefault("auto_expanded_paths", [])
+            target_td["auto_expanded_paths"] = (
+                target_td["auto_expanded_paths"] + uncovered
+            )
+            # Mark covered so later iterations don't double-add
+            all_covered.update(uncovered)
+
+            td["auto_expanded_paths"] = []
+
+    # Ensure all TaskDescV2 dicts have auto_expanded_paths key
+    for td in results:
+        td.setdefault("auto_expanded_paths", [])
+
     return results
 
 
@@ -344,6 +395,18 @@ def _is_already_closed(root: Path, memory_id: str) -> bool:
         return False
     issue = show(memory_id, root=root)
     return issue is not None and issue.status == "closed"
+
+
+def _load_cascade_patterns(root: Path) -> list[dict]:
+    """Load cascadePatterns from WORKFLOW.json. Returns [] if missing or empty."""
+    workflow_path = root / "docs/planning/WORKFLOW.json"
+    try:
+        text = workflow_path.read_text(encoding="utf-8")
+        data = json.loads(text)
+        patterns = data.get("cascadePatterns", [])
+        return patterns if isinstance(patterns, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
 
 
 def _ensure_memory_issue(
