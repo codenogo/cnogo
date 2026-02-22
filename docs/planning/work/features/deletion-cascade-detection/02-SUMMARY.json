@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "feature": "deletion-cascade-detection",
+  "planNumber": "02",
+  "memoryEpicId": "cn-11c1zmy",
+  "goal": "Add validation warning for deletion-last-task, render auto_expanded_paths in agent prompts, and document deletions field in plan.md",
+  "outcome": "complete",
+  "tasks": [
+    {
+      "name": "Add deletion-last-task validation warning",
+      "files": ["scripts/workflow_validate_core.py"],
+      "status": "complete",
+      "commit": "605fa75"
+    },
+    {
+      "name": "Render auto_expanded_paths in generate_implement_prompt()",
+      "files": ["scripts/memory/bridge.py"],
+      "status": "complete",
+      "commit": "c2eeaa8"
+    },
+    {
+      "name": "Document deletions field in plan.md schema",
+      "files": [".claude/commands/plan.md"],
+      "status": "complete",
+      "commit": "2800131"
+    }
+  ],
+  "planVerifyPassed": true,
+  "filesChanged": [
+    "scripts/workflow_validate_core.py",
+    "scripts/memory/bridge.py",
+    ".claude/commands/plan.md"
+  ],
+  "leaderFixups": [],
+  "timestamp": "2026-02-22T00:00:00Z"
+}
