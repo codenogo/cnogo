@@ -248,6 +248,66 @@ def generate_run_id(feature: str) -> str:
     return f"{feature}-{int(time.time())}"
 
 
+_SKIP_DIRS = {".git", "node_modules", "__pycache__", ".cnogo"}
+
+
+def scan_deletion_callers(
+    root: Path,
+    deletions: list[str],
+    cascade_patterns: list[dict],
+) -> list[str]:
+    """Find files that import/reference modules being deleted.
+
+    For each deletion path, derive the module stem and dotted module path.
+    For each cascade pattern, rglob the repo for matching files, read each
+    file, and regex-match for the import pattern with {module} substituted.
+
+    Returns a deduplicated list of caller file paths relative to root.
+    Skips files inside .git, node_modules, __pycache__, .cnogo.
+    """
+    callers: list[str] = []
+    seen: set[str] = set()
+
+    for deletion in deletions:
+        deletion_path = Path(deletion)
+        # Derive module stem (e.g., "graphrag" from "src/context/graphrag.py")
+        stem = deletion_path.stem
+        # Derive dotted module path (e.g., "src.context.graphrag")
+        dotted = ".".join(deletion_path.with_suffix("").parts)
+        modules = [stem, dotted]
+
+        for pattern in cascade_patterns:
+            glob_pattern = pattern.get("glob", "")
+            import_pattern_template = pattern.get("importPattern", "")
+            if not glob_pattern or not import_pattern_template:
+                continue
+
+            for candidate in root.rglob(glob_pattern):
+                # Skip directories in the skip list
+                if any(part in _SKIP_DIRS for part in candidate.parts):
+                    continue
+                if not candidate.is_file():
+                    continue
+
+                try:
+                    content = candidate.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+
+                for module in modules:
+                    import_re = re.compile(
+                        import_pattern_template.replace("{module}", re.escape(module))
+                    )
+                    if import_re.search(content):
+                        rel = str(candidate.relative_to(root))
+                        if rel not in seen:
+                            seen.add(rel)
+                            callers.append(rel)
+                        break  # matched this candidate, no need to try other modules
+
+    return callers
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
