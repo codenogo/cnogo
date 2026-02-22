@@ -308,6 +308,26 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
             findings.append(Finding("ERROR", f"Task {i} must include non-empty 'verify' array of commands.", str(path)))
         # Validate optional memory ID per task
         _validate_memory_id(t.get("memoryId"), f"Task {i} memoryId", findings, path)
+        # Validate optional deletions field type
+        deletions = t.get("deletions")
+        if deletions is not None:
+            if not isinstance(deletions, list) or not all(isinstance(d, str) for d in deletions):
+                findings.append(Finding("WARN", f"Task {i} 'deletions' must be a list of strings.", str(path)))
+
+    # Check if the last task has deletions with no subsequent task to receive auto-expanded caller cleanup scope
+    if tasks:
+        last_idx = len(tasks)
+        last_task = tasks[-1]
+        if isinstance(last_task, dict):
+            last_deletions = last_task.get("deletions")
+            if isinstance(last_deletions, list) and last_deletions:
+                findings.append(
+                    Finding(
+                        "WARN",
+                        f"Task {last_idx} has `deletions` but is the last task in the plan — no subsequent task to receive auto-expanded caller cleanup scope.",
+                        str(path),
+                    )
+                )
 
 
 def _validate_quick_contract(contract: Any, findings: list[Finding], path: Path) -> None:
