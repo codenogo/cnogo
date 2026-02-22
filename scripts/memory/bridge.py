@@ -193,6 +193,13 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
         lines.append(", ".join(f"`{f}`" for f in paths))
         lines.append("")
 
+    auto_expanded_paths = taskdesc.get("auto_expanded_paths", [])
+    if auto_expanded_paths:
+        lines.append("**Auto-expanded (callers of deleted files):**")
+        for p in auto_expanded_paths:
+            lines.append(f"`{p}`")
+        lines.append("")
+
     if forbidden:
         lines.append("**Forbidden (NEVER touch these):**")
         lines.append(", ".join(f"`{f}`" for f in forbidden))
