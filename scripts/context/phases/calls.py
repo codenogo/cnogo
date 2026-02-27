@@ -99,32 +99,20 @@ def _build_import_map(storage: GraphStorage) -> dict[str, dict[str, str]]:
     """
     assert storage._conn is not None
     cur = storage._conn.execute(
-        "SELECT source, target, properties_json FROM relationships WHERE type = ?",
+        "SELECT r.properties_json, src.file_path, tgt.file_path "
+        "FROM relationships r "
+        "JOIN nodes src ON src.id = r.source "
+        "JOIN nodes tgt ON tgt.id = r.target "
+        "WHERE r.type = ?",
         (RelType.IMPORTS.value,),
     )
 
     import_map: dict[str, dict[str, str]] = {}
-    for source_id, target_id, props_json in cur.fetchall():
+    for props_json, source_file, target_file in cur.fetchall():
         props = json.loads(props_json)
         symbols = props.get("symbols", [])
         if not symbols:
             continue
-
-        # Extract file_path from target node
-        target_node = storage._conn.execute(
-            "SELECT file_path FROM nodes WHERE id = ?", (target_id,)
-        ).fetchone()
-        if target_node is None:
-            continue
-        target_file = target_node[0]
-
-        # Extract source file_path
-        source_node = storage._conn.execute(
-            "SELECT file_path FROM nodes WHERE id = ?", (source_id,)
-        ).fetchone()
-        if source_node is None:
-            continue
-        source_file = source_node[0]
 
         file_map = import_map.setdefault(source_file, {})
         for sym_name in symbols:
@@ -144,10 +132,10 @@ def _resolve_call(
     """Resolve a call to a target node ID with confidence.
 
     Priority:
-    1. Same-file exact match → 1.0
+    0. self/cls receiver method on same class → 0.8
+    1. Same-file exact match (bare calls only) → 1.0
     2. Import-resolved match → 1.0
-    3. self/cls receiver method on same class → 0.8
-    4. Global fuzzy match → 0.5
+    3. Global fuzzy match → 0.5
 
     Returns (target_node_id, confidence) or (None, 0).
     """

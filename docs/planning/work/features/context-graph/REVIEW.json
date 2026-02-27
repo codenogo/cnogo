@@ -1,0 +1,173 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/context-graph",
+  "feature": "context-graph",
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {
+      "pattern": "phase-module-separation",
+      "status": "pass",
+      "notes": "Each phase (imports, calls, heritage, symbols) is a separate module under scripts/context/phases/"
+    },
+    {
+      "pattern": "stdlib-only",
+      "status": "pass",
+      "notes": "All code uses stdlib only — no external dependencies"
+    },
+    {
+      "pattern": "tdd-workflow",
+      "status": "pass",
+      "notes": "Tests written first (RED), then implementation (GREEN) for all 3 tasks"
+    },
+    {
+      "pattern": "parameterized-sql",
+      "status": "pass",
+      "notes": "All SQL queries use parameterized placeholders (?), no string interpolation"
+    }
+  ],
+  "performanceFindings": [
+    {
+      "severity": "low",
+      "file": "scripts/context/phases/calls.py",
+      "line": "114-127",
+      "finding": "_build_import_map issues per-row queries for source/target node lookups instead of JOINs. O(2n) queries where n = IMPORTS edge count. Acceptable at current scale but could be optimized with a single JOIN query for large codebases.",
+      "recommendation": "Consider JOIN-based query in future optimization pass"
+    }
+  ],
+  "principleNotes": [
+    {
+      "axis": "Correctness",
+      "score": 2,
+      "notes": "134/134 tests pass. Import resolution handles absolute, relative, from-imports, stdlib skip. Call tracing covers all 4 confidence tiers. Heritage resolves cross-file inheritance. Pipeline handles incremental indexing with stale cleanup."
+    },
+    {
+      "axis": "Security",
+      "score": 2,
+      "notes": "All SQL uses parameterized queries. No user input handling (internal library). No secrets or credentials. stdlib-only constraint eliminates supply-chain risk."
+    },
+    {
+      "axis": "Contract Compliance",
+      "score": 2,
+      "notes": "Plan 03 has 3 tasks matching 10 changed files. SUMMARY.json records all changes. One ancillary file (test_context_graph.py) updated to fix Plan 01 stubs — justified and documented in SUMMARY."
+    },
+    {
+      "axis": "Performance",
+      "score": 1,
+      "notes": "_build_import_map has N+1 query pattern (per-row lookups). bisect-based caller attribution is efficient. All collections bounded by codebase size. Acceptable for current scope."
+    },
+    {
+      "axis": "Maintainability",
+      "score": 2,
+      "notes": "Clean phase separation following established pattern. Consistent naming (CALL_BLOCKLIST, _CONF_* constants). Each module has clear docstrings and single responsibility."
+    },
+    {
+      "axis": "Test Coverage",
+      "score": 2,
+      "notes": "42 plan-specific tests + 92 pre-existing = 134 total. Covers edge cases: stdlib skip, unresolvable imports, blocklisted calls, global fuzzy, cross-file heritage, incremental skip/detect, stale cleanup."
+    },
+    {
+      "axis": "Scope Discipline",
+      "score": 2,
+      "notes": "All changes within context-graph feature. Only necessary update to test_context_graph.py (Plan 01 stubs). No drive-by refactors or feature creep."
+    }
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "evidence": [
+        "Plan 03 goal: import resolution + call tracing + heritage + pipeline — all implemented",
+        "10 files changed matching plan task files[] (plus 1 justified ancillary update)",
+        "SUMMARY.json records all changes with descriptions",
+        "Workflow validation: 2 WARN (ancillary files) — expected and harmless"
+      ],
+      "findings": [],
+      "notes": "Scope matches plan goal exactly. Contract artifacts complete. Memory phase progression coherent (discuss → plan → implement → review).",
+      "stage": "spec-compliance",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "python3 -m pytest tests/test_context_*.py -v → 134 passed in 0.68s",
+        "All SQL queries use parameterized placeholders",
+        "No external dependencies — stdlib only",
+        "git diff --stat: 1736 insertions, 10 deletions across 10 files"
+      ],
+      "findings": [
+        {
+          "severity": "low",
+          "type": "performance",
+          "file": "scripts/context/phases/calls.py:114-127",
+          "description": "_build_import_map uses per-row queries instead of JOINs. Low priority — acceptable at current codebase scale."
+        },
+        {
+          "severity": "info",
+          "type": "documentation",
+          "file": "scripts/context/phases/calls.py:146-152",
+          "description": "_resolve_call docstring lists priorities 1-4 but implementation has priority 0 (self/cls) before priority 1 (same-file). Stale after reordering fix."
+        }
+      ],
+      "notes": "Clean, well-structured code following established phase patterns. Strong test coverage with edge cases. No security issues. Minor performance note for future optimization.",
+      "stage": "code-quality",
+      "status": "pass"
+    }
+  ],
+  "timestamp": "2026-02-28T00:30:00Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": [],
+  "score": "13/14"
+}
