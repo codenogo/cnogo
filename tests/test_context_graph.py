@@ -63,13 +63,13 @@ def test_query_returns_empty_on_fresh_db(graph):
     assert results == []
 
 
-def test_impact_raises_not_implemented(graph):
-    with pytest.raises(NotImplementedError):
-        graph.impact("foo.py")
+def test_impact_returns_empty_for_unknown_file(graph):
+    results = graph.impact("nonexistent.py")
+    assert results == []
 
 
-def test_context_raises_not_implemented(graph):
-    with pytest.raises(NotImplementedError):
+def test_context_raises_for_unknown_node(graph):
+    with pytest.raises(ValueError, match="not found"):
         graph.context("function:foo.py:bar")
 
 

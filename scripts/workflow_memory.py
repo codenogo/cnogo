@@ -37,6 +37,10 @@ Commands:
     session-merge       Merge active worktree session branches
     session-cleanup     Cleanup active worktree session
     session-reconcile   Fix orphaned issues after compaction
+    graph-index         Index codebase into context graph
+    graph-query <name>  Search for symbols by name
+    graph-impact <file> Analyze change impact (BFS blast radius)
+    graph-context <id>  Show node neighborhood (callers, callees, etc.)
 
 No external dependencies. Python 3.9+ required.
 """
@@ -624,6 +628,101 @@ def cmd_session_reconcile(args: argparse.Namespace) -> int:
     return 0
 
 
+def _graph_open(repo: str | None) -> "ContextGraph":
+    """Instantiate ContextGraph for the given repo path."""
+    from scripts.context import ContextGraph
+    return ContextGraph(repo_path=repo or ".")
+
+
+def cmd_graph_index(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        graph.index()
+        count = graph._storage.node_count()
+        assert graph._storage._conn is not None
+        cur = graph._storage._conn.execute(
+            "SELECT COUNT(*) FROM relationships"
+        )
+        rel_count = cur.fetchone()[0]
+        cur = graph._storage._conn.execute(
+            "SELECT COUNT(*) FROM file_hashes"
+        )
+        file_count = cur.fetchone()[0]
+        print(f"Indexed: {count} nodes, {rel_count} relationships, {file_count} files")
+    finally:
+        graph.close()
+    return 0
+
+
+def cmd_graph_query(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        results = graph.query(args.name)
+        if not results:
+            print(f"No nodes matching '{args.name}'")
+            return 0
+        print(f"{'Name':<30} {'Label':<12} {'File':<40} {'Lines'}")
+        print("-" * 90)
+        for node in results:
+            lines = f"{node.start_line}-{node.end_line}" if node.start_line else "-"
+            print(f"{node.name:<30} {node.label.value:<12} {node.file_path:<40} {lines}")
+    finally:
+        graph.close()
+    return 0
+
+
+def cmd_graph_impact(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        results = graph.impact(args.file_path, max_depth=args.depth)
+        if not results:
+            print(f"No impact found for '{args.file_path}'")
+            return 0
+        print(f"Impact analysis for {args.file_path} ({len(results)} affected):")
+        current_depth = -1
+        for r in results:
+            if r.depth != current_depth:
+                current_depth = r.depth
+                print(f"\n  Depth {current_depth}:")
+            print(f"    {r.node.name} ({r.node.label.value}) [{r.edge_type}] — {r.node.file_path}")
+    finally:
+        graph.close()
+    return 0
+
+
+def cmd_graph_context(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        ctx = graph.context(args.node_id)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        graph.close()
+        return 1
+    try:
+        node = ctx["node"]
+        print(f"Node: {node.name} ({node.label.value}) — {node.file_path}")
+        for key, label in [
+            ("callers", "Callers"),
+            ("callees", "Callees"),
+            ("importers", "Importers"),
+            ("imports", "Imports"),
+            ("parent_classes", "Parent classes"),
+            ("child_classes", "Child classes"),
+        ]:
+            items = ctx[key]
+            if items:
+                print(f"\n  {label} ({len(items)}):")
+                for n in items:
+                    print(f"    {n.name} ({n.label.value}) — {n.file_path}")
+    finally:
+        graph.close()
+    return 0
+
+
 def cmd_costs(args: argparse.Namespace) -> int:
     if args.project_slug:
         from scripts.memory.costs import summarize_project_costs
@@ -872,6 +971,26 @@ def main() -> int:
     p.add_argument("issue_id", help="Issue ID to attach cost event to")
     p.add_argument("session_path", help="Path to Claude Code session JSONL transcript")
 
+    # graph-index
+    p = sub.add_parser("graph-index", help="Index the codebase into the context graph")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+
+    # graph-query
+    p = sub.add_parser("graph-query", help="Search for symbols by name in the context graph")
+    p.add_argument("name", help="Symbol name to search for")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+
+    # graph-impact
+    p = sub.add_parser("graph-impact", help="Analyze change impact for a file")
+    p.add_argument("file_path", help="File path to analyze")
+    p.add_argument("--depth", type=int, default=3, help="Max BFS depth (default: 3)")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+
+    # graph-context
+    p = sub.add_parser("graph-context", help="Show context neighborhood for a node")
+    p.add_argument("node_id", help="Node ID to inspect")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -880,7 +999,10 @@ def main() -> int:
 
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
+    # 'graph-*' commands use context graph DB, not memory engine DB
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
+    _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
         print(
             "Memory engine not initialized. Run: "
@@ -924,6 +1046,10 @@ def main() -> int:
         "session-reconcile": cmd_session_reconcile,
         "costs": cmd_costs,
         "cost-record": cmd_cost_record,
+        "graph-index": cmd_graph_index,
+        "graph-query": cmd_graph_query,
+        "graph-impact": cmd_graph_impact,
+        "graph-context": cmd_graph_context,
     }
 
     handler = dispatch.get(args.command)
