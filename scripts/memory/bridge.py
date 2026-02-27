@@ -10,6 +10,7 @@ V2 changes from V1:
   - 'file_scope' replaces flat 'files' list (adds 'forbidden')
   - 'commands' object groups CLI commands
   - generate_implement_prompt() is a pure renderer (called at spawn-time only)
+    with explicit actor_name for strict ownership
 """
 
 from __future__ import annotations
@@ -44,7 +45,7 @@ def plan_to_task_descriptions(
 
     Returns a list of TaskDesc V2 dicts with keys:
       task_id, plan_task_index, title, action, file_scope, commands,
-      completion_footer, blockedBy, skipped
+      completion_footer, blockedBy, micro_steps, tdd, skipped
     """
     text = plan_json_path.read_text(encoding="utf-8")
     plan = json.loads(text)
@@ -76,6 +77,8 @@ def plan_to_task_descriptions(
         files = task.get("files", [])
         verify = task.get("verify", [])
         blocked_by = task.get("blockedBy", [])
+        micro_steps = task.get("microSteps", [])
+        tdd = task.get("tdd", {})
 
         # Validate blockedBy indices are in range and don't self-reference
         for idx in blocked_by:
@@ -108,6 +111,8 @@ def plan_to_task_descriptions(
             "commands": commands,
             "completion_footer": completion_footer,
             "blockedBy": blocked_by,
+            "micro_steps": micro_steps,
+            "tdd": tdd,
             "skipped": False,
         })
 
@@ -168,7 +173,11 @@ def plan_to_task_descriptions(
     return results
 
 
-def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
+def generate_implement_prompt(
+    taskdesc: dict[str, Any],
+    *,
+    actor_name: str = "implementer",
+) -> str:
     """Render a TaskDesc V2 dict into a markdown agent prompt.
 
     Pure renderer — called at spawn-time only by team flow.
@@ -183,6 +192,9 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
     verify = commands.get("verify", [])
     task_id = taskdesc.get("task_id", "")
     completion_footer = taskdesc.get("completion_footer", "")
+    micro_steps = taskdesc.get("micro_steps", [])
+    tdd = taskdesc.get("tdd", {})
+    actor = (actor_name or "implementer").strip() or "implementer"
 
     lines: list[str] = []
 
@@ -190,6 +202,12 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
     lines.append("")
     lines.append(action)
     lines.append("")
+
+    if isinstance(micro_steps, list) and micro_steps:
+        lines.append("**Micro-steps (execute in order):**")
+        for step in micro_steps:
+            lines.append(f"- {step}")
+        lines.append("")
 
     if paths:
         lines.append("**Files (ONLY touch these):**")
@@ -214,6 +232,28 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
             lines.append(f"- `{v}`")
         lines.append("")
 
+    if isinstance(tdd, dict) and tdd:
+        lines.append("**TDD contract (must provide evidence):**")
+        required = tdd.get("required")
+        if required is True:
+            lines.append("- required: `true`")
+            failing = tdd.get("failingVerify", [])
+            passing = tdd.get("passingVerify", [])
+            lines.append("- failingVerify:")
+            if isinstance(failing, list) and failing:
+                for cmd in failing:
+                    lines.append(f"  - `{cmd}`")
+            lines.append("- passingVerify:")
+            if isinstance(passing, list) and passing:
+                for cmd in passing:
+                    lines.append(f"  - `{cmd}`")
+        elif required is False:
+            lines.append("- required: `false`")
+            lines.append(f"- reason: {tdd.get('reason') or '[required in plan contract]'}")
+        else:
+            lines.append("- required: `[true|false]`")
+        lines.append("")
+
     if task_id:
         if not _MEMORY_ID_RE.match(task_id):
             raise ValueError(
@@ -223,10 +263,10 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
         lines.append(f"**Memory:** `{task_id}`")
         # Derive claim/report_done/context from task_id (not persisted)
         lines.append(
-            f"- Claim: `python3 scripts/workflow_memory.py claim {task_id} --actor implementer`"
+            f"- Claim: `python3 scripts/workflow_memory.py claim {task_id} --actor {actor}`"
         )
         lines.append(
-            f"- Report done: `python3 scripts/workflow_memory.py report-done {task_id} --actor implementer`"
+            f"- Report done: `python3 scripts/workflow_memory.py report-done {task_id} --actor {actor}`"
         )
         lines.append(
             f"- Context: `python3 scripts/workflow_memory.py show {task_id}`"
@@ -241,11 +281,14 @@ def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
     if task_id:
         lines.append("**If blocked:** do NOT report done. Message the team lead.")
         lines.append("**NEVER close issues. Only report done. The leader handles closure.**")
+        lines.append("**No rationalization:** never claim done without fresh command evidence.")
         lines.append("")
-        lines.append(
-            f"**On completion:** Add this footer as the LAST line of your final message:\n"
-            f"`{completion_footer}`"
-        )
+        lines.append("**On completion:** Add these TWO final lines (in order):")
+        lines.append("1) `TASK_EVIDENCE: <single-line JSON>`")
+        lines.append(f"2) `{completion_footer}`")
+        lines.append("Required TASK_EVIDENCE fields:")
+        lines.append("- `verification.commands[]` and `verification.timestamp`")
+        lines.append("- `tdd.required` plus failing/passing commands when true, or reason when false")
     lines.append("")
 
     return "\n".join(lines)
@@ -399,6 +442,8 @@ def _make_skipped_desc(
         "commands": {"verify": task.get("verify", [])},
         "completion_footer": "",
         "blockedBy": task.get("blockedBy", []),
+        "micro_steps": task.get("microSteps", []),
+        "tdd": task.get("tdd", {}),
         "skipped": True,
     }
 
@@ -449,6 +494,9 @@ def _ensure_memory_issue(
         metadata={
             "files": task.get("files", []),
             "verify": task.get("verify", []),
+            "microSteps": task.get("microSteps", []),
+            "tdd": task.get("tdd", {}),
+            "requiresCompletionEvidence": True,
         },
         root=root,
     )

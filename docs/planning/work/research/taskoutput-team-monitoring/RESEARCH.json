@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "topic": "TaskOutput team monitoring anti-pattern validation",
+  "slug": "taskoutput-team-monitoring",
+  "timestamp": "2026-02-21T00:00:00Z",
+  "mode": "local",
+  "sources": [
+    {
+      "type": "repo",
+      "path": ".claude/commands/team.md",
+      "finding": "Spawning rules and monitoring steps — no TaskOutput guidance before fix"
+    },
+    {
+      "type": "repo",
+      "path": "docs/planning/work/research/opus-46-multi-agent/RESEARCH.md",
+      "finding": "Agent Teams architecture: TaskList + SendMessage auto-delivery pattern"
+    },
+    {
+      "type": "system",
+      "path": "Claude Code TaskOutput tool description",
+      "finding": "TaskOutput supports background shell, agent, or remote session"
+    },
+    {
+      "type": "repo",
+      "path": "scripts/memory/worktree.py",
+      "finding": "cleanup_session() already uses --force for worktree removal"
+    },
+    {
+      "type": "repo",
+      "path": "scripts/memory/bridge.py",
+      "finding": "generate_implement_prompt() contains no TaskOutput references"
+    }
+  ],
+  "summary": [
+    "name@team_name composite IDs are invalid — Claude Code uses opaque system-generated IDs",
+    "TaskOutput officially supports agents, but cnogo foreground spawning makes it irrelevant",
+    "The assertion is correct in practice but overstates TaskOutput's general scope",
+    "Fix should explain WHY TaskOutput doesn't apply (foreground + auto-delivery) not just prohibit it"
+  ],
+  "recommendation": "Refine team.md Step 11 wording to be precise: foreground agents report via TaskList/SendMessage, not TaskOutput. The prohibition is architecture-specific, not a general TaskOutput limitation."
+}

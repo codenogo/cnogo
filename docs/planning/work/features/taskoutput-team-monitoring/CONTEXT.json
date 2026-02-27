@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "feature": "taskoutput-team-monitoring",
+  "displayName": "TaskOutput Team Monitoring Anti-Patterns",
+  "decisions": [
+    {
+      "area": "monitoring",
+      "decision": "Prohibit TaskOutput for foreground team agents",
+      "rationale": "cnogo spawns teammates in foreground (default). Foreground agents do not produce TaskOutput entries — they report via TaskList and SendMessage auto-delivery. TaskOutput officially supports agents but is irrelevant for this spawning pattern."
+    },
+    {
+      "area": "monitoring",
+      "decision": "Prohibit composite name@team_name IDs",
+      "rationale": "Claude Code uses opaque system-generated task IDs. The model invents name@team_name composites (e.g. plan03-impl@impl-video-purchase) that match no real ID, causing 'No task found' errors."
+    },
+    {
+      "area": "spawning",
+      "decision": "Prohibit isolation: worktree on Task tool",
+      "rationale": "cnogo manages worktrees via create_session(). Claude Code's isolation: worktree creates separate .cursor/worktrees/ paths that duplicate and conflict with cnogo's worktree session system."
+    },
+    {
+      "area": "cleanup",
+      "decision": "Prohibit manual git worktree remove",
+      "rationale": "session-cleanup (scripts/memory/worktree.py:cleanup_session) already uses --force for worktree removal. Manual git worktree remove without --force fails on modified/untracked files."
+    },
+    {
+      "area": "wording",
+      "decision": "Explain architectural reason for each prohibition",
+      "rationale": "Bare prohibitions leave models guessing. Explaining WHY (foreground spawning, auto-delivery, cnogo worktree ownership) prevents the model from re-inventing the anti-pattern in novel ways."
+    }
+  ],
+  "constraints": [
+    "team.md word budget ~400 words (enforced by workflow_validate.py)",
+    "Python code is stdlib-only",
+    "No changes needed to bridge.py or worktree.py — fix is in command guidance only"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".claude/commands/team.md",
+    "scripts/memory/worktree.py",
+    "scripts/memory/bridge.py",
+    ".claude/agents/implementer.md"
+  ],
+  "research": [
+    "docs/planning/work/research/taskoutput-team-monitoring/RESEARCH.json"
+  ],
+  "timestamp": "2026-02-21T00:00:00Z"
+}

@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
-SubagentStop hook — report-done for completed tasks (Contract 06).
+SubagentStop hook — observer-only footer validation (Contract 06).
 
-Reads SubagentStop hook input from stdin as JSON, looks for a structured
-TASK_DONE footer in the last assistant message, and calls report-done
-for each listed ID. Workers NEVER close issues — only report done.
+Reads SubagentStop hook input from stdin as JSON, validates TASK_EVIDENCE
+and TASK_DONE footer structure, and emits warnings only.
 
 Must complete in < 3 seconds total. Always exits 0.
 """
@@ -13,34 +12,28 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
-from pathlib import Path
 
 _TASK_DONE_RE = re.compile(r"TASK_DONE:\s*\[([^\]]+)\]")
+_TASK_EVIDENCE_RE = re.compile(r"^TASK_EVIDENCE:\s*(\{.*\})\s*$")
 
 
-def _report_done(memory_id: str, scripts_dir: Path) -> None:
-    """Call report-done for a memory issue. Ignores errors."""
-    try:
-        subprocess.run(
-            [
-                "python3",
-                str(scripts_dir / "workflow_memory.py"),
-                "report-done",
-                memory_id,
-                "--actor",
-                "subagent-stop-hook",
-            ],
-            timeout=3,
-            capture_output=True,
-        )
-        print(f"[hook-subagent-stop] reported done: {memory_id}", file=sys.stderr)
-    except Exception as exc:
-        print(
-            f"[hook-subagent-stop] could not report-done {memory_id}: {exc}",
-            file=sys.stderr,
-        )
+def _extract_task_evidence(last_msg: str) -> dict | None:
+    """Extract TASK_EVIDENCE JSON payload from the last assistant message."""
+    for raw_line in reversed(last_msg.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = _TASK_EVIDENCE_RE.match(line)
+        if not match:
+            continue
+        try:
+            parsed = json.loads(match.group(1))
+        except Exception:
+            print("[hook-subagent-stop] malformed TASK_EVIDENCE JSON", file=sys.stderr)
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
 
 
 def main() -> int:
@@ -55,9 +48,7 @@ def main() -> int:
             )
 
         last_msg: str = payload.get("last_assistant_message", "") or ""
-
-        # Locate scripts directory relative to this script's own location
-        scripts_dir = Path(__file__).parent.resolve()
+        task_evidence = _extract_task_evidence(last_msg)
 
         # Look for structured TASK_DONE footer
         match = _TASK_DONE_RE.search(last_msg)
@@ -68,11 +59,34 @@ def main() -> int:
         # Parse comma-separated IDs
         ids_str = match.group(1)
         reported: set[str] = set()
+        has_duplicate = False
         for raw_id in ids_str.split(","):
             memory_id = raw_id.strip()
-            if memory_id and memory_id not in reported:
-                _report_done(memory_id, scripts_dir)
-                reported.add(memory_id)
+            if not memory_id:
+                continue
+            if memory_id in reported:
+                has_duplicate = True
+                continue
+            reported.add(memory_id)
+
+        if has_duplicate:
+            print("[hook-subagent-stop] duplicate TASK_DONE ids detected", file=sys.stderr)
+
+        if task_evidence is None:
+            print("[hook-subagent-stop] missing or malformed TASK_EVIDENCE payload", file=sys.stderr)
+        else:
+            verification = task_evidence.get("verification")
+            if not isinstance(verification, dict):
+                print("[hook-subagent-stop] TASK_EVIDENCE missing verification object", file=sys.stderr)
+            commands = verification.get("commands") if isinstance(verification, dict) else None
+            timestamp = verification.get("timestamp") if isinstance(verification, dict) else None
+            if not isinstance(commands, list) or not commands:
+                print("[hook-subagent-stop] TASK_EVIDENCE verification.commands should be non-empty list", file=sys.stderr)
+            if not isinstance(timestamp, str) or not timestamp.strip():
+                print("[hook-subagent-stop] TASK_EVIDENCE verification.timestamp should be non-empty string", file=sys.stderr)
+
+        if reported:
+            print(f"[hook-subagent-stop] observed TASK_DONE for: {', '.join(sorted(reported))}", file=sys.stderr)
 
     except Exception as exc:
         print(f"[hook-subagent-stop] unexpected error: {exc}", file=sys.stderr)

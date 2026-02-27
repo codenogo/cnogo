@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "topic": "Context Graph for cnogo (Axon Port)",
+  "slug": "context-graph",
+  "timestamp": "2026-02-27T22:40:00Z",
+  "questionsAsked": [
+    "What is the primary job-to-be-done for the context graph?",
+    "How do you feel about the stdlib-only constraint for this feature?",
+    "What languages must the context graph support?"
+  ],
+  "constraints": [
+    "cnogo is stdlib-only Python 3.10+",
+    "install.sh is the single distribution mechanism",
+    "Must integrate with existing SQLite memory engine",
+    "Must enhance existing workflow commands, not replace them",
+    "Porting axon — not integrating externally"
+  ],
+  "candidates": [
+    {
+      "name": "Full Stdlib Port (Python-First MVP)",
+      "summary": "Port axon's graph model and core algorithms using only stdlib. Python ast module for parsing, SQLite for storage, pure Python BFS/BM25/community detection. Python-only initially.",
+      "risks": [
+        "ast module has limited cross-module call resolution — mitigated by confidence scoring",
+        "Community detection without igraph produces simpler clusters — label propagation is adequate",
+        "Large codebases may be slow — mitigated by SQLite indexes and incremental re-indexing"
+      ],
+      "mvp": [
+        "Graph model + SQLite storage + Python parser (structure, symbols, calls, imports)",
+        "Impact analysis + dead code detection + change coupling",
+        "Workflow integration: /review blast radius, /plan scope hints, /ship safety"
+      ]
+    },
+    {
+      "name": "Layered Dependencies (Progressive Enhancement)",
+      "summary": "Stdlib core that works everywhere, with optional pip install for tree-sitter (multi-language), igraph (communities), fastembed (semantic search). Feature detection at import time.",
+      "risks": [
+        "Two code paths to maintain (core + optional)",
+        "Testing matrix doubles with/without each optional dep",
+        "User confusion about which features require what"
+      ],
+      "mvp": [
+        "Same stdlib core as Direction A",
+        "Optional tree-sitter integration as plan 4",
+        "Feature detection layer in __init__.py"
+      ]
+    },
+    {
+      "name": "Minimal Deps Port (tree-sitter only)",
+      "summary": "Accept tree-sitter as the single external dependency for multi-language parsing. Everything else stdlib. Python + TS + JS from day one.",
+      "risks": [
+        "tree-sitter binary wheels may not exist for all platforms",
+        "Breaks zero-deps guarantee — alienates some users",
+        "tree-sitter API changes between versions"
+      ],
+      "mvp": [
+        "Graph model + SQLite storage + tree-sitter parsers",
+        "Impact analysis + dead code + change coupling",
+        "Workflow integration with multi-language support"
+      ]
+    },
+    {
+      "name": "Research-First Prototype",
+      "summary": "Single-file prototype (<400 lines) to validate graph-powered insights improve /review and /plan quality before committing to full port.",
+      "risks": [
+        "Throwaway code if full port proceeds",
+        "Doesn't test persistence, search, or community detection",
+        "Adds validation delay to a clear-intent feature"
+      ],
+      "mvp": [
+        "Prototype parser + in-memory graph (1 task)",
+        "Wire into /review as experimental output (1 task)"
+      ]
+    }
+  ],
+  "recommendation": {
+    "primary": "Full Stdlib Port (Python-First MVP)",
+    "backup": "Layered Dependencies (Progressive Enhancement)"
+  }
+}

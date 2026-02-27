@@ -75,11 +75,14 @@ This validates blockedBy indices, creates memory issues if needed, and skips alr
 For each task in the TaskDescV2 list from Step 2d:
 1. skip if `task['skipped']` is true
 1b. announce task start, review Operating Principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
+1c. if present, execute task `micro_steps` in order and respect task `tdd` contract (no time boxes)
 2. if `task['task_id']` present, run `python3 scripts/workflow_memory.py claim <task_id> --actor implementer`
 3. execute `task['action']`, editing only files in `task['file_scope']['paths']`
-4. run all `task['commands']['verify']` commands
-5. on success if task_id present: run `python3 scripts/workflow_memory.py report-done <task_id> --actor implementer`
-6. on failure: inspect history, fix, retry (max 2 attempts before escalation)
+4. run all `task['commands']['verify']` commands and inspect fresh output
+5. do not claim success before fresh evidence (avoid "should/probably/seems fixed" language)
+6. on success if task_id present: run `python3 scripts/workflow_memory.py report-done <task_id> --actor implementer`
+   and include structured outputs evidence when workflow policy requires it
+7. on failure: inspect history, fix, retry (max 2 attempts before escalation)
 
 **Important:** Workers NEVER close memory issues — only report done. The leader handles closure.
 After all tasks, include each task's `completion_footer` in a combined footer: `TASK_DONE: [cn-xxx, cn-yyy]`
@@ -128,7 +131,7 @@ Use `.claude/skills/workflow-contract-integrity.md` before final validation.
 ### Step 7: Validate
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 scripts/workflow_validate.py --feature <feature-slug>
 ```
 
 ## Output

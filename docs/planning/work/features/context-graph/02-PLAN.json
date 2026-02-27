@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "02",
+  "goal": "Implement ingestion inputs: file walker with incremental hashing, Python AST parser, and structure phase",
+  "tasks": [
+    {
+      "name": "Implement file walker with gitignore filtering and content hashing",
+      "files": [
+        "scripts/context/walker.py",
+        "tests/test_context_walker.py"
+      ],
+      "microSteps": [
+        "Write tests for walk() discovering .py files in a temp directory tree",
+        "Write tests for gitignore filtering (respects .gitignore patterns)",
+        "Write tests for content hashing (hashlib.sha256 of file content)",
+        "Write tests for skipping __pycache__, .git, .cnogo directories",
+        "Run tests to verify RED",
+        "Implement FileEntry dataclass (path, content, language, content_hash)",
+        "Implement walk(repo_path) using pathlib.rglob('*.py')",
+        "Implement gitignore parsing (read .gitignore, convert glob patterns to pathlib matching)",
+        "Implement content_hash() using hashlib.sha256",
+        "Implement default skip patterns (__pycache__, .git, .cnogo, node_modules, .venv)",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_walker.py -x"],
+        "passingVerify": ["python3 -m pytest tests/test_context_walker.py -x"]
+      },
+      "action": "File walker using pathlib.rglob(). Returns list[FileEntry] with path, content, language='python', content_hash. Supports .gitignore patterns via fnmatch. Default skip: __pycache__, .git, .cnogo, node_modules, .venv, .tox. Content hash via hashlib.sha256 for incremental re-indexing support.",
+      "verify": ["python3 -m pytest tests/test_context_walker.py -x"]
+    },
+    {
+      "name": "Implement Python AST parser",
+      "files": [
+        "scripts/context/python_parser.py",
+        "tests/test_context_python_parser.py"
+      ],
+      "microSteps": [
+        "Write tests for parsing functions (name, start_line, end_line, signature)",
+        "Write tests for parsing classes and methods (class_name linkage)",
+        "Write tests for extracting imports (import X, from X import Y, relative imports)",
+        "Write tests for extracting calls (simple calls, method calls, chained calls)",
+        "Write tests for extracting heritage (class Foo(Bar) → extends relationship)",
+        "Write tests for extracting type annotations (param types, return types)",
+        "Run tests to verify RED",
+        "Implement ParseResult dataclass (symbols, imports, calls, heritage, type_refs)",
+        "Implement SymbolInfo, ImportInfo, CallInfo, TypeRef dataclasses",
+        "Implement PythonParser.parse(content, file_path) using ast.parse()",
+        "Implement _walk_ast() to visit FunctionDef, AsyncFunctionDef, ClassDef nodes",
+        "Implement _extract_imports() for Import and ImportFrom nodes",
+        "Implement _extract_calls() walking ast.Call nodes recursively",
+        "Implement _extract_heritage() from ClassDef.bases",
+        "Implement _extract_types() from annotations",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_python_parser.py -x"],
+        "passingVerify": ["python3 -m pytest tests/test_context_python_parser.py -x"]
+      },
+      "action": "Python parser using stdlib ast module. Parse source into SymbolInfo (name, kind, start/end line, signature, class_name, decorators), ImportInfo (module, names, is_relative), CallInfo (name, line, receiver, arguments), TypeRef (name, kind, line), and heritage tuples (class, kind, parent). Follow axon's PythonParser pattern but use ast.NodeVisitor instead of tree-sitter. Extract __all__ exports. Build signatures from ast.FunctionDef args + returns.",
+      "verify": ["python3 -m pytest tests/test_context_python_parser.py -x"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Implement structure phase (File/Folder nodes + CONTAINS edges)",
+      "files": [
+        "scripts/context/phases/structure.py",
+        "tests/test_context_structure.py"
+      ],
+      "microSteps": [
+        "Write tests for process_structure() creating File nodes from FileEntry list",
+        "Write tests for Folder node creation from file paths",
+        "Write tests for CONTAINS edges between folders and between folder→file",
+        "Run tests to verify RED",
+        "Create scripts/context/phases/ package with __init__.py",
+        "Implement process_structure(files, storage) creating FILE nodes",
+        "Implement folder extraction from unique directory paths",
+        "Implement CONTAINS relationship creation (folder→subfolder, folder→file)",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_structure.py -x"],
+        "passingVerify": ["python3 -m pytest tests/test_context_structure.py -x"]
+      },
+      "action": "Structure phase creates File and Folder nodes + CONTAINS edges. For each FileEntry, create a FILE node. Extract unique directory paths, create FOLDER nodes. Connect folders with CONTAINS relationships (parent→child folder, folder→file). Use PurePosixPath for platform-independent path handling. Store content_hash in FILE node properties for incremental support.",
+      "verify": ["python3 -m pytest tests/test_context_structure.py -x"],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_context_walker.py tests/test_context_python_parser.py tests/test_context_structure.py -x"
+  ],
+  "commitMessage": "feat(context-graph): add file walker, Python AST parser, and structure phase",
+  "timestamp": "2026-02-27T23:20:00Z"
+}

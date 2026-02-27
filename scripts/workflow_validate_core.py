@@ -246,6 +246,18 @@ def _word_count(path: Path) -> int:
 
 
 MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
+_RATIONALIZATION_PATTERNS = [
+    re.compile(r"\btoo\s+small\b", re.IGNORECASE),
+    re.compile(r"\btoo\s+simple\b", re.IGNORECASE),
+    re.compile(r"\bskip(?:ping)?\s+tdd\b", re.IGNORECASE),
+    re.compile(r"\bdo(?:n'?t| not)\s+need\s+tests?\b", re.IGNORECASE),
+    re.compile(r"\balready\s+works\b", re.IGNORECASE),
+    re.compile(r"\bprobably\s+fine\b", re.IGNORECASE),
+    re.compile(r"\bseems?\s+fine\b", re.IGNORECASE),
+    re.compile(r"\bno\s+time\b", re.IGNORECASE),
+    re.compile(r"\blater\b", re.IGNORECASE),
+    re.compile(r"\bmanual\s+only\b", re.IGNORECASE),
+]
 
 
 def _validate_memory_id(value: Any, field_name: str, findings: list[Finding], path: Path) -> None:
@@ -260,13 +272,29 @@ def _validate_memory_id(value: Any, field_name: str, findings: list[Finding], pa
         ))
 
 
-def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) -> None:
+def _contains_rationalization(text: str) -> bool:
+    return any(p.search(text) for p in _RATIONALIZATION_PATTERNS)
+
+
+def _policy_level_to_finding(level: str) -> str:
+    return "ERROR" if level == "error" else "WARN"
+
+
+def _validate_plan_contract(
+    contract: Any,
+    findings: list[Finding],
+    path: Path,
+    *,
+    tdd_mode_level: str = "error",
+) -> None:
     if not isinstance(contract, dict):
         findings.append(Finding("ERROR", "Plan contract must be a JSON object.", str(path)))
         return
 
     if "schemaVersion" not in contract:
         findings.append(Finding("WARN", "Plan contract missing schemaVersion (recommended).", str(path)))
+    schema_version_raw = contract.get("schemaVersion", 1)
+    schema_version = schema_version_raw if isinstance(schema_version_raw, int) and not isinstance(schema_version_raw, bool) else 1
 
     # Validate optional memory fields
     _validate_memory_id(contract.get("memoryEpicId"), "memoryEpicId", findings, path)
@@ -313,6 +341,92 @@ def _validate_plan_contract(contract: Any, findings: list[Finding], path: Path) 
         if deletions is not None:
             if not isinstance(deletions, list) or not all(isinstance(d, str) for d in deletions):
                 findings.append(Finding("WARN", f"Task {i} 'deletions' must be a list of strings.", str(path)))
+
+        if schema_version >= 2 and tdd_mode_level != "off":
+            policy_level = _policy_level_to_finding(tdd_mode_level)
+
+            micro_steps = t.get("microSteps")
+            if not isinstance(micro_steps, list) or not micro_steps:
+                findings.append(
+                    Finding(
+                        policy_level,
+                        f"Task {i} schemaVersion>=2 requires non-empty 'microSteps' array.",
+                        str(path),
+                    )
+                )
+            elif not all(isinstance(step, str) and step.strip() for step in micro_steps):
+                findings.append(
+                    Finding(
+                        policy_level,
+                        f"Task {i} microSteps entries must be non-empty strings.",
+                        str(path),
+                    )
+                )
+
+            tdd = t.get("tdd")
+            if not isinstance(tdd, dict):
+                findings.append(
+                    Finding(
+                        policy_level,
+                        f"Task {i} schemaVersion>=2 requires 'tdd' object.",
+                        str(path),
+                    )
+                )
+            else:
+                required = tdd.get("required")
+                if not isinstance(required, bool):
+                    findings.append(
+                        Finding(
+                            policy_level,
+                            f"Task {i} tdd.required must be boolean.",
+                            str(path),
+                        )
+                    )
+                elif required:
+                    failing_verify = tdd.get("failingVerify")
+                    passing_verify = tdd.get("passingVerify")
+                    if (
+                        not isinstance(failing_verify, list)
+                        or not failing_verify
+                        or not all(isinstance(v, str) and v.strip() for v in failing_verify)
+                    ):
+                        findings.append(
+                            Finding(
+                                policy_level,
+                                f"Task {i} tdd.required=true requires non-empty failingVerify[] commands.",
+                                str(path),
+                            )
+                        )
+                    if (
+                        not isinstance(passing_verify, list)
+                        or not passing_verify
+                        or not all(isinstance(v, str) and v.strip() for v in passing_verify)
+                    ):
+                        findings.append(
+                            Finding(
+                                policy_level,
+                                f"Task {i} tdd.required=true requires non-empty passingVerify[] commands.",
+                                str(path),
+                            )
+                        )
+                else:
+                    reason = tdd.get("reason")
+                    if not isinstance(reason, str) or not reason.strip():
+                        findings.append(
+                            Finding(
+                                policy_level,
+                                f"Task {i} tdd.required=false requires non-empty tdd.reason.",
+                                str(path),
+                            )
+                        )
+                    elif _contains_rationalization(reason):
+                        findings.append(
+                            Finding(
+                                policy_level,
+                                f"Task {i} tdd.reason appears rationalized; provide a concrete non-rationalized exemption reason.",
+                                str(path),
+                            )
+                        )
 
     # Check if the last task has deletions with no subsequent task to receive auto-expanded caller cleanup scope
     if tasks:
@@ -631,6 +745,24 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         op = enf.get("operatingPrinciples", "warn")
         if op not in {"off", "warn", "error"}:
             findings.append(Finding("WARN", "WORKFLOW.json: enforcement.operatingPrinciples should be off|warn|error.", str(cfg_path)))
+        tdd_mode = enf.get("tddMode", "error")
+        if tdd_mode not in {"off", "warn", "error"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: enforcement.tddMode should be off|warn|error.", str(cfg_path)))
+        vbc = enf.get("verificationBeforeCompletion", "error")
+        if vbc not in {"off", "warn", "error"}:
+            findings.append(
+                Finding(
+                    "WARN",
+                    "WORKFLOW.json: enforcement.verificationBeforeCompletion should be off|warn|error.",
+                    str(cfg_path),
+                )
+            )
+        tsr = enf.get("twoStageReview", "error")
+        if tsr not in {"off", "warn", "error"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: enforcement.twoStageReview should be off|warn|error.", str(cfg_path)))
+        ownership = enf.get("taskOwnership", "error")
+        if ownership not in {"off", "warn", "error"}:
+            findings.append(Finding("WARN", "WORKFLOW.json: enforcement.taskOwnership should be off|warn|error.", str(cfg_path)))
 
     pkgs = cfg.get("packages")
     if pkgs is not None and not isinstance(pkgs, list):
@@ -675,6 +807,16 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         if stale is not None:
             if isinstance(stale, bool) or not isinstance(stale, int) or stale <= 0:
                 findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.staleIndicatorMinutes should be an integer > 0.", str(cfg_path)))
+        max_takeovers = agent_teams.get("maxTakeoversPerTask")
+        if max_takeovers is not None:
+            if isinstance(max_takeovers, bool) or not isinstance(max_takeovers, int) or max_takeovers < 0:
+                findings.append(
+                    Finding(
+                        "WARN",
+                        "WORKFLOW.json: agentTeams.maxTakeoversPerTask should be an integer >= 0.",
+                        str(cfg_path),
+                    )
+                )
         wt_mode = agent_teams.get("worktreeMode")
         if wt_mode is not None:
             if isinstance(wt_mode, bool) or not isinstance(wt_mode, str) or wt_mode not in ("always", "off"):
@@ -804,6 +946,38 @@ def _get_operating_principles_level(cfg: dict[str, Any]) -> str:
     return level
 
 
+def _get_tdd_mode_level(cfg: dict[str, Any]) -> str:
+    enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
+    level = enforcement.get("tddMode", "error")
+    if level not in {"off", "warn", "error"}:
+        return "error"
+    return level
+
+
+def _get_verification_before_completion_level(cfg: dict[str, Any]) -> str:
+    enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
+    level = enforcement.get("verificationBeforeCompletion", "error")
+    if level not in {"off", "warn", "error"}:
+        return "error"
+    return level
+
+
+def _get_two_stage_review_level(cfg: dict[str, Any]) -> str:
+    enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
+    level = enforcement.get("twoStageReview", "error")
+    if level not in {"off", "warn", "error"}:
+        return "error"
+    return level
+
+
+def _get_task_ownership_level(cfg: dict[str, Any]) -> str:
+    enforcement = cfg.get("enforcement") if isinstance(cfg.get("enforcement"), dict) else {}
+    level = enforcement.get("taskOwnership", "error")
+    if level not in {"off", "warn", "error"}:
+        return "error"
+    return level
+
+
 
 def _verify_cmd_scoped(cmd: str) -> bool:
     """
@@ -842,11 +1016,30 @@ def _validate_features(
     shape: dict[str, Any],
     monorepo_scope_level: str,
     operating_principles_level: str,
+    tdd_mode_level: str,
+    verification_before_completion_level: str,
+    two_stage_review_level: str,
     packages_cfg: list[dict[str, str]],
     freshness_cfg: dict[str, Any],
+    feature_filter: str | None = None,
 ) -> None:
     """Validate feature directories: context, plans, summaries, reviews."""
-    for feature_dir in _iter_feature_dirs(root):
+    if feature_filter:
+        feature_dir = root / "docs" / "planning" / "work" / "features" / feature_filter
+        if not feature_dir.is_dir():
+            findings.append(
+                Finding(
+                    "ERROR",
+                    f"--feature target not found: {feature_filter!r}",
+                    str(feature_dir),
+                )
+            )
+            return
+        feature_dirs: list[Path] = [feature_dir]
+    else:
+        feature_dirs = list(_iter_feature_dirs(root))
+
+    for feature_dir in feature_dirs:
         if not touched(feature_dir):
             continue
         _validate_feature_slug(feature_dir.name, findings, feature_dir)
@@ -893,7 +1086,12 @@ def _validate_features(
             if plan_json.exists():
                 try:
                     contract = _load_json(plan_json)
-                    _validate_plan_contract(contract, findings, plan_json)
+                    _validate_plan_contract(
+                        contract,
+                        findings,
+                        plan_json,
+                        tdd_mode_level=tdd_mode_level,
+                    )
 
                     if isinstance(contract, dict):
                         c_feature = contract.get("feature")
@@ -1003,7 +1201,13 @@ def _validate_features(
             if m:
                 summary_nums.add(m.group("num"))
 
-        _validate_ci_verification(feature_dir, findings, operating_principles_level)
+        _validate_ci_verification(
+            feature_dir,
+            findings,
+            operating_principles_level,
+            verification_before_completion_level,
+            two_stage_review_level,
+        )
         _validate_feature_lifecycle_and_freshness(
             feature_dir=feature_dir,
             context_md=context_md,
@@ -1021,6 +1225,8 @@ def _validate_ci_verification(
     feature_dir: Path,
     findings: list[Finding],
     operating_principles_level: str,
+    verification_before_completion_level: str,
+    two_stage_review_level: str,
 ) -> None:
     """Validate review, CI verification, and human verification artifacts within a feature."""
     # Review artifacts
@@ -1052,6 +1258,102 @@ def _validate_ci_verification(
                                 findings.append(
                                     Finding("WARN", f"REVIEW.json {field} should be an array.", str(review_json))
                                 )
+                    if two_stage_review_level != "off":
+                        stage_lvl = _policy_level_to_finding(two_stage_review_level)
+                        if not (
+                            isinstance(schema_version, int)
+                            and not isinstance(schema_version, bool)
+                            and schema_version >= 4
+                        ):
+                            findings.append(
+                                Finding(
+                                    stage_lvl,
+                                    "REVIEW.json must set schemaVersion>=4 when twoStageReview policy is enabled.",
+                                    str(review_json),
+                                )
+                            )
+                        else:
+                            stage_reviews = r.get("stageReviews")
+                            verify_lvl = _policy_level_to_finding(verification_before_completion_level)
+                            expected_stages = ["spec-compliance", "code-quality"]
+                            if not isinstance(stage_reviews, list) or len(stage_reviews) < 2:
+                                findings.append(
+                                    Finding(
+                                        stage_lvl,
+                                        "REVIEW.json schemaVersion>=4 requires stageReviews[spec-compliance, code-quality].",
+                                        str(review_json),
+                                    )
+                                )
+                            else:
+                                for idx, expected in enumerate(expected_stages):
+                                    if idx >= len(stage_reviews):
+                                        findings.append(
+                                            Finding(
+                                                stage_lvl,
+                                                f"REVIEW.json missing stageReviews[{idx}] for {expected}.",
+                                                str(review_json),
+                                            )
+                                        )
+                                        continue
+                                    stage_review = stage_reviews[idx]
+                                    if not isinstance(stage_review, dict):
+                                        findings.append(
+                                            Finding(
+                                                stage_lvl,
+                                                f"REVIEW.json stageReviews[{idx}] must be an object.",
+                                                str(review_json),
+                                            )
+                                        )
+                                        continue
+
+                                    stage_name = stage_review.get("stage")
+                                    if stage_name != expected:
+                                        findings.append(
+                                            Finding(
+                                                stage_lvl,
+                                                f"REVIEW.json stageReviews[{idx}].stage should be {expected!r}.",
+                                                str(review_json),
+                                            )
+                                        )
+
+                                    status = stage_review.get("status")
+                                    if status not in {"pending", "pass", "warn", "fail"}:
+                                        findings.append(
+                                            Finding(
+                                                stage_lvl,
+                                                f"REVIEW.json stageReviews[{idx}].status must be pending|pass|warn|fail.",
+                                                str(review_json),
+                                            )
+                                        )
+
+                                    stage_findings = stage_review.get("findings")
+                                    if not isinstance(stage_findings, list):
+                                        findings.append(
+                                            Finding(
+                                                stage_lvl,
+                                                f"REVIEW.json stageReviews[{idx}].findings should be an array.",
+                                                str(review_json),
+                                            )
+                                        )
+
+                                    evidence = stage_review.get("evidence")
+                                    if verification_before_completion_level != "off":
+                                        if not isinstance(evidence, list):
+                                            findings.append(
+                                                Finding(
+                                                    verify_lvl,
+                                                    f"REVIEW.json stageReviews[{idx}].evidence should be an array.",
+                                                    str(review_json),
+                                                )
+                                            )
+                                        elif status in {"pass", "warn", "fail"} and not evidence:
+                                            findings.append(
+                                                Finding(
+                                                    verify_lvl,
+                                                    f"REVIEW.json stageReviews[{idx}] completed status requires evidence entries.",
+                                                    str(review_json),
+                                                )
+                                            )
                     # Old schema (v1-v2): accept silently for backward compat
             except Exception:
                 pass
@@ -1534,7 +1836,12 @@ def _validate_skills(
                 )
 
 
-def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
+def validate_repo(
+    root: Path,
+    *,
+    staged_only: bool,
+    feature_filter: str | None = None,
+) -> list[Finding]:
     findings: list[Finding] = []
 
     cfg = _load_workflow_config(root)
@@ -1542,6 +1849,9 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
     shape = _detect_repo_shape(root, cfg)
     monorepo_scope_level = _get_monorepo_scope_level(cfg)
     operating_principles_level = _get_operating_principles_level(cfg)
+    tdd_mode_level = _get_tdd_mode_level(cfg)
+    verification_before_completion_level = _get_verification_before_completion_level(cfg)
+    two_stage_review_level = _get_two_stage_review_level(cfg)
     packages_cfg = _packages_from_cfg(cfg)
     freshness_cfg = _freshness_cfg(cfg)
     token_budgets_cfg = _token_budgets_cfg(cfg)
@@ -1592,16 +1902,21 @@ def validate_repo(root: Path, *, staged_only: bool) -> list[Finding]:
         shape,
         monorepo_scope_level,
         operating_principles_level,
+        tdd_mode_level,
+        verification_before_completion_level,
+        two_stage_review_level,
         packages_cfg,
         freshness_cfg,
+        feature_filter=feature_filter,
     )
-    _validate_quick_tasks(root, findings, touched)
-    _validate_research(root, findings, touched)
-    _validate_brainstorm(root, findings, touched)
-    _validate_worktree_session(root, findings)
-    _validate_token_budgets(root, findings, touched, token_budgets_cfg)
-    _validate_bootstrap_context(root, findings, bootstrap_context_cfg)
-    _validate_skills(root, findings, touched)
+    if feature_filter is None:
+        _validate_quick_tasks(root, findings, touched)
+        _validate_research(root, findings, touched)
+        _validate_brainstorm(root, findings, touched)
+        _validate_worktree_session(root, findings)
+        _validate_token_budgets(root, findings, touched, token_budgets_cfg)
+        _validate_bootstrap_context(root, findings, bootstrap_context_cfg)
+        _validate_skills(root, findings, touched)
 
     return findings
 
@@ -1684,13 +1999,18 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Validate workflow planning artifacts.")
     parser.add_argument("--root", default=".", help="Repo root (defaults to current directory).")
     parser.add_argument("--staged", action="store_true", help="Validate only areas touched by staged changes.")
+    parser.add_argument("--feature", help="Validate only one feature slug under docs/planning/work/features/.")
     parser.add_argument("--json", action="store_true", help="Emit findings as JSON.")
     parser.add_argument("--save-baseline", action="store_true", help="Save current warnings as baseline.")
     parser.add_argument("--diff-baseline", action="store_true", help="Diff current warnings against saved baseline.")
     args = parser.parse_args()
 
     root = _repo_root(Path(args.root))
-    findings = validate_repo(root, staged_only=args.staged)
+    findings = validate_repo(
+        root,
+        staged_only=args.staged,
+        feature_filter=(args.feature.strip() if isinstance(args.feature, str) and args.feature.strip() else None),
+    )
     warnings = [_finding_to_warning(f) for f in findings]
 
     # --save-baseline: capture and save

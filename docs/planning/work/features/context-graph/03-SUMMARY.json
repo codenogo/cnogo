@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/imports.py",
+      "description": "Import resolution phase: build_file_index mapping dotted module paths to FILE node IDs, resolve_import for absolute/relative/from-imports, process_imports creating IMPORTS edges with symbols property, stdlib skip via sys.stdlib_module_names"
+    },
+    {
+      "file": "scripts/context/phases/calls.py",
+      "description": "Call tracing phase with confidence scoring: find_containing_symbol via bisect, tiered resolution (self/cls receiver=0.8, same-file=1.0, import-resolved=1.0, global-fuzzy=0.5), CALL_BLOCKLIST for builtins, process_calls creating CALLS edges"
+    },
+    {
+      "file": "scripts/context/phases/heritage.py",
+      "description": "Heritage phase: process_heritage creating EXTENDS and IMPLEMENTS edges from heritage tuples, cross-file resolution via class_index, same-file preference"
+    },
+    {
+      "file": "scripts/context/phases/symbols.py",
+      "description": "Symbols phase: process_symbols creating FUNCTION/CLASS/METHOD nodes with DEFINES edges, decorator storage in properties"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "description": "Full indexing pipeline: walk → structure → symbols → imports → calls → heritage, incremental logic comparing file hashes, stale file cleanup, query() by name"
+    },
+    {
+      "file": "tests/test_context_imports.py",
+      "description": "13 tests covering build_file_index, absolute/from/relative imports, process_imports, stdlib skipping, symbols property"
+    },
+    {
+      "file": "tests/test_context_calls.py",
+      "description": "10 tests covering find_containing_symbol, blocklist, same-file/import-resolved/self-method/global-fuzzy resolution, module-level caller"
+    },
+    {
+      "file": "tests/test_context_heritage.py",
+      "description": "8 tests covering EXTENDS/IMPLEMENTS edges, cross-file resolution, symbols phase (function/class/method nodes, DEFINES edges, decorators)"
+    },
+    {
+      "file": "tests/test_context_pipeline.py",
+      "description": "11 tests covering full pipeline: file/folder/function/class nodes, imports/calls/extends edges, incremental skip/detect, query by name"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "description": "Updated 2 stub tests to match implemented index() and query() methods"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_imports.py tests/test_context_calls.py tests/test_context_heritage.py tests/test_context_pipeline.py -x",
+      "result": "42 passed"
+    },
+    {
+      "command": "python3 -m pytest tests/test_context_*.py -x",
+      "result": "134 passed"
+    }
+  ],
+  "commit": "214cfff",
+  "timestamp": "2026-02-27T23:55:00Z"
+}

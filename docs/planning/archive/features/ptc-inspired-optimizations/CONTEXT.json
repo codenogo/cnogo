@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "feature": "ptc-inspired-optimizations",
+  "displayName": "PTC-Inspired Optimizations",
+  "decisions": [
+    {
+      "area": "scope",
+      "decision": "Research-only for now. No code changes.",
+      "rationale": "5 active epics already in flight. Ideas catalogued for future prioritization."
+    },
+    {
+      "area": "skill-loading",
+      "decision": "Deprioritized — skills already selectively loaded via /spawn and /review mappings.",
+      "rationale": "Initial hypothesis that skills were bulk-loaded was incorrect. Existing pattern is adequate."
+    },
+    {
+      "area": "taskdesc-examples",
+      "decision": "Low-effort candidate when agents misfire. Add 2-3 exemplar runs to bridge.py or agent prompt.",
+      "rationale": "PTC research showed input_examples improved accuracy 72%->90%. Same principle applies to agent task descriptions."
+    },
+    {
+      "area": "batched-verification",
+      "decision": "Marginal benefit. Claude Code agents call Bash sequentially regardless.",
+      "rationale": "Compound verify script saves round-trips only if the runtime supports parallel execution, which Claude Code does not for sequential tool calls."
+    },
+    {
+      "area": "headless-mode",
+      "decision": "Strategic but deferred. Needs own research artifact if pursued.",
+      "rationale": "stdlib urllib wrapper enables CI/cron execution without Claude Code. Large scope, conflicts with stdlib-only constraint if anthropic SDK is desired."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — anthropic SDK requires httpx/pydantic",
+    "5 active epics — no bandwidth for new code work",
+    "MCP tools cannot be called via PTC yet — limits optimization potential"
+  ],
+  "openQuestions": [
+    "Will Claude Code Agent Teams leverage PTC internally for multi-tool agent turns?",
+    "When will MCP tools become PTC-callable?",
+    "Are agents misfiring on TaskDescV2 prompts frequently enough to justify examples?",
+    "Should headless mode be a separate feature or part of a larger API integration story?"
+  ],
+  "relatedCode": [
+    "scripts/memory/bridge.py",
+    ".claude/commands/spawn.md",
+    ".claude/commands/implement.md",
+    ".claude/skills/"
+  ],
+  "research": [
+    "docs/planning/work/research/programmatic-tool-calling/RESEARCH.md"
+  ],
+  "memoryEpicId": "cn-mxt6g2",
+  "timestamp": "2026-02-22T00:00:00Z"
+}

@@ -27,6 +27,8 @@ def render_plan(plan: dict[str, Any]) -> str:
     feature = plan.get("feature", "[feature]")
     pn = plan.get("planNumber", "NN")
     goal = plan.get("goal", "")
+    schema_version_raw = plan.get("schemaVersion", 1)
+    schema_version = schema_version_raw if isinstance(schema_version_raw, int) and not isinstance(schema_version_raw, bool) else 1
     tasks = plan.get("tasks", []) if isinstance(plan.get("tasks"), list) else []
     plan_verify = plan.get("planVerify", [])
     commit_msg = plan.get("commitMessage", "")
@@ -57,6 +59,44 @@ def render_plan(plan: dict[str, Any]) -> str:
         lines.append("**Action:**")
         lines.append(action or "[Specific instructions]")
         lines.append("")
+        if schema_version >= 2:
+            micro_steps = t.get("microSteps", [])
+            lines.append("**Micro-steps:**")
+            if isinstance(micro_steps, list) and micro_steps:
+                for step in micro_steps:
+                    lines.append(f"- {step}")
+            else:
+                lines.append("- [Add microSteps[] entries]")
+            lines.append("")
+
+            tdd = t.get("tdd", {})
+            lines.append("**TDD:**")
+            if isinstance(tdd, dict):
+                required = tdd.get("required")
+                if required is True:
+                    failing_verify = tdd.get("failingVerify", [])
+                    passing_verify = tdd.get("passingVerify", [])
+                    lines.append("- required: `true`")
+                    lines.append("- failingVerify:")
+                    if isinstance(failing_verify, list) and failing_verify:
+                        for cmd in failing_verify:
+                            lines.append(f"  - `{cmd}`")
+                    else:
+                        lines.append("  - `[add failingVerify command]`")
+                    lines.append("- passingVerify:")
+                    if isinstance(passing_verify, list) and passing_verify:
+                        for cmd in passing_verify:
+                            lines.append(f"  - `{cmd}`")
+                    else:
+                        lines.append("  - `[add passingVerify command]`")
+                elif required is False:
+                    lines.append("- required: `false`")
+                    lines.append(f"- reason: {tdd.get('reason') or '[non-rationalized exemption reason]'}")
+                else:
+                    lines.append("- required: `[true|false]`")
+            else:
+                lines.append("- required: `[true|false]`")
+            lines.append("")
         lines.append("**Verify:**")
         lines.append("```bash")
         if isinstance(verify, list) and verify:

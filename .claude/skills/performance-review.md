@@ -41,7 +41,7 @@ Check planning artifact and multi-agent safety:
 - Memory phase progression is coherent
 - **Multi-agent rules**:
   - Workers/hooks NEVER close PLAN/EPIC/shared issues
-  - `SubagentStop` only marks `DONE_BY_WORKER`
+  - `SubagentStop` is observer-only (validates footer syntax, no state mutation)
   - Closure is leader-only via reconciliation
   - No `auto-close-parent` semantics
 

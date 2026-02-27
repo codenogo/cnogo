@@ -8,6 +8,7 @@ cnogo turns Claude into a structured SDLC copilot by enforcing:
 
 - **Artifact-driven work** — every decision, plan, and review produces JSON contracts + markdown
 - **Small-batch execution** — max 3 tasks per plan, fresh context per plan
+- **TDD as a core principle** — test-first is default for code tasks; `/tdd` is deep mode
 - **Automated verification** — task-level checks, review gates, CI validation
 - **Persistent memory** — SQLite-backed task tracking that survives context compaction
 - **Multi-agent coordination** — Agent Teams with deterministic task assignment
@@ -17,6 +18,9 @@ cnogo turns Claude into a structured SDLC copilot by enforcing:
 ```bash
 # Install into a project
 ./install.sh /path/to/your/project
+
+# Optional: write a cnogo file manifest for clear ownership boundaries
+./install.sh --manifest /path/to/your/project
 
 # First run
 cd /path/to/your/project && claude
@@ -49,8 +53,8 @@ cd /path/to/your/project && claude
 | Execution | `/implement <feature-slug> NN` | Executes plan tasks, writes `NN-SUMMARY.json` + `NN-SUMMARY.md`, closes memory tasks |
 | Verification | `/verify <feature-slug>` | Human acceptance testing (`VERIFICATION.json` + `VERIFICATION.md`) |
 | CI Verify | `/verify-ci <feature-slug>` | Non-interactive verification (CI-friendly) |
-| Review | `/review` | Quality gates — automated checks + performance review scoring (14-point rubric) |
-| Ship | `/ship` | Commit, push, create PR via `gh`, memory sync, lifecycle closure |
+| Review | `/review` | Two-stage gate: spec compliance first, then code quality + scoring rubric |
+| Ship | `/ship` | Commit, push, create PR via `gh`, requires `ship-ready` staged-review freshness gate |
 
 ### Quick Fixes (small changes)
 
@@ -85,7 +89,12 @@ python3 scripts/workflow_memory.py stats           # Aggregate statistics
 python3 scripts/workflow_memory.py create "title"  # Create an issue
 python3 scripts/workflow_memory.py show <id>       # Show issue details
 python3 scripts/workflow_memory.py checkpoint      # Snapshot current state
+python3 scripts/workflow_memory.py stalled --feature <slug> --json
+python3 scripts/workflow_memory.py takeover <id> --to <actor> --reason "stalled" --actor leader
+python3 scripts/workflow_memory.py release <id> --actor leader
 ```
+
+`SubagentStop` hook is observer-only: it validates `TASK_EVIDENCE`/`TASK_DONE` format and never mutates memory state.
 
 ### Memory Modules (13 files)
 
@@ -153,7 +162,7 @@ Multi-agent coordination with shared task lists, direct messaging, and worktree 
 | Command | Purpose |
 |---------|---------|
 | `/quick <task>` | Small fixes without full ceremony |
-| `/tdd <feature>` | Test-driven development flow |
+| `/tdd <feature>` | Deep-mode test-driven development flow (TDD is still core outside this command) |
 
 ### Session Management
 
@@ -248,7 +257,7 @@ Reads `.cnogo/command-usage.jsonl` and reports missed compact-command opportunit
 | Script | Purpose |
 |--------|---------|
 | `workflow_validate.py` | Contract validation, freshness, invariants, token budgets |
-| `workflow_checks.py` | Package-aware review/verify + token telemetry + discover |
+| `workflow_checks.py` | Package-aware review/verify + ship-ready gate + token telemetry + discover |
 | `workflow_detect.py` | Stack auto-detection, populates `WORKFLOW.json` packages |
 | `workflow_render.py` | Renders JSON contracts to markdown |
 | `workflow_hooks.py` | Hook runner (pre_bash, post_edit) |
@@ -276,13 +285,13 @@ All artifacts are written as JSON (source of truth) + markdown (human-readable):
 
 Runtime policy knobs:
 
-- **`enforcement`** — monorepo verify scope (`warn`/`error`), operating principles level
+- **`enforcement`** — monorepo verify scope, operating principles, `tddMode`, `verificationBeforeCompletion`, `twoStageReview`, `taskOwnership`
 - **`performance`** — post-edit formatting, output compaction, token telemetry, hook optimization
 - **`freshness`** — stale artifact detection (context, plan, summary age limits)
 - **`invariants`** — max file lines, max line length, TODO-requires-ticket, forbidden imports
 - **`tokenBudgets`** — per-artifact word limits (command, context, plan, summary, review, research)
 - **`packages`** — monorepo package definitions with per-package commands
-- **`agentTeams`** — team settings (worktree mode, stale indicator, delegate mode)
+- **`agentTeams`** — team settings (worktree mode, stale indicator, delegate mode, `maxTakeoversPerTask`)
 - **`research`** — research mode (`auto`/`local`/`web`/`mcp`), min sources
 
 ### Monorepo / Polyglot Setup
@@ -336,6 +345,9 @@ your-project/
 
 ```bash
 ./install.sh /path/to/your/project
+
+# Include a manifest of installer-touched paths
+./install.sh --manifest /path/to/your/project
 ```
 
 ### Global (reuse across repos)
@@ -364,7 +376,7 @@ Configures `core.hooksPath=.githooks` for workflow validation + secret scanning 
 1. **Fresh context per plan** — max 3 tasks, never let context degrade
 2. **Artifact-driven** — JSON contracts are the source of truth
 3. **Discuss before plan** — capture decisions upfront, avoid rework
-4. **Verify before ship** — task-level checks + review gates
+4. **Verify before completion** — no success claims without fresh evidence
 5. **Memory survives sessions** — SQLite + JSONL sync across compaction
 6. **Security by default** — secret scanning, dangerous command blocking, sensitive file guards
 

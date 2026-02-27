@@ -56,6 +56,8 @@ install.sh
 ### Workflow Contracts
 - Every planning artifact has a paired JSON contract (e.g., `CONTEXT.md` + `CONTEXT.json`)
 - Contracts have `schemaVersion`, `feature` (slug), `timestamp` at minimum
+- For `schemaVersion >= 2` plans, tasks require `microSteps[]` + `tdd` contract (no minute-based time boxes)
+- Review contracts use staged review structure (spec-compliance then code-quality) before ship
 - Validated by `python3 scripts/workflow_validate.py`
 
 ### Naming

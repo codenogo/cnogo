@@ -10,7 +10,12 @@ Commands:
     show <id>           Show issue details
     update <id>         Update issue fields
     claim <id>          Claim an issue
+    release <id>        Release an in-progress issue
     close <id>          Close an issue
+    report-done <id>    Worker reports task done
+    takeover <id>       Leader reassigns a stalled task
+    stalled             List stale in-progress tasks
+    verify-close <id>   Leader verifies and closes a task
     reopen <id>         Reopen a closed issue
     ready               List ready (unblocked) issues
     list                List issues with filters
@@ -73,13 +78,16 @@ from scripts.memory import (  # noqa: E402
     ready,
     reconcile_session,
     record_cost_event,
+    release,
     reopen,
     report_done,
     show,
     show_graph,
+    stalled_tasks,
     stats,
     set_phase,
     sync,
+    takeover_task,
     update,
     verify_and_close,
 )
@@ -223,6 +231,20 @@ def cmd_claim(args: argparse.Namespace) -> int:
         return 1
 
 
+def cmd_release(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        issue = release(args.id, actor=args.actor, actor_role="leader", root=root)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(issue.to_dict())
+    else:
+        print(f"Released: {issue.id} (status={issue.status})")
+    return 0
+
+
 def cmd_close(args: argparse.Namespace) -> int:
     root = _root()
     try:
@@ -251,6 +273,52 @@ def cmd_report_done(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
+
+
+def cmd_takeover(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        payload = takeover_task(
+            args.id,
+            to_actor=args.to_actor,
+            reason=args.reason,
+            actor=args.actor,
+            root=root,
+        )
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(payload)
+    else:
+        print(
+            "Takeover:"
+            f" {payload['id']} {payload.get('from_actor', '')!r} -> {payload.get('to_actor', '')!r}"
+            f" (attempt {payload.get('attempt')}/{payload.get('max_attempts')})"
+        )
+    return 0
+
+
+def cmd_stalled(args: argparse.Namespace) -> int:
+    root = _root()
+    items = stalled_tasks(
+        feature_slug=args.feature,
+        stale_minutes=args.minutes,
+        root=root,
+    )
+    if args.json:
+        _print_json(items)
+    elif not items:
+        print("No stalled tasks.")
+    else:
+        print(f"Stalled tasks ({len(items)}):")
+        for item in items:
+            feature = item.get("feature") or "-"
+            print(
+                f"  {item['id']}  {item['title']}  "
+                f"(stale={item['minutesStale']}m assignee={item.get('assignee') or '-'} feature={feature})"
+            )
+    return 0
 
 
 def cmd_verify_close(args: argparse.Namespace) -> int:
@@ -651,6 +719,12 @@ def main() -> int:
     p.add_argument("id", help="Issue ID")
     p.add_argument("--actor", default="claude")
 
+    # release
+    p = sub.add_parser("release", help="Release an in-progress issue")
+    p.add_argument("id", help="Issue ID")
+    p.add_argument("--actor", default="leader")
+    p.add_argument("--json", action="store_true")
+
     # close
     p = sub.add_parser("close", help="Close an issue")
     p.add_argument("id", help="Issue ID")
@@ -664,6 +738,20 @@ def main() -> int:
     p.add_argument("id", help="Issue ID")
     p.add_argument("--actor", required=True, help="Actor name")
     p.add_argument("--outputs", help="Optional JSON outputs string")
+
+    # takeover
+    p = sub.add_parser("takeover", help="Leader takeover/reassignment for a task")
+    p.add_argument("id", help="Issue ID")
+    p.add_argument("--to", required=True, dest="to_actor", help="Replacement actor")
+    p.add_argument("--reason", required=True, help="Why task was taken over")
+    p.add_argument("--actor", default="leader")
+    p.add_argument("--json", action="store_true")
+
+    # stalled
+    p = sub.add_parser("stalled", help="List stale in-progress tasks")
+    p.add_argument("--feature", help="Feature slug filter")
+    p.add_argument("--minutes", type=int, help="Stale threshold in minutes")
+    p.add_argument("--json", action="store_true")
 
     # verify-close
     p = sub.add_parser("verify-close", help="Leader verifies and closes a task")
@@ -807,8 +895,11 @@ def main() -> int:
         "show": cmd_show,
         "update": cmd_update,
         "claim": cmd_claim,
+        "release": cmd_release,
         "close": cmd_close,
         "report-done": cmd_report_done,
+        "takeover": cmd_takeover,
+        "stalled": cmd_stalled,
         "verify-close": cmd_verify_close,
         "reopen": cmd_reopen,
         "ready": cmd_ready,

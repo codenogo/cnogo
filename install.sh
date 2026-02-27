@@ -2,7 +2,9 @@
 
 # Universal Workflow Pack Installer v2
 # Usage: ./install.sh [OPTIONS] /path/to/your/project
-#   -y, --yes    Auto-accept merge with existing directories
+#   -y, --yes       Auto-accept merge with existing directories
+#   -m, --manifest  Write .cnogo/install-manifest.txt (files touched by installer)
+#   -h, --help      Show help
 
 set -e
 
@@ -13,9 +15,28 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+usage() {
+    cat <<'EOF'
+Usage: ./install.sh [OPTIONS] /path/to/your/project
+
+Options:
+  -y, --yes       Auto-accept merge with existing directories
+  -m, --manifest  Write .cnogo/install-manifest.txt (files touched by installer)
+  -h, --help      Show this help message
+EOF
+}
+
 # Parse arguments
 AUTO_YES=false
+WRITE_MANIFEST=false
 TARGET_DIR=""
+MANAGED_PATHS=()
+
+track_managed_path() {
+    if [ "$WRITE_MANIFEST" = true ]; then
+        MANAGED_PATHS+=("$1")
+    fi
+}
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -23,7 +44,27 @@ while [[ $# -gt 0 ]]; do
             AUTO_YES=true
             shift
             ;;
+        -m|--manifest)
+            WRITE_MANIFEST=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -*)
+            echo -e "${RED}Error: Unknown option: $1${NC}"
+            echo ""
+            usage
+            exit 1
+            ;;
         *)
+            if [ -n "$TARGET_DIR" ]; then
+                echo -e "${RED}Error: Multiple target directories provided${NC}"
+                echo ""
+                usage
+                exit 1
+            fi
             TARGET_DIR="$1"
             shift
             ;;
@@ -82,10 +123,12 @@ if [ ! -f "$TARGET_DIR/.claude/settings.json" ]; then
 else
     echo -e "   ├── settings.json ${YELLOW}(skipped - exists)${NC}"
 fi
+track_managed_path ".claude/settings.json"
 
 for cmd in "$SCRIPT_DIR/.claude/commands/"*.md; do
     cp "$cmd" "$TARGET_DIR/.claude/commands/"
     echo "   ├── commands/$(basename "$cmd")"
+    track_managed_path ".claude/commands/$(basename "$cmd")"
     COMMAND_COUNT=$((COMMAND_COUNT + 1))
 done
 
@@ -107,6 +150,7 @@ for agent in "$SCRIPT_DIR/.claude/agents/"*.md; do
     # Extract model tier from frontmatter
     MODEL=$(grep '^model:' "$agent" 2>/dev/null | head -1 | awk '{print $2}' || echo "inherit")
     echo "   ├── agents/$(basename "$agent") ($MODEL)"
+    track_managed_path ".claude/agents/$(basename "$agent")"
     AGENT_COUNT=$((AGENT_COUNT + 1))
 done
 
@@ -114,6 +158,7 @@ done
 mkdir -p "$TARGET_DIR/.claude/agent-memory"
 touch "$TARGET_DIR/.claude/agent-memory/.gitkeep"
 echo "   └── agent-memory/ (project scope)"
+track_managed_path ".claude/agent-memory/.gitkeep"
 
 # =============================================================================
 # scripts directory
@@ -126,6 +171,7 @@ for script in "$SCRIPT_DIR/scripts/"*.py; do
     if [ -f "$script" ]; then
         cp "$script" "$TARGET_DIR/scripts/"
         echo "   ├── $(basename "$script")"
+        track_managed_path "scripts/$(basename "$script")"
     fi
 done
 
@@ -134,6 +180,7 @@ for hook in "$SCRIPT_DIR/scripts/hook-"*.sh; do
         cp "$hook" "$TARGET_DIR/scripts/"
         chmod +x "$TARGET_DIR/scripts/$(basename "$hook")"
         echo "   ├── $(basename "$hook")"
+        track_managed_path "scripts/$(basename "$hook")"
     fi
 done
 
@@ -141,6 +188,7 @@ if [ -f "$SCRIPT_DIR/scripts/install-githooks.sh" ]; then
     cp "$SCRIPT_DIR/scripts/install-githooks.sh" "$TARGET_DIR/scripts/"
     chmod +x "$TARGET_DIR/scripts/install-githooks.sh"
     echo "   ├── install-githooks.sh"
+    track_managed_path "scripts/install-githooks.sh"
 fi
 
 # Memory engine package
@@ -149,6 +197,7 @@ for mem in "$SCRIPT_DIR/scripts/memory/"*.py; do
     if [ -f "$mem" ]; then
         cp "$mem" "$TARGET_DIR/scripts/memory/"
         echo "   ├── memory/$(basename "$mem")"
+        track_managed_path "scripts/memory/$(basename "$mem")"
     fi
 done
 echo "   └── memory/ (memory engine package)"
@@ -163,6 +212,7 @@ mkdir -p "$TARGET_DIR/.github"
 if [ ! -f "$TARGET_DIR/.github/CODEOWNERS" ]; then
     cp "$SCRIPT_DIR/.github/CODEOWNERS" "$TARGET_DIR/.github/"
     echo "   ├── CODEOWNERS"
+    track_managed_path ".github/CODEOWNERS"
 else
     echo -e "   ├── CODEOWNERS ${YELLOW}(skipped - exists)${NC}"
 fi
@@ -170,6 +220,7 @@ fi
 if [ ! -f "$TARGET_DIR/.github/PULL_REQUEST_TEMPLATE.md" ]; then
     cp "$SCRIPT_DIR/.github/PULL_REQUEST_TEMPLATE.md" "$TARGET_DIR/.github/"
     echo "   └── PULL_REQUEST_TEMPLATE.md"
+    track_managed_path ".github/PULL_REQUEST_TEMPLATE.md"
 else
     echo -e "   └── PULL_REQUEST_TEMPLATE.md ${YELLOW}(skipped - exists)${NC}"
 fi
@@ -196,6 +247,7 @@ for file in PROJECT.md ROADMAP.md WORKFLOW.json; do
     else
         echo -e "   ├── $file ${YELLOW}(skipped - exists)${NC}"
     fi
+    track_managed_path "docs/planning/$file"
 done
 
 if [ ! -f "$TARGET_DIR/docs/planning/WORKFLOW.schema.json" ]; then
@@ -204,6 +256,7 @@ if [ ! -f "$TARGET_DIR/docs/planning/WORKFLOW.schema.json" ]; then
 else
     echo -e "   ├── WORKFLOW.schema.json ${YELLOW}(skipped - exists)${NC}"
 fi
+track_managed_path "docs/planning/WORKFLOW.schema.json"
 
 # Migration: remove STATE.md if it exists (replaced by memory engine)
 if [ -f "$TARGET_DIR/docs/planning/STATE.md" ]; then
@@ -213,9 +266,11 @@ fi
 
 cp "$SCRIPT_DIR/docs/planning/adr/ADR-TEMPLATE.md" "$TARGET_DIR/docs/planning/adr/"
 echo "   ├── adr/ADR-TEMPLATE.md"
+track_managed_path "docs/planning/adr/ADR-TEMPLATE.md"
 
 cp "$SCRIPT_DIR/docs/planning/work/features/CONTEXT-TEMPLATE.md" "$TARGET_DIR/docs/planning/work/features/"
 echo "   └── work/features/CONTEXT-TEMPLATE.md"
+track_managed_path "docs/planning/work/features/CONTEXT-TEMPLATE.md"
 
 # .gitkeep files
 touch "$TARGET_DIR/docs/planning/work/quick/.gitkeep"
@@ -226,6 +281,14 @@ touch "$TARGET_DIR/docs/planning/work/review/.gitkeep"
 touch "$TARGET_DIR/docs/planning/work/research/.gitkeep"
 touch "$TARGET_DIR/docs/planning/work/ideas/.gitkeep"
 touch "$TARGET_DIR/docs/planning/archive/features/.gitkeep"
+track_managed_path "docs/planning/work/quick/.gitkeep"
+track_managed_path "docs/planning/work/features/.gitkeep"
+track_managed_path "docs/planning/work/debug/.gitkeep"
+track_managed_path "docs/planning/work/background/.gitkeep"
+track_managed_path "docs/planning/work/review/.gitkeep"
+track_managed_path "docs/planning/work/research/.gitkeep"
+track_managed_path "docs/planning/work/ideas/.gitkeep"
+track_managed_path "docs/planning/archive/features/.gitkeep"
 
 # =============================================================================
 # docs/templates directory
@@ -238,6 +301,7 @@ for template in CLAUDE-generic.md CLAUDE-java.md CLAUDE-typescript.md CLAUDE-pyt
     if [ -f "$SCRIPT_DIR/docs/templates/$template" ]; then
         cp "$SCRIPT_DIR/docs/templates/$template" "$TARGET_DIR/docs/templates/"
         echo "   ├── $template"
+        track_managed_path "docs/templates/$template"
     fi
 done
 
@@ -250,6 +314,7 @@ echo "📄 Root files"
 if [ ! -f "$TARGET_DIR/CLAUDE.md" ]; then
     cp "$SCRIPT_DIR/docs/templates/CLAUDE-generic.md" "$TARGET_DIR/CLAUDE.md"
     echo "   ├── CLAUDE.md (from generic template)"
+    track_managed_path "CLAUDE.md"
 else
     echo -e "   ├── CLAUDE.md ${YELLOW}(skipped - exists)${NC}"
 fi
@@ -257,10 +322,12 @@ fi
 # Workflow docs (always overwrite — cnogo's file)
 cp "$SCRIPT_DIR/.claude/CLAUDE.md" "$TARGET_DIR/.claude/CLAUDE.md"
 echo "   ├── .claude/CLAUDE.md (workflow docs)"
+track_managed_path ".claude/CLAUDE.md"
 
 if [ ! -f "$TARGET_DIR/CHANGELOG.md" ]; then
     cp "$SCRIPT_DIR/CHANGELOG.md" "$TARGET_DIR/"
     echo "   └── CHANGELOG.md"
+    track_managed_path "CHANGELOG.md"
 else
     echo -e "   └── CHANGELOG.md ${YELLOW}(skipped - exists)${NC}"
 fi
@@ -275,6 +342,7 @@ for skill in "$SCRIPT_DIR/.claude/skills/"*.md; do
     if [ -f "$skill" ]; then
         cp "$skill" "$TARGET_DIR/.claude/skills/"
         echo "   ├── $(basename "$skill")"
+        track_managed_path ".claude/skills/$(basename "$skill")"
     fi
 done
 
@@ -345,6 +413,7 @@ if [ -f "$GITIGNORE" ]; then
     done
     if [ "$ADDED" -gt 0 ]; then
         echo "   ✅ Appended $ADDED missing .cnogo/ entries to .gitignore"
+        track_managed_path ".gitignore"
     else
         echo -e "   ${YELLOW}(skipped — entries already present)${NC}"
     fi
@@ -353,6 +422,23 @@ else
         echo "$line" >> "$GITIGNORE"
     done
     echo "   ✅ Created .gitignore with .cnogo/ entries"
+    track_managed_path ".gitignore"
+fi
+
+if [ "$WRITE_MANIFEST" = true ]; then
+    MANIFEST_FILE="$TARGET_DIR/.cnogo/install-manifest.txt"
+    mkdir -p "$TARGET_DIR/.cnogo"
+    track_managed_path ".cnogo/install-manifest.txt"
+    UNIQUE_COUNT=$(printf "%s\n" "${MANAGED_PATHS[@]}" | sed '/^$/d' | LC_ALL=C sort -u | wc -l | tr -d ' ')
+    {
+        echo "# cnogo install manifest"
+        echo "# generated_at_utc: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+        echo "# target: $TARGET_DIR"
+        echo "# files_touched_by_installer:"
+        printf "%s\n" "${MANAGED_PATHS[@]}" | sed '/^$/d' | LC_ALL=C sort -u
+    } > "$MANIFEST_FILE"
+    echo ""
+    echo "🧾 Wrote .cnogo/install-manifest.txt (${UNIQUE_COUNT} paths)"
 fi
 
 echo ""

@@ -55,7 +55,11 @@
   },
   "enforcement": {
     "monorepoVerifyScope": "warn",
-    "operatingPrinciples": "warn"
+    "operatingPrinciples": "warn",
+    "tddMode": "error",
+    "verificationBeforeCompletion": "error",
+    "twoStageReview": "error",
+    "taskOwnership": "error"
   },
   "freshness": {
     "enabled": true,
@@ -109,6 +113,7 @@
     "enabled": true,
     "delegateMode": true,
     "staleIndicatorMinutes": 10,
+    "maxTakeoversPerTask": 2,
     "worktreeMode": "always",
     "defaultCompositions": {
       "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
