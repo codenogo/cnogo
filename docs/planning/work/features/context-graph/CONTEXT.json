@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "displayName": "Full Stdlib Port of Axon's Context Graph into cnogo",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "New scripts/context/ package parallel to scripts/memory/",
+      "rationale": "Emphasizes 'context' over raw graph. Clean separation from memory engine. Follows existing package pattern."
+    },
+    {
+      "area": "storage",
+      "decision": "Separate .cnogo/graph.db SQLite database",
+      "rationale": "Graph has different lifecycle than memory — can be rebuilt from source without affecting task tracking. Clean separation."
+    },
+    {
+      "area": "api",
+      "decision": "OOP ContextGraph class with index/query/impact/context methods",
+      "rationale": "Stateful graph object better matches the domain (graph holds repo state). Mirrors axon's pattern."
+    },
+    {
+      "area": "indexing",
+      "decision": "Triple trigger: explicit CLI, auto on /review and /plan, PostCommit hook",
+      "rationale": "CLI for manual control, auto for workflow convenience, hooks for freshness. All three cover different use cases."
+    },
+    {
+      "area": "indexing",
+      "decision": "Incremental re-indexing from day one via file hash tracking",
+      "rationale": "Scales to real codebases. Track content hashes per file, only re-parse changed files. Axon's get_indexed_files() pattern."
+    },
+    {
+      "area": "parsing",
+      "decision": "Python ast module only (no tree-sitter in MVP)",
+      "rationale": "Stdlib-only constraint. ast module is mature for Python. Multi-language support deferred to post-MVP via layered deps."
+    },
+    {
+      "area": "scope",
+      "decision": "MVP is core 6 phases: file walking, structure, Python parsing, imports, call tracing, heritage",
+      "rationale": "Minimum for a useful call graph. Impact analysis, dead code, coupling, communities, flows are post-MVP phases."
+    },
+    {
+      "area": "data-model",
+      "decision": "Port axon's GraphNode/GraphRelationship dataclasses and NodeLabel/RelType enums",
+      "rationale": "Proven data model with 10 node types and 11 relationship types. Deterministic IDs (label:file:name)."
+    }
+  ],
+  "constraints": [
+    "Python 3.10+ stdlib only — no pip dependencies",
+    "install.sh is the single distribution mechanism",
+    "Must not break existing memory engine or workflow commands",
+    "SQLite for storage (via stdlib sqlite3 module)",
+    "Python-only language support in MVP",
+    "Max 800 lines per file (WORKFLOW.json invariant)"
+  ],
+  "openQuestions": [
+    "How should /review format the blast radius output? (defer to plan phase)",
+    "Should graph.db be gitignored like memory.db? (likely yes — rebuild from source)",
+    "What's the right confidence threshold for call tracing without tree-sitter? (calibrate during TDD)",
+    "Should community detection use label propagation or SCC? (post-MVP decision)"
+  ],
+  "relatedCode": [
+    "scripts/memory/__init__.py",
+    "scripts/memory/bridge.py",
+    "scripts/workflow_memory.py",
+    "scripts/workflow_checks_core.py",
+    "scripts/workflow_validate_core.py",
+    "docs/planning/work/ideas/context-graph/BRAINSTORM.md"
+  ],
+  "research": [
+    {
+      "source": "https://github.com/harshkedia177/axon",
+      "summary": "Graph-powered code intelligence engine. 10 node types, 11 relationship types, 12-phase ingestion pipeline. 8 of 12 phases are stdlib-portable."
+    }
+  ],
+  "memoryEpicId": "cn-9gsoik",
+  "timestamp": "2026-02-27T23:10:00Z"
+}
