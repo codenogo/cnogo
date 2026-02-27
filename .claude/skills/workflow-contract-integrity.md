@@ -20,6 +20,8 @@ Keep planning contracts and rendered markdown aligned with no lifecycle drift.
 2. Plan integrity:
 - max 3 tasks per plan
 - each task has explicit `files[]`, `action`, `verify[]`
+- for `schemaVersion >= 2`: each task has non-empty `microSteps[]` (no time-box/minute fields)
+- for `schemaVersion >= 2`: each task has `tdd.required`; if true, failing/passing verify commands; if false, non-rationalized reason
 - dependency indices are valid and acyclic
 
 3. Summary integrity:

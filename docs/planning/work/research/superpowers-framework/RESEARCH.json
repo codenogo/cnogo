@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "topic": "obra/superpowers agentic skills framework analysis",
+  "slug": "superpowers-framework",
+  "timestamp": "2026-02-25T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    {
+      "type": "web",
+      "url": "https://api.github.com/repos/obra/superpowers",
+      "description": "GitHub API repo metadata (stars, pushed_at, license) checked on 2026-02-25"
+    },
+    {
+      "type": "web",
+      "url": "https://api.github.com/repos/obra/superpowers/releases/latest",
+      "description": "GitHub API latest published release tag (v4.1.1 as of 2026-02-25)"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers",
+      "description": "Repository metadata (61,683 stars as of 2026-02-25, MIT)"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers/tree/main/skills",
+      "description": "14 skill definitions with SKILL.md frontmatter and structured markdown"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers/blob/main/agents/code-reviewer.md",
+      "description": "Code reviewer subagent configuration"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers/blob/main/lib/skills-core.js",
+      "description": "Skill discovery and resolution library"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers/blob/main/hooks/hooks.json",
+      "description": "SessionStart hook configuration"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers/blob/main/RELEASE-NOTES.md",
+      "description": "Release notes include v4.3.1 (latest GitHub Release tag is v4.1.1)"
+    },
+    {
+      "type": "web",
+      "url": "https://github.com/obra/superpowers/blob/main/.claude-plugin/plugin.json",
+      "description": "Plugin manifest and metadata"
+    }
+  ],
+  "summary": [
+    "Superpowers is a 14-skill framework (61,683 stars as of 2026-02-25; plugin manifest v4.3.1) with strong skill-driven workflow enforcement",
+    "Core patterns: enforced TDD with delete-and-restart mandate, two-stage adversarial subagent review (spec compliance then code quality), verification-before-completion gates",
+    "Skills use hard gates, rationalization-prevention tables, and adversarial framing to prevent models from skipping process steps",
+    "Task granularity is 2-5 minute chunks (individual git commits), finer than cnogo's max-3-tasks-per-plan",
+    "Plugin architecture supports Claude Code, Cursor, Codex, and OpenCode via platform-specific manifests and install paths"
+  ],
+  "recommendation": "Port three key patterns into cnogo-native workflow controls: (1) verification-before-completion, (2) two-stage review with adversarial framing, (3) stricter TDD hard gates by hardening existing /tdd behavior (optionally with a dedicated skill + WORKFLOW.json toggle)."
+}

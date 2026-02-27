@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "topic": "Programmatic Tool Calling",
+  "slug": "programmatic-tool-calling",
+  "timestamp": "2026-02-22T00:00:00Z",
+  "mode": "auto",
+  "sources": [
+    {
+      "type": "web",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview",
+      "title": "Tool use with Claude - Overview"
+    },
+    {
+      "type": "web",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling",
+      "title": "Programmatic Tool Calling - Official Docs"
+    },
+    {
+      "type": "web",
+      "url": "https://platform.claude.com/cookbook/tool-use-programmatic-tool-calling-ptc",
+      "title": "PTC Cookbook"
+    },
+    {
+      "type": "web",
+      "url": "https://www.anthropic.com/engineering/advanced-tool-use",
+      "title": "Introducing Advanced Tool Use"
+    },
+    {
+      "type": "web",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/fine-grained-tool-streaming",
+      "title": "Fine-Grained Tool Streaming"
+    },
+    {
+      "type": "web",
+      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool",
+      "title": "Tool Search Tool"
+    },
+    {
+      "type": "web",
+      "url": "https://platform.claude.com/docs/en/agent-sdk/overview",
+      "title": "Claude Agent SDK"
+    },
+    {
+      "type": "repo",
+      "path": "docs/planning/work/research/opus-46-multi-agent/RESEARCH.md",
+      "title": "Opus 4.6 Multi-Agent Research"
+    },
+    {
+      "type": "repo",
+      "path": ".claude/commands/team.md",
+      "title": "Team command (tool orchestration)"
+    },
+    {
+      "type": "repo",
+      "path": "scripts/memory/bridge.py",
+      "title": "Plan-to-task bridge (TaskDescV2)"
+    },
+    {
+      "type": "repo",
+      "path": ".claude/agents/implementer.md",
+      "title": "Implementer agent definition"
+    },
+    {
+      "type": "web",
+      "url": "https://modelcontextprotocol.io/specification/2025-11-25",
+      "title": "MCP Specification"
+    }
+  ],
+  "summary": [
+    "Programmatic Tool Calling (PTC) is an advanced Claude API feature (GA Feb 2026) where Claude writes Python code to orchestrate multiple tool calls in a sandboxed container, reducing inference passes from N to 1-2 regardless of tool count.",
+    "PTC achieves ~85% token reduction by processing tool results in-sandbox rather than loading them into model context. Enabled via code_execution tool + allowed_callers field on tool definitions.",
+    "Standard tool use remains the baseline: JSON Schema tool definitions, tool_choice control (auto/any/tool/none), client-side execution loop. Tool Runner (SDK beta) automates this loop.",
+    "Complementary features: Tool Search Tool (defer_loading for 10+ tools, 85% definition token savings), Tool Use Examples (input_examples for complex params, 72% to 90% accuracy), Fine-Grained Tool Streaming (GA, eager_input_streaming for large params).",
+    "cnogo already uses Claude Code's tool infrastructure extensively: Agent Teams, Task/SendMessage tools, TaskDescV2 schema, bridge pattern. The stdlib-only constraint prevents using the anthropic SDK directly.",
+    "MCP standardizes tool discovery/execution across providers. MCP tools cannot yet be called via PTC. cnogo has MCP server management via /mcp command."
+  ],
+  "recommendation": "No immediate action needed. cnogo's tool-calling patterns are mature via Claude Code Agent Teams. If direct Claude API integration is ever needed (e.g., standalone workflow execution), use stdlib urllib.request against the Messages API with JSON Schema tool definitions. PTC would be the high-value target for multi-step plan execution (85% token savings), but requires the anthropic SDK or manual container management. Track PTC + MCP convergence for future opportunities."
+}

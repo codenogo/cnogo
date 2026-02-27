@@ -58,6 +58,8 @@ def _make_desc(**overrides):
         "commands": {"verify": []},
         "completion_footer": "",
         "blockedBy": [],
+        "micro_steps": [],
+        "tdd": {},
         "skipped": False,
     }
     base.update(overrides)
@@ -89,6 +91,27 @@ class TestGenerateImplementPrompt:
         assert "- `pytest`" in prompt
         assert "- `mypy`" in prompt
 
+    def test_micro_steps_section(self):
+        desc = _make_desc(micro_steps=["Write failing test", "Implement minimal code"])
+        prompt = generate_implement_prompt(desc)
+        assert "**Micro-steps (execute in order):**" in prompt
+        assert "- Write failing test" in prompt
+        assert "- Implement minimal code" in prompt
+
+    def test_tdd_contract_section(self):
+        desc = _make_desc(
+            tdd={
+                "required": True,
+                "failingVerify": ["pytest tests/test_x.py -k failing_case"],
+                "passingVerify": ["pytest tests/test_x.py -k failing_case"],
+            }
+        )
+        prompt = generate_implement_prompt(desc)
+        assert "**TDD contract (must provide evidence):**" in prompt
+        assert "- required: `true`" in prompt
+        assert "failingVerify" in prompt
+        assert "passingVerify" in prompt
+
     def test_no_memory_section_without_task_id(self):
         prompt = generate_implement_prompt(_make_desc(task_id=""))
         assert "**Memory:**" not in prompt
@@ -105,6 +128,15 @@ class TestGenerateImplementPrompt:
         assert "report-done cn-abc123 --actor implementer" in prompt
         assert "show cn-abc123" in prompt
         assert "history cn-abc123" in prompt
+
+    def test_memory_commands_use_custom_actor_name(self):
+        desc = _make_desc(
+            task_id="cn-abc123",
+            completion_footer="TASK_DONE: [cn-abc123]",
+        )
+        prompt = generate_implement_prompt(desc, actor_name="impl-run-t0-a1")
+        assert "claim cn-abc123 --actor impl-run-t0-a1" in prompt
+        assert "report-done cn-abc123 --actor impl-run-t0-a1" in prompt
 
     def test_no_persisted_claim_in_commands(self):
         """Derived commands must NOT come from the commands dict."""
@@ -124,6 +156,7 @@ class TestGenerateImplementPrompt:
         )
         prompt = generate_implement_prompt(desc)
         assert "`TASK_DONE: [cn-abc123]`" in prompt
+        assert "TASK_EVIDENCE:" in prompt
 
     def test_invalid_task_id_rejected(self):
         desc = _make_desc(task_id="bad-id-format")
@@ -316,3 +349,26 @@ class TestPlanToTaskDescriptions:
         assert results[0]["plan_task_index"] == 0
         assert results[1]["plan_task_index"] == 1
         assert results[1]["blockedBy"] == [0]
+
+    def test_microsteps_and_tdd_copied(self, tmp_path):
+        plan_path = self._write_plan(tmp_path, [
+            {
+                "name": "TDD task",
+                "files": ["a.py"],
+                "verify": ["pytest -q"],
+                "action": "do it",
+                "microSteps": ["write failing test", "run tests", "implement", "run tests"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k fail_case"],
+                    "passingVerify": ["pytest tests/test_a.py -k fail_case"],
+                },
+            },
+        ])
+        with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
+             mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
+            results = plan_to_task_descriptions(plan_path, tmp_path)
+
+        desc = results[0]
+        assert desc["micro_steps"] == ["write failing test", "run tests", "implement", "run tests"]
+        assert desc["tdd"]["required"] is True

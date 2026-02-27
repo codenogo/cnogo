@@ -61,8 +61,11 @@ Write:
 
 Required constraints:
 - `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`
+- new plans should use `schemaVersion: 2` (legacy `schemaVersion: 1` remains valid for historical artifacts)
 - `tasks.length <= 3`
 - each task has explicit `files[]`, `action`, `verify[]`
+- for `schemaVersion >= 2`, each task also has non-empty `microSteps[]` (no minute/time-box estimates) and `tdd`
+  (`required=true` with failing/passing verify commands, or `required=false` with non-rationalized reason)
 - `"deletions": ["path/to/file.py"]` — optional list of files being deleted by this task;
   when present, the bridge auto-scans the repo for callers and expands the next task's file scope
 
@@ -70,7 +73,7 @@ Minimal contract shape:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "feature": "feature-slug",
   "planNumber": "01",
   "goal": "One-sentence goal",
@@ -79,6 +82,17 @@ Minimal contract shape:
       "name": "Task name",
       "cwd": "packages/api (optional)",
       "files": ["path/to/file.ts"],
+      "microSteps": [
+        "Write failing test",
+        "Run failing test to verify RED",
+        "Implement minimal fix",
+        "Run passing tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["npm test -- --runInBand path/to/test.spec.ts"],
+        "passingVerify": ["npm test -- --runInBand path/to/test.spec.ts"]
+      },
       "action": "Specific instructions",
       "verify": ["npm test --silent"],
       "blockedBy": [0]
@@ -120,7 +134,7 @@ python3 scripts/workflow_memory.py create "Task title" --type task --feature $AR
 ### Step 7: Validate
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 scripts/workflow_validate.py --feature $ARGUMENTS
 ```
 
 ## Output

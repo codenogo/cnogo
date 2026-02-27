@@ -15,6 +15,11 @@ Warn if not in `ship` phase; continue only with confirmation.
 - refuse to ship from `main/master`
 - inspect `git status --porcelain`
 - ensure review/verify artifacts are up to date
+- require staged review + freshness gate:
+```bash
+python3 scripts/workflow_checks.py ship-ready --feature <feature-slug>
+```
+If this fails, stop and return the failing checks.
 
 3. Commit (if needed):
 ```bash

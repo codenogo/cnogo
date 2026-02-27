@@ -49,25 +49,38 @@ wrapper = {"schema_version": 2, "feature": feature, "plan_number": plan, "genera
 9. Create TaskCreate entries (two-pass: create tasks, then wire blockedBy).
 10. Spawn one implementer per task. At spawn-time, render prompt:
 ```python
-prompt = generate_implement_prompt(taskdesc)  # TaskDescV2 → markdown
+actor_name = f"impl-{run_id}-t{taskdesc['plan_task_index']}-a1"
+prompt = generate_implement_prompt(taskdesc, actor_name=actor_name)  # TaskDescV2 → markdown
 ```
 Include worktree path in prompt.
+Require task completion footer protocol: `TASK_EVIDENCE: {...}` then `TASK_DONE: [cn-...]`.
+Leader is orchestration-only: do not execute task implementation or task verify commands as leader.
 
 **Guaranteed lifecycle — try/finally structure:**
 ```
 try:
-  11. Monitor TaskList until all tasks complete.
+  11. Monitor TaskList until all non-skipped implementer tasks complete.
+      Respect blockers and retries; do not force-close failed tasks.
+      Poll for stalls:
+      `python3 scripts/workflow_memory.py stalled --feature <feature> --json`
+      For each stalled task:
+      - derive next actor attempt: `impl-<run_id>-t<task_index>-aN`
+      - run takeover:
+        `python3 scripts/workflow_memory.py takeover <task_id> --to <next-actor> --reason "stalled (>N min)" --actor leader --json`
+      - spawn replacement implementer using `generate_implement_prompt(taskdesc, actor_name=<next-actor>)`
   12. Run leader reconciliation:
       python3 -c "from scripts.memory.reconcile_leader import reconcile; print(reconcile('<epic_id>'))"
   13. Merge branches: `python3 scripts/workflow_memory.py session-merge --json`
       If conflict, run resolver agent (max 2 retries).
   14. Run planVerify commands.
-  15. Write summary artifacts, commit, set phase `review`.
+  15. Run `/review` staged gate (spec-compliance first, then code-quality).
+  16. Do not continue if either stage is `fail`.
+  17. Write summary artifacts, commit, set phase `review`.
 finally:
-  16. Cleanup (guaranteed teardown — MUST execute even if tasks fail):
+  18. Cleanup (guaranteed teardown — MUST execute even if tasks fail):
       python3 scripts/workflow_memory.py session-cleanup
-      python3 scripts/workflow_validate.py --json
-  17. Dismiss team via TeamDelete. If TeamDelete fails, retry once then log and continue.
+      python3 scripts/workflow_validate.py --json --feature <feature>
+  19. Dismiss team via TeamDelete. If TeamDelete fails, retry once then log and continue.
 ```
 
 ## Action: `status`

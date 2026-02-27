@@ -57,28 +57,47 @@ Or (if no feature inferred):
 Then validate workflow artifacts:
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 scripts/workflow_validate.py --json --feature <feature-slug>
 ```
 
-### Step 3: Performance Review (Final Gate)
+### Step 3: Stage 1 — Spec Compliance (must run first)
 
-Apply `.claude/skills/performance-review.md` as the primary final-gate review procedure. This orchestrates sub-skills in a deterministic 6-step sequence with a 7-axis scoring rubric:
+Run a strict spec pass before any code-quality judgment:
 
-1. **Scope + Intent** — changes match plan goal, no out-of-scope modifications
-2. **Code Review Checklist** — via `.claude/skills/code-review.md`
-3. **Contract Compliance** — planning artifacts + multi-agent safety
-4. **Security / OWASP Quick Pass** — via `.claude/skills/security-scan.md`
-5. **PRR-lite** — via `.claude/skills/release-readiness.md`
-6. **Validation Baseline Diff** — verify-before vs verify-after
+1. Scope + intent match vs plan goal
+2. Contract compliance (artifacts + lifecycle)
+3. Changed-scope discipline (no drive-by edits)
 
-Additional skill checks for workflow-specific concerns:
+Update `REVIEW.json`:
+- `stageReviews[0].stage = "spec-compliance"`
+- set `stageReviews[0].status = pass|warn|fail`
+- fill `stageReviews[0].findings[]` + `stageReviews[0].evidence[]`
+
+If spec stage is `fail`, stop and return blockers.
+
+### Step 4: Stage 2 — Code Quality (only after spec stage passes)
+
+Apply `.claude/skills/performance-review.md` and supporting skills:
+- `.claude/skills/code-review.md`
+- `.claude/skills/security-scan.md`
+- `.claude/skills/release-readiness.md`
 - `.claude/skills/boundary-and-sdk-enforcement.md`
 - `.claude/skills/workflow-contract-integrity.md`
 - `.claude/skills/artifact-token-budgeting.md`
 
-Fill `securityFindings[]`, `performanceFindings[]`, `patternCompliance[]` in `REVIEW.json`. Record scoring summary in `principleNotes[]`.
+Update `REVIEW.json`:
+- `stageReviews[1].stage = "code-quality"`
+- set `stageReviews[1].status = pass|warn|fail`
+- fill `stageReviews[1].findings[]` + `stageReviews[1].evidence[]`
+- fill `securityFindings[]`, `performanceFindings[]`, `patternCompliance[]`, `principleNotes[]`
 
-### Step 4: Verdict
+Re-run validator after stage updates:
+
+```bash
+python3 scripts/workflow_validate.py --json --feature <feature-slug>
+```
+
+### Step 5: Verdict
 
 Score 7 axes (0-2 each) per `.claude/skills/performance-review.md` rubric:
 

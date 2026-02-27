@@ -16,7 +16,9 @@ Usage from CLI:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -34,9 +36,9 @@ __all__ = [
     "init", "is_initialized",
     # Issue CRUD
     "create", "show", "update", "claim", "close", "reopen", "release",
-    "report_done", "verify_and_close",
+    "report_done", "verify_and_close", "takeover_task",
     # Query
-    "ready", "list_issues", "stats", "get_phase", "set_phase",
+    "ready", "list_issues", "stats", "get_phase", "set_phase", "stalled_tasks",
     # Dependencies
     "dep_add", "dep_remove", "blockers", "blocks",
     # Sync
@@ -66,6 +68,17 @@ __all__ = [
 _DB_NAME = "memory.db"
 _CNOGO_DIR = ".cnogo"
 _root: Path | None = None
+_RATIONALIZATION_PATTERNS = [
+    re.compile(r"\btoo\s+small\b", re.IGNORECASE),
+    re.compile(r"\btoo\s+simple\b", re.IGNORECASE),
+    re.compile(r"\bskip(?:ping)?\s+tdd\b", re.IGNORECASE),
+    re.compile(r"\bdo(?:n'?t| not)\s+need\s+tests?\b", re.IGNORECASE),
+    re.compile(r"\balready\s+works\b", re.IGNORECASE),
+    re.compile(r"\bprobably\s+fine\b", re.IGNORECASE),
+    re.compile(r"\bseems?\s+fine\b", re.IGNORECASE),
+    re.compile(r"\bno\s+time\b", re.IGNORECASE),
+    re.compile(r"\blater\b", re.IGNORECASE),
+]
 
 
 def _db_path(root: Path | None = None) -> Path:
@@ -102,6 +115,167 @@ def _auto_export(root: Path) -> None:
         _export(root)
     except Exception:
         pass
+
+
+def _load_enforcement_levels(root: Path) -> dict[str, str]:
+    defaults = {
+        "tddMode": "error",
+        "verificationBeforeCompletion": "error",
+        "taskOwnership": "error",
+    }
+    cfg_path = root / "docs" / "planning" / "WORKFLOW.json"
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        return defaults
+    if not isinstance(cfg, dict):
+        return defaults
+    enforcement = cfg.get("enforcement")
+    if not isinstance(enforcement, dict):
+        return defaults
+
+    out = dict(defaults)
+    tdd_mode = enforcement.get("tddMode")
+    if tdd_mode in {"off", "warn", "error"}:
+        out["tddMode"] = tdd_mode
+    vbc = enforcement.get("verificationBeforeCompletion")
+    if vbc in {"off", "warn", "error"}:
+        out["verificationBeforeCompletion"] = vbc
+    ownership = enforcement.get("taskOwnership")
+    if ownership in {"off", "warn", "error"}:
+        out["taskOwnership"] = ownership
+    return out
+
+
+def _load_agent_team_settings(root: Path) -> dict[str, int]:
+    defaults = {
+        "staleIndicatorMinutes": 10,
+        "maxTakeoversPerTask": 2,
+    }
+    cfg_path = root / "docs" / "planning" / "WORKFLOW.json"
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except Exception:
+        return defaults
+    if not isinstance(cfg, dict):
+        return defaults
+    teams = cfg.get("agentTeams")
+    if not isinstance(teams, dict):
+        return defaults
+
+    out = dict(defaults)
+    stale = teams.get("staleIndicatorMinutes")
+    if isinstance(stale, int) and not isinstance(stale, bool) and stale > 0:
+        out["staleIndicatorMinutes"] = stale
+    max_takeovers = teams.get("maxTakeoversPerTask")
+    if isinstance(max_takeovers, int) and not isinstance(max_takeovers, bool) and max_takeovers >= 0:
+        out["maxTakeoversPerTask"] = max_takeovers
+    return out
+
+
+def _parse_iso_timestamp(value: str) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = raw[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _contains_rationalization(text: str) -> bool:
+    return any(p.search(text or "") for p in _RATIONALIZATION_PATTERNS)
+
+
+def _is_nonempty_cmd_list(value: Any) -> bool:
+    return isinstance(value, list) and bool(value) and all(
+        isinstance(v, str) and v.strip() for v in value
+    )
+
+
+def _outputs_dict(metadata: dict[str, Any]) -> dict[str, Any]:
+    outputs = metadata.get("outputs")
+    return outputs if isinstance(outputs, dict) else {}
+
+
+def _verification_evidence(outputs: dict[str, Any]) -> dict[str, Any] | None:
+    verification = outputs.get("verification") or outputs.get("verificationEvidence")
+    return verification if isinstance(verification, dict) else None
+
+
+def _verification_timestamp(outputs: dict[str, Any]) -> str:
+    verification = _verification_evidence(outputs)
+    if not isinstance(verification, dict):
+        return ""
+    ts = verification.get("timestamp")
+    return ts.strip() if isinstance(ts, str) else ""
+
+
+def _completion_evidence_findings(
+    issue: Issue,
+    *,
+    verification_level: str,
+    tdd_level: str,
+) -> list[tuple[str, str]]:
+    """Validate completion evidence payload attached by report_done outputs."""
+    findings: list[tuple[str, str]] = []
+    metadata = issue.metadata if isinstance(issue.metadata, dict) else {}
+    requires_evidence = bool(metadata.get("requiresCompletionEvidence"))
+    if not requires_evidence and _is_nonempty_cmd_list(metadata.get("verify")):
+        requires_evidence = True
+    if not requires_evidence:
+        return findings
+
+    outputs_dict = _outputs_dict(metadata)
+
+    if verification_level != "off":
+        verification = _verification_evidence(outputs_dict)
+        if not isinstance(verification, dict):
+            findings.append((verification_level, "Missing verification evidence object in TASK_EVIDENCE."))
+        else:
+            commands = verification.get("commands")
+            timestamp = verification.get("timestamp")
+            if not _is_nonempty_cmd_list(commands):
+                findings.append((verification_level, "Verification evidence must include non-empty commands[]."))
+            if not isinstance(timestamp, str) or not timestamp.strip():
+                findings.append((verification_level, "Verification evidence must include non-empty timestamp."))
+
+    expected_tdd = metadata.get("tdd") if isinstance(metadata.get("tdd"), dict) else None
+    has_tdd_contract = isinstance(expected_tdd, dict) and isinstance(expected_tdd.get("required"), bool)
+
+    if tdd_level != "off" and has_tdd_contract:
+        tdd = outputs_dict.get("tdd") or outputs_dict.get("tddEvidence")
+        if not isinstance(tdd, dict):
+            findings.append((tdd_level, "Missing TDD evidence object in TASK_EVIDENCE."))
+            return findings
+
+        required = tdd.get("required")
+        if not isinstance(required, bool):
+            findings.append((tdd_level, "TDD evidence must include required=true|false."))
+            return findings
+
+        expected_required = expected_tdd.get("required") if isinstance(expected_tdd, dict) else None
+        if isinstance(expected_required, bool) and expected_required != required:
+            findings.append((tdd_level, "TDD evidence required flag does not match plan contract."))
+
+        if required:
+            if not _is_nonempty_cmd_list(tdd.get("failingVerify")):
+                findings.append((tdd_level, "TDD evidence must include non-empty failingVerify[]."))
+            if not _is_nonempty_cmd_list(tdd.get("passingVerify")):
+                findings.append((tdd_level, "TDD evidence must include non-empty passingVerify[]."))
+        else:
+            reason = tdd.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                findings.append((tdd_level, "TDD evidence with required=false must include non-empty reason."))
+            elif _contains_rationalization(reason):
+                findings.append((tdd_level, "TDD exemption reason appears rationalized."))
+
+    return findings
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +504,10 @@ def claim(
     actor: str,
     root: Path | None = None,
 ) -> Issue:
-    """Atomic claim: sets assignee + in_progress. Raises if already claimed.
+    """Atomic claim: sets assignee + in_progress.
+
+    Idempotent when the same actor already owns an in-progress task
+    that is still actively in_progress.
 
     Retries on SQLITE_BUSY with exponential backoff for multi-agent
     robustness.
@@ -347,6 +524,14 @@ def claim(
                 raise ValueError(f"Issue {issue_id} not found")
             if existing.status == "closed":
                 raise ValueError(f"Issue {issue_id} is closed")
+            if existing.assignee == actor and existing.status == "in_progress":
+                if existing.state == "in_progress":
+                    conn.commit()
+                    return existing
+                raise ValueError(
+                    f"Issue {issue_id} already owned by {actor!r} but state is "
+                    f"{existing.state!r}; cannot re-claim"
+                )
 
             ok = _st.claim_issue(conn, issue_id, actor)
             if not ok:
@@ -411,6 +596,8 @@ def report_done(
         )
 
     r = root or _root or Path(".")
+    enforcement = _load_enforcement_levels(r)
+    ownership_level = enforcement.get("taskOwnership", "error")
 
     def _do_report() -> Issue:
         conn = _conn(r)
@@ -422,6 +609,27 @@ def report_done(
             if existing.issue_type != "task":
                 raise ValueError(
                     f"report_done only works on tasks, got {existing.issue_type!r}"
+                )
+            policy_warnings: list[str] = []
+            if not existing.assignee:
+                message = "Cannot report_done without an assignee (unclaimed task)."
+                if ownership_level == "error":
+                    raise ValueError(message)
+                if ownership_level == "warn":
+                    policy_warnings.append(message)
+            elif existing.assignee != actor:
+                message = (
+                    "report_done actor must match assignee under taskOwnership policy "
+                    f"(assignee={existing.assignee!r}, actor={actor!r})."
+                )
+                if ownership_level == "error":
+                    raise ValueError(message)
+                if ownership_level == "warn":
+                    policy_warnings.append(message)
+            if existing.state not in {"in_progress", "done_by_worker"}:
+                raise ValueError(
+                    "report_done requires task state in_progress|done_by_worker, "
+                    f"got {existing.state!r}"
                 )
             if actor_role == "hook":
                 if not existing.owner_actor or existing.owner_actor != actor:
@@ -439,6 +647,7 @@ def report_done(
             _emit(conn, issue_id, "report_done", actor, {
                 "actor_role": actor_role,
                 "outputs": outputs or {},
+                "policy_warnings": policy_warnings,
             })
             conn.commit()
             return _st.get_issue(conn, issue_id)  # type: ignore[return-value]
@@ -463,6 +672,9 @@ def verify_and_close(
     This function is leader-only by design.
     """
     r = root or _root or Path(".")
+    enforcement = _load_enforcement_levels(r)
+    verification_level = enforcement.get("verificationBeforeCompletion", "error")
+    tdd_level = enforcement.get("tddMode", "error")
 
     def _do_verify() -> Issue:
         conn = _conn(r)
@@ -474,6 +686,19 @@ def verify_and_close(
             if existing.issue_type != "task":
                 raise ValueError(
                     f"verify_and_close only works on tasks, got {existing.issue_type!r}"
+                )
+
+            evidence_findings = _completion_evidence_findings(
+                existing,
+                verification_level=verification_level,
+                tdd_level=tdd_level,
+            )
+            blocking = [msg for level, msg in evidence_findings if level == "error"]
+            if blocking:
+                joined = "; ".join(blocking)
+                raise ValueError(
+                    "Completion evidence policy violation: "
+                    f"{joined}"
                 )
 
             if existing.state == "done_by_worker":
@@ -530,6 +755,15 @@ def close(
     robustness.
     """
     r = root or _root or Path(".")
+    existing_issue = show(issue_id, root=r)
+    if existing_issue and actor_role == "leader" and existing_issue.issue_type == "task":
+        return verify_and_close(
+            issue_id,
+            reason=reason,
+            comment=comment,
+            actor=actor,
+            root=r,
+        )
 
     def _do_close() -> Issue:
         conn = _conn(r)
@@ -601,19 +835,32 @@ def release(
     issue_id: str,
     *,
     actor: str = "claude",
+    actor_role: str = "leader",
     root: Path | None = None,
 ) -> Issue:
     """Release a claimed (in_progress) issue back to open/unassigned.
 
     Used to reclaim tasks from dead agents or re-assign work.
+    Only valid for actively executing tasks (state=in_progress).
     Resets status to 'open' and clears assignee.
     """
+    if actor_role != "leader":
+        raise ValueError("Only leader can release in-progress issues")
     r = root or _root or Path(".")
     conn = _conn(r)
     try:
         existing = _st.get_issue(conn, issue_id)
         if existing is None:
             raise ValueError(f"Issue {issue_id} not found")
+        if existing.issue_type != "task":
+            raise ValueError(
+                f"release only works on tasks, got {existing.issue_type!r}"
+            )
+        if existing.state != "in_progress":
+            raise ValueError(
+                "release requires task in active execution state "
+                f"(state='in_progress'), got state={existing.state!r}"
+            )
 
         ok = _st.release_issue(conn, issue_id)
         if not ok:
@@ -629,6 +876,111 @@ def release(
         result = _st.get_issue(conn, issue_id)  # type: ignore[return-value]
     finally:
         conn.close()
+    _auto_export(r)
+    return result
+
+
+def takeover_task(
+    issue_id: str,
+    *,
+    to_actor: str,
+    reason: str,
+    actor: str = "leader",
+    actor_role: str = "leader",
+    root: Path | None = None,
+) -> dict[str, Any]:
+    """Leader-only takeover of a stalled task.
+
+    Reassigns assignee, moves task back to in_progress, and records audit data.
+    """
+    if actor_role != "leader":
+        raise ValueError("Only leader can run takeover_task")
+    to_actor_clean = (to_actor or "").strip()
+    if not to_actor_clean:
+        raise ValueError("takeover target actor cannot be empty")
+    reason_clean = (reason or "").strip()
+    if not reason_clean:
+        raise ValueError("takeover reason cannot be empty")
+
+    r = root or _root or Path(".")
+    max_takeovers = _load_agent_team_settings(r).get("maxTakeoversPerTask", 2)
+
+    def _do_takeover() -> dict[str, Any]:
+        conn = _conn(r)
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = _st.get_issue(conn, issue_id)
+            if existing is None:
+                raise ValueError(f"Issue {issue_id} not found")
+            if existing.issue_type != "task":
+                raise ValueError(
+                    f"takeover_task only works on tasks, got {existing.issue_type!r}"
+                )
+            if existing.status == "closed" or existing.state == "closed":
+                raise ValueError(f"Issue {issue_id} is closed")
+            if existing.status != "in_progress" or existing.state != "in_progress":
+                raise ValueError(
+                    "takeover_task requires task in active execution state "
+                    f"(status='in_progress', state='in_progress'), got "
+                    f"(status={existing.status!r}, state={existing.state!r})"
+                )
+
+            row = conn.execute(
+                "SELECT COUNT(1) AS c FROM events WHERE issue_id = ? AND event_type = 'taken_over'",
+                (issue_id,),
+            ).fetchone()
+            attempts_so_far = int(row["c"] or 0) if row else 0
+            if attempts_so_far >= max_takeovers:
+                raise ValueError(
+                    f"Takeover limit reached for {issue_id}: {attempts_so_far}/{max_takeovers}"
+                )
+
+            from_actor = existing.assignee or ""
+            if from_actor == to_actor_clean and existing.state == "in_progress":
+                return {
+                    "id": issue_id,
+                    "from_actor": from_actor,
+                    "to_actor": to_actor_clean,
+                    "attempt": attempts_so_far,
+                    "max_attempts": max_takeovers,
+                    "state": existing.state,
+                    "status": existing.status,
+                    "idempotent": True,
+                }
+
+            _st.update_issue_fields(
+                conn,
+                issue_id,
+                assignee=to_actor_clean,
+                status="in_progress",
+                state="in_progress",
+            )
+            attempt = attempts_so_far + 1
+            _emit(conn, issue_id, "taken_over", actor, {
+                "from_actor": from_actor,
+                "to_actor": to_actor_clean,
+                "reason": reason_clean,
+                "attempt": attempt,
+                "max_attempts": max_takeovers,
+            })
+            _rebuild_blocked_cache(conn)
+            conn.commit()
+
+            fresh = _st.get_issue(conn, issue_id)
+            return {
+                "id": issue_id,
+                "from_actor": from_actor,
+                "to_actor": to_actor_clean,
+                "attempt": attempt,
+                "max_attempts": max_takeovers,
+                "state": fresh.state if fresh else "in_progress",
+                "status": fresh.status if fresh else "in_progress",
+                "idempotent": False,
+            }
+        finally:
+            conn.close()
+
+    result = _with_retry(_do_takeover)
     _auto_export(r)
     return result
 
@@ -657,6 +1009,50 @@ def ready(
         )
     finally:
         conn.close()
+
+
+def stalled_tasks(
+    *,
+    feature_slug: str | None = None,
+    stale_minutes: int | None = None,
+    root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Return in-progress tasks older than stale threshold."""
+    r = root or _root or Path(".")
+    configured_stale = _load_agent_team_settings(r).get("staleIndicatorMinutes", 10)
+    threshold = stale_minutes if isinstance(stale_minutes, int) and stale_minutes > 0 else configured_stale
+
+    now = datetime.now(timezone.utc)
+    issues = list_issues(
+        status="in_progress",
+        issue_type="task",
+        feature_slug=feature_slug,
+        limit=1000,
+        root=r,
+    )
+    stale: list[dict[str, Any]] = []
+    for issue in issues:
+        if issue.state != "in_progress":
+            continue
+        updated = _parse_iso_timestamp(issue.updated_at)
+        if updated is None:
+            continue
+        age_minutes = (now - updated).total_seconds() / 60.0
+        if age_minutes < float(threshold):
+            continue
+        stale.append({
+            "id": issue.id,
+            "title": issue.title,
+            "assignee": issue.assignee,
+            "feature": issue.feature_slug,
+            "planNumber": issue.plan_number,
+            "status": issue.status,
+            "state": issue.state,
+            "updatedAt": issue.updated_at,
+            "minutesStale": round(age_minutes, 1),
+        })
+    stale.sort(key=lambda item: float(item["minutesStale"]), reverse=True)
+    return stale
 
 
 def list_issues(
@@ -996,10 +1392,14 @@ def plan_to_task_descriptions(
     return _ptd(plan_json_path, root)
 
 
-def generate_implement_prompt(taskdesc: dict[str, Any]) -> str:
+def generate_implement_prompt(
+    taskdesc: dict[str, Any],
+    *,
+    actor_name: str = "implementer",
+) -> str:
     """Render a TaskDesc V2 dict into a markdown agent prompt."""
     from .bridge import generate_implement_prompt as _gip
-    return _gip(taskdesc)
+    return _gip(taskdesc, actor_name=actor_name)
 
 
 def detect_file_conflicts(

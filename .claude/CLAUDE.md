@@ -10,10 +10,12 @@ Apply these on every non-trivial task.
 2. **Simplicity First** — minimum code that solves the problem; no speculative abstractions
 3. **Surgical Changes** — touch only what's needed; don't refactor unrelated areas
 4. **Goal-Driven Execution** — define success criteria; verify with commands/tests; loop until proven
-5. **Prefer Shared Utility Packages Over Hand-Rolled Helpers** — reuse shared helpers/packages before adding new utility implementations
-6. **Don't Probe Data YOLO-Style** — avoid guess-and-check reads; use explicit schemas/contracts
-7. **Validate Boundaries** — validate input/output at API, DB, filesystem, and network boundaries
-8. **Typed SDKs** — prefer official typed SDKs/clients over ad-hoc HTTP calls when available
+5. **TDD Is Core** — treat test-first as default behavior for code changes; `/tdd` is the deep, explicit workflow
+6. **Verification Before Completion** — no success claims without fresh command evidence
+7. **Prefer Shared Utility Packages Over Hand-Rolled Helpers** — reuse shared helpers/packages before adding new utility implementations
+8. **Don't Probe Data YOLO-Style** — avoid guess-and-check reads; use explicit schemas/contracts
+9. **Validate Boundaries** — validate input/output at API, DB, filesystem, and network boundaries
+10. **Typed SDKs** — prefer official typed SDKs/clients over ad-hoc HTTP calls when available
 
 ## Memory Engine
 

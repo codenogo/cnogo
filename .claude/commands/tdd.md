@@ -1,7 +1,7 @@
 # TDD: $ARGUMENTS
 <!-- effort: high -->
 
-Implement via test-first workflow.
+Implement via strict test-first workflow. This is the deep mode of cnogo's core TDD principle.
 
 ## Your Task
 
@@ -14,9 +14,10 @@ Implement via test-first workflow.
 - edge/boundary cases
 - invalid/error cases
 - integration seams where relevant
+- keep microsteps action-only (no minute/time-box estimates)
 
 3. Run focused tests and confirm they fail for the right reason.
-Stop if they pass unexpectedly and explain why.
+Stop if they pass unexpectedly and explain why. Do not continue with implementation until RED is verified.
 
 4. Approval gate:
 - show failing tests summary
@@ -25,6 +26,7 @@ Stop if they pass unexpectedly and explain why.
 5. Implement minimal code to satisfy tests.
 - iterate one failing test at a time
 - refactor only after green
+- do not rationalize skips ("too small", "probably fine", "seems fine")
 
 6. Run verification:
 - focused suite
@@ -35,6 +37,7 @@ Stop if they pass unexpectedly and explain why.
 - files changed
 - behavior covered
 - known gaps
+- explicit failing->passing evidence (commands + outputs)
 
 8. Commit with conventional message (`test(...)` and/or `feat/fix(...)`).
 

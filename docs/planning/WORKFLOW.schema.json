@@ -100,7 +100,11 @@
       "additionalProperties": true,
       "properties": {
         "monorepoVerifyScope": { "type": "string", "enum": ["warn", "error"] },
-        "operatingPrinciples": { "type": "string", "enum": ["off", "warn", "error"] }
+        "operatingPrinciples": { "type": "string", "enum": ["off", "warn", "error"] },
+        "tddMode": { "type": "string", "enum": ["off", "warn", "error"] },
+        "verificationBeforeCompletion": { "type": "string", "enum": ["off", "warn", "error"] },
+        "twoStageReview": { "type": "string", "enum": ["off", "warn", "error"] },
+        "taskOwnership": { "type": "string", "enum": ["off", "warn", "error"] }
       }
     },
     "freshness": {
@@ -159,6 +163,8 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "delegateMode": { "type": "boolean" },
+        "staleIndicatorMinutes": { "type": "integer", "minimum": 1 },
+        "maxTakeoversPerTask": { "type": "integer", "minimum": 0 },
         "defaultCompositions": { "type": "object" }
       }
     },
