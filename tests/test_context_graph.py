@@ -52,14 +52,15 @@ def test_is_indexed_true_after_adding_nodes(graph):
 # --- Stub methods raise NotImplementedError ---
 
 
-def test_index_raises_not_implemented(graph):
-    with pytest.raises(NotImplementedError):
-        graph.index()
+def test_index_runs_on_empty_repo(graph):
+    graph.index()
+    # No files to index — should not crash
+    assert graph.is_indexed() is False
 
 
-def test_query_raises_not_implemented(graph):
-    with pytest.raises(NotImplementedError):
-        graph.query("foo")
+def test_query_returns_empty_on_fresh_db(graph):
+    results = graph.query("nonexistent")
+    assert results == []
 
 
 def test_impact_raises_not_implemented(graph):
