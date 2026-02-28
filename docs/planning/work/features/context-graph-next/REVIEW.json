@@ -1,0 +1,119 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass",
+      "details": "All 8 source files compile cleanly via py_compile"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "pass",
+      "details": "138 tests passed across 6 modules in 0.90s"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/context-graph-next",
+  "feature": "context-graph-next",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile scripts/context/__init__.py scripts/context/phases/proximity.py scripts/context/phases/contracts.py scripts/context/phases/test_coverage.py scripts/context/visualization.py scripts/context/workflow.py scripts/context/storage.py scripts/workflow_memory.py",
+          "name": "lint",
+          "result": "pass"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": "python3 -m pytest tests/test_context_core.py tests/test_context_analysis.py tests/test_context_types_exports.py tests/test_context_visualization.py tests/test_context_contracts.py tests/test_context_proximity.py -v",
+          "name": "test",
+          "result": "pass",
+          "details": "138 passed in 0.90s"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {"pattern": "graceful-degradation", "status": "compliant", "notes": "All 4 new workflow functions return {enabled: false, error: ...} on failure"},
+    {"pattern": "stdlib-only", "status": "compliant", "notes": "No external dependencies in any new module"},
+    {"pattern": "graph-cli-naming", "status": "compliant", "notes": "All 4 new commands follow graph-* naming convention"}
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    {"principle": "Simplicity First", "status": "followed", "notes": "Minimal implementations — BFS with deque, AST-based signature parsing, no over-engineering"},
+    {"principle": "Surgical Changes", "status": "followed", "notes": "Changes confined to planned file scope, no drive-by edits"},
+    {"principle": "TDD", "status": "followed", "notes": "All 4 plans used TDD contract with failing/passing verify cycles"}
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Plan 01: test file split (1026-line → 4 modules + conftest) + test coverage mapping — 56 tests pass, all modules under 800 lines",
+        "Plan 02: visualization with Mermaid + DOT output — 32 tests pass including E2E integration",
+        "Plan 03: API contract break detection + auto_populate suggest_scope — 25 tests pass",
+        "Plan 04: BFS proximity ranking for context optimization — 25 tests pass",
+        "All 4 CLI commands verified (graph-test-coverage, graph-viz, graph-contract-check, graph-prioritize)",
+        "No scope violations — all changes within declared plan files[]"
+      ],
+      "notes": "All 4 plans fully implemented matching CONTEXT.json decisions. 6 decisions fulfilled, 3 constraints honored (stdlib-only, graph-* naming, graceful degradation)."
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        {"severity": "info", "description": "contracts.py has a dead elif branch in first ast.walk pass (line 55-59) — functional but could be cleaner", "file": "scripts/context/phases/contracts.py"}
+      ],
+      "evidence": [
+        "Correctness: 2/2 — 138 tests pass, BFS algorithms correct, edge cases handled",
+        "Security: 2/2 — parameterized SQL throughout, no injection vectors, stdlib-only",
+        "Contract Compliance: 2/2 — all 4 plan contracts fulfilled, artifacts present",
+        "Test Coverage: 2/2 — comprehensive suite with dedicated tests per feature",
+        "Code Quality: 2/2 — clean structure, consistent patterns, proper type annotations",
+        "Performance: 2/2 — efficient BFS with deque + visited, batch SQL queries",
+        "Documentation: 1/2 — good docstrings, minor gap: no overview tying 4 capabilities together"
+      ],
+      "notes": "Score: 13/14. All critical axes (Correctness, Security, Contract Compliance) at maximum. Single minor documentation gap is non-blocking."
+    }
+  ],
+  "timestamp": "2026-02-28T16:45:00Z",
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}

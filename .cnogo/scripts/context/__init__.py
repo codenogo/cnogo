@@ -16,6 +16,8 @@ from scripts.context.model import (
     RelType,
 )
 from scripts.context.phases.calls import process_calls
+from scripts.context.phases.contracts import compare_signatures, extract_current_signatures
+from scripts.context.visualization import _collect_subgraph, render_dot, render_mermaid
 from scripts.context.phases.community import CommunityDetectionResult, detect_communities
 from scripts.context.phases.coupling import CouplingResult, compute_coupling
 from scripts.context.phases.dead_code import DeadCodeResult, detect_dead_code
@@ -24,6 +26,8 @@ from scripts.context.phases.flows import FlowResult, trace_flows
 from scripts.context.phases.heritage import process_heritage
 from scripts.context.phases.impact import ImpactResult, impact_analysis
 from scripts.context.phases.imports import process_imports
+from scripts.context.phases.proximity import rank_by_proximity
+from scripts.context.phases.test_coverage import analyze_test_coverage
 from scripts.context.phases.types import process_types
 from scripts.context.phases.structure import process_structure
 from scripts.context.phases.symbols import process_symbols
@@ -259,6 +263,167 @@ class ContextGraph:
             "per_file": per_file,
             "total_affected": len(seen_symbols),
         }
+
+    def test_coverage(self) -> dict:
+        """Analyze test coverage by walking CALLS edges from test file symbols.
+
+        Detects test files via path convention (test_*.py, *_test.py, files
+        under tests/ directories). Walks CALLS edges from test file symbols
+        to production symbols.
+
+        Returns a dict with:
+            covered_symbols: list of node IDs covered by tests.
+            uncovered_symbols: list of node IDs not covered by tests.
+            coverage_by_file: dict mapping file_path -> {covered, uncovered}.
+            summary: {total_symbols, covered, uncovered, coverage_pct}.
+        """
+        self.index()
+        return analyze_test_coverage(self._storage)
+
+    def contract_check(self, changed_files: list[str]) -> dict:
+        """Detect signature breaks in changed files and find affected callers.
+
+        For each file in changed_files:
+        1. Gets stored nodes from graph.
+        2. Extracts current signatures from file on disk.
+        3. Compares stored vs current signatures.
+        4. For each break, finds callers via callers_with_confidence().
+
+        Returns:
+            {
+                breaks: [{symbol, old_signature, new_signature, change_type,
+                          callers: [{name, file, confidence}]}],
+                summary: {total_breaks, total_affected_callers}
+            }
+        """
+        if not changed_files:
+            return {
+                "breaks": [],
+                "summary": {"total_breaks": 0, "total_affected_callers": 0},
+            }
+
+        all_breaks: list[dict] = []
+
+        for file_path in changed_files:
+            stored_nodes = self.nodes_in_file(file_path)
+            if not stored_nodes:
+                continue
+
+            current_sigs = extract_current_signatures(file_path)
+            sig_changes = compare_signatures(stored_nodes, current_sigs)
+
+            for change in sig_changes:
+                symbol_name = change["symbol"]
+                # Find the stored node for this symbol to look up callers
+                # symbol may be "ClassName.method" or "function_name"
+                callers_list: list[dict] = []
+                for node in stored_nodes:
+                    node_key = (
+                        f"{node.class_name}.{node.name}"
+                        if node.class_name and node.label.value == "method"
+                        else node.name
+                    )
+                    if node_key == symbol_name or node.name == symbol_name.split(".")[-1]:
+                        for caller_node, confidence in self.callers_with_confidence(node.id):
+                            callers_list.append(
+                                {
+                                    "name": caller_node.name,
+                                    "file": caller_node.file_path,
+                                    "confidence": confidence,
+                                }
+                            )
+                        break
+
+                all_breaks.append(
+                    {
+                        "symbol": change["symbol"],
+                        "old_signature": change["old_signature"],
+                        "new_signature": change["new_signature"],
+                        "change_type": change["change_type"],
+                        "callers": callers_list,
+                    }
+                )
+
+        total_affected = sum(len(b["callers"]) for b in all_breaks)
+        return {
+            "breaks": all_breaks,
+            "summary": {
+                "total_breaks": len(all_breaks),
+                "total_affected_callers": total_affected,
+            },
+        }
+
+    def prioritize_files(
+        self, focal_symbols: list[str], max_files: int = 20
+    ) -> list[dict]:
+        """Rank files by graph proximity from focal symbols.
+
+        Resolves focal_symbols (names) to node IDs via query(), then
+        runs BFS proximity ranking to return files sorted by minimum
+        graph distance from those symbols.
+
+        Args:
+            focal_symbols: List of symbol names to use as BFS seeds.
+            max_files: Maximum number of files to return (default 20).
+
+        Returns:
+            List of dicts sorted by min_distance ascending:
+                {
+                    "file_path": str,
+                    "min_distance": int,
+                    "connected_symbols": [list of symbol names],
+                }
+            Returns empty list if focal_symbols is empty or no matches found.
+        """
+        if not focal_symbols:
+            return []
+
+        # Resolve symbol names to node IDs
+        focal_ids: list[str] = []
+        for name in focal_symbols:
+            nodes = self.query(name)
+            for node in nodes:
+                focal_ids.append(node.id)
+
+        if not focal_ids:
+            return []
+
+        ranked = rank_by_proximity(self._storage, focal_ids, max_depth=5)
+        return ranked[:max_files]
+
+    def visualize(
+        self,
+        scope: str = "file",
+        center: str | None = None,
+        depth: int = 3,
+        format: str = "mermaid",
+    ) -> str:
+        """Generate a graph visualization in Mermaid or DOT format.
+
+        Args:
+            scope:  Subgraph scope — 'file' (single file's symbols),
+                    'module' (directory), or 'full' (entire graph).
+            center: Center node ID for BFS. Required for 'file'/'module' scopes;
+                    optional for 'full' (omit to include all nodes).
+            depth:  Maximum BFS depth from center node (default 3).
+            format: Output format — 'mermaid' or 'dot' (default 'mermaid').
+
+        Returns:
+            String containing the visualization in the requested format.
+
+        Raises:
+            ValueError: If scope or format is not a recognized value.
+        """
+        if scope not in ("file", "module", "full"):
+            raise ValueError(f"scope must be 'file', 'module', or 'full', got: {scope!r}")
+        if format not in ("mermaid", "dot"):
+            raise ValueError(f"format must be 'mermaid' or 'dot', got: {format!r}")
+
+        nodes, edges = _collect_subgraph(self._storage, scope=scope, center=center, depth=depth)
+
+        if format == "mermaid":
+            return render_mermaid(nodes, edges)
+        return render_dot(nodes, edges)
 
     def close(self) -> None:
         """Close the underlying storage connection."""

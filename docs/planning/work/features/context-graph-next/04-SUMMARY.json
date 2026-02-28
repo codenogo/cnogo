@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph-next",
+  "planNumber": "04",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/proximity.py",
+      "action": "created",
+      "description": "BFS proximity ranking via CALLS, IMPORTS, EXTENDS, USES_TYPE edges (both directions)"
+    },
+    {
+      "file": "tests/test_context_proximity.py",
+      "action": "created",
+      "description": "25 tests: BFS distances, edge types, connected symbols, prioritize_files, workflow function"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "action": "modified",
+      "description": "Added prioritize_files(focal_symbols, max_files) method to ContextGraph"
+    },
+    {
+      "file": "scripts/context/workflow.py",
+      "action": "modified",
+      "description": "Added prioritize_context() workflow function with graceful degradation"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-prioritize CLI command with --symbols, --max-files, --json flags"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_proximity.py -v",
+      "result": "pass",
+      "details": "25 tests passed"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-prioritize --help 2>&1 | grep -q prioritize",
+      "result": "pass",
+      "details": "CLI command available"
+    }
+  ],
+  "commit": "127869b",
+  "timestamp": "2026-02-28T16:10:00Z"
+}

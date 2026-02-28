@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph-next",
+  "displayName": "Context Graph Next: Workflow Wiring, Visualization, Context Optimization",
+  "decisions": [
+    {
+      "area": "workflow-wiring",
+      "decision": "Auto-populate plan files[] from graph-suggest-scope results",
+      "rationale": "Currently advisory-only; auto-populating reduces manual effort in /plan and ensures graph knowledge feeds directly into task scoping"
+    },
+    {
+      "area": "workflow-wiring",
+      "decision": "Test coverage mapping via CALLS edges",
+      "rationale": "Map test functions to production code they call. Surface 'untested callers' as warnings during /review to improve test confidence"
+    },
+    {
+      "area": "workflow-wiring",
+      "decision": "API contract break detection on signature changes",
+      "rationale": "When a function signature changes, flag all callers that may break. Integrates into /review blast-radius analysis"
+    },
+    {
+      "area": "visualization",
+      "decision": "Support both Mermaid and DOT/Graphviz output formats",
+      "rationale": "Mermaid for inline markdown/GitHub rendering, DOT for deep analysis with graphviz. Select via --format flag"
+    },
+    {
+      "area": "context-optimization",
+      "decision": "Use graph proximity to prioritize files for Claude's context window",
+      "rationale": "Instead of reading unrelated files, use call/import distance from the focal point to rank which files are most relevant"
+    },
+    {
+      "area": "housekeeping",
+      "decision": "Split test_context_graph.py as part of this feature",
+      "rationale": "File at 1026 lines (max 800 invariant). Split into logical test modules to clear the warning"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no external dependencies",
+    "All new CLI commands follow existing graph-* naming pattern",
+    "Workflow integrations remain graceful (return enabled:false on failure)",
+    "Max 3 tasks per plan",
+    "Visualization must work without graphviz installed (Mermaid as default)"
+  ],
+  "openQuestions": [
+    "Context window optimization: should this be a new workflow function or modify existing enrich_context?",
+    "Test coverage mapping: how to distinguish test files from production files reliably?",
+    "API contract detection: should signature comparison be structural (AST-based) or string-based?"
+  ],
+  "relatedCode": [
+    "scripts/context/__init__.py",
+    "scripts/context/workflow.py",
+    "scripts/context/storage.py",
+    "scripts/context/python_parser.py",
+    "scripts/context/phases/calls.py",
+    "scripts/context/phases/impact.py",
+    "scripts/workflow_memory.py",
+    "tests/test_context_graph.py",
+    ".claude/commands/plan.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/discuss.md",
+    ".claude/commands/review.md"
+  ],
+  "timestamp": "2026-02-28T21:30:00Z"
+}

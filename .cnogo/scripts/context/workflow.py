@@ -15,6 +15,30 @@ from typing import Any
 from scripts.context import ContextGraph
 
 
+def test_coverage_report(repo_path: Path | str) -> dict[str, Any]:
+    """Generate a test coverage report by walking CALLS edges from test symbols.
+
+    Args:
+        repo_path: Path to the repository root.
+
+    Returns:
+        Dict with keys:
+            enabled: True if graph was available.
+            covered_symbols, uncovered_symbols, coverage_by_file, summary.
+        On failure:
+            enabled: False, error: str describing the failure.
+    """
+    try:
+        graph = ContextGraph(repo_path=repo_path)
+        try:
+            result = graph.test_coverage()
+            return {"enabled": True, **result}
+        finally:
+            graph.close()
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
 def suggest_scope(
     repo_path: Path | str,
     keywords: list[str] | None = None,
@@ -72,9 +96,14 @@ def suggest_scope(
                         suggestion["low_confidence"] = True
                     seen[node.file_path] = suggestion
 
+            suggestions = list(seen.values())
+            # auto_populate: top files sorted by confidence descending
+            auto_populate = sorted(suggestions, key=lambda s: s["confidence"], reverse=True)
+
             return {
                 "enabled": True,
-                "suggestions": list(seen.values()),
+                "suggestions": suggestions,
+                "auto_populate": auto_populate,
             }
         finally:
             graph.close()
@@ -248,6 +277,82 @@ def validate_scope(
         finally:
             graph.close()
 
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
+def contract_warnings(
+    repo_path: Path | str,
+    changed_files: list[str],
+) -> dict[str, Any]:
+    """Detect API contract breaks in changed files and find affected callers.
+
+    Follows same graceful degradation pattern as suggest_scope, validate_scope,
+    and enrich_context.
+
+    Args:
+        repo_path: Path to the repository root.
+        changed_files: File paths that were changed.
+
+    Returns:
+        Dict with keys:
+            enabled: True if graph was available and indexed.
+            breaks: List of {symbol, old_signature, new_signature, change_type, callers}.
+            summary: {total_breaks, total_affected_callers}.
+        On failure:
+            enabled: False, error: str.
+    """
+    try:
+        graph = ContextGraph(repo_path)
+        if not graph.is_indexed():
+            graph.close()
+            return {"enabled": False, "error": "Graph not indexed"}
+        result = graph.contract_check(changed_files)
+        graph.close()
+        return {"enabled": True, **result}
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
+def prioritize_context(
+    repo_path: Path | str,
+    focal_symbols: list[str] | None = None,
+    max_files: int = 20,
+) -> dict[str, Any]:
+    """Rank files by graph proximity from focal symbols.
+
+    Args:
+        repo_path: Path to the repository root.
+        focal_symbols: Symbol names to use as BFS seeds.
+        max_files: Maximum number of files to return (default 20).
+
+    Returns:
+        Dict with keys:
+            enabled: True if graph was available and indexed.
+            ranked_files: List of {path, distance, reason} dicts.
+            focal_symbols_resolved: The focal_symbols list used.
+        On failure:
+            enabled: False, error: str.
+    """
+    try:
+        graph = ContextGraph(repo_path)
+        if not graph.is_indexed():
+            graph.close()
+            return {"enabled": False, "error": "Graph not indexed"}
+        ranked = graph.prioritize_files(focal_symbols or [], max_files)
+        graph.close()
+        return {
+            "enabled": True,
+            "ranked_files": [
+                {
+                    "path": r["file_path"],
+                    "distance": r["min_distance"],
+                    "reason": f"graph distance {r['min_distance']}",
+                }
+                for r in ranked
+            ],
+            "focal_symbols_resolved": focal_symbols or [],
+        }
     except Exception as e:
         return {"enabled": False, "error": str(e)}
 
