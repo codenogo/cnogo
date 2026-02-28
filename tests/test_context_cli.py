@@ -147,3 +147,41 @@ class TestGraphContext:
         )
         # Either succeeds or fails with not-found (ID format may differ)
         assert result.returncode in (0, 1)
+
+
+# --- graph-dead ---
+
+
+class TestGraphDead:
+    """Tests for the graph-dead subcommand."""
+
+    def test_graph_dead_help(self):
+        result = _run_cli("graph-dead", "--help")
+        assert result.returncode == 0
+        assert "graph-dead" in result.stdout or "dead" in result.stdout.lower()
+
+    def test_graph_dead_empty_repo(self, tmp_path):
+        """graph-dead on empty repo — should report 0 dead symbols."""
+        result = _run_cli("graph-dead", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0 dead" in result.stdout
+
+    def test_graph_dead_with_dead_code(self, tmp_path):
+        """graph-dead finds unreferenced function in repo."""
+        import textwrap
+        (tmp_path / "lib.py").write_text(textwrap.dedent("""\
+            def used_fn():
+                pass
+
+            def dead_fn():
+                pass
+        """))
+        (tmp_path / "main.py").write_text(textwrap.dedent("""\
+            from lib import used_fn
+
+            def main():
+                used_fn()
+        """))
+        result = _run_cli("graph-dead", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "dead_fn" in result.stdout

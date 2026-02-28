@@ -693,6 +693,23 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_dead(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        graph.index()
+        results = graph.dead_code()
+        if not results:
+            print("0 dead symbols found.")
+            return 0
+        print(f"{len(results)} dead symbol(s) found:\n")
+        for r in results:
+            print(f"  DEAD  {r.label.value}:{r.name}  {r.file_path}:{r.line}")
+        return 0
+    finally:
+        graph.close()
+
+
 def cmd_graph_context(args: argparse.Namespace) -> int:
     repo = getattr(args, "repo", None) or "."
     graph = _graph_open(repo)
@@ -991,6 +1008,10 @@ def main() -> int:
     p.add_argument("node_id", help="Node ID to inspect")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
 
+    # graph-dead
+    p = sub.add_parser("graph-dead", help="Detect dead (unreferenced) symbols in the context graph")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1000,7 +1021,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1050,6 +1071,7 @@ def main() -> int:
         "graph-query": cmd_graph_query,
         "graph-impact": cmd_graph_impact,
         "graph-context": cmd_graph_context,
+        "graph-dead": cmd_graph_dead,
     }
 
     handler = dispatch.get(args.command)

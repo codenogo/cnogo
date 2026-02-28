@@ -285,6 +285,40 @@ class GraphStorage:
         self._conn.commit()
         return len(node_ids)
 
+    # --- Dead code helpers ---
+
+    def get_all_symbol_nodes(self) -> list[GraphNode]:
+        """Return all nodes with label FUNCTION, CLASS, METHOD, or ENUM."""
+        assert self._conn is not None
+        labels = (
+            NodeLabel.FUNCTION.value,
+            NodeLabel.CLASS.value,
+            NodeLabel.METHOD.value,
+            NodeLabel.ENUM.value,
+        )
+        placeholders = ",".join("?" * len(labels))
+        cur = self._conn.execute(
+            f"SELECT * FROM nodes WHERE label IN ({placeholders})", labels
+        )
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
+    def mark_dead_nodes(self, node_ids: list[str]) -> None:
+        """Bulk set is_dead=1 for the given node IDs."""
+        assert self._conn is not None
+        if not node_ids:
+            return
+        placeholders = ",".join("?" * len(node_ids))
+        self._conn.execute(
+            f"UPDATE nodes SET is_dead = 1 WHERE id IN ({placeholders})", node_ids
+        )
+        self._conn.commit()
+
+    def get_dead_nodes(self) -> list[GraphNode]:
+        """Return all nodes where is_dead=1."""
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT * FROM nodes WHERE is_dead = 1")
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
     # --- Internal helpers ---
 
     @staticmethod
