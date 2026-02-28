@@ -38,12 +38,31 @@ SQLite-backed memory engine and agent architecture redesign for reliable multi-a
 - [x] Skills library (8 domain playbooks)
 - [x] Template self-separation (docs/templates/ for installs, docs/planning/ for own docs)
 
+### Phase 4: Context Graph (v1.2)
+**Status:** ✅ Complete
+
+Code knowledge graph for codebase understanding, backed by SQLite with FTS5 search.
+
+- [x] Graph data model, SQLite storage, and ContextGraph API
+- [x] File walker, Python AST parser, and structure phase
+- [x] Import resolution, call tracing, heritage extraction
+- [x] Symbol extraction with docstrings, type annotations, exports
+- [x] FTS5 full-text search over symbols, signatures, and content
+- [x] Community detection (label propagation), coupling analysis (Jaccard)
+- [x] Dead code detection, execution flow tracing from entry points
+- [x] Impact analysis (BFS blast-radius) for change review
+- [x] Workflow integration: suggest_scope, validate_scope, enrich_context
+- [x] CLI subcommands: graph-suggest-scope, graph-validate-scope, graph-enrich
+- [x] Public API boundary enforcement (zero private attribute access)
+
 ---
 
 ## Completed Features
 
 | Feature | Description |
 |---------|-------------|
+| `context-graph` | Code knowledge graph: AST parsing, imports, calls, heritage, types, exports, FTS5 search, communities, coupling, dead code, flows, impact analysis (PR #28) |
+| `graph-active-workflow` | Workflow integration: suggest_scope, validate_scope, enrich_context bridging graph with /plan, /implement, /discuss (PR #29) |
 | `team-implement-integration` | Bridge module, implementer agent, team/implement wiring |
 | `agent-architecture-redesign` | Ultra-lean agents, skills migration, CLAUDE.md restructure |
 | `install-template-sync` | Sync install.sh with redesigned architecture |
@@ -79,4 +98,4 @@ Ideas captured but not scheduled:
 - [ ] Workflow visualization
 
 ---
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-28*
