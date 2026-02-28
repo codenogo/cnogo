@@ -321,3 +321,120 @@ def test_get_all_relationships_by_types_filters_other_types(storage):
     result = storage.get_all_relationships_by_types([RelType.CALLS.value])
     assert len(result) == 1
     assert result[0][2] == RelType.CALLS.value
+
+
+# --- FTS5 Search ---
+
+
+def test_search_returns_empty_for_no_match(storage):
+    """search() returns empty list when nothing matches."""
+    storage.add_nodes([_make_node(content="hello world")])
+    storage.rebuild_fts()
+    results = storage.search("zzzznotfound")
+    assert results == []
+
+
+def test_search_finds_by_name(storage):
+    """search() finds nodes by name."""
+    storage.add_nodes([
+        _make_node("function:a.py:calculate_sum", name="calculate_sum", file_path="a.py"),
+        _make_node("function:b.py:send_email", name="send_email", file_path="b.py"),
+    ])
+    storage.rebuild_fts()
+    results = storage.search("calculate")
+    assert len(results) >= 1
+    assert any(n.name == "calculate_sum" for n, _ in results)
+
+
+def test_search_finds_by_signature(storage):
+    """search() finds nodes by signature text."""
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py",
+                    signature="def foo(x: int, y: int) -> int"),
+    ])
+    storage.rebuild_fts()
+    results = storage.search("int")
+    assert len(results) >= 1
+    assert results[0][0].name == "foo"
+
+
+def test_search_finds_by_content(storage):
+    """search() finds nodes by content/docstring text."""
+    storage.add_nodes([
+        _make_node("function:a.py:parse", name="parse", file_path="a.py",
+                    content="Parse a configuration file and return settings"),
+    ])
+    storage.rebuild_fts()
+    results = storage.search("configuration")
+    assert len(results) >= 1
+    assert results[0][0].name == "parse"
+
+
+def test_search_porter_stemming(storage):
+    """Porter stemming allows 'parsing' to match 'parse'."""
+    storage.add_nodes([
+        _make_node("function:a.py:parse", name="parse", file_path="a.py",
+                    content="Parse a document"),
+    ])
+    storage.rebuild_fts()
+    results = storage.search("parsing")
+    assert len(results) >= 1
+    assert results[0][0].name == "parse"
+
+
+def test_search_returns_ranked_results(storage):
+    """Results are ranked by BM25 relevance."""
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py",
+                    content="unrelated stuff"),
+        _make_node("function:b.py:search_engine", name="search_engine", file_path="b.py",
+                    content="Search through the search index for search results"),
+    ])
+    storage.rebuild_fts()
+    results = storage.search("search")
+    assert len(results) >= 1
+    # search_engine should rank higher (more occurrences of 'search')
+    assert results[0][0].name == "search_engine"
+
+
+def test_search_respects_limit(storage):
+    """search() limit parameter caps results."""
+    nodes = [
+        _make_node(f"function:a.py:func{i}", name=f"func{i}", file_path="a.py",
+                    content="common keyword stuff")
+        for i in range(10)
+    ]
+    storage.add_nodes(nodes)
+    storage.rebuild_fts()
+    results = storage.search("common", limit=3)
+    assert len(results) == 3
+
+
+def test_search_fts_cleaned_on_node_removal(storage):
+    """FTS entries are removed when nodes are removed by file."""
+    storage.add_nodes([
+        _make_node("function:a.py:target", name="target", file_path="a.py",
+                    content="unique_keyword_xyz"),
+        _make_node("function:b.py:other", name="other", file_path="b.py",
+                    content="something else"),
+    ])
+    storage.rebuild_fts()
+    # Should find it before removal
+    assert len(storage.search("unique_keyword_xyz")) == 1
+    # Remove the file
+    storage.remove_nodes_by_file("a.py")
+    storage.rebuild_fts()
+    # Should not find it after removal
+    assert len(storage.search("unique_keyword_xyz")) == 0
+
+
+def test_search_handles_special_characters(storage):
+    """search() handles special FTS characters gracefully."""
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py",
+                    content="handles (parentheses) and [brackets]"),
+    ])
+    storage.rebuild_fts()
+    # Should not crash on special characters
+    results = storage.search("parentheses")
+    assert len(results) >= 1

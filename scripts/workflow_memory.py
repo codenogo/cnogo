@@ -42,6 +42,7 @@ Commands:
     graph-impact <file> Analyze change impact (BFS blast radius)
     graph-context <id>  Show node neighborhood (callers, callees, etc.)
     graph-blast-radius  Compute blast-radius impact for changed files
+    graph-search <q>    Full-text search over symbols (BM25 + porter stemming)
 
 No external dependencies. Python 3.9+ required.
 """
@@ -1000,6 +1001,37 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_search(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        limit = getattr(args, "limit", 20)
+        results = graph.search(args.query, limit=limit)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "name": n.name,
+                    "label": n.label.value,
+                    "file_path": n.file_path,
+                    "start_line": n.start_line,
+                    "end_line": n.end_line,
+                    "score": score,
+                }
+                for n, score in results
+            ]))
+            return 0
+        if not results:
+            print(f"No results for '{args.query}'")
+            return 0
+        print(f"{'Name':<30} {'Label':<12} {'File':<40} {'Score'}")
+        print("-" * 90)
+        for node, score in results:
+            print(f"{node.name:<30} {node.label.value:<12} {node.file_path:<40} {score:.4f}")
+    finally:
+        graph.close()
+    return 0
+
+
 def cmd_costs(args: argparse.Namespace) -> int:
     if args.project_slug:
         from scripts.memory.costs import summarize_project_costs
@@ -1301,6 +1333,13 @@ def main() -> int:
     p.add_argument("--max-depth", type=int, default=10, help="Maximum BFS depth (default: 10)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-search
+    p = sub.add_parser("graph-search", help="Full-text search over symbol names, signatures, and docstrings")
+    p.add_argument("query", help="Search query string")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--limit", type=int, default=20, help="Maximum number of results (default: 20)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     # graph-status
     p = sub.add_parser("graph-status", help="Show graph status: existence, counts, and staleness")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
@@ -1315,7 +1354,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-status"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1370,6 +1409,7 @@ def main() -> int:
         "graph-blast-radius": cmd_graph_blast_radius,
         "graph-communities": cmd_graph_communities,
         "graph-flows": cmd_graph_flows,
+        "graph-search": cmd_graph_search,
         "graph-status": cmd_graph_status,
     }
 

@@ -380,3 +380,107 @@ def test_flows_exported_in_package():
     """FlowResult should be importable from the package."""
     from scripts.context import FlowResult
     assert FlowResult is not None
+
+
+# --- Docstring extraction + FTS search ---
+
+
+def _write_docstring_files(tmp_path):
+    """Create Python files with docstrings for FTS testing."""
+    import textwrap
+    (tmp_path / "calculator.py").write_text(textwrap.dedent('''\
+        def add_numbers(a, b):
+            """Add two numbers together and return the sum."""
+            return a + b
+
+        def multiply(a, b):
+            """Multiply two values and return the product."""
+            return a * b
+
+        class MathEngine:
+            """A mathematical computation engine for complex calculations."""
+
+            def compute(self, expr):
+                """Evaluate a mathematical expression string."""
+                pass
+    '''))
+
+
+def test_docstrings_populated_in_content_field(tmp_path):
+    """After indexing, symbol nodes should have docstrings in the content field."""
+    from scripts.context import ContextGraph
+    _write_docstring_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        g.index()
+        nodes = g.query("add_numbers")
+        assert len(nodes) == 1
+        assert "Add two numbers" in nodes[0].content
+    finally:
+        g.close()
+
+
+def test_fts_search_finds_by_docstring_keywords(tmp_path):
+    """FTS search should find symbols by docstring keywords."""
+    from scripts.context import ContextGraph
+    _write_docstring_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        g.index()
+        results = g._storage.search("mathematical computation")
+        names = [n.name for n, _ in results]
+        assert "MathEngine" in names
+    finally:
+        g.close()
+
+
+def test_fts_search_finds_by_partial_name(tmp_path):
+    """FTS search should find symbols by partial name match."""
+    from scripts.context import ContextGraph
+    _write_docstring_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        g.index()
+        results = g._storage.search("multiply")
+        names = [n.name for n, _ in results]
+        assert "multiply" in names
+    finally:
+        g.close()
+
+
+# --- ContextGraph.search() API ---
+
+
+def test_search_returns_ranked_results(tmp_path):
+    """ContextGraph.search() returns ranked (node, score) tuples."""
+    from scripts.context import ContextGraph
+    _write_docstring_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        g.index()
+        results = g.search("multiply")
+        assert len(results) >= 1
+        node, score = results[0]
+        assert node.name == "multiply"
+        assert isinstance(score, float)
+    finally:
+        g.close()
+
+
+def test_search_with_limit(tmp_path):
+    """ContextGraph.search() respects limit parameter."""
+    from scripts.context import ContextGraph
+    _write_docstring_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        g.index()
+        results = g.search("compute", limit=1)
+        assert len(results) <= 1
+    finally:
+        g.close()
+
+
+def test_search_exported_in_package():
+    """ImpactResult should be importable from the package."""
+    from scripts.context import ContextGraph
+    assert hasattr(ContextGraph, "search")
