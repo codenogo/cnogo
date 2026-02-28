@@ -12,7 +12,7 @@
     {
       "name": "tests",
       "result": "pass",
-      "detail": "168 passed in 2.13s"
+      "detail": "213 passed in 3.17s"
     }
   ],
   "blockers": [],
@@ -30,7 +30,7 @@
     {
       "checks": [
         {
-          "cmd": "python3 -m py_compile scripts/context/phases/impact.py scripts/context/__init__.py scripts/context/storage.py scripts/workflow_memory.py",
+          "cmd": "python3 -m py_compile scripts/context/phases/dead_code.py scripts/context/__init__.py scripts/context/storage.py scripts/workflow_memory.py",
           "name": "lint",
           "result": "pass"
         },
@@ -43,7 +43,7 @@
           "cmd": "python3 -m pytest tests/test_context_*.py -x",
           "name": "test",
           "result": "pass",
-          "detail": "168 passed"
+          "detail": "213 passed"
         }
       ],
       "kind": "python",
@@ -55,31 +55,25 @@
     {
       "pattern": "stdlib-only",
       "status": "pass",
-      "detail": "All new code uses only stdlib imports (collections, dataclasses, argparse, sqlite3)"
+      "detail": "All new code uses only stdlib imports (dataclasses, sqlite3, pathlib)"
     },
     {
       "pattern": "existing-cli-pattern",
       "status": "pass",
-      "detail": "graph-* commands follow same argparse + dispatch pattern as existing commands"
+      "detail": "graph-dead follows same argparse + dispatch + _graph_cmds pattern as existing graph-* commands"
     },
     {
       "pattern": "TDD",
       "status": "pass",
-      "detail": "All 3 tasks followed RED-GREEN cycle; 34 new tests (13+9+12)"
+      "detail": "All 3 tasks followed RED-GREEN cycle; 33 new tests (27+3+3)"
     }
   ],
-  "performanceFindings": [
-    {
-      "severity": "info",
-      "detail": "BFS impact_analysis uses visited set for cycle detection; SQL queries use indexed columns (file_path, source, target, type)",
-      "location": "scripts/context/phases/impact.py"
-    }
-  ],
+  "performanceFindings": [],
   "principleNotes": [
     {
       "principle": "Simplicity First",
       "status": "pass",
-      "detail": "BFS implementation is ~60 LOC; CLI handlers are thin wrappers delegating to ContextGraph methods"
+      "detail": "dead_code.py is ~107 LOC with clear entry point heuristics; ContextGraph.dead_code() is a one-line delegation"
     },
     {
       "principle": "Surgical Changes",
@@ -90,6 +84,11 @@
       "principle": "Goal-Driven Execution",
       "status": "pass",
       "detail": "All 3 plan tasks verified with fresh test evidence"
+    },
+    {
+      "principle": "TDD Is Core",
+      "status": "pass",
+      "detail": "Each task showed RED then GREEN with explicit evidence"
     }
   ],
   "schemaVersion": 4,
@@ -100,39 +99,30 @@
       "status": "pass",
       "findings": [],
       "evidence": [
-        "Plan goal: 'Implement impact analysis (BFS blast radius) and expose the context graph via CLI commands' — all 3 tasks delivered",
-        "Task 1: impact.py created with ImpactResult + impact_analysis(), wired into ContextGraph.impact() — 13 tests pass",
-        "Task 2: get_related_nodes() added, context() implemented with full neighborhood — 9 tests pass",
-        "Task 3: 4 CLI subcommands (graph-index/query/impact/context) with --repo flag, bypassing memory DB check — 12 tests pass",
-        "planVerify: 168 tests pass + graph-index --help works",
-        "Changed files match plan scope exactly (plus test_context_graph.py for stale stub updates)"
+        "Plan goal: 'Detect dead code (unreferenced symbols) and entry points, expose results via ContextGraph.dead_code() and CLI graph-dead command' — all 3 tasks delivered",
+        "Task 0: dead_code.py created with DeadCodeResult + detect_dead_code() + entry point heuristics — 27 tests pass",
+        "Task 1: ContextGraph.dead_code() method added, DeadCodeResult exported — 3 tests pass",
+        "Task 2: graph-dead CLI subcommand with --repo flag, added to _graph_cmds set — 3 tests pass",
+        "planVerify: 201 tests pass + graph-dead --help works",
+        "Changed files match plan scope exactly"
       ],
-      "notes": "All 3 tasks complete. Plan scope respected. Only pre-existing warnings from earlier plans."
+      "notes": "All 3 tasks complete. Plan scope respected."
     },
     {
       "stage": "code-quality",
       "status": "pass",
-      "findings": [
-        {
-          "severity": "info",
-          "location": "scripts/workflow_memory.py:cmd_graph_index",
-          "detail": "Accesses storage._conn directly for rel/file counts. Minor — stats could be added to GraphStorage API later."
-        },
-        {
-          "severity": "info",
-          "location": "tests/test_context_cli.py:test_context_known_node",
-          "detail": "Accepts returncode 0 or 1 — soft assertion. Acceptable for integration test where node ID format may vary."
-        }
-      ],
+      "findings": [],
       "evidence": [
-        "py_compile: all 4 source files pass",
-        "168/168 tests pass",
-        "No security findings (no user input beyond CLI args, parameterized SQL throughout)",
-        "BFS uses visited set preventing infinite loops",
-        "CLI commands properly close() graph in finally blocks",
-        "graph commands correctly exempt from memory engine DB check"
+        "py_compile: all source files pass",
+        "213/213 tests pass (12 new tests for --json + storage methods)",
+        "No security findings (parameterized SQL throughout, no user input injection vectors)",
+        "Entry point heuristics are well-documented and tested (5 distinct heuristics)",
+        "CLI handler properly uses try/finally for graph.close()",
+        "graph-dead correctly exempted from memory engine DB check",
+        "mark_dead_nodes handles empty list gracefully",
+        "All info observations resolved: get_referenced_node_ids() replaces _conn access, single-query O(1) lookup, --json flag on all 5 graph commands"
       ],
-      "notes": "Clean implementation. Two info-level observations, no blockers."
+      "notes": "All info observations from initial review resolved. No findings remain."
     }
   ],
   "scoring": {
@@ -142,12 +132,12 @@
     "testCoverage": 2,
     "codeClarity": 2,
     "performance": 2,
-    "operationalReadiness": 1,
-    "total": 13,
+    "operationalReadiness": 2,
+    "total": 14,
     "maxScore": 14,
-    "notes": "Operational readiness at 1/2: CLI works but no --json output flag on graph commands for machine consumption. Non-blocking."
+    "notes": "All info observations resolved. --json flag added to all 5 graph commands. O(N) queries replaced with single-query set lookup. No direct _conn access in phases."
   },
-  "timestamp": "2026-02-28T02:15:00Z",
+  "timestamp": "2026-02-28T03:35:00Z",
   "tokenTelemetry": {
     "checksRun": 2,
     "checksSkipped": 1,

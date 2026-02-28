@@ -639,17 +639,17 @@ def cmd_graph_index(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         graph.index()
-        count = graph._storage.node_count()
-        assert graph._storage._conn is not None
-        cur = graph._storage._conn.execute(
-            "SELECT COUNT(*) FROM relationships"
-        )
-        rel_count = cur.fetchone()[0]
-        cur = graph._storage._conn.execute(
-            "SELECT COUNT(*) FROM file_hashes"
-        )
-        file_count = cur.fetchone()[0]
-        print(f"Indexed: {count} nodes, {rel_count} relationships, {file_count} files")
+        node_count = graph._storage.node_count()
+        rel_count = graph._storage.relationship_count()
+        file_count = graph._storage.file_count()
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "nodes": node_count,
+                "relationships": rel_count,
+                "files": file_count,
+            }))
+        else:
+            print(f"Indexed: {node_count} nodes, {rel_count} relationships, {file_count} files")
     finally:
         graph.close()
     return 0
@@ -660,6 +660,19 @@ def cmd_graph_query(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         results = graph.query(args.name)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "id": n.id,
+                    "name": n.name,
+                    "label": n.label.value,
+                    "file_path": n.file_path,
+                    "start_line": n.start_line,
+                    "end_line": n.end_line,
+                }
+                for n in results
+            ]))
+            return 0
         if not results:
             print(f"No nodes matching '{args.name}'")
             return 0
@@ -678,6 +691,18 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         results = graph.impact(args.file_path, max_depth=args.depth)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "name": r.node.name,
+                    "label": r.node.label.value,
+                    "file_path": r.node.file_path,
+                    "edge_type": r.edge_type,
+                    "depth": r.depth,
+                }
+                for r in results
+            ]))
+            return 0
         if not results:
             print(f"No impact found for '{args.file_path}'")
             return 0
@@ -699,6 +724,18 @@ def cmd_graph_dead(args: argparse.Namespace) -> int:
     try:
         graph.index()
         results = graph.dead_code()
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "node_id": r.node_id,
+                    "label": r.label.value,
+                    "name": r.name,
+                    "file_path": r.file_path,
+                    "line": r.line,
+                }
+                for r in results
+            ]))
+            return 0
         if not results:
             print("0 dead symbols found.")
             return 0
@@ -716,11 +753,30 @@ def cmd_graph_context(args: argparse.Namespace) -> int:
     try:
         ctx = graph.context(args.node_id)
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(json.dumps({"error": str(e)}))
+        else:
+            print(f"Error: {e}", file=sys.stderr)
         graph.close()
         return 1
     try:
         node = ctx["node"]
+        if getattr(args, "json", False):
+            def _nodes_json(nodes):
+                return [
+                    {"id": n.id, "name": n.name, "label": n.label.value, "file_path": n.file_path}
+                    for n in nodes
+                ]
+            print(json.dumps({
+                "node": {"id": node.id, "name": node.name, "label": node.label.value, "file_path": node.file_path},
+                "callers": _nodes_json(ctx["callers"]),
+                "callees": _nodes_json(ctx["callees"]),
+                "importers": _nodes_json(ctx["importers"]),
+                "imports": _nodes_json(ctx["imports"]),
+                "parent_classes": _nodes_json(ctx["parent_classes"]),
+                "child_classes": _nodes_json(ctx["child_classes"]),
+            }))
+            return 0
         print(f"Node: {node.name} ({node.label.value}) — {node.file_path}")
         for key, label in [
             ("callers", "Callers"),
@@ -991,26 +1047,31 @@ def main() -> int:
     # graph-index
     p = sub.add_parser("graph-index", help="Index the codebase into the context graph")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-query
     p = sub.add_parser("graph-query", help="Search for symbols by name in the context graph")
     p.add_argument("name", help="Symbol name to search for")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-impact
     p = sub.add_parser("graph-impact", help="Analyze change impact for a file")
     p.add_argument("file_path", help="File path to analyze")
     p.add_argument("--depth", type=int, default=3, help="Max BFS depth (default: 3)")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-context
     p = sub.add_parser("graph-context", help="Show context neighborhood for a node")
     p.add_argument("node_id", help="Node ID to inspect")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-dead
     p = sub.add_parser("graph-dead", help="Detect dead (unreferenced) symbols in the context graph")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 

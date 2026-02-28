@@ -244,3 +244,28 @@ def test_node_count_after_add(storage):
     storage.add_nodes([_make_node(), _make_node("class:a.py:Cls",
                        label=NodeLabel.CLASS, name="Cls", file_path="a.py")])
     assert storage.node_count() == 2
+
+
+def test_relationship_count_empty(storage):
+    assert storage.relationship_count() == 0
+
+
+def test_relationship_count_after_add(storage):
+    storage.add_nodes([
+        _make_node("fn:a.py:foo", name="foo"),
+        _make_node("fn:a.py:bar", name="bar"),
+    ])
+    storage.add_relationships([
+        GraphRelationship(id="r1", type=RelType.CALLS, source="fn:a.py:foo", target="fn:a.py:bar"),
+    ])
+    assert storage.relationship_count() == 1
+
+
+def test_file_count_empty(storage):
+    assert storage.file_count() == 0
+
+
+def test_file_count_after_update(storage):
+    storage.update_file_hash("a.py", "abc123")
+    storage.update_file_hash("b.py", "def456")
+    assert storage.file_count() == 2

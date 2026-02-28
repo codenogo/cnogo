@@ -61,19 +61,11 @@ def _is_entry_point(node) -> bool:
     return False
 
 
-def _has_incoming_live_edge(storage: GraphStorage, node_id: str) -> bool:
-    """Return True if any CALLS/IMPORTS/EXTENDS/IMPLEMENTS edge targets this node."""
-    assert storage._conn is not None
-    placeholders = ",".join("?" * len(_INCOMING_LIVE_EDGE_TYPES))
-    cur = storage._conn.execute(
-        f"SELECT 1 FROM relationships WHERE target = ? AND type IN ({placeholders}) LIMIT 1",
-        (node_id, *_INCOMING_LIVE_EDGE_TYPES),
-    )
-    return cur.fetchone() is not None
-
-
 def detect_dead_code(storage: GraphStorage) -> list[DeadCodeResult]:
     """Detect dead code symbols and mark them in storage.
+
+    Uses a single query to find all referenced node IDs, then filters
+    symbol nodes against that set. O(1) per node after initial query.
 
     Args:
         storage: Initialized GraphStorage with indexed nodes/relationships.
@@ -83,13 +75,14 @@ def detect_dead_code(storage: GraphStorage) -> list[DeadCodeResult]:
         in storage via mark_dead_nodes().
     """
     symbol_nodes = storage.get_all_symbol_nodes()
+    referenced_ids = storage.get_referenced_node_ids(_INCOMING_LIVE_EDGE_TYPES)
     dead_ids: list[str] = []
     results: list[DeadCodeResult] = []
 
     for node in symbol_nodes:
         if _is_entry_point(node):
             continue
-        if _has_incoming_live_edge(storage, node.id):
+        if node.id in referenced_ids:
             continue
         dead_ids.append(node.id)
         results.append(DeadCodeResult(

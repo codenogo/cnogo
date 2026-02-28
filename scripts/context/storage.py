@@ -135,6 +135,18 @@ class GraphStorage:
         cur = self._conn.execute("SELECT COUNT(*) FROM nodes")
         return cur.fetchone()[0]
 
+    def relationship_count(self) -> int:
+        """Return the total number of relationships."""
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT COUNT(*) FROM relationships")
+        return cur.fetchone()[0]
+
+    def file_count(self) -> int:
+        """Return the total number of indexed files."""
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT COUNT(*) FROM file_hashes")
+        return cur.fetchone()[0]
+
     # --- Relationship CRUD ---
 
     def add_relationships(self, rels: list[GraphRelationship]) -> None:
@@ -318,6 +330,19 @@ class GraphStorage:
         assert self._conn is not None
         cur = self._conn.execute("SELECT * FROM nodes WHERE is_dead = 1")
         return [self._row_to_node(row) for row in cur.fetchall()]
+
+    def get_referenced_node_ids(self, rel_types: tuple[str, ...]) -> set[str]:
+        """Return IDs of all nodes targeted by incoming edges of given types.
+
+        Uses a single query with GROUP BY for efficiency.
+        """
+        assert self._conn is not None
+        placeholders = ",".join("?" * len(rel_types))
+        cur = self._conn.execute(
+            f"SELECT DISTINCT target FROM relationships WHERE type IN ({placeholders})",
+            rel_types,
+        )
+        return {row[0] for row in cur.fetchall()}
 
     # --- Internal helpers ---
 

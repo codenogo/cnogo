@@ -1,0 +1,131 @@
+{
+  "schema_version": 2,
+  "feature": "context-graph",
+  "plan_number": "05",
+  "generated_at": "2026-02-28T00:22:07.405349Z",
+  "tasks": [
+    {
+      "task_id": "",
+      "plan_task_index": 0,
+      "title": "Dead code detection phase",
+      "action": "Create dead code detection phase. Add storage helpers get_all_symbol_nodes() and mark_dead_nodes(). Implement detect_dead_code() with entry point heuristics (test_ prefix, __main__, __init__ exports, main()). A symbol is dead if it has no incoming CALLS, IMPORTS, EXTENDS, or IMPLEMENTS edges and is not an entry point.",
+      "file_scope": {
+        "paths": [
+          "scripts/context/phases/dead_code.py",
+          "scripts/context/storage.py",
+          "tests/test_context_dead_code.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -m pytest tests/test_context_dead_code.py -x"
+        ]
+      },
+      "completion_footer": "",
+      "blockedBy": [],
+      "micro_steps": [
+        "Write failing tests for detect_dead_code() \u2014 unreferenced function is dead, called function is not, entry points (__main__ guard, test_ prefix, __init__ exports) are not dead, methods called via CALLS edge are not dead, class with EXTENDS incoming is not dead",
+        "Run tests to confirm RED",
+        "Add get_all_symbol_nodes() to GraphStorage \u2014 returns all FUNCTION/CLASS/METHOD/ENUM nodes",
+        "Add mark_dead_nodes(node_ids) to GraphStorage \u2014 bulk UPDATE is_dead=1",
+        "Create scripts/context/phases/dead_code.py with DeadCodeResult dataclass and detect_dead_code(storage) function",
+        "Implement entry point heuristics: __main__ guard callers, test_ prefix functions, __init__.py exported names, main() functions",
+        "Implement dead detection: symbol nodes with zero incoming CALLS/IMPORTS/EXTENDS/IMPLEMENTS edges and not entry points",
+        "Run tests to confirm GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": [
+          "python3 -m pytest tests/test_context_dead_code.py -x"
+        ],
+        "passingVerify": [
+          "python3 -m pytest tests/test_context_dead_code.py -x"
+        ]
+      },
+      "skipped": false,
+      "auto_expanded_paths": []
+    },
+    {
+      "task_id": "",
+      "plan_task_index": 1,
+      "title": "Wire into ContextGraph",
+      "action": "Add dead_code() method to ContextGraph class. Import and delegate to detect_dead_code(). Return list of DeadCodeResult. Do not integrate into index() pipeline \u2014 keep as separate analysis call.",
+      "file_scope": {
+        "paths": [
+          "scripts/context/__init__.py",
+          "tests/test_context_graph.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -m pytest tests/test_context_graph.py -x -k dead"
+        ]
+      },
+      "completion_footer": "",
+      "blockedBy": [
+        0
+      ],
+      "micro_steps": [
+        "Write failing tests for ContextGraph.dead_code() \u2014 returns DeadCodeResult list, marks is_dead on nodes in storage, empty result when all symbols referenced",
+        "Run tests to confirm RED",
+        "Import detect_dead_code and DeadCodeResult in __init__.py",
+        "Add dead_code() method to ContextGraph that calls detect_dead_code(self._storage) and returns results",
+        "Run tests to confirm GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": [
+          "python3 -m pytest tests/test_context_graph.py -x -k dead"
+        ],
+        "passingVerify": [
+          "python3 -m pytest tests/test_context_graph.py -x -k dead"
+        ]
+      },
+      "skipped": false,
+      "auto_expanded_paths": []
+    },
+    {
+      "task_id": "",
+      "plan_task_index": 2,
+      "title": "CLI graph-dead subcommand",
+      "action": "Add graph-dead subcommand to workflow_memory.py. Handler indexes the repo, runs dead_code(), prints each dead symbol as 'DEAD  label:name  file:line'. Add to _graph_cmds set. Register argparse subparser with --repo flag.",
+      "file_scope": {
+        "paths": [
+          "scripts/workflow_memory.py",
+          "tests/test_context_cli.py"
+        ],
+        "forbidden": []
+      },
+      "commands": {
+        "verify": [
+          "python3 -m pytest tests/test_context_cli.py -x -k dead"
+        ]
+      },
+      "completion_footer": "",
+      "blockedBy": [
+        1
+      ],
+      "micro_steps": [
+        "Write failing tests for graph-dead CLI \u2014 --help works, empty repo returns 0, indexed repo with dead code lists dead symbols with file:line format",
+        "Run tests to confirm RED",
+        "Add cmd_graph_dead handler that opens graph, runs index(), then dead_code(), prints results",
+        "Register graph-dead argparse subparser with --repo flag",
+        "Add to dispatch table and _graph_cmds set",
+        "Run tests to confirm GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": [
+          "python3 -m pytest tests/test_context_cli.py -x -k dead"
+        ],
+        "passingVerify": [
+          "python3 -m pytest tests/test_context_cli.py -x -k dead"
+        ]
+      },
+      "skipped": false,
+      "auto_expanded_paths": []
+    }
+  ]
+}

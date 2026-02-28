@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import textwrap
@@ -185,3 +186,82 @@ class TestGraphDead:
         result = _run_cli("graph-dead", "--repo", str(tmp_path))
         assert result.returncode == 0
         assert "dead_fn" in result.stdout
+
+
+# --- --json flag tests ---
+
+
+class TestGraphJsonOutput:
+    """Tests for --json flag on all graph commands."""
+
+    def test_graph_index_json(self, repo_with_python):
+        result = _run_cli("graph-index", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "nodes" in data
+        assert "relationships" in data
+        assert "files" in data
+        assert data["nodes"] > 0
+
+    def test_graph_index_json_empty(self, tmp_path):
+        result = _run_cli("graph-index", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["nodes"] == 0
+
+    def test_graph_query_json(self, repo_with_python):
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-query", "greet", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert data[0]["name"] == "greet"
+        assert "label" in data[0]
+        assert "file_path" in data[0]
+
+    def test_graph_query_json_no_results(self, tmp_path):
+        result = _run_cli("graph-query", "nonexistent", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data == []
+
+    def test_graph_impact_json(self, repo_with_python):
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-impact", "hello.py", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+
+    def test_graph_dead_json(self, tmp_path):
+        (tmp_path / "lib.py").write_text(textwrap.dedent("""\
+            def used_fn():
+                pass
+
+            def dead_fn():
+                pass
+        """))
+        (tmp_path / "main.py").write_text(textwrap.dedent("""\
+            from lib import used_fn
+
+            def main():
+                used_fn()
+        """))
+        result = _run_cli("graph-dead", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        names = [d["name"] for d in data]
+        assert "dead_fn" in names
+
+    def test_graph_dead_json_empty(self, tmp_path):
+        result = _run_cli("graph-dead", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data == []
+
+    def test_graph_context_json_not_found(self, tmp_path):
+        result = _run_cli("graph-context", "function:foo:bar", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 1
+        data = json.loads(result.stdout)
+        assert "error" in data
