@@ -16,6 +16,7 @@ from scripts.context.model import (
     RelType,
 )
 from scripts.context.phases.calls import process_calls
+from scripts.context.phases.coupling import CouplingResult, compute_coupling
 from scripts.context.phases.dead_code import DeadCodeResult, detect_dead_code
 from scripts.context.phases.heritage import process_heritage
 from scripts.context.phases.impact import ImpactResult, impact_analysis
@@ -28,6 +29,7 @@ from scripts.context.walker import walk
 
 __all__ = [
     "ContextGraph",
+    "CouplingResult",
     "DeadCodeResult",
     "GraphNode",
     "GraphRelationship",
@@ -145,6 +147,10 @@ class ContextGraph:
             "parent_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "outgoing"),
             "child_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "incoming"),
         }
+
+    def coupling(self, threshold: float = 0.5) -> list[CouplingResult]:
+        """Compute structural coupling between symbols via Jaccard similarity."""
+        return compute_coupling(self._storage, threshold)
 
     def dead_code(self) -> list[DeadCodeResult]:
         """Detect dead (unreferenced) symbols in the graph."""

@@ -331,6 +331,23 @@ class GraphStorage:
         cur = self._conn.execute("SELECT * FROM nodes WHERE is_dead = 1")
         return [self._row_to_node(row) for row in cur.fetchall()]
 
+    def get_all_relationships_by_types(
+        self, rel_types: list[str]
+    ) -> list[tuple[str, str, str]]:
+        """Return all relationships of the given types as (source, target, type) tuples.
+
+        Single indexed query for bulk edge retrieval.
+        """
+        assert self._conn is not None
+        if not rel_types:
+            return []
+        placeholders = ",".join("?" * len(rel_types))
+        cur = self._conn.execute(
+            f"SELECT source, target, type FROM relationships WHERE type IN ({placeholders})",
+            rel_types,
+        )
+        return cur.fetchall()
+
     def get_referenced_node_ids(self, rel_types: tuple[str, ...]) -> set[str]:
         """Return IDs of all nodes targeted by incoming edges of given types.
 

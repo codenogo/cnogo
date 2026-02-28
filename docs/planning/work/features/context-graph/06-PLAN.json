@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "06",
+  "goal": "Compute structural coupling between symbols via shared call/import neighbors (Jaccard similarity), create COUPLED_WITH edges, expose via ContextGraph.coupling() and CLI graph-coupling command",
+  "tasks": [
+    {
+      "name": "Coupling detection phase and storage helper",
+      "files": [
+        "scripts/context/phases/coupling.py",
+        "scripts/context/storage.py",
+        "tests/test_context_coupling.py"
+      ],
+      "microSteps": [
+        "Write tests for get_all_relationships_by_types() storage method",
+        "Run failing tests to verify RED",
+        "Implement get_all_relationships_by_types() in GraphStorage — single query returning all relationships of given types",
+        "Run tests to verify GREEN",
+        "Write tests for CouplingResult dataclass and compute_coupling() — unreferenced pair, coupled pair above threshold, pair below threshold, self-coupling exclusion",
+        "Run failing tests to verify RED",
+        "Create coupling.py with CouplingResult dataclass",
+        "Implement compute_coupling(): build neighbor sets (callers + callees + importers) per symbol using bulk edge query, compute Jaccard similarity for pairs sharing at least one neighbor, create COUPLED_WITH edges for pairs above threshold",
+        "Run tests to verify GREEN",
+        "Write edge case tests: empty graph, single node, disjoint components, bidirectional symmetry",
+        "Run tests to verify all pass"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_coupling.py -x"],
+        "passingVerify": ["python3 -m pytest tests/test_context_coupling.py -x"]
+      },
+      "action": "Create scripts/context/phases/coupling.py with CouplingResult dataclass (source_id, source_name, target_id, target_name, strength, shared_count) and compute_coupling(storage, threshold=0.5) function. Algorithm: (1) call storage.get_all_relationships_by_types() for CALLS + IMPORTS edge types to get all edges in one query, (2) build dict[node_id → set[neighbor_id]] from both source and target sides, (3) filter to symbol nodes only via get_all_symbol_nodes(), (4) for each pair of symbols sharing at least one neighbor compute Jaccard similarity = |A∩B| / |A∪B|, (5) if similarity >= threshold create COUPLED_WITH relationship via add_relationships(), (6) return list of CouplingResult sorted by strength descending. Add get_all_relationships_by_types(rel_types) to GraphStorage returning list of (source, target, type) tuples in a single indexed query. Optimization: use inverted index (neighbor → symbols) to avoid O(N²) — only compare symbols that share at least one neighbor.",
+      "verify": ["python3 -m pytest tests/test_context_coupling.py tests/test_context_storage.py -x"]
+    },
+    {
+      "name": "Wire coupling into ContextGraph and export CouplingResult",
+      "files": [
+        "scripts/context/__init__.py",
+        "tests/test_context_graph.py"
+      ],
+      "microSteps": [
+        "Write tests for ContextGraph.coupling() — returns results, empty when no coupling, respects threshold parameter",
+        "Run failing tests to verify RED",
+        "Import CouplingResult and compute_coupling in __init__.py",
+        "Add coupling(threshold=0.5) method to ContextGraph delegating to compute_coupling()",
+        "Add CouplingResult to __all__",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_graph.py -x -k coupling"],
+        "passingVerify": ["python3 -m pytest tests/test_context_graph.py -x -k coupling"]
+      },
+      "action": "Import compute_coupling and CouplingResult from scripts.context.phases.coupling. Add coupling(self, threshold: float = 0.5) -> list[CouplingResult] method to ContextGraph that delegates to compute_coupling(self._storage, threshold). Add CouplingResult to __all__ list. Write 3 tests: coupling returns results for coupled symbols, empty list when nothing coupled, threshold parameter filters low-strength pairs.",
+      "verify": ["python3 -m pytest tests/test_context_graph.py -x"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "CLI graph-coupling subcommand",
+      "files": [
+        "scripts/workflow_memory.py",
+        "tests/test_context_cli.py"
+      ],
+      "microSteps": [
+        "Write tests for graph-coupling --help, empty repo, repo with coupled symbols, --json output, --strength threshold",
+        "Run failing tests to verify RED",
+        "Add graph-coupling argparse subparser with --repo, --strength, --json flags",
+        "Implement cmd_graph_coupling handler: open graph, index, run coupling(threshold), print human or JSON output",
+        "Add graph-coupling to _graph_cmds set and dispatch dict",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_cli.py -x -k coupling"],
+        "passingVerify": ["python3 -m pytest tests/test_context_cli.py -x -k coupling"]
+      },
+      "action": "Add graph-coupling subcommand to workflow_memory.py. Argparse: --repo (path), --strength (float, default 0.5), --json (flag). Handler cmd_graph_coupling: open graph via _graph_open, call graph.index(), call graph.coupling(threshold=args.strength), output results. Human format: 'A <-> B  strength=0.85 (3 shared)'. JSON format: list of {source_name, target_name, source_id, target_id, strength, shared_count}. Add 'graph-coupling' to _graph_cmds set. Write 5 tests: help, empty repo, repo with coupling, --json output, --strength filter.",
+      "verify": ["python3 -m pytest tests/test_context_cli.py -x"],
+      "blockedBy": [1]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_context_*.py -x",
+    "python3 scripts/workflow_memory.py graph-coupling --help"
+  ],
+  "commitMessage": "feat(context-graph): add coupling analysis with Jaccard similarity and CLI graph-coupling command",
+  "timestamp": "2026-02-28T05:00:00Z"
+}

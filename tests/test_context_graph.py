@@ -152,3 +152,68 @@ def test_dead_code_marks_is_dead_in_storage(graph):
     dead_nodes = graph._storage.get_dead_nodes()
     dead_ids = [n.id for n in dead_nodes]
     assert node_id in dead_ids
+
+
+# --- coupling ---
+
+
+def _add_import_edge(storage, source_id, target_id):
+    from scripts.context.model import GraphRelationship, RelType
+    storage.add_relationships([
+        GraphRelationship(
+            id=f"imports:{source_id}->{target_id}",
+            type=RelType.IMPORTS,
+            source=source_id,
+            target=target_id,
+        )
+    ])
+
+
+def test_coupling_returns_results(graph):
+    """Two functions sharing call targets should appear as coupled."""
+    from scripts.context.phases.coupling import CouplingResult
+    a = _add_function_node(graph._storage, "src/a.py", "func_a")
+    b = _add_function_node(graph._storage, "src/b.py", "func_b")
+    shared = _add_function_node(graph._storage, "src/shared.py", "shared_func")
+    _add_call_edge(graph._storage, a, shared)
+    _add_call_edge(graph._storage, b, shared)
+
+    results = graph.coupling(threshold=0.5)
+    assert isinstance(results, list)
+    assert len(results) >= 1
+    assert isinstance(results[0], CouplingResult)
+    ab_pairs = [r for r in results if {r.source_name, r.target_name} == {"func_a", "func_b"}]
+    assert len(ab_pairs) == 1
+
+
+def test_coupling_empty_when_no_shared_neighbors(graph):
+    """Functions with disjoint neighbors should not be coupled."""
+    a = _add_function_node(graph._storage, "src/a.py", "func_a")
+    b = _add_function_node(graph._storage, "src/b.py", "func_b")
+    t1 = _add_function_node(graph._storage, "src/t1.py", "target1")
+    t2 = _add_function_node(graph._storage, "src/t2.py", "target2")
+    _add_call_edge(graph._storage, a, t1)
+    _add_call_edge(graph._storage, b, t2)
+
+    results = graph.coupling(threshold=0.5)
+    ab_pairs = [r for r in results if {r.source_name, r.target_name} == {"func_a", "func_b"}]
+    assert len(ab_pairs) == 0
+
+
+def test_coupling_threshold_filters(graph):
+    """Higher threshold should filter out weaker coupling."""
+    a = _add_function_node(graph._storage, "src/a.py", "func_a")
+    b = _add_function_node(graph._storage, "src/b.py", "func_b")
+    shared = _add_function_node(graph._storage, "src/shared.py", "shared_func")
+    _add_call_edge(graph._storage, a, shared)
+    _add_call_edge(graph._storage, b, shared)
+
+    # At threshold=0.5, should find coupling
+    results_low = graph.coupling(threshold=0.5)
+    ab_low = [r for r in results_low if {r.source_name, r.target_name} == {"func_a", "func_b"}]
+
+    # At threshold=1.0, only perfect matches pass — (a,b) may not be 1.0
+    # depending on other neighbors
+    results_high = graph.coupling(threshold=1.0)
+    # At minimum, high threshold should be <= low threshold results
+    assert len(results_high) <= len(results_low)

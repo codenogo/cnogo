@@ -269,3 +269,55 @@ def test_file_count_after_update(storage):
     storage.update_file_hash("a.py", "abc123")
     storage.update_file_hash("b.py", "def456")
     assert storage.file_count() == 2
+
+
+# --- get_all_relationships_by_types ---
+
+
+def test_get_all_relationships_by_types_empty(storage):
+    result = storage.get_all_relationships_by_types([RelType.CALLS.value])
+    assert result == []
+
+
+def test_get_all_relationships_by_types_single_type(storage):
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py"),
+        _make_node("function:b.py:bar", name="bar", file_path="b.py"),
+    ])
+    storage.add_relationships([
+        GraphRelationship(id="r1", type=RelType.CALLS, source="function:a.py:foo", target="function:b.py:bar"),
+    ])
+    result = storage.get_all_relationships_by_types([RelType.CALLS.value])
+    assert len(result) == 1
+    assert result[0] == ("function:a.py:foo", "function:b.py:bar", RelType.CALLS.value)
+
+
+def test_get_all_relationships_by_types_multiple_types(storage):
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py"),
+        _make_node("function:b.py:bar", name="bar", file_path="b.py"),
+        _make_node("function:c.py:baz", name="baz", file_path="c.py"),
+    ])
+    storage.add_relationships([
+        GraphRelationship(id="r1", type=RelType.CALLS, source="function:a.py:foo", target="function:b.py:bar"),
+        GraphRelationship(id="r2", type=RelType.IMPORTS, source="function:b.py:bar", target="function:c.py:baz"),
+    ])
+    result = storage.get_all_relationships_by_types([RelType.CALLS.value, RelType.IMPORTS.value])
+    assert len(result) == 2
+    sources = {r[0] for r in result}
+    assert "function:a.py:foo" in sources
+    assert "function:b.py:bar" in sources
+
+
+def test_get_all_relationships_by_types_filters_other_types(storage):
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py"),
+        _make_node("function:b.py:bar", name="bar", file_path="b.py"),
+    ])
+    storage.add_relationships([
+        GraphRelationship(id="r1", type=RelType.CALLS, source="function:a.py:foo", target="function:b.py:bar"),
+        GraphRelationship(id="r2", type=RelType.EXTENDS, source="function:a.py:foo", target="function:b.py:bar"),
+    ])
+    result = storage.get_all_relationships_by_types([RelType.CALLS.value])
+    assert len(result) == 1
+    assert result[0][2] == RelType.CALLS.value

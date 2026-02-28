@@ -747,6 +747,37 @@ def cmd_graph_dead(args: argparse.Namespace) -> int:
         graph.close()
 
 
+def cmd_graph_coupling(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        graph.index()
+        threshold = getattr(args, "strength", 0.5)
+        results = graph.coupling(threshold=threshold)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "source_name": r.source_name,
+                    "target_name": r.target_name,
+                    "source_id": r.source_id,
+                    "target_id": r.target_id,
+                    "strength": r.strength,
+                    "shared_count": r.shared_count,
+                }
+                for r in results
+            ]))
+            return 0
+        if not results:
+            print("0 coupled symbol pairs found.")
+            return 0
+        print(f"{len(results)} coupled pair(s) found:\n")
+        for r in results:
+            print(f"  {r.source_name} <-> {r.target_name}  strength={r.strength} ({r.shared_count} shared)")
+        return 0
+    finally:
+        graph.close()
+
+
 def cmd_graph_context(args: argparse.Namespace) -> int:
     repo = getattr(args, "repo", None) or "."
     graph = _graph_open(repo)
@@ -1073,6 +1104,12 @@ def main() -> int:
     p.add_argument("--repo", help="Repository root path (default: cwd)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-coupling
+    p = sub.add_parser("graph-coupling", help="Detect structural coupling between symbols (Jaccard similarity)")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--strength", type=float, default=0.5, help="Minimum coupling strength threshold (default: 0.5)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1082,7 +1119,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1133,6 +1170,7 @@ def main() -> int:
         "graph-impact": cmd_graph_impact,
         "graph-context": cmd_graph_context,
         "graph-dead": cmd_graph_dead,
+        "graph-coupling": cmd_graph_coupling,
     }
 
     handler = dispatch.get(args.command)

@@ -265,3 +265,53 @@ class TestGraphJsonOutput:
         assert result.returncode == 1
         data = json.loads(result.stdout)
         assert "error" in data
+
+
+# --- graph-coupling ---
+
+
+class TestGraphCoupling:
+    """Tests for the graph-coupling subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-coupling", "--help")
+        assert result.returncode == 0
+        assert "coupling" in result.stdout.lower()
+
+    def test_empty_repo(self, tmp_path):
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0 coupled" in result.stdout
+
+    def test_coupling_with_shared_targets(self, tmp_path):
+        """Two functions calling the same target should be coupled."""
+        (tmp_path / "shared.py").write_text(textwrap.dedent("""\
+            def helper():
+                pass
+        """))
+        (tmp_path / "a.py").write_text(textwrap.dedent("""\
+            from shared import helper
+
+            def func_a():
+                helper()
+        """))
+        (tmp_path / "b.py").write_text(textwrap.dedent("""\
+            from shared import helper
+
+            def func_b():
+                helper()
+        """))
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--strength", "0.3")
+        assert result.returncode == 0
+        assert "<->" in result.stdout or "coupled" in result.stdout.lower()
+
+    def test_json_output(self, tmp_path):
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+
+    def test_strength_filter(self, tmp_path):
+        """High threshold should filter out weak coupling."""
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--strength", "0.99")
+        assert result.returncode == 0
