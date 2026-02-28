@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "planNumber": "05",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/dead_code.py",
+      "action": "created",
+      "description": "DeadCodeResult dataclass and detect_dead_code(storage) with entry point heuristics (main, test_, __init__.py, is_entry_point flag)"
+    },
+    {
+      "file": "scripts/context/storage.py",
+      "action": "modified",
+      "description": "Added get_all_symbol_nodes(), mark_dead_nodes(node_ids), get_dead_nodes() methods"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "action": "modified",
+      "description": "Added dead_code() method to ContextGraph, imported DeadCodeResult and detect_dead_code"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-dead CLI subcommand with --repo flag, registered in dispatch and _graph_cmds"
+    },
+    {
+      "file": "tests/test_context_dead_code.py",
+      "action": "created",
+      "description": "27 tests covering dead code detection: unreferenced symbols, entry points, edge types, bulk marking"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "action": "modified",
+      "description": "3 new tests for ContextGraph.dead_code() integration"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "action": "modified",
+      "description": "3 new tests for graph-dead CLI subcommand (help, empty repo, dead code detection)"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_*.py -x",
+      "result": "201 passed"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-dead --help",
+      "result": "Help output displayed correctly"
+    }
+  ],
+  "commit": "fcc1157",
+  "timestamp": "2026-02-28T03:30:00Z"
+}

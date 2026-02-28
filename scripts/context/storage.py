@@ -135,6 +135,18 @@ class GraphStorage:
         cur = self._conn.execute("SELECT COUNT(*) FROM nodes")
         return cur.fetchone()[0]
 
+    def relationship_count(self) -> int:
+        """Return the total number of relationships."""
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT COUNT(*) FROM relationships")
+        return cur.fetchone()[0]
+
+    def file_count(self) -> int:
+        """Return the total number of indexed files."""
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT COUNT(*) FROM file_hashes")
+        return cur.fetchone()[0]
+
     # --- Relationship CRUD ---
 
     def add_relationships(self, rels: list[GraphRelationship]) -> None:
@@ -284,6 +296,70 @@ class GraphStorage:
         )
         self._conn.commit()
         return len(node_ids)
+
+    # --- Dead code helpers ---
+
+    def get_all_symbol_nodes(self) -> list[GraphNode]:
+        """Return all nodes with label FUNCTION, CLASS, METHOD, or ENUM."""
+        assert self._conn is not None
+        labels = (
+            NodeLabel.FUNCTION.value,
+            NodeLabel.CLASS.value,
+            NodeLabel.METHOD.value,
+            NodeLabel.ENUM.value,
+        )
+        placeholders = ",".join("?" * len(labels))
+        cur = self._conn.execute(
+            f"SELECT * FROM nodes WHERE label IN ({placeholders})", labels
+        )
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
+    def mark_dead_nodes(self, node_ids: list[str]) -> None:
+        """Bulk set is_dead=1 for the given node IDs."""
+        assert self._conn is not None
+        if not node_ids:
+            return
+        placeholders = ",".join("?" * len(node_ids))
+        self._conn.execute(
+            f"UPDATE nodes SET is_dead = 1 WHERE id IN ({placeholders})", node_ids
+        )
+        self._conn.commit()
+
+    def get_dead_nodes(self) -> list[GraphNode]:
+        """Return all nodes where is_dead=1."""
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT * FROM nodes WHERE is_dead = 1")
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
+    def get_all_relationships_by_types(
+        self, rel_types: list[str]
+    ) -> list[tuple[str, str, str]]:
+        """Return all relationships of the given types as (source, target, type) tuples.
+
+        Single indexed query for bulk edge retrieval.
+        """
+        assert self._conn is not None
+        if not rel_types:
+            return []
+        placeholders = ",".join("?" * len(rel_types))
+        cur = self._conn.execute(
+            f"SELECT source, target, type FROM relationships WHERE type IN ({placeholders})",
+            rel_types,
+        )
+        return cur.fetchall()
+
+    def get_referenced_node_ids(self, rel_types: tuple[str, ...]) -> set[str]:
+        """Return IDs of all nodes targeted by incoming edges of given types.
+
+        Uses a single query with GROUP BY for efficiency.
+        """
+        assert self._conn is not None
+        placeholders = ",".join("?" * len(rel_types))
+        cur = self._conn.execute(
+            f"SELECT DISTINCT target FROM relationships WHERE type IN ({placeholders})",
+            rel_types,
+        )
+        return {row[0] for row in cur.fetchall()}
 
     # --- Internal helpers ---
 

@@ -639,17 +639,17 @@ def cmd_graph_index(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         graph.index()
-        count = graph._storage.node_count()
-        assert graph._storage._conn is not None
-        cur = graph._storage._conn.execute(
-            "SELECT COUNT(*) FROM relationships"
-        )
-        rel_count = cur.fetchone()[0]
-        cur = graph._storage._conn.execute(
-            "SELECT COUNT(*) FROM file_hashes"
-        )
-        file_count = cur.fetchone()[0]
-        print(f"Indexed: {count} nodes, {rel_count} relationships, {file_count} files")
+        node_count = graph._storage.node_count()
+        rel_count = graph._storage.relationship_count()
+        file_count = graph._storage.file_count()
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "nodes": node_count,
+                "relationships": rel_count,
+                "files": file_count,
+            }))
+        else:
+            print(f"Indexed: {node_count} nodes, {rel_count} relationships, {file_count} files")
     finally:
         graph.close()
     return 0
@@ -660,6 +660,19 @@ def cmd_graph_query(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         results = graph.query(args.name)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "id": n.id,
+                    "name": n.name,
+                    "label": n.label.value,
+                    "file_path": n.file_path,
+                    "start_line": n.start_line,
+                    "end_line": n.end_line,
+                }
+                for n in results
+            ]))
+            return 0
         if not results:
             print(f"No nodes matching '{args.name}'")
             return 0
@@ -678,6 +691,18 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         results = graph.impact(args.file_path, max_depth=args.depth)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "name": r.node.name,
+                    "label": r.node.label.value,
+                    "file_path": r.node.file_path,
+                    "edge_type": r.edge_type,
+                    "depth": r.depth,
+                }
+                for r in results
+            ]))
+            return 0
         if not results:
             print(f"No impact found for '{args.file_path}'")
             return 0
@@ -693,17 +718,96 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_dead(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        graph.index()
+        results = graph.dead_code()
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "node_id": r.node_id,
+                    "label": r.label.value,
+                    "name": r.name,
+                    "file_path": r.file_path,
+                    "line": r.line,
+                }
+                for r in results
+            ]))
+            return 0
+        if not results:
+            print("0 dead symbols found.")
+            return 0
+        print(f"{len(results)} dead symbol(s) found:\n")
+        for r in results:
+            print(f"  DEAD  {r.label.value}:{r.name}  {r.file_path}:{r.line}")
+        return 0
+    finally:
+        graph.close()
+
+
+def cmd_graph_coupling(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        graph.index()
+        threshold = getattr(args, "strength", 0.5)
+        results = graph.coupling(threshold=threshold)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "source_name": r.source_name,
+                    "target_name": r.target_name,
+                    "source_id": r.source_id,
+                    "target_id": r.target_id,
+                    "strength": r.strength,
+                    "shared_count": r.shared_count,
+                }
+                for r in results
+            ]))
+            return 0
+        if not results:
+            print("0 coupled symbol pairs found.")
+            return 0
+        print(f"{len(results)} coupled pair(s) found:\n")
+        for r in results:
+            print(f"  {r.source_name} <-> {r.target_name}  strength={r.strength} ({r.shared_count} shared)")
+        return 0
+    finally:
+        graph.close()
+
+
 def cmd_graph_context(args: argparse.Namespace) -> int:
     repo = getattr(args, "repo", None) or "."
     graph = _graph_open(repo)
     try:
         ctx = graph.context(args.node_id)
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        if getattr(args, "json", False):
+            print(json.dumps({"error": str(e)}))
+        else:
+            print(f"Error: {e}", file=sys.stderr)
         graph.close()
         return 1
     try:
         node = ctx["node"]
+        if getattr(args, "json", False):
+            def _nodes_json(nodes):
+                return [
+                    {"id": n.id, "name": n.name, "label": n.label.value, "file_path": n.file_path}
+                    for n in nodes
+                ]
+            print(json.dumps({
+                "node": {"id": node.id, "name": node.name, "label": node.label.value, "file_path": node.file_path},
+                "callers": _nodes_json(ctx["callers"]),
+                "callees": _nodes_json(ctx["callees"]),
+                "importers": _nodes_json(ctx["importers"]),
+                "imports": _nodes_json(ctx["imports"]),
+                "parent_classes": _nodes_json(ctx["parent_classes"]),
+                "child_classes": _nodes_json(ctx["child_classes"]),
+            }))
+            return 0
         print(f"Node: {node.name} ({node.label.value}) — {node.file_path}")
         for key, label in [
             ("callers", "Callers"),
@@ -974,22 +1078,37 @@ def main() -> int:
     # graph-index
     p = sub.add_parser("graph-index", help="Index the codebase into the context graph")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-query
     p = sub.add_parser("graph-query", help="Search for symbols by name in the context graph")
     p.add_argument("name", help="Symbol name to search for")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-impact
     p = sub.add_parser("graph-impact", help="Analyze change impact for a file")
     p.add_argument("file_path", help="File path to analyze")
     p.add_argument("--depth", type=int, default=3, help="Max BFS depth (default: 3)")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     # graph-context
     p = sub.add_parser("graph-context", help="Show context neighborhood for a node")
     p.add_argument("node_id", help="Node ID to inspect")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # graph-dead
+    p = sub.add_parser("graph-dead", help="Detect dead (unreferenced) symbols in the context graph")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # graph-coupling
+    p = sub.add_parser("graph-coupling", help="Detect structural coupling between symbols (Jaccard similarity)")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--strength", type=float, default=0.5, help="Minimum coupling strength threshold (default: 0.5)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
 
     args = parser.parse_args()
 
@@ -1000,7 +1119,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1050,6 +1169,8 @@ def main() -> int:
         "graph-query": cmd_graph_query,
         "graph-impact": cmd_graph_impact,
         "graph-context": cmd_graph_context,
+        "graph-dead": cmd_graph_dead,
+        "graph-coupling": cmd_graph_coupling,
     }
 
     handler = dispatch.get(args.command)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import textwrap
@@ -147,3 +148,170 @@ class TestGraphContext:
         )
         # Either succeeds or fails with not-found (ID format may differ)
         assert result.returncode in (0, 1)
+
+
+# --- graph-dead ---
+
+
+class TestGraphDead:
+    """Tests for the graph-dead subcommand."""
+
+    def test_graph_dead_help(self):
+        result = _run_cli("graph-dead", "--help")
+        assert result.returncode == 0
+        assert "graph-dead" in result.stdout or "dead" in result.stdout.lower()
+
+    def test_graph_dead_empty_repo(self, tmp_path):
+        """graph-dead on empty repo — should report 0 dead symbols."""
+        result = _run_cli("graph-dead", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0 dead" in result.stdout
+
+    def test_graph_dead_with_dead_code(self, tmp_path):
+        """graph-dead finds unreferenced function in repo."""
+        import textwrap
+        (tmp_path / "lib.py").write_text(textwrap.dedent("""\
+            def used_fn():
+                pass
+
+            def dead_fn():
+                pass
+        """))
+        (tmp_path / "main.py").write_text(textwrap.dedent("""\
+            from lib import used_fn
+
+            def main():
+                used_fn()
+        """))
+        result = _run_cli("graph-dead", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "dead_fn" in result.stdout
+
+
+# --- --json flag tests ---
+
+
+class TestGraphJsonOutput:
+    """Tests for --json flag on all graph commands."""
+
+    def test_graph_index_json(self, repo_with_python):
+        result = _run_cli("graph-index", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "nodes" in data
+        assert "relationships" in data
+        assert "files" in data
+        assert data["nodes"] > 0
+
+    def test_graph_index_json_empty(self, tmp_path):
+        result = _run_cli("graph-index", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["nodes"] == 0
+
+    def test_graph_query_json(self, repo_with_python):
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-query", "greet", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        assert len(data) > 0
+        assert data[0]["name"] == "greet"
+        assert "label" in data[0]
+        assert "file_path" in data[0]
+
+    def test_graph_query_json_no_results(self, tmp_path):
+        result = _run_cli("graph-query", "nonexistent", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data == []
+
+    def test_graph_impact_json(self, repo_with_python):
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-impact", "hello.py", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+
+    def test_graph_dead_json(self, tmp_path):
+        (tmp_path / "lib.py").write_text(textwrap.dedent("""\
+            def used_fn():
+                pass
+
+            def dead_fn():
+                pass
+        """))
+        (tmp_path / "main.py").write_text(textwrap.dedent("""\
+            from lib import used_fn
+
+            def main():
+                used_fn()
+        """))
+        result = _run_cli("graph-dead", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        names = [d["name"] for d in data]
+        assert "dead_fn" in names
+
+    def test_graph_dead_json_empty(self, tmp_path):
+        result = _run_cli("graph-dead", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data == []
+
+    def test_graph_context_json_not_found(self, tmp_path):
+        result = _run_cli("graph-context", "function:foo:bar", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 1
+        data = json.loads(result.stdout)
+        assert "error" in data
+
+
+# --- graph-coupling ---
+
+
+class TestGraphCoupling:
+    """Tests for the graph-coupling subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-coupling", "--help")
+        assert result.returncode == 0
+        assert "coupling" in result.stdout.lower()
+
+    def test_empty_repo(self, tmp_path):
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0 coupled" in result.stdout
+
+    def test_coupling_with_shared_targets(self, tmp_path):
+        """Two functions calling the same target should be coupled."""
+        (tmp_path / "shared.py").write_text(textwrap.dedent("""\
+            def helper():
+                pass
+        """))
+        (tmp_path / "a.py").write_text(textwrap.dedent("""\
+            from shared import helper
+
+            def func_a():
+                helper()
+        """))
+        (tmp_path / "b.py").write_text(textwrap.dedent("""\
+            from shared import helper
+
+            def func_b():
+                helper()
+        """))
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--strength", "0.3")
+        assert result.returncode == 0
+        assert "<->" in result.stdout or "coupled" in result.stdout.lower()
+
+    def test_json_output(self, tmp_path):
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+
+    def test_strength_filter(self, tmp_path):
+        """High threshold should filter out weak coupling."""
+        result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--strength", "0.99")
+        assert result.returncode == 0

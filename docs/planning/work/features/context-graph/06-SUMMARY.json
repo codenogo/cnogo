@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "06",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/coupling.py",
+      "action": "created",
+      "description": "CouplingResult dataclass and compute_coupling() function with Jaccard similarity algorithm using inverted index optimization"
+    },
+    {
+      "file": "scripts/context/storage.py",
+      "action": "modified",
+      "description": "Added get_all_relationships_by_types() method for bulk edge retrieval by type"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "action": "modified",
+      "description": "Imported CouplingResult and compute_coupling, added coupling() method to ContextGraph, exported CouplingResult in __all__"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-coupling subcommand with --repo, --strength, --json flags and cmd_graph_coupling handler"
+    },
+    {
+      "file": "tests/test_context_coupling.py",
+      "action": "created",
+      "description": "12 tests for CouplingResult dataclass and compute_coupling() including edge cases"
+    },
+    {
+      "file": "tests/test_context_storage.py",
+      "action": "modified",
+      "description": "4 tests for get_all_relationships_by_types() storage method"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "action": "modified",
+      "description": "3 tests for ContextGraph.coupling() method"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "action": "modified",
+      "description": "5 tests for graph-coupling CLI subcommand"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_*.py -x",
+      "result": "pass",
+      "detail": "237 passed in 3.91s"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-coupling --help",
+      "result": "pass",
+      "detail": "Shows usage with --repo, --strength, --json flags"
+    }
+  ],
+  "commit": "adab8a1",
+  "timestamp": "2026-02-28T06:00:00Z"
+}

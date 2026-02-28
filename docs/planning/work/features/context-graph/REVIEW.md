@@ -1,53 +1,66 @@
-# Review Report — Plan 04
+# Review Report — Plan 06 (Coupling Analysis)
 
-**Timestamp:** 2026-02-28T02:15:00Z
+**Timestamp:** 2026-02-28T08:30:00Z
 **Branch:** feature/context-graph
 **Feature:** context-graph
+**Verdict:** **PASS**
 
 ## Automated Checks
 
-- Lint: **pass** (py_compile on all 4 source files)
-- Types: **skipped**
-- Tests: **pass** (168 passed in 2.13s)
+- Lint: **pass** (py_compile on all 4 changed source files)
+- Types: skipped
+- Tests: **pass** (237 passed in 3.95s)
 
 ## Stage 1: Spec Compliance — PASS
 
-All 3 plan tasks delivered:
-- Task 1: `impact.py` — BFS blast radius (13 tests)
-- Task 2: `get_related_nodes()` + `context()` (9 tests)
-- Task 3: 4 CLI subcommands: `graph-index`, `graph-query`, `graph-impact`, `graph-context` (12 tests)
-- planVerify: 168 tests pass + `graph-index --help` works
-- Changed files match plan scope
+| Check | Status |
+|-------|--------|
+| Plan goal delivered | All 4 deliverables: CouplingResult, compute_coupling, ContextGraph.coupling(), CLI graph-coupling |
+| File scope | Matches plan exactly — 4 source files, 4 test files, 0 out-of-scope |
+| planVerify commands | 237 tests pass, graph-coupling --help exits 0 |
+| Summary artifact | 06-SUMMARY.json with correct schema |
+| TDD cycle | All 3 tasks followed RED→GREEN with verified transitions |
 
 ## Stage 2: Code Quality — PASS
 
-**Info observations (non-blocking):**
-1. `cmd_graph_index` accesses `storage._conn` directly for counts — could be a `GraphStorage` API method later
-2. `test_context_known_node` accepts returncode 0 or 1 — soft assertion appropriate for integration test
+### Algorithm
+- Jaccard similarity correctly computed: |A∩B| / |A∪B|
+- Inverted index optimization avoids O(N²) pair comparison
+- COUPLED_WITH edges persisted with strength and shared_count properties
+- Results sorted by strength descending
 
-**Patterns:**
-- stdlib-only: pass
-- CLI pattern: pass (matches existing argparse+dispatch style)
-- TDD: pass (34 new tests via RED-GREEN)
+### Test Coverage (24 new tests)
+- 12 coupling unit tests (core algorithm + edge cases)
+- 4 storage tests (get_all_relationships_by_types)
+- 3 graph integration tests (ContextGraph.coupling)
+- 5 CLI tests (graph-coupling subcommand)
 
-**Security:** No findings. Parameterized SQL throughout. No user input injection vectors.
+### Pattern Compliance
+- stdlib-only: only uses collections.defaultdict and dataclasses
+- storage-assert-conn: follows existing assert pattern
+- cli-try-finally: uses _graph_open + try/finally graph.close()
+- graph-cmds-exclusion: added to _graph_cmds set
 
-**Performance:** BFS uses visited set for cycle detection. SQL queries use indexed columns.
+### Security
+- SQL uses parameterized placeholders — no injection risk
 
-## Scoring (13/14)
+### Performance
+- Inverted index: O(E + C) where E = edge count, C = candidate pairs with shared neighbors
 
-| Axis | Score |
-|------|-------|
-| Correctness | 2/2 |
-| Security | 2/2 |
-| Contract Compliance | 2/2 |
-| Test Coverage | 2/2 |
-| Code Clarity | 2/2 |
-| Performance | 2/2 |
-| Operational Readiness | 1/2 |
+## Scoring (0-2 each)
 
-**Note:** Operational readiness 1/2 — graph CLI commands lack `--json` output flag for machine consumption. Non-blocking; can be added in a future plan.
+| Axis | Score | Notes |
+|------|-------|-------|
+| Correctness | 2 | Algorithm correct, all 237 tests pass |
+| Security | 2 | Parameterized SQL, no external input beyond CLI args |
+| Contract Compliance | 2 | Plan scope, TDD, summary artifact all correct |
+| Test Quality | 2 | 24 tests covering core, edge cases, integration, CLI |
+| Code Quality | 2 | Clean dataclass + function, follows patterns |
+| Performance | 2 | Inverted index avoids quadratic blowup |
+| Maintainability | 2 | Well-documented, consistent with existing codebase |
 
-## Verdict
+**Total: 14/14**
 
-**PASS** (13/14) — Ready for `/ship`
+## Next Action
+
+Ready for `/ship`.
