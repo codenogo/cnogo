@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "11",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/storage.py",
+      "description": "Added FTS5 virtual table creation, rebuild_fts() method, and search() method with BM25 ranking"
+    },
+    {
+      "file": "scripts/context/python_parser.py",
+      "description": "Added docstring field to SymbolInfo dataclass and extraction via ast.get_docstring()"
+    },
+    {
+      "file": "scripts/context/phases/symbols.py",
+      "description": "Passed docstring to content field when creating GraphNode"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "description": "Added search() API method to ContextGraph and rebuild_fts() call in index pipeline"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "description": "Added graph-search CLI subcommand with human-readable and --json output, --limit flag"
+    },
+    {
+      "file": "tests/test_context_storage.py",
+      "description": "Added 9 FTS search tests covering BM25 ranking, stemming, cleanup, and edge cases"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "description": "Added 6 tests for docstring extraction, FTS integration, and ContextGraph.search() API"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "description": "Added 5 tests for graph-search CLI subcommand"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_storage.py tests/test_context_graph.py tests/test_context_cli.py -x -q",
+      "result": "121 passed"
+    }
+  ],
+  "commit": "60416b9",
+  "timestamp": "2026-02-28T16:30:00Z"
+}

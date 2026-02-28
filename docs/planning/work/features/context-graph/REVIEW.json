@@ -22,7 +22,9 @@
     "enabled": true,
     "graph_status": "indexed",
     "per_file": {
-      ".cnogo/graph.db": []
+      ".cnogo/graph.db": [],
+      "docs/planning/work/features/context-graph/11-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/11-SUMMARY.md": []
     },
     "total_affected": 0
   },
@@ -61,19 +63,19 @@
   ],
   "patternCompliance": [
     {
-      "pattern": "phase-module",
+      "pattern": "stdlib-only",
       "status": "compliant",
-      "note": "flows.py follows established phase module pattern (dataclass results, standalone function, GraphStorage dependency)"
+      "notes": "FTS5 uses sqlite3 stdlib module, no external dependencies"
     },
     {
-      "pattern": "cli-subcommand",
+      "pattern": "existing-patterns",
       "status": "compliant",
-      "note": "graph-flows follows _graph_cmds registration pattern with --repo, --json, --max-depth flags"
+      "notes": "search() follows same API pattern as query(), communities(), flows()"
     },
     {
-      "pattern": "tdd-workflow",
+      "pattern": "CLI-conventions",
       "status": "compliant",
-      "note": "All 3 tasks followed RED→GREEN cycle with verified failing tests before implementation"
+      "notes": "graph-search follows same subparser pattern as graph-query, graph-context, graph-status"
     }
   ],
   "performanceFindings": [],
@@ -81,37 +83,37 @@
     {
       "axis": "Correctness",
       "score": 2,
-      "note": "BFS logic verified correct with 84 tests passing. Cycle handling via visited set confirmed."
+      "notes": "FTS5 standalone table correct for TEXT PK schema. BM25 ranking, quote escaping, empty input handling all verified."
     },
     {
       "axis": "Security",
       "score": 2,
-      "note": "No user input processing, stdlib only, no injection vectors."
+      "notes": "Parameterized queries, quote escaping, no injection risk, no secrets."
     },
     {
       "axis": "Contract Compliance",
       "score": 2,
-      "note": "All plan artifacts present. Memory phase progression correct. Workers reported done, never closed issues."
+      "notes": "PLAN.json tasks match changes. SUMMARY.json complete. Phase progression correct."
     },
     {
       "axis": "Performance",
       "score": 2,
-      "note": "O(V+E) BFS with visited set. No unbounded operations."
+      "notes": "rebuild_fts() once per index run. FTS5 BM25 native. LIMIT prevents unbounded results."
     },
     {
       "axis": "Maintainability",
       "score": 2,
-      "note": "Clean dataclasses, follows established phase patterns. _is_entry_point duplicated from dead_code.py (minor, extractable later)."
+      "notes": "Clean storage/API/CLI separation. Follows existing patterns."
     },
     {
       "axis": "Test Coverage",
       "score": 2,
-      "note": "19 new tests: 11 unit (flows.py), 3 integration (ContextGraph), 5 CLI. Covers cycles, max_depth, empty graph, multi-entry, edge persistence."
+      "notes": "20 new tests: FTS CRUD, stemming, ranking, limit, cleanup, special chars, docstrings, API, CLI."
     },
     {
       "axis": "Scope Discipline",
       "score": 2,
-      "note": "Only touched files in plan scope. 49 lines added to workflow_memory.py (pre-existing 800-line invariant violation, not new)."
+      "notes": "Surgical changes. No drive-by edits or unrelated refactoring."
     }
   ],
   "schemaVersion": 4,
@@ -119,43 +121,31 @@
   "stageReviews": [
     {
       "evidence": [
-        "All 3 tasks match plan goal: execution flow tracing via BFS from entry points",
-        "Files modified match plan file_scope exactly: flows.py, __init__.py, workflow_memory.py, + 3 test files",
-        "No out-of-scope modifications detected",
-        "SUMMARY.json changes[] align with PLAN.json tasks[]",
-        "Memory phase progression: implement → review (correct)"
+        "All 9 changed files match PLAN.json files[] scope exactly",
+        "3 tasks align 1:1 with plan: FTS5 storage, docstring+pipeline, API+CLI",
+        "SUMMARY.json has correct outcome/changes/verification/commit fields",
+        "121 tests passed in plan verification"
       ],
       "findings": [],
-      "notes": "All plan contracts satisfied. 84 tests pass. No drive-by edits.",
+      "notes": "All changes serve plan goal. No scope violations. Contract artifacts complete.",
       "stage": "spec-compliance",
       "status": "pass"
     },
     {
       "evidence": [
-        "python3 -m pytest tests/test_context_flows.py tests/test_context_graph.py tests/test_context_cli.py -x → 84 passed",
-        "python3 -m py_compile scripts/context/phases/flows.py → clean",
-        "python3 -m py_compile scripts/context/__init__.py → clean",
-        "flows.py: 144 lines, clean O(V+E) BFS with cycle prevention",
-        "19 new tests covering edge cases: cycles, max_depth, empty graph, multi-entry, __init__.py symbols"
+        "14/14 scoring across 7 axes",
+        "20 new tests with edge case coverage (stemming, special chars, cleanup)",
+        "Parameterized queries, no injection vectors",
+        "FTS5 BM25 native ranking, single rebuild per index run",
+        "Clean storage/API/CLI layer separation following existing patterns"
       ],
-      "findings": [
-        {
-          "severity": "info",
-          "description": "_is_entry_point() duplicated between dead_code.py and flows.py — candidate for future extraction to shared utility",
-          "file": "scripts/context/phases/flows.py"
-        },
-        {
-          "severity": "info",
-          "description": "workflow_memory.py at 1385 lines (800-line invariant) — pre-existing, Plan 10 added only 49 lines",
-          "file": "scripts/workflow_memory.py"
-        }
-      ],
-      "notes": "Code quality is high. BFS implementation is clean and well-tested. Two info-level notes for future improvement, neither blocking.",
+      "findings": [],
+      "notes": "High quality implementation. Follows stdlib-only constraint. No concerns.",
       "stage": "code-quality",
       "status": "pass"
     }
   ],
-  "timestamp": "2026-02-28T15:00:00Z",
+  "timestamp": "2026-02-28T16:45:00Z",
   "tokenTelemetry": {
     "checksRun": 0,
     "checksSkipped": 3,
