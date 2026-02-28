@@ -367,3 +367,57 @@ class TestGraphBlastRadius:
         data = json.loads(result.stdout)
         assert "hello.py" in data["per_file"]
         assert "main.py" in data["per_file"]
+
+
+# --- graph-communities ---
+
+
+class TestGraphCommunities:
+    """Tests for the graph-communities subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-communities", "--help")
+        assert result.returncode == 0
+        assert "communit" in result.stdout.lower()
+
+    def test_empty_repo(self, tmp_path):
+        result = _run_cli("graph-communities", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0" in result.stdout
+
+    def test_with_connected_files(self, tmp_path):
+        """Connected files should form communities."""
+        (tmp_path / "shared.py").write_text(textwrap.dedent("""\
+            def helper():
+                pass
+        """))
+        (tmp_path / "a.py").write_text(textwrap.dedent("""\
+            from shared import helper
+
+            def func_a():
+                helper()
+        """))
+        (tmp_path / "b.py").write_text(textwrap.dedent("""\
+            from shared import helper
+
+            def func_b():
+                helper()
+        """))
+        result = _run_cli("graph-communities", "--repo", str(tmp_path), "--min-size", "2")
+        assert result.returncode == 0
+        assert "communit" in result.stdout.lower()
+
+    def test_json_output(self, tmp_path):
+        result = _run_cli("graph-communities", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "communities" in data
+        assert "total_nodes" in data
+        assert "num_communities" in data
+
+    def test_min_size_filters(self, tmp_path):
+        """High min-size should exclude small communities."""
+        (tmp_path / "a.py").write_text("def func_a(): pass\n")
+        result = _run_cli("graph-communities", "--repo", str(tmp_path), "--min-size", "100")
+        assert result.returncode == 0
+        assert "0" in result.stdout

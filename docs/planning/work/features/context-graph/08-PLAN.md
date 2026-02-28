@@ -1,0 +1,97 @@
+# Plan 08: Add community detection via label propagation algorithm: detect tightly-coupled module clusters, persist COMMUNITY nodes with MEMBER_OF edges, and expose via CLI graph-communities command
+
+## Goal
+Add community detection via label propagation algorithm: detect tightly-coupled module clusters, persist COMMUNITY nodes with MEMBER_OF edges, and expose via CLI graph-communities command
+
+## Tasks
+
+### Task 1: Implement label propagation community detection phase
+**Files:** `scripts/context/phases/community.py`, `tests/test_context_community.py`
+**Action:**
+Create scripts/context/phases/community.py following coupling.py as template. (1) Define CommunityInfo(community_id: str, members: list[str], member_names: list[str], size: int) and CommunityDetectionResult(communities: list[CommunityInfo], total_nodes: int, num_communities: int). (2) Implement detect_communities(storage: GraphStorage, edge_types: list[str] | None = None, min_size: int = 2) -> CommunityDetectionResult. Algorithm: bulk load edges via storage.get_all_relationships_by_types(edge_types or [CALLS, IMPORTS, COUPLED_WITH, EXTENDS, IMPLEMENTS]), build undirected adjacency dict, initialize each node with its own label, iterate: for each node (sorted for determinism), set label to most common label among neighbors (break ties by smallest label), repeat until no changes or 100 iterations. Group nodes by final label, filter groups with size >= min_size. Persist: create GraphNode(label=NodeLabel.COMMUNITY) for each group + GraphRelationship(type=RelType.MEMBER_OF) for each member. (3) Write 4 tests in tests/test_context_community.py using in-memory graph fixtures.
+
+**Micro-steps:**
+- Write CommunityInfo dataclass (community_id, members list, size) and CommunityDetectionResult dataclass (communities list, total_nodes, modularity_score)
+- Write tests: empty graph returns empty, single-component graph produces one community, two disconnected components produce two communities, deterministic output across runs
+- Run failing tests to verify RED
+- Implement detect_communities(storage, edge_types, min_size) using label propagation: bulk load edges via get_all_relationships_by_types(), build adjacency dict, iterate labels until convergence (max 100 iterations), group by final label, filter by min_size, persist COMMUNITY nodes and MEMBER_OF edges
+- Run tests to verify GREEN
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `python3 -m pytest tests/test_context_community.py -x`
+- passingVerify:
+  - `python3 -m pytest tests/test_context_community.py -x`
+
+**Verify:**
+```bash
+python3 -m pytest tests/test_context_community.py -x
+```
+
+**Done when:** [Observable outcome]
+
+### Task 2: Wire communities() method into ContextGraph
+**Files:** `scripts/context/__init__.py`, `tests/test_context_graph.py`
+**Action:**
+Add communities(self, min_size: int = 2) -> CommunityDetectionResult method to ContextGraph in scripts/context/__init__.py. Import detect_communities from scripts.context.phases.community and CommunityDetectionResult. Method calls self.index() for freshness, then returns detect_communities(self._storage, min_size=min_size). Export CommunityDetectionResult from the package. Write 3 tests in tests/test_context_graph.py.
+
+**Micro-steps:**
+- Write tests for graph.communities(): returns CommunityDetectionResult, works on indexed repo with Python files, returns empty result for empty repo, respects min_size parameter
+- Run failing tests to verify RED
+- Import detect_communities and CommunityDetectionResult in __init__.py, add communities(self, min_size=2) method that calls self.index() then detect_communities(self._storage, min_size=min_size)
+- Run tests to verify GREEN
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `python3 -m pytest tests/test_context_graph.py -x -k communities`
+- passingVerify:
+  - `python3 -m pytest tests/test_context_graph.py -x -k communities`
+
+**Verify:**
+```bash
+python3 -m pytest tests/test_context_graph.py -x
+```
+
+**Done when:** [Observable outcome]
+
+### Task 3: Add graph-communities CLI subcommand
+**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Action:**
+Add graph-communities subcommand to workflow_memory.py following graph-coupling pattern. Argparse: --repo (path), --min-size (int, default 2), --json (flag). Handler cmd_graph_communities: (1) open graph via _graph_open(repo), (2) call graph.communities(min_size=args.min_size), (3) human format: header with community count + total nodes, then per-community listing with member names/files, (4) JSON format: serialize CommunityDetectionResult. Add 'graph-communities' to _graph_cmds set and dispatch dict. Write 5 tests in tests/test_context_cli.py.
+
+**Micro-steps:**
+- Write tests: --help output, empty repo shows 0 communities, repo with connected files shows communities, --json outputs valid JSON, --min-size filters small communities
+- Run failing tests to verify RED
+- Add graph-communities argparse subparser with --repo, --min-size (default 2), --json flags
+- Implement cmd_graph_communities handler: open graph, call graph.communities(min_size), print human or JSON output
+- Add graph-communities to _graph_cmds set and dispatch dict
+- Run tests to verify GREEN
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `python3 -m pytest tests/test_context_cli.py -x -k communities`
+- passingVerify:
+  - `python3 -m pytest tests/test_context_cli.py -x -k communities`
+
+**Verify:**
+```bash
+python3 -m pytest tests/test_context_cli.py -x
+```
+
+**Done when:** [Observable outcome]
+
+## Verification
+
+After all tasks:
+```bash
+python3 -m pytest tests/test_context_*.py -x
+python3 scripts/workflow_memory.py graph-communities --help
+```
+
+## Commit Message
+```
+feat(context-graph): add community detection via label propagation with CLI command
+```
