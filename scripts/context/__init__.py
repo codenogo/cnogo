@@ -156,6 +156,59 @@ class ContextGraph:
         """Detect dead (unreferenced) symbols in the graph."""
         return detect_dead_code(self._storage)
 
+    def review_impact(self, changed_files: list[str]) -> dict:
+        """Compute blast-radius impact for a set of changed files.
+
+        Auto-indexes the graph for freshness, then runs impact analysis
+        on each changed file and aggregates results.
+
+        Returns a dict with keys:
+            graph_status, affected_files, affected_symbols,
+            per_file, total_affected.
+        """
+        self.index()
+
+        empty: dict = {
+            "graph_status": "indexed",
+            "affected_files": [],
+            "affected_symbols": [],
+            "per_file": {},
+            "total_affected": 0,
+        }
+
+        if not changed_files:
+            return empty
+
+        seen_files: set[str] = set()
+        seen_symbols: dict[str, dict] = {}
+        per_file: dict[str, list[dict]] = {}
+
+        for fpath in changed_files:
+            impacts = self.impact(fpath)
+            file_entries: list[dict] = []
+            for ir in impacts:
+                node = ir.node
+                entry = {
+                    "name": node.name,
+                    "label": node.label.value if hasattr(node.label, "value") else str(node.label),
+                    "file_path": node.file_path,
+                    "depth": ir.depth,
+                }
+                file_entries.append(entry)
+                if node.file_path:
+                    seen_files.add(node.file_path)
+                if node.id not in seen_symbols:
+                    seen_symbols[node.id] = entry
+            per_file[fpath] = file_entries
+
+        return {
+            "graph_status": "indexed",
+            "affected_files": sorted(seen_files),
+            "affected_symbols": list(seen_symbols.values()),
+            "per_file": per_file,
+            "total_affected": len(seen_symbols),
+        }
+
     def close(self) -> None:
         """Close the underlying storage connection."""
         self._storage.close()

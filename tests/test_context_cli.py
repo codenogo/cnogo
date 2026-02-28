@@ -315,3 +315,55 @@ class TestGraphCoupling:
         """High threshold should filter out weak coupling."""
         result = _run_cli("graph-coupling", "--repo", str(tmp_path), "--strength", "0.99")
         assert result.returncode == 0
+
+
+# --- graph-blast-radius ---
+
+
+class TestGraphBlastRadius:
+    """Tests for the graph-blast-radius subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-blast-radius", "--help")
+        assert result.returncode == 0
+        assert "blast-radius" in result.stdout.lower() or "file" in result.stdout.lower()
+
+    def test_empty_repo(self, tmp_path):
+        """Blast radius on empty repo — should produce empty results."""
+        result = _run_cli("graph-blast-radius", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0" in result.stdout or "no" in result.stdout.lower()
+
+    def test_with_dependencies(self, repo_with_python):
+        """Blast radius with cross-file deps should show affected symbols."""
+        result = _run_cli(
+            "graph-blast-radius", "--repo", str(repo_with_python),
+            "--files", "hello.py",
+        )
+        assert result.returncode == 0
+        assert "affected" in result.stdout.lower() or "impact" in result.stdout.lower()
+
+    def test_json_output(self, repo_with_python):
+        """--json flag should produce valid JSON with expected keys."""
+        result = _run_cli(
+            "graph-blast-radius", "--repo", str(repo_with_python),
+            "--files", "hello.py", "--json",
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "graph_status" in data
+        assert "affected_files" in data
+        assert "affected_symbols" in data
+        assert "total_affected" in data
+        assert "per_file" in data
+
+    def test_multiple_files(self, repo_with_python):
+        """Blast radius with multiple files should aggregate impact."""
+        result = _run_cli(
+            "graph-blast-radius", "--repo", str(repo_with_python),
+            "--files", "hello.py,main.py", "--json",
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "hello.py" in data["per_file"]
+        assert "main.py" in data["per_file"]

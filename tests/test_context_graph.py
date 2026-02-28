@@ -217,3 +217,89 @@ def test_coupling_threshold_filters(graph):
     results_high = graph.coupling(threshold=1.0)
     # At minimum, high threshold should be <= low threshold results
     assert len(results_high) <= len(results_low)
+
+
+# --- review_impact ---
+
+
+def _write_python_files(tmp_path):
+    """Create a small repo with cross-file dependencies for impact testing."""
+    import textwrap
+    (tmp_path / "lib.py").write_text(textwrap.dedent("""\
+        def helper():
+            pass
+    """))
+    (tmp_path / "main.py").write_text(textwrap.dedent("""\
+        from lib import helper
+
+        def run():
+            helper()
+    """))
+    (tmp_path / "util.py").write_text(textwrap.dedent("""\
+        def standalone():
+            pass
+    """))
+
+
+def test_review_impact_returns_structured_dict(tmp_path):
+    """review_impact should return dict with expected keys."""
+    from scripts.context import ContextGraph
+    _write_python_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        result = g.review_impact(["lib.py"])
+        assert isinstance(result, dict)
+        assert result["graph_status"] == "indexed"
+        assert "affected_files" in result
+        assert "affected_symbols" in result
+        assert "per_file" in result
+        assert "total_affected" in result
+        assert isinstance(result["affected_files"], list)
+        assert isinstance(result["affected_symbols"], list)
+        assert isinstance(result["total_affected"], int)
+    finally:
+        g.close()
+
+
+def test_review_impact_empty_changed_files(tmp_path):
+    """Empty changed_files list should return empty structure."""
+    from scripts.context import ContextGraph
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        result = g.review_impact([])
+        assert result["graph_status"] == "indexed"
+        assert result["affected_files"] == []
+        assert result["affected_symbols"] == []
+        assert result["total_affected"] == 0
+        assert result["per_file"] == {}
+    finally:
+        g.close()
+
+
+def test_review_impact_unknown_file(tmp_path):
+    """Unknown file should produce empty impact gracefully."""
+    from scripts.context import ContextGraph
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        result = g.review_impact(["nonexistent.py"])
+        assert result["graph_status"] == "indexed"
+        assert result["total_affected"] == 0
+        assert "nonexistent.py" in result["per_file"]
+        assert result["per_file"]["nonexistent.py"] == []
+    finally:
+        g.close()
+
+
+def test_review_impact_aggregates_multiple_files(tmp_path):
+    """review_impact should aggregate impact across multiple changed files."""
+    from scripts.context import ContextGraph
+    _write_python_files(tmp_path)
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        result = g.review_impact(["lib.py", "util.py"])
+        assert result["graph_status"] == "indexed"
+        assert "lib.py" in result["per_file"]
+        assert "util.py" in result["per_file"]
+        assert result["total_affected"] >= 0
+    finally:
+        g.close()

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "07",
+  "goal": "Integrate context graph into review workflow: auto-index on review, add blast-radius impact analysis to REVIEW.json, and expose via CLI graph-blast-radius command",
+  "tasks": [
+    {
+      "name": "Add review_impact() to ContextGraph",
+      "files": [
+        "scripts/context/__init__.py",
+        "tests/test_context_graph.py"
+      ],
+      "microSteps": [
+        "Write tests for review_impact(): returns structured dict with blast radius for changed files, handles empty list, handles unknown files gracefully, aggregates impact across multiple files",
+        "Run failing tests to verify RED",
+        "Implement review_impact(changed_files) method: call self.index() for freshness, call self.impact() for each changed file, deduplicate affected nodes, return structured dict with affected_files, affected_symbols, max_depth, per_file breakdown",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_graph.py -x -k review_impact"],
+        "passingVerify": ["python3 -m pytest tests/test_context_graph.py -x -k review_impact"]
+      },
+      "action": "Add review_impact(self, changed_files: list[str]) -> dict method to ContextGraph. Steps: (1) call self.index() to ensure graph is fresh, (2) for each changed file, call self.impact(file_path) to get blast radius, (3) deduplicate affected nodes across files, (4) return dict with keys: graph_status ('indexed'), affected_files (sorted unique file paths from impact), affected_symbols (list of {name, label, file_path, depth}), per_file (dict mapping each changed file to its impact results), total_affected (count). Handle gracefully: empty changed_files returns empty structure, unknown files produce empty impact. Write 4 tests.",
+      "verify": ["python3 -m pytest tests/test_context_graph.py -x"]
+    },
+    {
+      "name": "Integrate impact analysis into write_review() in workflow_checks_core.py",
+      "files": [
+        "scripts/workflow_checks_core.py",
+        "tests/test_workflow_checks.py"
+      ],
+      "microSteps": [
+        "Write tests for _graph_impact_section(): returns valid impactAnalysis dict when graph available, returns disabled dict when graph fails, handles no changed files",
+        "Run failing tests to verify RED",
+        "Implement _graph_impact_section(root, changed_relpaths) helper: import ContextGraph, try/except to handle missing graph gracefully, call graph.review_impact(), return structured dict for REVIEW.json",
+        "Wire _graph_impact_section into write_review() — call after invariants, add impactAnalysis key to contract dict",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_workflow_checks.py -x -k graph_impact"],
+        "passingVerify": ["python3 -m pytest tests/test_workflow_checks.py -x -k graph_impact"]
+      },
+      "action": "Add _graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict function to workflow_checks_core.py. Implementation: (1) try to import ContextGraph and instantiate with root, (2) call graph.review_impact(sorted(changed_relpaths)), (3) wrap result in {enabled: true, ...impact_data}, (4) on any exception return {enabled: false, error: str(e)}. (5) Always call graph.close() in finally. Wire into write_review(): after tokens = summarize_token_telemetry(per_pkg), call _graph_impact_section(root, _changed_relpaths(root)) and add 'impactAnalysis' key to the contract dict before writing. Use _changed_relpaths(root) which already computes changed files. Write 3 tests using a temporary repo with Python files.",
+      "verify": ["python3 -m pytest tests/test_workflow_checks.py -x"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "CLI graph-blast-radius subcommand",
+      "files": [
+        "scripts/workflow_memory.py",
+        "tests/test_context_cli.py"
+      ],
+      "microSteps": [
+        "Write tests for graph-blast-radius --help, empty repo, repo with dependencies showing impact, --json output, auto-detect changed files from git",
+        "Run failing tests to verify RED",
+        "Add graph-blast-radius argparse subparser with --repo, --files (optional comma-separated), --json flags",
+        "Implement cmd_graph_blast_radius handler: open graph, if --files provided split by comma, else detect changed files via git diff, call graph.review_impact(), print human or JSON output",
+        "Add graph-blast-radius to _graph_cmds set and dispatch dict",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_cli.py -x -k blast_radius"],
+        "passingVerify": ["python3 -m pytest tests/test_context_cli.py -x -k blast_radius"]
+      },
+      "action": "Add graph-blast-radius subcommand to workflow_memory.py. Argparse: --repo (path), --files (comma-separated file paths, optional), --json (flag). Handler cmd_graph_blast_radius: (1) open graph via _graph_open(repo), (2) if --files provided split by comma, else run git diff --name-only to detect changed files, (3) call graph.review_impact(files), (4) output results. Human format: header with file count, then per-file impact list with affected symbols and depth. JSON format: the review_impact dict directly. Add 'graph-blast-radius' to _graph_cmds set and dispatch dict. Write 5 tests.",
+      "verify": ["python3 -m pytest tests/test_context_cli.py -x"],
+      "blockedBy": [1]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_context_*.py tests/test_workflow_checks.py -x",
+    "python3 scripts/workflow_memory.py graph-blast-radius --help"
+  ],
+  "commitMessage": "feat(context-graph): integrate blast-radius impact analysis into review workflow and CLI",
+  "timestamp": "2026-02-28T09:00:00Z"
+}
