@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "feature": "remote-installer",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "remote-install.sh",
+      "description": "Created bootstrap script: SSH-first clone with HTTPS fallback, --ref/--update/--uninstall/--force/--yes flags, trap EXIT cleanup, install.sh delegation via --from"
+    },
+    {
+      "file": "tests/test_remote_install.py",
+      "description": "Added 10 integration tests: syntax validation, shebang/executable checks, --help/-h output, error handling for missing dir, nonexistent dir, unknown option, multiple targets, --ref without value"
+    }
+  ],
+  "verification": [
+    {
+      "command": "bash -n remote-install.sh",
+      "result": "pass"
+    },
+    {
+      "command": "python3 -m pytest tests/test_remote_install.py -x -q --tb=short",
+      "result": "10 passed"
+    }
+  ],
+  "commit": "96d7201",
+  "timestamp": "2026-02-28T22:30:00Z"
+}
