@@ -2,7 +2,7 @@
   "automated": [
     {
       "name": "lint",
-      "result": "skipped"
+      "result": "pass"
     },
     {
       "name": "types",
@@ -10,15 +10,21 @@
     },
     {
       "name": "tests",
-      "result": "skipped"
+      "result": "pass"
     }
   ],
   "blockers": [],
   "branch": "feature/context-graph",
   "feature": "context-graph",
   "impactAnalysis": {
-    "enabled": false,
-    "error": "No module named 'scripts'"
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {
+      ".cnogo/graph.db": []
+    },
+    "total_affected": 0
   },
   "invariants": {
     "findings": [],
@@ -55,49 +61,50 @@
   ],
   "patternCompliance": [],
   "performanceFindings": [],
-  "principleNotes": [
-    "Correctness: 2/2 — Logic verified, 249 tests pass, edge cases handled",
-    "Security: 2/2 — No secrets, subprocess uses list args, no injection risk",
-    "Contract Compliance: 2/2 — All artifacts present, lifecycle correct",
-    "Performance: 2/2 — O(files * impact_depth) acceptable for review-time",
-    "Maintainability: 2/2 — Follows existing patterns, well-documented",
-    "Test Coverage: 2/2 — 12 new tests covering happy/error/edge cases",
-    "Scope Discipline: 2/2 — Surgical changes, plan-scoped only",
-    "Total: 14/14 — PASS"
-  ],
+  "principleNotes": [],
   "schemaVersion": 4,
   "securityFindings": [],
   "stageReviews": [
     {
-      "stage": "spec-compliance",
-      "status": "pass",
-      "findings": [],
       "evidence": [
-        "All 3 plan tasks implemented: review_impact() API, _graph_impact_section() wired into write_review(), CLI graph-blast-radius",
-        "Only plan-scoped files modified (no drive-by edits)",
-        "07-PLAN.json, 07-PLAN.md, 07-SUMMARY.json, 07-SUMMARY.md artifacts present",
-        "Phase progression: discuss -> plan -> implement -> review"
+        "All 3 plan tasks implemented within declared file scope",
+        "09-PLAN.json, 09-CONTEXT.json/md, 09-SUMMARY.json all present and valid",
+        "Phase progression: discuss -> plan -> implement -> review (correct)",
+        "Workers used report-done (not close) for memory issues"
       ],
-      "notes": "Scope matches plan goal exactly. 12 new tests across 3 test files."
+      "findings": [],
+      "notes": "All changes match plan goal. No drive-by edits. Artifacts complete.",
+      "stage": "spec-compliance",
+      "status": "pass"
     },
     {
-      "stage": "code-quality",
-      "status": "pass",
-      "findings": [],
       "evidence": [
-        "249 tests pass (python3 -m pytest tests/test_context_*.py tests/test_workflow_checks.py -x)",
-        "graph-blast-radius --help outputs correctly",
-        "_graph_impact_section uses try/except/finally for graceful degradation",
-        "subprocess.run uses list args (no shell injection)",
-        "All new code follows existing patterns in workflow_memory.py"
+        "python3 -m py_compile: pass on all 3 changed source files",
+        "52/52 tests pass across 3 test files",
+        "14 new tests cover happy path, edge cases, JSON output, and idempotency",
+        "sys.path fix verified by running actual review command (impactAnalysis.enabled=true)",
+        "Hook follows existing hook-commit-confirm.sh pattern exactly",
+        "graph-status follows existing cmd_graph_* pattern exactly"
       ],
-      "notes": "Clean implementation. No security, performance, or maintainability concerns."
+      "findings": [],
+      "notes": "Score 14/14. All axes clear. Code follows existing patterns, proper try/finally cleanup, graceful exception handling.",
+      "stage": "code-quality",
+      "status": "pass"
     }
   ],
-  "timestamp": "2026-02-28T08:47:31Z",
+  "principleNotes": [
+    {"axis": "Correctness", "score": 2, "note": "sys.path fix verified end-to-end; hook regex correct; staleness uses SHA-256"},
+    {"axis": "Security", "score": 2, "note": "No secrets, no injection, graceful degradation on error"},
+    {"axis": "Contract Compliance", "score": 2, "note": "All artifacts present, workers report-done only"},
+    {"axis": "Performance", "score": 2, "note": "Incremental reindex (hash-based skip), 10s hook timeout"},
+    {"axis": "Maintainability", "score": 2, "note": "Follows existing patterns (_graph_open, getattr json, try/finally)"},
+    {"axis": "Test Coverage", "score": 2, "note": "14 new tests: happy path, edge cases, JSON, idempotency"},
+    {"axis": "Scope Discipline", "score": 2, "note": "All changes surgical, within plan file scope"}
+  ],
+  "timestamp": "2026-02-28T12:50:00Z",
   "tokenTelemetry": {
-    "checksRun": 0,
-    "checksSkipped": 3,
+    "checksRun": 2,
+    "checksSkipped": 1,
     "inputTokens": 0,
     "outputTokens": 0,
     "savedTokens": 0,

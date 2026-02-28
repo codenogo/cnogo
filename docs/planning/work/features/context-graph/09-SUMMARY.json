@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "planNumber": "09",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "description": "Fixed sys.path bug in _graph_impact_section() — added sys.path.insert(0, str(root)) before importing ContextGraph so blast-radius works in automated review"
+    },
+    {
+      "file": "tests/test_workflow_checks.py",
+      "description": "Added test_graph_impact_section_resolves_import_without_repo_on_syspath test"
+    },
+    {
+      "file": "scripts/workflow_hooks.py",
+      "description": "Added _is_git_commit_command() and post_commit_graph() for PostCommit synchronous graph reindex"
+    },
+    {
+      "file": "tests/test_workflow_hooks_graph.py",
+      "description": "New test file with 5 tests for PostCommit graph reindex hook"
+    },
+    {
+      "file": "scripts/hook-post-commit-graph.sh",
+      "description": "Shell wrapper for PostToolUse hook — delegates to workflow_hooks.py post_commit_graph"
+    },
+    {
+      "file": ".claude/settings.json",
+      "description": "Registered hook-post-commit-graph.sh in PostToolUse Bash hooks with 10s timeout"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "description": "Added graph-status CLI subcommand — reports existence, node/relationship/file counts, and staleness"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "description": "Added TestGraphStatus class with 5 tests for graph-status subcommand"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_workflow_checks.py tests/test_workflow_hooks_graph.py tests/test_context_cli.py -x",
+      "result": "52 passed"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-status --help",
+      "result": "Shows usage with --repo and --json flags"
+    }
+  ],
+  "commit": "7aeb476",
+  "timestamp": "2026-02-28T12:45:00Z"
+}

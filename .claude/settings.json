@@ -72,6 +72,11 @@
           {
             "type": "command",
             "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-commit-confirm.sh\" ]; then bash \"$ROOT/scripts/hook-commit-confirm.sh\"; else exit 0; fi"
+          },
+          {
+            "type": "command",
+            "timeout": 10000,
+            "command": "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -f \"$ROOT/scripts/hook-post-commit-graph.sh\" ]; then bash \"$ROOT/scripts/hook-post-commit-graph.sh\"; else exit 0; fi"
           }
         ]
       }

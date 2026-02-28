@@ -779,6 +779,92 @@ def cmd_graph_coupling(args: argparse.Namespace) -> int:
         graph.close()
 
 
+def cmd_graph_communities(args: argparse.Namespace) -> int:
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        min_size = getattr(args, "min_size", 2)
+        result = graph.communities(min_size=min_size)
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "communities": [
+                    {
+                        "community_id": c.community_id,
+                        "members": c.members,
+                        "member_names": c.member_names,
+                        "size": c.size,
+                    }
+                    for c in result.communities
+                ],
+                "total_nodes": result.total_nodes,
+                "num_communities": result.num_communities,
+            }))
+            return 0
+        if result.num_communities == 0:
+            print(f"0 communities found ({result.total_nodes} nodes analyzed).")
+            return 0
+        print(f"{result.num_communities} community(ies) found ({result.total_nodes} nodes):\n")
+        for c in result.communities:
+            print(f"  {c.community_id} ({c.size} members):")
+            for name in c.member_names:
+                print(f"    - {name}")
+        return 0
+    finally:
+        graph.close()
+
+
+def cmd_graph_status(args: argparse.Namespace) -> int:
+    """Report graph existence, counts, and staleness."""
+    import hashlib
+    repo = getattr(args, "repo", None) or "."
+    repo_path = Path(repo).resolve()
+    db_path = repo_path / ".cnogo" / "graph.db"
+
+    if not db_path.exists():
+        if getattr(args, "json", False):
+            print(json.dumps({"exists": False}))
+        else:
+            print("Not indexed — no graph.db found.")
+        return 0
+
+    graph = _graph_open(repo)
+    try:
+        node_count = graph._storage.node_count()
+        rel_count = graph._storage.relationship_count()
+        file_count = graph._storage.file_count()
+        indexed_hashes = graph._storage.get_indexed_files()
+
+        # Check for stale files
+        stale_count = 0
+        for fpath, old_hash in indexed_hashes.items():
+            full = repo_path / fpath
+            if not full.exists():
+                stale_count += 1
+            else:
+                try:
+                    content = full.read_text(encoding="utf-8")
+                    cur_hash = hashlib.sha256(content.encode()).hexdigest()
+                    if cur_hash != old_hash:
+                        stale_count += 1
+                except Exception:
+                    stale_count += 1
+
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "exists": True,
+                "nodes": node_count,
+                "relationships": rel_count,
+                "files": file_count,
+                "stale_files": stale_count,
+            }))
+        else:
+            status = "fresh" if stale_count == 0 else f"{stale_count} stale"
+            print(f"Graph: {node_count} nodes, {rel_count} relationships, {file_count} files ({status})")
+        return 0
+    finally:
+        graph.close()
+
+
 def cmd_graph_blast_radius(args: argparse.Namespace) -> int:
     repo = getattr(args, "repo", None) or "."
     graph = _graph_open(repo)
@@ -1161,6 +1247,17 @@ def main() -> int:
     p.add_argument("--files", help="Comma-separated file paths (default: auto-detect via git diff)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-communities
+    p = sub.add_parser("graph-communities", help="Detect communities of tightly-coupled symbols via label propagation")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--min-size", type=int, default=2, help="Minimum community size (default: 2)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # graph-status
+    p = sub.add_parser("graph-status", help="Show graph status: existence, counts, and staleness")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1170,7 +1267,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-status"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1223,6 +1320,8 @@ def main() -> int:
         "graph-dead": cmd_graph_dead,
         "graph-coupling": cmd_graph_coupling,
         "graph-blast-radius": cmd_graph_blast_radius,
+        "graph-communities": cmd_graph_communities,
+        "graph-status": cmd_graph_status,
     }
 
     handler = dispatch.get(args.command)

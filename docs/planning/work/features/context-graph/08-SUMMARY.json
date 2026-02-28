@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "planNumber": "08",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/community.py",
+      "description": "New module: label propagation community detection with CommunityInfo/CommunityDetectionResult dataclasses and detect_communities() function"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "description": "Added communities() method to ContextGraph, imported and exported CommunityDetectionResult"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "description": "Added graph-communities CLI subcommand with --repo, --min-size, --json flags"
+    },
+    {
+      "file": "tests/test_context_community.py",
+      "description": "8 tests for community detection: dataclass fields, empty graph, single component, disconnected components, deterministic output, min_size filter, edge persistence"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "description": "3 tests for ContextGraph.communities(): result type, empty graph, min_size filtering"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "description": "5 tests for graph-communities CLI: help, empty repo, connected files, JSON output, min-size filter"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_*.py -x",
+      "result": "262 passed"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-communities --help",
+      "result": "Shows usage with --repo, --min-size, --json options"
+    }
+  ],
+  "commit": "0a222f6",
+  "timestamp": "2026-02-28T00:00:00Z"
+}

@@ -502,15 +502,54 @@ def run_changed_formatters(root: Path, files: list[Path]) -> int:
     return 0 if ok else 1
 
 
+def _is_git_commit_command(command: str) -> bool:
+    """Return True if command is a git commit invocation."""
+    return bool(re.match(r"^\s*git\s+commit(\s|$)", command))
+
+
+def post_commit_graph(repo_root_override: Path | None = None) -> int:
+    """PostCommit hook: run incremental graph reindex after git commit.
+
+    When called as a hook, reads CLAUDE_TOOL_INPUT to detect git commit.
+    When called directly with repo_root_override, skips command detection.
+    """
+    if repo_root_override is None:
+        raw_input = os.environ.get("CLAUDE_TOOL_INPUT", "").strip()
+        if not raw_input:
+            return 0
+        command = _extract_bash_command(raw_input)
+        if not command or not _is_git_commit_command(command):
+            return 0
+    try:
+        root = repo_root_override or repo_root()
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+        from scripts.context import ContextGraph
+
+        graph = ContextGraph(repo_path=root)
+        try:
+            graph.index()
+            count = graph._storage.node_count()
+            print(f"Graph reindexed: {count} nodes", file=sys.stderr)
+        finally:
+            graph.close()
+        return 0
+    except Exception as exc:
+        print(f"Graph reindex skipped: {exc}", file=sys.stderr)
+        return 0
+
+
 def main() -> int:
     if len(sys.argv) < 2:
-        print("Usage: workflow_hooks.py <pre_bash|post_edit>", file=sys.stderr)
+        print("Usage: workflow_hooks.py <pre_bash|post_edit|post_commit_graph>", file=sys.stderr)
         return 2
     cmd = sys.argv[1]
     if cmd == "pre_bash":
         return pre_bash()
     if cmd == "post_edit":
         return post_edit()
+    if cmd == "post_commit_graph":
+        return post_commit_graph()
     print(f"Unknown command: {cmd}", file=sys.stderr)
     return 2
 

@@ -303,3 +303,41 @@ def test_review_impact_aggregates_multiple_files(tmp_path):
         assert result["total_affected"] >= 0
     finally:
         g.close()
+
+
+# --- communities ---
+
+
+def test_communities_returns_result_type(graph):
+    """communities() should return a CommunityDetectionResult."""
+    from scripts.context.phases.community import CommunityDetectionResult
+    a = _add_function_node(graph._storage, "src/a.py", "func_a")
+    b = _add_function_node(graph._storage, "src/b.py", "func_b")
+    _add_call_edge(graph._storage, a, b)
+
+    result = graph.communities(min_size=2)
+    assert isinstance(result, CommunityDetectionResult)
+    assert result.num_communities >= 1
+
+
+def test_communities_empty_graph(graph):
+    """Empty graph should produce empty communities."""
+    result = graph.communities()
+    assert result.num_communities == 0
+    assert result.total_nodes == 0
+    assert result.communities == []
+
+
+def test_communities_respects_min_size(graph):
+    """min_size should filter out smaller groups."""
+    a = _add_function_node(graph._storage, "src/a.py", "func_a")
+    b = _add_function_node(graph._storage, "src/b.py", "func_b")
+    _add_call_edge(graph._storage, a, b)
+
+    # min_size=2 should include the pair
+    result2 = graph.communities(min_size=2)
+    assert result2.num_communities >= 1
+
+    # min_size=10 should exclude everything
+    result10 = graph.communities(min_size=10)
+    assert result10.num_communities == 0

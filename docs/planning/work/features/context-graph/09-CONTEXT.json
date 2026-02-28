@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "displayName": "Context Graph Workflow Integration",
+  "planIteration": "09",
+  "decisions": [
+    {
+      "area": "bug-fix",
+      "decision": "Fix sys.path in _graph_impact_section() so blast-radius works in automated review",
+      "rationale": "Import fails with 'No module named scripts' because root is not on sys.path. Same pattern already used at lines 545 and 1913 in same file."
+    },
+    {
+      "area": "workflow-integration",
+      "decision": "Add graph auto-index to /plan workflow via staleness check",
+      "rationale": "Planners benefit from graph context (coupling, communities) for partitioning work. Check if graph.db exists and is stale before plan starts."
+    },
+    {
+      "area": "workflow-integration",
+      "decision": "Add synchronous PostCommit hook for incremental graph re-indexing",
+      "rationale": "Triple trigger design from CONTEXT.md. Synchronous ensures graph is always fresh. Incremental reindex is fast (only changed files via hash tracking)."
+    },
+    {
+      "area": "hook-strategy",
+      "decision": "Synchronous reindex on PostCommit (not stale-marker, not background)",
+      "rationale": "User preference. Incremental reindex is fast enough (~1-3s) to run inline. Avoids stale-graph edge cases."
+    }
+  ],
+  "constraints": [
+    "Python 3.10+ stdlib only",
+    "Must not break existing hooks or workflow commands",
+    "PostCommit hook must be idempotent (safe to run multiple times)",
+    "Graph import fix must follow existing sys.path pattern in workflow_checks_core.py"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "scripts/workflow_checks_core.py",
+    "scripts/workflow_hooks.py",
+    ".claude/settings.json",
+    "scripts/context/__init__.py"
+  ],
+  "timestamp": "2026-02-28T12:00:00Z"
+}
