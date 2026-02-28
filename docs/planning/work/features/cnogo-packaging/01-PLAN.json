@@ -41,8 +41,8 @@
     {
       "name": "Move memory and context packages",
       "files": [
-        ".cnogo/scripts/memory/",
-        ".cnogo/scripts/context/"
+        ".cnogo/scripts/memory/__init__.py",
+        ".cnogo/scripts/context/__init__.py"
       ],
       "microSteps": [
         "git mv scripts/memory/ .cnogo/scripts/memory/",

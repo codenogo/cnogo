@@ -16,7 +16,7 @@
         ".cnogo/hooks/hook-pre-compact.py",
         ".cnogo/hooks/install-githooks.sh",
         ".cnogo/hooks/_bootstrap.py",
-        ".cnogo/templates/"
+        ".cnogo/templates/CLAUDE-generic.md"
       ],
       "microSteps": [
         "Create .cnogo/hooks/ directory",

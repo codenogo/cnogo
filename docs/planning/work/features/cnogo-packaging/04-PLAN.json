@@ -7,10 +7,10 @@
     {
       "name": "Clean up old scripts/ directory and drop stale stash",
       "files": [
-        "scripts/"
+        "scripts"
       ],
       "deletions": [
-        "scripts/"
+        "scripts"
       ],
       "microSteps": [
         "Verify all scripts/ files have been moved to .cnogo/ (Plans 01-02 must be complete)",
