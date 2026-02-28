@@ -1310,6 +1310,25 @@ def write_verify_ci(
     return 1 if has_pkg_fail or inv["fail"] > 0 else 0
 
 
+def _graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict[str, Any]:
+    """Compute blast-radius impact analysis via context graph.
+
+    Returns a dict suitable for inclusion in REVIEW.json under 'impactAnalysis'.
+    Gracefully degrades: returns {enabled: false, error: ...} on any failure.
+    """
+    try:
+        from scripts.context import ContextGraph
+
+        graph = ContextGraph(repo_path=root)
+        try:
+            result = graph.review_impact(sorted(changed_relpaths))
+            return {"enabled": True, **result}
+        finally:
+            graph.close()
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
 def write_review(
     root: Path,
     feature: str | None,
@@ -1376,6 +1395,7 @@ def write_review(
             ],
         },
         "tokenTelemetry": tokens,
+        "impactAnalysis": _graph_impact_section(root, _changed_relpaths(root)),
         "securityFindings": [],
         "performanceFindings": [],
         "patternCompliance": [],
