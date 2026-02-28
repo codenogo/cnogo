@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "10",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/flows.py",
+      "action": "created",
+      "description": "Flow tracing phase: FlowStep/FlowResult dataclasses, _is_entry_point() heuristic, trace_flows() with forward BFS through CALLS edges creating Process nodes and STEP_IN_PROCESS edges"
+    },
+    {
+      "file": "tests/test_context_flows.py",
+      "action": "created",
+      "description": "11 tests covering dataclass fields, empty graph, single/multi entry points, max_depth, cycle handling, edge persistence, entry point detection heuristics"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "action": "modified",
+      "description": "Imported FlowResult/trace_flows, added flows() method to ContextGraph, wired trace_flows into index() pipeline, updated __all__"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "action": "modified",
+      "description": "Added 3 tests: flows_returns_list, flows_max_depth, flows_exported_in_package"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added cmd_graph_flows() with human-readable and JSON output, --max-depth flag, registered in _graph_cmds and dispatch"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "action": "modified",
+      "description": "Added TestGraphFlows class with 5 tests: help, empty_repo, with_entry_points, json_output, max_depth"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_flows.py tests/test_context_graph.py tests/test_context_cli.py -x",
+      "result": "84 passed"
+    }
+  ],
+  "commit": "902fa62",
+  "timestamp": "2026-02-28T14:30:00Z"
+}

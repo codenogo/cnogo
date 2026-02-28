@@ -19,6 +19,7 @@ from scripts.context.phases.calls import process_calls
 from scripts.context.phases.community import CommunityDetectionResult, detect_communities
 from scripts.context.phases.coupling import CouplingResult, compute_coupling
 from scripts.context.phases.dead_code import DeadCodeResult, detect_dead_code
+from scripts.context.phases.flows import FlowResult, trace_flows
 from scripts.context.phases.heritage import process_heritage
 from scripts.context.phases.impact import ImpactResult, impact_analysis
 from scripts.context.phases.imports import process_imports
@@ -33,6 +34,7 @@ __all__ = [
     "ContextGraph",
     "CouplingResult",
     "DeadCodeResult",
+    "FlowResult",
     "GraphNode",
     "GraphRelationship",
     "NodeLabel",
@@ -111,7 +113,10 @@ class ContextGraph:
         process_calls(parse_results, self._storage)
         process_heritage(parse_results, self._storage)
 
-        # Step 8: Update file hashes
+        # Step 8: Trace execution flows from entry points
+        trace_flows(self._storage)
+
+        # Step 9: Update file hashes
         for entry in changed_files:
             file_path = str(PurePosixPath(entry.path))
             self._storage.update_file_hash(file_path, entry.content_hash)
@@ -162,6 +167,11 @@ class ContextGraph:
     def dead_code(self) -> list[DeadCodeResult]:
         """Detect dead (unreferenced) symbols in the graph."""
         return detect_dead_code(self._storage)
+
+    def flows(self, max_depth: int = 10) -> list[FlowResult]:
+        """Trace execution flows from entry points through forward CALLS edges."""
+        self.index()
+        return trace_flows(self._storage, max_depth)
 
     def review_impact(self, changed_files: list[str]) -> dict:
         """Compute blast-radius impact for a set of changed files.

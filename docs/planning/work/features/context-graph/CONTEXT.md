@@ -27,13 +27,14 @@ Port [axon](https://github.com/harshkedia177/axon)'s code knowledge graph into c
 5. **Call tracing** — CALLS edges with confidence scoring (1.0/0.8/0.5)
 6. **Heritage** — EXTENDS/IMPLEMENTS edges for class inheritance
 
-### Post-MVP Phases
-- Impact analysis (BFS blast radius)
-- Dead code detection (multi-pass reachability)
-- Change coupling (git co-change analysis)
-- Community detection (label propagation)
-- Execution flow tracing (entry point BFS)
-- BM25 search (SQLite FTS5)
+### Post-MVP Phases (Status)
+- ~~Impact analysis (BFS blast radius)~~ — Plan 04
+- ~~Dead code detection (multi-pass reachability)~~ — Plan 05
+- ~~Structural coupling (Jaccard similarity)~~ — Plan 06
+- ~~Review/workflow integration~~ — Plans 07, 09
+- ~~Community detection (label propagation)~~ — Plan 08
+- **Execution flow tracing (entry point BFS)** — Plan 10 (next)
+- **BM25 search (SQLite FTS5)** — Plan 11
 
 ### Data Model (ported from axon)
 - **10 node types**: File, Folder, Function, Class, Method, Interface, TypeAlias, Enum, Community, Process
@@ -46,9 +47,8 @@ Port [axon](https://github.com/harshkedia177/axon)'s code knowledge graph into c
 - Must not break existing memory engine or workflow commands
 
 ## Open Questions
-- `/review` blast radius output format (defer to plan)
-- Confidence thresholds for ast-based call tracing (calibrate in TDD)
-- Label propagation vs SCC for community detection (post-MVP)
+- Should flow trace Process nodes be persisted or computed on-the-fly?
+- FTS5 tokenizer: unicode61 (default) vs porter stemming?
 
 ## Related
 - Brainstorm: `docs/planning/work/ideas/context-graph/BRAINSTORM.md`

@@ -469,3 +469,85 @@ class TestGraphStatus:
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert data["exists"] is False
+
+
+# --- graph-flows ---
+
+
+class TestGraphFlows:
+    """Tests for the graph-flows subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-flows", "--help")
+        assert result.returncode == 0
+        assert "flow" in result.stdout.lower()
+
+    def test_empty_repo(self, tmp_path):
+        """graph-flows on empty repo — should report 0 flows."""
+        result = _run_cli("graph-flows", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "0" in result.stdout
+
+    def test_with_entry_points(self, tmp_path):
+        """graph-flows on repo with main() entry point shows flows."""
+        (tmp_path / "app.py").write_text(textwrap.dedent("""\
+            def helper():
+                pass
+
+            def main():
+                helper()
+        """))
+        result = _run_cli("graph-flows", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "main" in result.stdout
+
+    def test_json_output(self, tmp_path):
+        """--json output has expected keys."""
+        (tmp_path / "app.py").write_text(textwrap.dedent("""\
+            def helper():
+                pass
+
+            def main():
+                helper()
+        """))
+        result = _run_cli("graph-flows", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        flow = data[0]
+        assert "process_id" in flow
+        assert "entry_point" in flow
+        assert "steps" in flow
+        ep = flow["entry_point"]
+        assert "name" in ep
+        assert "file_path" in ep
+        assert "label" in ep
+
+    def test_max_depth(self, tmp_path):
+        """--max-depth flag limits BFS depth."""
+        (tmp_path / "app.py").write_text(textwrap.dedent("""\
+            def func_c():
+                pass
+
+            def func_b():
+                func_c()
+
+            def func_a():
+                func_b()
+
+            def main():
+                func_a()
+        """))
+        result = _run_cli(
+            "graph-flows", "--repo", str(tmp_path),
+            "--max-depth", "1", "--json",
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        main_flows = [f for f in data if f["entry_point"]["name"] == "main"]
+        assert len(main_flows) == 1
+        step_names = [s["name"] for s in main_flows[0]["steps"]]
+        assert "func_a" in step_names
+        # func_b at depth 2 should be excluded with max_depth=1
+        assert "func_b" not in step_names

@@ -341,3 +341,42 @@ def test_communities_respects_min_size(graph):
     # min_size=10 should exclude everything
     result10 = graph.communities(min_size=10)
     assert result10.num_communities == 0
+
+
+# --- flows ---
+
+
+def test_flows_returns_list(graph):
+    """flows() should return a list of FlowResult."""
+    from scripts.context.phases.flows import FlowResult
+    main_id = _add_function_node(graph._storage, "src/app.py", "main")
+    helper_id = _add_function_node(graph._storage, "src/app.py", "helper")
+    _add_call_edge(graph._storage, main_id, helper_id)
+
+    results = graph.flows()
+    assert isinstance(results, list)
+    assert len(results) >= 1
+    assert isinstance(results[0], FlowResult)
+    assert results[0].entry_point.name == "main"
+
+
+def test_flows_max_depth(graph):
+    """flows() should respect max_depth parameter."""
+    from scripts.context.phases.flows import FlowResult
+    main_id = _add_function_node(graph._storage, "src/app.py", "main")
+    a_id = _add_function_node(graph._storage, "src/app.py", "func_a")
+    b_id = _add_function_node(graph._storage, "src/app.py", "func_b")
+    _add_call_edge(graph._storage, main_id, a_id)
+    _add_call_edge(graph._storage, a_id, b_id)
+
+    results = graph.flows(max_depth=1)
+    assert len(results) == 1
+    step_names = [s.node.name for s in results[0].steps]
+    assert "func_a" in step_names
+    assert "func_b" not in step_names
+
+
+def test_flows_exported_in_package():
+    """FlowResult should be importable from the package."""
+    from scripts.context import FlowResult
+    assert FlowResult is not None

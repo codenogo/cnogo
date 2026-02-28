@@ -813,6 +813,48 @@ def cmd_graph_communities(args: argparse.Namespace) -> int:
         graph.close()
 
 
+def cmd_graph_flows(args: argparse.Namespace) -> int:
+    """Trace execution flows from entry points through forward CALLS edges."""
+    repo = getattr(args, "repo", None) or "."
+    graph = _graph_open(repo)
+    try:
+        max_depth = getattr(args, "max_depth", 10)
+        flows = graph.flows(max_depth=max_depth)
+        if getattr(args, "json", False):
+            print(json.dumps([
+                {
+                    "process_id": f.process_id,
+                    "entry_point": {
+                        "name": f.entry_point.name,
+                        "file_path": f.entry_point.file_path,
+                        "label": f.entry_point.label.value,
+                    },
+                    "steps": [
+                        {
+                            "name": s.node.name,
+                            "file_path": s.node.file_path,
+                            "label": s.node.label.value,
+                            "depth": s.depth,
+                        }
+                        for s in f.steps
+                    ],
+                }
+                for f in flows
+            ]))
+            return 0
+        if not flows:
+            print("0 execution flows found (no entry points detected).")
+            return 0
+        print(f"{len(flows)} execution flow(s) found:\n")
+        for f in flows:
+            print(f"  {f.entry_point.name} ({f.entry_point.file_path}) — {len(f.steps)} step(s)")
+            for s in f.steps:
+                print(f"    {'  ' * (s.depth - 1)}{s.node.name} (depth {s.depth})")
+        return 0
+    finally:
+        graph.close()
+
+
 def cmd_graph_status(args: argparse.Namespace) -> int:
     """Report graph existence, counts, and staleness."""
     import hashlib
@@ -1253,6 +1295,12 @@ def main() -> int:
     p.add_argument("--min-size", type=int, default=2, help="Minimum community size (default: 2)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-flows
+    p = sub.add_parser("graph-flows", help="Trace execution flows from entry points through CALLS edges")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--max-depth", type=int, default=10, help="Maximum BFS depth (default: 10)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     # graph-status
     p = sub.add_parser("graph-status", help="Show graph status: existence, counts, and staleness")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
@@ -1267,7 +1315,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-status"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-status"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1321,6 +1369,7 @@ def main() -> int:
         "graph-coupling": cmd_graph_coupling,
         "graph-blast-radius": cmd_graph_blast_radius,
         "graph-communities": cmd_graph_communities,
+        "graph-flows": cmd_graph_flows,
         "graph-status": cmd_graph_status,
     }
 
