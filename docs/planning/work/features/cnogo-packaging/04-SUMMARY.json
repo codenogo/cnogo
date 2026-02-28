@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "planNumber": "04",
+  "outcome": "complete",
+  "goal": "Self-host verification: install cnogo into its own repo, validate everything works end-to-end",
+  "changes": [
+    {
+      "task": "Clean up old scripts/ directory and drop stale stash",
+      "status": "complete",
+      "files": [],
+      "notes": "scripts/ was already removed in Plan 02. Dropped stale stash@{0} from previous attempt. No orphaned path references found in project files (settings.local.json has historical entries, not tracked)."
+    },
+    {
+      "task": "Run install.sh self-hosting verification",
+      "status": "complete",
+      "files": ["install.sh"],
+      "notes": "Added self-host detection (RESOLVED_SOURCE == RESOLVED_TARGET) to skip file copies when installing into the source repo. Self-host mode scans existing files to build MANAGED_PATHS, then generates manifest.json (126 files, 4 categories: managed/seeded/merged/scaffold) and version.json."
+    },
+    {
+      "task": "Final validation pass and update documentation",
+      "status": "complete",
+      "files": [],
+      "notes": "CLAUDE.md files were already updated in Plan 02. All path references use .cnogo/ prefix. 406 tests pass. Validation clean (warnings only: pre-existing REVIEW schema versions and command word budget)."
+    }
+  ],
+  "verification": [
+    {"command": "test ! -d scripts", "result": "pass"},
+    {"command": "test -d .cnogo/scripts", "result": "pass"},
+    {"command": "test -d .cnogo/hooks", "result": "pass"},
+    {"command": "test -d .cnogo/templates", "result": "pass"},
+    {"command": "test -f .cnogo/manifest.json", "result": "pass"},
+    {"command": "test -f .cnogo/version.json", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_memory.py prime --limit 1", "result": "pass"},
+    {"command": "python3 -m pytest tests/ -x -q --tb=short", "result": "pass (406 passed)"},
+    {"command": "! grep -rn 'python3 scripts/workflow_' .claude/ CLAUDE.md", "result": "pass (no stale refs)"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py --json", "result": "pass (warnings only)"}
+  ],
+  "commit": "9d68199",
+  "commitMessage": "feat(cnogo-packaging): self-host verification, cleanup, and documentation update",
+  "timestamp": "2026-02-28T21:15:00Z"
+}

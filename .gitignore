@@ -41,3 +41,29 @@ id_dsa
 id_ecdsa
 credentials.json
 service-account*.json
+
+# >>> cnogo
+# Memory engine runtime (SQLite binary — not diffable)
+.cnogo/memory.db
+.cnogo/memory.db-wal
+.cnogo/memory.db-shm
+.cnogo/tee/
+.cnogo/command-usage.jsonl
+
+# Worktree session state (transient, contains absolute paths)
+.cnogo/worktree-session.json
+
+# Compaction checkpoint (runtime snapshot, not source)
+.cnogo/compaction-checkpoint.json
+
+# Validation baselines (per-branch runtime snapshots)
+.cnogo/validate-baseline.json
+.cnogo/validate-latest.json
+
+# Context graph (rebuild from source)
+.cnogo/graph.db
+
+# Task description cache (generated, not source)
+.cnogo/task-descriptions-*.json
+.cnogo/prompt-*.md
+# <<< cnogo

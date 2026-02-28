@@ -8,8 +8,8 @@ Show current position, progress, and next actions.
 ### Step 1: Memory Status (Primary)
 
 ```bash
-python3 scripts/workflow_memory.py prime --limit 8
-python3 scripts/workflow_memory.py stats
+python3 .cnogo/scripts/workflow_memory.py prime --limit 8
+python3 .cnogo/scripts/workflow_memory.py stats
 ```
 
 If memory is not initialized, report that and continue with git/artifact status.
@@ -38,7 +38,7 @@ Report:
 - current branch + dirty/clean state
 - active feature/plan progress from memory
 - commits ahead of remote
-- token optimization drift from `python3 scripts/workflow_checks.py discover --since-days 7` (optional)
+- token optimization drift from `python3 .cnogo/scripts/workflow_checks.py discover --since-days 7` (optional)
 - immediate next action
 
 ### Step 5: Recommended Next Command

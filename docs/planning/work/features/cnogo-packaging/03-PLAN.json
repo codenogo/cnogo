@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "planNumber": "03",
+  "goal": "Rewrite install.sh for .cnogo/ layout with manifest, version tracking, and lifecycle operations",
+  "tasks": [
+    {
+      "name": "Rewrite install.sh core to copy from .cnogo/ layout",
+      "files": [
+        "install.sh"
+      ],
+      "microSteps": [
+        "Read current install.sh to understand full copy logic",
+        "Update script header: add --update, --uninstall, --force, --from flags to usage",
+        "Change Python script source paths: scripts/*.py → .cnogo/scripts/*.py",
+        "Change hook source paths: scripts/hook-* → .cnogo/hooks/hook-*",
+        "Change template source paths: docs/templates/ → .cnogo/templates/",
+        "Change memory package source: scripts/memory/ → .cnogo/scripts/memory/",
+        "Add context package copy: .cnogo/scripts/context/ (with phases/ subdir)",
+        "Copy _bootstrap.py to target .cnogo/scripts/",
+        "Update memory init Python code to use sys.path.insert(0, '.cnogo')",
+        "Replace .gitignore append logic with block markers (# >>> cnogo / # <<< cnogo)",
+        "Verify install.sh runs without errors on a temp directory"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Shell script rewrite — verified by dry-run install to temp directory"
+      },
+      "action": "Rewrite install.sh to read source files from .cnogo/ layout instead of scripts/ and docs/templates/. Key changes: (1) Python scripts from .cnogo/scripts/*.py, (2) hooks from .cnogo/hooks/hook-*, (3) templates from .cnogo/templates/, (4) memory/ and context/ packages from .cnogo/scripts/, (5) _bootstrap.py copied to target, (6) memory init uses sys.path.insert(0, '.cnogo'), (7) .gitignore uses block markers (# >>> cnogo / # <<< cnogo) instead of append-if-missing.",
+      "verify": [
+        "bash -n install.sh",
+        "grep -c '.cnogo/scripts/' install.sh",
+        "grep -c '.cnogo/hooks/' install.sh",
+        "grep -c '.cnogo/templates/' install.sh",
+        "grep -c '>>> cnogo' install.sh",
+        "grep -c '<<< cnogo' install.sh"
+      ]
+    },
+    {
+      "name": "Add manifest.json and version.json generation to install.sh",
+      "files": [
+        "install.sh"
+      ],
+      "microSteps": [
+        "Add generate_manifest() function that walks all copied files",
+        "Compute sha256 hash for each file using shasum -a 256",
+        "Assign ownership category per file (managed/seeded/merged/scaffold based on path patterns)",
+        "Write .cnogo/manifest.json with schemaVersion, files array (path, category, sha256), generatedAt",
+        "Add generate_version() function that writes .cnogo/version.json",
+        "version.json includes: version (from git tag or 'dev'), sourceCommit (git rev-parse HEAD), source (repo URL or local path), installedAt timestamp",
+        "Call both functions after all files are copied",
+        "Verify manifest.json is valid JSON with correct file count"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Shell script additions — verified by JSON parse and content checks"
+      },
+      "action": "Add two functions to install.sh: generate_manifest() writes .cnogo/manifest.json with sha256 hashes and ownership categories for every file touched by the installer. generate_version() writes .cnogo/version.json with version, sourceCommit, source URL, and timestamp. Category assignment uses path patterns: .cnogo/scripts/** and .cnogo/hooks/** → managed, CLAUDE.md and PROJECT.md → seeded, settings.json and .gitignore → merged, docs/planning/work/** → scaffold. Both called after all file copies complete.",
+      "verify": [
+        "grep -c 'generate_manifest' install.sh",
+        "grep -c 'generate_version' install.sh",
+        "grep -c 'manifest.json' install.sh",
+        "grep -c 'version.json' install.sh",
+        "grep -c 'shasum' install.sh"
+      ],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Add --update and --uninstall lifecycle operations",
+      "files": [
+        "install.sh"
+      ],
+      "microSteps": [
+        "Add ACTION variable parsing: default=install, --update, --uninstall, --force (uninstall+install)",
+        "Add --from <git-url|local-path> flag for source resolution",
+        "Implement do_update(): read manifest, fetch new source, hash-compare managed files, backup user-modified to .cnogo/backup/<timestamp>/, overwrite managed, remove files deleted in new version, add new files, re-merge settings.json and .gitignore, regenerate manifest",
+        "Implement do_uninstall(): read manifest, remove all managed files, clean settings.json (remove entries with _cnogo marker), clean .gitignore (remove cnogo block), leave seeded files, remove .cnogo/ directory",
+        "Add settings_merge() helper: add/replace/remove hook entries with _cnogo:true marker",
+        "Add gitignore_merge() helper: add/replace/remove content between # >>> cnogo and # <<< cnogo markers",
+        "Route to correct operation based on ACTION variable",
+        "Verify --uninstall removes managed files and leaves seeded files"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Shell script lifecycle — verified by install/uninstall round-trip on temp directory"
+      },
+      "action": "Add lifecycle operations to install.sh. Parse --update, --uninstall, --force flags into ACTION variable. do_update() reads .cnogo/manifest.json, compares sha256 hashes, backs up user-modified managed files to .cnogo/backup/<timestamp>/, overwrites managed files, handles additions/deletions. do_uninstall() reads manifest, removes managed files, cleans settings.json (removes _cnogo-marked hooks), cleans .gitignore (removes # >>> cnogo block), leaves seeded files (CLAUDE.md, PROJECT.md), removes .cnogo/. settings_merge() and gitignore_merge() are shared helpers used by all three operations.",
+      "verify": [
+        "grep -c 'do_update' install.sh",
+        "grep -c 'do_uninstall' install.sh",
+        "grep -c '_cnogo' install.sh",
+        "grep -c 'backup' install.sh",
+        "bash -n install.sh"
+      ],
+      "blockedBy": [1]
+    }
+  ],
+  "planVerify": [
+    "bash -n install.sh",
+    "grep -c '.cnogo/scripts/' install.sh",
+    "grep -c 'manifest.json' install.sh",
+    "grep -c 'version.json' install.sh",
+    "grep -c 'do_update' install.sh",
+    "grep -c 'do_uninstall' install.sh",
+    "grep -c '>>> cnogo' install.sh",
+    "grep -c '_cnogo' install.sh"
+  ],
+  "commitMessage": "feat(cnogo-packaging): rewrite install.sh with manifest, versioning, and lifecycle ops",
+  "timestamp": "2026-02-28T00:00:00Z"
+}

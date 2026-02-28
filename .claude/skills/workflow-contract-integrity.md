@@ -39,8 +39,8 @@ Keep planning contracts and rendered markdown aligned with no lifecycle drift.
 ## Commands
 
 ```bash
-python3 scripts/workflow_validate.py --json
-python3 scripts/workflow_render.py <contract.json>
+python3 .cnogo/scripts/workflow_validate.py --json
+python3 .cnogo/scripts/workflow_render.py <contract.json>
 ```
 
 ## Output

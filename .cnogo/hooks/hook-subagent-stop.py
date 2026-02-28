@@ -10,6 +10,11 @@ Must complete in < 3 seconds total. Always exits 0.
 
 from __future__ import annotations
 
+try:
+    import _bootstrap  # noqa: F401
+except ImportError:
+    pass  # imported as module; caller manages sys.path
+
 import json
 import re
 import sys

@@ -24,11 +24,11 @@ If the feature directory does not exist, stop and ask for the correct slug.
 Use `.claude/skills/changed-scope-verification.md` as the execution policy (changed-scope locally, full-scope in CI, hard timeouts).
 
 ```bash
-python3 scripts/workflow_checks.py verify-ci $ARGUMENTS
+python3 .cnogo/scripts/workflow_checks.py verify-ci $ARGUMENTS
 ```
 
 If `WORKFLOW.json` has empty `packages[]`, the checker auto-runs:
-`python3 scripts/workflow_detect.py --write-workflow`
+`python3 .cnogo/scripts/workflow_detect.py --write-workflow`
 then continues.
 
 This writes:
@@ -43,7 +43,7 @@ If artifact drift appears, apply `.claude/skills/workflow-contract-integrity.md`
 ### Step 3: Validate Workflow Artifacts
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Output

@@ -10,13 +10,13 @@ Run the workflow validator and report results clearly.
 ### Step 1: Run Validation
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 If the user is about to commit, validate only what’s staged:
 
 ```bash
-python3 scripts/workflow_validate.py --staged
+python3 .cnogo/scripts/workflow_validate.py --staged
 ```
 
 ### Step 2: Interpret Results
@@ -36,8 +36,8 @@ python3 scripts/workflow_validate.py --staged
 If user wants the same checks when committing outside Claude:
 
 ```bash
-chmod +x .githooks/pre-commit scripts/install-githooks.sh
-./scripts/install-githooks.sh
+chmod +x .githooks/pre-commit .cnogo/hooks/install-githooks.sh
+./.cnogo/hooks/install-githooks.sh
 ```
 
 ## Output

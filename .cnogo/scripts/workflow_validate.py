@@ -8,6 +8,11 @@ existing entrypoint and import paths (`scripts/workflow_validate.py`).
 from __future__ import annotations
 
 try:
+    import _bootstrap  # noqa: F401
+except ImportError:
+    pass  # imported as module; caller manages sys.path
+
+try:
     import workflow_validate_core as _core
 except ModuleNotFoundError:
     from . import workflow_validate_core as _core  # type: ignore

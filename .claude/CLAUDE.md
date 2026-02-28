@@ -19,27 +19,27 @@ Apply these on every non-trivial task.
 
 ## Memory Engine
 
-Structured task tracking (initialized at install via `install.sh`, or manually via `python3 scripts/workflow_memory.py init`):
+Structured task tracking (initialized at install via `install.sh`, or manually via `python3 .cnogo/scripts/workflow_memory.py init`):
 
 ```bash
 # CLI access
-python3 scripts/workflow_memory.py ready          # Show unblocked tasks
-python3 scripts/workflow_memory.py prime           # Token-efficient context summary
-python3 scripts/workflow_memory.py stats           # Aggregate statistics
-python3 scripts/workflow_memory.py create "title"  # Create an issue
-python3 scripts/workflow_memory.py show <id>       # Show issue details
-python3 scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction
-python3 scripts/workflow_checks.py discover --since-days 30  # Missed token-savings report
+python3 .cnogo/scripts/workflow_memory.py ready          # Show unblocked tasks
+python3 .cnogo/scripts/workflow_memory.py prime           # Token-efficient context summary
+python3 .cnogo/scripts/workflow_memory.py stats           # Aggregate statistics
+python3 .cnogo/scripts/workflow_memory.py create "title"  # Create an issue
+python3 .cnogo/scripts/workflow_memory.py show <id>       # Show issue details
+python3 .cnogo/scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction
+python3 .cnogo/scripts/workflow_checks.py discover --since-days 30  # Missed token-savings report
 ```
 
 ```python
 # Python API access (from commands/scripts)
-import sys; sys.path.insert(0, '.')
+import sys; sys.path.insert(0, '.cnogo')
 from scripts.memory import is_initialized, create, ready, claim, close, prime
 ```
 
 Key files:
-- `scripts/memory/` — Python package (stdlib only)
+- `.cnogo/scripts/memory/` — Python package (stdlib only)
 - `.cnogo/memory.db` — SQLite runtime (gitignored)
 - `.cnogo/issues.jsonl` — Git-tracked sync format
 

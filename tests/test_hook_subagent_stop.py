@@ -1,4 +1,4 @@
-"""Tests for scripts/hook-subagent-stop.py observer-mode validation."""
+"""Tests for .cnogo/hooks/hook-subagent-stop.py observer-mode validation."""
 
 import importlib.util
 import io
@@ -9,7 +9,7 @@ from pathlib import Path
 
 def _load_hook_module():
     root = Path(__file__).resolve().parent.parent
-    script_path = root / "scripts" / "hook-subagent-stop.py"
+    script_path = root / ".cnogo" / "hooks" / "hook-subagent-stop.py"
     spec = importlib.util.spec_from_file_location("hook_subagent_stop", script_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)

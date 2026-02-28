@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "planNumber": "03",
+  "outcome": "complete",
+  "goal": "Rewrite install.sh for .cnogo/ layout with manifest, version tracking, and lifecycle operations",
+  "changes": [
+    {
+      "task": "Rewrite install.sh core to copy from .cnogo/ layout",
+      "status": "complete",
+      "files": ["install.sh"],
+      "notes": "Source paths changed: scripts/*.py → .cnogo/scripts/*.py, scripts/hook-* → .cnogo/hooks/hook-*, docs/templates/ → .cnogo/templates/. Added context package copy, _bootstrap.py copy, gitignore block markers, updated memory init sys.path."
+    },
+    {
+      "task": "Add manifest.json and version.json generation to install.sh",
+      "status": "complete",
+      "files": ["install.sh"],
+      "notes": "generate_manifest() walks MANAGED_PATHS, computes sha256, assigns ownership categories (managed/seeded/merged/scaffold). generate_version() reads git tag, commit, remote URL. Both called after all file copies."
+    },
+    {
+      "task": "Add --update and --uninstall lifecycle operations",
+      "status": "complete",
+      "files": ["install.sh"],
+      "notes": "do_uninstall() reads manifest, removes managed/scaffold files, cleans settings.json (_cnogo hooks) and .gitignore (block removal), keeps seeded files, removes .cnogo/. do_update() compares sha256 hashes, backs up user-modified managed files, overwrites, re-merges settings/gitignore, regenerates manifest. --force chains uninstall + fresh install."
+    }
+  ],
+  "verification": [
+    {"command": "bash -n install.sh", "result": "pass"},
+    {"command": "grep -c '.cnogo/scripts/' install.sh", "result": "pass (22)"},
+    {"command": "grep -c 'manifest.json' install.sh", "result": "pass (7)"},
+    {"command": "grep -c 'version.json' install.sh", "result": "pass (3)"},
+    {"command": "grep -c 'do_update' install.sh", "result": "pass (3)"},
+    {"command": "grep -c 'do_uninstall' install.sh", "result": "pass (4)"},
+    {"command": "grep -c '>>> cnogo' install.sh", "result": "pass (7)"},
+    {"command": "grep -c '_cnogo' install.sh", "result": "pass (5)"},
+    {"command": "python3 -m pytest tests/ -x -q --tb=short", "result": "pass (406 passed)"}
+  ],
+  "commit": "cd71b07",
+  "commitMessage": "feat(cnogo-packaging): rewrite install.sh with manifest, versioning, and lifecycle ops",
+  "timestamp": "2026-02-28T21:00:00Z"
+}

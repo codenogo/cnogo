@@ -55,7 +55,7 @@ Report final active branch before writing artifacts.
 ### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash
-python3 scripts/workflow_memory.py phase-get <feature-slug>
+python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
 
 Expected before `/discuss`: `discuss` (or `plan` when revisiting).
@@ -64,14 +64,14 @@ Expected before `/discuss`: `discuss` (or `plan` when revisiting).
 
 ```bash
 cat docs/planning/PROJECT.md
-python3 scripts/workflow_memory.py prime --limit 5
+python3 .cnogo/scripts/workflow_memory.py prime --limit 5
 rg -l "$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go}' -t code
 ```
 
 ### Step 2a: Graph Context Enrichment
 
 ```bash
-python3 scripts/workflow_memory.py graph-enrich --keywords "<feature keywords>" --json
+python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords "<feature keywords>" --json
 ```
 
 Use enriched results to auto-populate `relatedCode[]` in CONTEXT.json and surface architectural constraints (callers, callees, heritage) during the decision conversation. Advisory only — graph failures don't block.
@@ -128,14 +128,14 @@ Minimal contract shape:
 If memory is initialized, create feature epic and store ID in `CONTEXT.json`:
 
 ```bash
-python3 scripts/workflow_memory.py create "Feature: <feature-slug>" --type epic --feature <feature-slug> --json
-python3 scripts/workflow_memory.py phase-set <feature-slug> discuss
+python3 .cnogo/scripts/workflow_memory.py create "Feature: <feature-slug>" --type epic --feature <feature-slug> --json
+python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> discuss
 ```
 
 ### Step 6: Validate
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Output

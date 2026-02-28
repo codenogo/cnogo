@@ -11,6 +11,11 @@ This is intentionally simple and deterministic.
 
 from __future__ import annotations
 
+try:
+    import _bootstrap  # noqa: F401
+except ImportError:
+    pass  # imported as module; caller manages sys.path
+
 import argparse
 import json
 from pathlib import Path

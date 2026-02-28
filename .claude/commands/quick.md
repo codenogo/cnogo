@@ -62,7 +62,7 @@ Example:
 Render markdown plan:
 
 ```bash
-python3 scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/PLAN.json
+python3 .cnogo/scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/PLAN.json
 ```
 
 ### Step 3: Implement + Verify
@@ -82,7 +82,7 @@ Minimum fields:
 Render markdown summary:
 
 ```bash
-python3 scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/SUMMARY.json
+python3 .cnogo/scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/SUMMARY.json
 ```
 
 ### Step 5: Optional Memory Tracking
@@ -90,13 +90,13 @@ python3 scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/SUMMARY.j
 If memory is initialized:
 
 ```bash
-python3 scripts/workflow_memory.py create "$ARGUMENTS" --type quick --feature <feature-slug-if-known>
+python3 .cnogo/scripts/workflow_memory.py create "$ARGUMENTS" --type quick --feature <feature-slug-if-known>
 ```
 
 Then close when done:
 
 ```bash
-python3 scripts/workflow_memory.py close <issue-id> --reason completed
+python3 .cnogo/scripts/workflow_memory.py close <issue-id> --reason completed
 ```
 
 ### Step 6: Commit
@@ -109,7 +109,7 @@ git commit -m "fix([scope]): $ARGUMENTS"
 ### Step 7: Validate
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Output

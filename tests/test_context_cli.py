@@ -33,7 +33,7 @@ def repo_with_python(tmp_path):
 def _run_cli(*args: str, cwd: str | Path | None = None) -> subprocess.CompletedProcess:
     """Run workflow_memory.py with given args."""
     return subprocess.run(
-        [sys.executable, "scripts/workflow_memory.py", *args],
+        [sys.executable, ".cnogo/scripts/workflow_memory.py", *args],
         capture_output=True,
         text=True,
         cwd=cwd or Path(__file__).resolve().parent.parent,

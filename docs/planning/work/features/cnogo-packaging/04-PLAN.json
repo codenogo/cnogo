@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "planNumber": "04",
+  "goal": "Self-host verification: install cnogo into its own repo, validate everything works end-to-end",
+  "tasks": [
+    {
+      "name": "Clean up old scripts/ directory and drop stale stash",
+      "files": [
+        "scripts"
+      ],
+      "deletions": [
+        "scripts"
+      ],
+      "microSteps": [
+        "Verify all scripts/ files have been moved to .cnogo/ (Plans 01-02 must be complete)",
+        "git rm -r scripts/ to remove the old directory",
+        "Drop stash@{0} (stale partial implementation from previous attempt)",
+        "Verify scripts/ no longer exists in working tree",
+        "Verify no remaining references to 'scripts/' without '.cnogo/' prefix in .claude/ or CLAUDE.md"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Cleanup task — verified by directory absence and grep checks"
+      },
+      "action": "Remove the now-empty scripts/ directory via git rm -r. Drop stash@{0} which contains stale partial work from the previous implementation attempt. Verify no orphaned references to old paths remain.",
+      "verify": [
+        "test ! -d scripts",
+        "! grep -rn 'scripts/workflow_' .claude/ CLAUDE.md --include='*.md' --include='*.json' 2>/dev/null | grep -v '.cnogo/scripts/'",
+        "! grep -rn 'scripts/hook-' .claude/ CLAUDE.md --include='*.md' --include='*.json' 2>/dev/null | grep -v '.cnogo/hooks/'"
+      ]
+    },
+    {
+      "name": "Run install.sh self-hosting verification",
+      "files": [
+        "install.sh"
+      ],
+      "microSteps": [
+        "Run install.sh in self-hosting mode: ./install.sh -y -m .",
+        "Verify .cnogo/manifest.json was generated with correct file count",
+        "Verify .cnogo/version.json was generated with version and commit info",
+        "Verify .gitignore has cnogo block markers",
+        "Verify .claude/settings.json has _cnogo markers on hook entries",
+        "Verify memory engine initializes: python3 .cnogo/scripts/workflow_memory.py prime --limit 1",
+        "Run uninstall dry-check: verify manifest lists all expected files",
+        "Run full test suite: python3 -m pytest tests/ -x -q"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Integration verification — verified by running install.sh and checking artifacts"
+      },
+      "action": "Run ./install.sh -y -m . to self-host cnogo into its own repo. Verify generated manifest.json has correct file count and categories. Verify version.json has version info. Verify .gitignore block markers. Verify settings.json _cnogo markers. Run memory engine and full test suite to confirm nothing broke.",
+      "verify": [
+        "test -f .cnogo/manifest.json",
+        "test -f .cnogo/version.json",
+        "python3 -c \"import json; m=json.load(open('.cnogo/manifest.json')); print(f'manifest: {len(m[\"files\"])} files')\"",
+        "python3 -c \"import json; v=json.load(open('.cnogo/version.json')); print(f'version: {v[\"version\"]}')\"",
+        "grep '>>> cnogo' .gitignore",
+        "python3 .cnogo/scripts/workflow_memory.py prime --limit 1",
+        "python3 -m pytest tests/ -x -q --tb=short 2>&1 | tail -5"
+      ],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Final validation pass and update documentation",
+      "files": [
+        "CLAUDE.md",
+        ".claude/CLAUDE.md"
+      ],
+      "microSteps": [
+        "Update root CLAUDE.md Quick Start section to use .cnogo/scripts/ paths",
+        "Update root CLAUDE.md Structure section to reflect .cnogo/ layout",
+        "Update .claude/CLAUDE.md Memory Engine section paths",
+        "Run full workflow validation: python3 .cnogo/scripts/workflow_validate.py",
+        "Run workflow checks: python3 .cnogo/scripts/workflow_checks.py review",
+        "Verify all commands work: grep for any broken path references"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation update — verified by validation and reference checks"
+      },
+      "action": "Update both CLAUDE.md files to reference .cnogo/scripts/ paths instead of scripts/. Run full workflow validation and checks to confirm the entire system works end-to-end with the new layout. This is the final task — after this, cnogo packaging is complete.",
+      "verify": [
+        "! grep -n 'python3 scripts/workflow' CLAUDE.md .claude/CLAUDE.md 2>/dev/null",
+        "grep -c '.cnogo/scripts/' CLAUDE.md",
+        "grep -c '.cnogo/scripts/' .claude/CLAUDE.md",
+        "python3 .cnogo/scripts/workflow_validate.py --json 2>&1 | tail -3"
+      ],
+      "blockedBy": [1]
+    }
+  ],
+  "planVerify": [
+    "test ! -d scripts",
+    "test -d .cnogo/scripts",
+    "test -d .cnogo/hooks",
+    "test -d .cnogo/templates",
+    "test -f .cnogo/manifest.json",
+    "test -f .cnogo/version.json",
+    "python3 .cnogo/scripts/workflow_memory.py prime --limit 1",
+    "python3 -m pytest tests/ -x -q --tb=short 2>&1 | tail -5",
+    "! grep -rn 'python3 scripts/workflow_' .claude/ CLAUDE.md 2>/dev/null",
+    "python3 .cnogo/scripts/workflow_validate.py --json 2>&1 | tail -3"
+  ],
+  "commitMessage": "feat(cnogo-packaging): self-host verification, cleanup, and documentation update",
+  "timestamp": "2026-02-28T00:00:00Z"
+}

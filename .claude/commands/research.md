@@ -36,7 +36,7 @@ Produce a durable research artifact that reduces decision uncertainty.
 
 6. Validate:
 ```bash
-python3 scripts/workflow_validate.py --json
+python3 .cnogo/scripts/workflow_validate.py --json
 ```
 
 ## Output

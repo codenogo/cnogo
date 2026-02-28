@@ -31,7 +31,7 @@ If the memory engine is initialized (`.cnogo/memory.db` exists), close all open 
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '.')
+import sys; sys.path.insert(0, '.cnogo')
 from scripts.memory import is_initialized, list_issues, close
 from pathlib import Path
 root = Path('.')
@@ -50,7 +50,7 @@ Then sync to persist state:
 
 ```bash
 python3 -c "
-import sys; sys.path.insert(0, '.')
+import sys; sys.path.insert(0, '.cnogo')
 from scripts.memory import is_initialized, sync
 from pathlib import Path
 root = Path('.')
@@ -74,7 +74,7 @@ mv "docs/planning/work/features/$ARGUMENTS" "docs/planning/archive/features/$ARG
 ### Step 4: Validate
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Output

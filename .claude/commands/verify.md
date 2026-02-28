@@ -18,7 +18,7 @@ Prefer contracts over full markdown to keep context small:
 ```bash
 cat docs/planning/work/features/$ARGUMENTS/CONTEXT.json
 ls docs/planning/work/features/$ARGUMENTS/*-SUMMARY.json
-python3 scripts/workflow_memory.py checkpoint --feature $ARGUMENTS
+python3 .cnogo/scripts/workflow_memory.py checkpoint --feature $ARGUMENTS
 ```
 
 Only open full `CONTEXT.md`/`*-SUMMARY.md` if contract data is insufficient.
@@ -69,7 +69,7 @@ Create follow-up fix plans under the same feature directory, then route back to 
 ### Step 6: Validate Workflow
 
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Output

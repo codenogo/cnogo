@@ -50,6 +50,11 @@ No external dependencies. Python 3.9+ required.
 
 from __future__ import annotations
 
+try:
+    import _bootstrap  # noqa: F401
+except ImportError:
+    pass  # imported as module; caller manages sys.path
+
 import argparse
 import json
 import sys

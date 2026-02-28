@@ -13,6 +13,11 @@ Must complete in < 3 seconds. Always exits 0.
 
 from __future__ import annotations
 
+try:
+    import _bootstrap  # noqa: F401
+except ImportError:
+    pass  # imported as module; caller manages sys.path
+
 import json
 import os
 import sys
@@ -128,8 +133,8 @@ def main() -> int:
         trigger: str = payload.get("trigger", "auto") or "auto"
         print(f"[hook-pre-compact] trigger={trigger}", file=sys.stderr)
 
-        # Repo root is the directory containing the scripts/ folder
-        repo_root = Path(__file__).parent.parent.resolve()
+        # Repo root is three levels up: .cnogo/hooks/file.py → repo root
+        repo_root = Path(__file__).parent.parent.parent.resolve()
 
         session = _read_session(repo_root)
         team = _read_team()
