@@ -368,12 +368,23 @@ if [ "$ACTION" = "force" ]; then
     # Fall through to install
 fi
 
+# Resolve absolute paths for self-host detection
+RESOLVED_SOURCE="$(cd "$SCRIPT_DIR" && pwd -P)"
+RESOLVED_TARGET="$(cd "$TARGET_DIR" 2>/dev/null && pwd -P || echo "")"
+SELF_HOST=false
+if [ -n "$RESOLVED_TARGET" ] && [ "$RESOLVED_SOURCE" = "$RESOLVED_TARGET" ]; then
+    SELF_HOST=true
+fi
+
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
 echo -e "${BLUE}║  cnogo Installer v3.0                      ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 echo "Source: $SCRIPT_DIR"
 echo "Target: $TARGET_DIR"
+if [ "$SELF_HOST" = true ]; then
+    echo -e "${YELLOW}(self-host mode — skipping file copies)${NC}"
+fi
 echo ""
 
 # Check if target exists
@@ -406,8 +417,86 @@ echo -e "${GREEN}Installing...${NC}"
 echo ""
 
 # =============================================================================
-# .claude directory
+# Self-host mode: skip copies, build managed paths from existing files
 # =============================================================================
+if [ "$SELF_HOST" = true ]; then
+    echo "📋 Self-host: scanning existing files for manifest..."
+
+    # .claude directory
+    [ -f "$TARGET_DIR/.claude/settings.json" ] && track_managed_path ".claude/settings.json"
+    for f in "$TARGET_DIR/.claude/commands/"*.md; do
+        [ -f "$f" ] && track_managed_path ".claude/commands/$(basename "$f")" && COMMAND_COUNT=$((COMMAND_COUNT + 1))
+    done
+    for f in "$TARGET_DIR/.claude/agents/"*.md; do
+        [ -f "$f" ] && track_managed_path ".claude/agents/$(basename "$f")" && AGENT_COUNT=$((AGENT_COUNT + 1))
+    done
+    [ -f "$TARGET_DIR/.claude/agent-memory/.gitkeep" ] && track_managed_path ".claude/agent-memory/.gitkeep"
+
+    # .cnogo/scripts
+    for f in "$TARGET_DIR/.cnogo/scripts/"*.py; do
+        [ -f "$f" ] && track_managed_path ".cnogo/scripts/$(basename "$f")"
+    done
+    for f in "$TARGET_DIR/.cnogo/scripts/memory/"*.py; do
+        [ -f "$f" ] && track_managed_path ".cnogo/scripts/memory/$(basename "$f")"
+    done
+    for f in "$TARGET_DIR/.cnogo/scripts/context/"*.py; do
+        [ -f "$f" ] && track_managed_path ".cnogo/scripts/context/$(basename "$f")"
+    done
+    if [ -d "$TARGET_DIR/.cnogo/scripts/context/phases" ]; then
+        for f in "$TARGET_DIR/.cnogo/scripts/context/phases/"*.py; do
+            [ -f "$f" ] && track_managed_path ".cnogo/scripts/context/phases/$(basename "$f")"
+        done
+    fi
+
+    # .cnogo/hooks
+    for f in "$TARGET_DIR/.cnogo/hooks/"*.py "$TARGET_DIR/.cnogo/hooks/"*.sh; do
+        [ -f "$f" ] && track_managed_path ".cnogo/hooks/$(basename "$f")"
+    done
+
+    # .cnogo/templates
+    for f in "$TARGET_DIR/.cnogo/templates/"*.md "$TARGET_DIR/.cnogo/templates/"*.json; do
+        [ -f "$f" ] && track_managed_path ".cnogo/templates/$(basename "$f")"
+    done
+
+    # .github
+    [ -f "$TARGET_DIR/.github/CODEOWNERS" ] && track_managed_path ".github/CODEOWNERS"
+    [ -f "$TARGET_DIR/.github/PULL_REQUEST_TEMPLATE.md" ] && track_managed_path ".github/PULL_REQUEST_TEMPLATE.md"
+
+    # docs/planning
+    for f in PROJECT.md ROADMAP.md; do
+        [ -f "$TARGET_DIR/docs/planning/$f" ] && track_managed_path "docs/planning/$f"
+    done
+    [ -f "$TARGET_DIR/docs/planning/WORKFLOW.json" ] && track_managed_path "docs/planning/WORKFLOW.json"
+    [ -f "$TARGET_DIR/docs/planning/WORKFLOW.schema.json" ] && track_managed_path "docs/planning/WORKFLOW.schema.json"
+    [ -f "$TARGET_DIR/docs/planning/adr/ADR-TEMPLATE.md" ] && track_managed_path "docs/planning/adr/ADR-TEMPLATE.md"
+    [ -f "$TARGET_DIR/docs/planning/work/features/CONTEXT-TEMPLATE.md" ] && track_managed_path "docs/planning/work/features/CONTEXT-TEMPLATE.md"
+    for dir in work/quick work/features work/debug work/background work/review work/research work/ideas archive/features; do
+        [ -f "$TARGET_DIR/docs/planning/$dir/.gitkeep" ] && track_managed_path "docs/planning/$dir/.gitkeep"
+    done
+
+    # Root files
+    [ -f "$TARGET_DIR/CLAUDE.md" ] && track_managed_path "CLAUDE.md"
+    [ -f "$TARGET_DIR/.claude/CLAUDE.md" ] && track_managed_path ".claude/CLAUDE.md"
+    [ -f "$TARGET_DIR/CHANGELOG.md" ] && track_managed_path "CHANGELOG.md"
+
+    # Skills
+    for f in "$TARGET_DIR/.claude/skills/"*.md; do
+        [ -f "$f" ] && track_managed_path ".claude/skills/$(basename "$f")"
+    done
+
+    track_managed_path ".gitignore"
+
+    echo "   Found ${#MANAGED_PATHS[@]} files"
+    echo ""
+
+    # Jump to post-install: memory init, gitignore, manifest, version
+    # (uses shared code below the copy sections)
+fi
+
+# =============================================================================
+# .claude directory (skip in self-host mode)
+# =============================================================================
+if [ "$SELF_HOST" = false ]; then
 echo "📁 .claude/"
 mkdir -p "$TARGET_DIR/.claude/commands"
 if [ ! -f "$TARGET_DIR/.claude/settings.json" ]; then
@@ -694,6 +783,8 @@ for skill in "$SCRIPT_DIR/.claude/skills/"*.md; do
         track_managed_path ".claude/skills/$(basename "$skill")"
     fi
 done
+
+fi  # end SELF_HOST=false block
 
 # =============================================================================
 # Initialize memory engine

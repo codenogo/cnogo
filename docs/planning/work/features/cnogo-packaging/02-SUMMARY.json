@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "planNumber": "02",
+  "outcome": "complete",
+  "goal": "Move hooks and templates, update all path references across commands, skills, and docs",
+  "changes": [
+    {
+      "task": "Move hook scripts to .cnogo/hooks/ and templates to .cnogo/templates/",
+      "status": "complete",
+      "files": [
+        ".cnogo/hooks/hook-dangerous-cmd.sh (moved from scripts/)",
+        ".cnogo/hooks/hook-pre-commit-secrets.sh (moved from scripts/)",
+        ".cnogo/hooks/hook-sensitive-file.sh (moved from scripts/)",
+        ".cnogo/hooks/hook-commit-confirm.sh (moved from scripts/)",
+        ".cnogo/hooks/hook-post-commit-graph.sh (moved from scripts/)",
+        ".cnogo/hooks/hook-subagent-stop.py (moved from scripts/)",
+        ".cnogo/hooks/hook-pre-compact.py (moved from scripts/)",
+        ".cnogo/hooks/install-githooks.sh (moved from scripts/)",
+        ".cnogo/hooks/_bootstrap.py (created)",
+        ".cnogo/templates/ (moved from docs/templates/)"
+      ],
+      "notes": "Bootstrap imports added to Python hooks; hook-pre-compact.py repo_root calculation fixed for new depth (3 levels up)"
+    },
+    {
+      "task": "Update .claude/settings.json hook paths and add _cnogo markers",
+      "status": "complete",
+      "files": [
+        ".claude/settings.json (updated)"
+      ],
+      "notes": "9 _cnogo markers added; all hook command paths updated to .cnogo/hooks/ and .cnogo/scripts/; permission allowlist updated"
+    },
+    {
+      "task": "Update all path references in commands, skills, and docs",
+      "status": "complete",
+      "files": [
+        "20 .claude/commands/*.md (updated)",
+        "6 .claude/skills/*.md (updated)",
+        ".claude/CLAUDE.md (updated)",
+        "CLAUDE.md (updated)",
+        "tests/test_hook_subagent_stop.py (updated)"
+      ],
+      "notes": "~89 path references replaced; sys.path.insert examples updated; test hardcoded path fixed"
+    }
+  ],
+  "verification": [
+    {"command": "test ! -d scripts", "result": "pass"},
+    {"command": "test ! -d docs/templates", "result": "pass"},
+    {"command": "test -d .cnogo/hooks", "result": "pass"},
+    {"command": "test -d .cnogo/templates", "result": "pass"},
+    {"command": "python3 -c \"import json; json.load(open('.claude/settings.json'))\"", "result": "pass"},
+    {"command": "! grep -r 'python3 scripts/workflow_' .claude/ CLAUDE.md", "result": "pass"},
+    {"command": "! grep -r 'scripts/hook-' .claude/commands/ .claude/skills/ .claude/CLAUDE.md CLAUDE.md", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_memory.py prime --limit 1", "result": "pass"},
+    {"command": "python3 -m pytest tests/ -x -q --tb=short", "result": "pass (406 passed)"}
+  ],
+  "commit": "a7d48b1",
+  "commitMessage": "refactor(cnogo-packaging): move hooks/templates, update all path references",
+  "timestamp": "2026-02-28T20:30:00Z"
+}
