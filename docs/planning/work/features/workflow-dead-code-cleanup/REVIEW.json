@@ -63,7 +63,7 @@
     {
       "pattern": "Memory phase progression",
       "status": "compliant",
-      "detail": "discuss → plan → implement → review — correct lifecycle"
+      "detail": "discuss \u2192 plan \u2192 implement \u2192 review \u2014 correct lifecycle"
     },
     {
       "pattern": "Worker closure rules",
@@ -78,7 +78,7 @@
     "Goal-Driven Execution (2/2): every removal verified by grep before planning, imports verified after execution",
     "Correctness (2/2): all dead functions verified unused; kept exports confirmed used externally",
     "Security (2/2): no new code, only deletions and renames",
-    "Contract Compliance (2/2): full CONTEXT → PLAN → SUMMARY chain for both plans",
+    "Contract Compliance (2/2): full CONTEXT \u2192 PLAN \u2192 SUMMARY chain for both plans",
     "Test Coverage (2/2): dead code removal requires no new tests; import verification sufficient"
   ],
   "rubric": {
@@ -92,7 +92,7 @@
   },
   "score": 14,
   "maxScore": 14,
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "securityFindings": [],
   "timestamp": "2026-02-21T14:15:00Z",
   "tokenTelemetry": {
@@ -123,5 +123,26 @@
     "filesChanged": 28,
     "insertions": 431,
     "deletions": 128
-  }
+  },
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Reviewed on branch: feature/workflow-dead-code-cleanup"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Automated checks: lint: skipped, types: skipped, tests: skipped",
+        "No warnings"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    }
+  ]
 }

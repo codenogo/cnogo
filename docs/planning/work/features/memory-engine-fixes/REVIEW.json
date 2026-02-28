@@ -136,7 +136,7 @@
       "status": "todo"
     }
   ],
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "timestamp": "2026-02-16T01:06:30Z",
   "verdict": "warn",
   "warnings": [
@@ -181,6 +181,27 @@
       "line": 922,
       "rule": "max-line-length",
       "severity": "medium"
+    }
+  ],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "warn",
+      "findings": [],
+      "evidence": [
+        "Reviewed on branch: main"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    },
+    {
+      "stage": "code-quality",
+      "status": "warn",
+      "findings": [],
+      "evidence": [
+        "Automated checks: lint: pass, types: skipped, tests: skipped",
+        "6 warnings noted (non-blocking)"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
     }
   ]
 }

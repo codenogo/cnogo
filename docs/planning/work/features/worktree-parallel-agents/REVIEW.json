@@ -66,7 +66,7 @@
       "status": "todo"
     }
   ],
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "timestamp": "2026-02-14T00:00:00Z",
   "verdict": "pass",
   "warnings": [
@@ -105,6 +105,28 @@
       "issue": "Skipped tasks still carry blockedBy constraints from plan JSON",
       "line": 66,
       "severity": "low"
+    }
+  ],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Operating principles checked: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution",
+        "Reviewed on branch: main"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Automated checks: lint: skipped, tests: skipped, security: pass, types: pass, deps: skipped",
+        "6 warnings noted (non-blocking)"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
     }
   ]
 }

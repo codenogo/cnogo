@@ -67,7 +67,7 @@
       "status": "todo"
     }
   ],
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "timestamp": "2026-02-14T00:00:00Z",
   "verdict": "warn",
   "warnings": [
@@ -94,6 +94,28 @@
       "issue": "Memory auto-init suppresses errors with 2>/dev/null",
       "line": 195,
       "severity": "low"
+    }
+  ],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "warn",
+      "findings": [],
+      "evidence": [
+        "Operating principles checked: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution",
+        "Reviewed on branch: main"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    },
+    {
+      "stage": "code-quality",
+      "status": "warn",
+      "findings": [],
+      "evidence": [
+        "Automated checks: lint: skipped, tests: skipped, security: pass, types: skipped, deps: skipped",
+        "4 warnings noted (non-blocking)"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
     }
   ]
 }

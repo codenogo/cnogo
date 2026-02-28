@@ -7,9 +7,9 @@
     {
       "name": "Create archive directory and move stale features",
       "files": [
-        "docs/planning/work/archive/event-hardening/",
-        "docs/planning/work/archive/context-engineering-fixes/",
-        "docs/planning/work/archive/overstory-workflow-patterns/"
+        "docs/planning/work/archive/event-hardening",
+        "docs/planning/work/archive/context-engineering-fixes",
+        "docs/planning/work/archive/overstory-workflow-patterns"
       ],
       "action": "Create docs/planning/work/archive/ directory. Move 3 stale feature directories from docs/planning/work/features/ to docs/planning/work/archive/: event-hardening (REVIEW-only, no CONTEXT/PLANs), context-engineering-fixes (CONTEXT + REVIEW but no PLANs/SUMMARYs), overstory-workflow-patterns (3 PLANs without SUMMARYs, last touched 2026-02-14). Use git mv to preserve history.",
       "verify": [

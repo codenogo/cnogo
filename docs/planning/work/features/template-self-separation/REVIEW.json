@@ -78,7 +78,7 @@
       "status": "todo"
     }
   ],
-  "schemaVersion": 2,
+  "schemaVersion": 4,
   "timestamp": "2026-02-14T00:00:00Z",
   "verdict": "warn",
   "warnings": [
@@ -105,6 +105,28 @@
       "issue": "quick command may be double-counted between v1.0 and v1.1",
       "line": 23,
       "severity": "low"
+    }
+  ],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "warn",
+      "findings": [],
+      "evidence": [
+        "Operating principles checked: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution",
+        "Reviewed on branch: main"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    },
+    {
+      "stage": "code-quality",
+      "status": "warn",
+      "findings": [],
+      "evidence": [
+        "Automated checks: lint: pass, tests: skipped, security: pass, types: skipped, deps: skipped, workflow-validate: warn, install-e2e: pass, memory-smoke: pass",
+        "4 warnings noted (non-blocking)"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
     }
   ]
 }
