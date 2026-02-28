@@ -19,6 +19,7 @@ from scripts.context.phases.calls import process_calls
 from scripts.context.phases.community import CommunityDetectionResult, detect_communities
 from scripts.context.phases.coupling import CouplingResult, compute_coupling
 from scripts.context.phases.dead_code import DeadCodeResult, detect_dead_code
+from scripts.context.phases.exports import process_exports
 from scripts.context.phases.flows import FlowResult, trace_flows
 from scripts.context.phases.heritage import process_heritage
 from scripts.context.phases.impact import ImpactResult, impact_analysis
@@ -114,6 +115,7 @@ class ContextGraph:
         process_calls(parse_results, self._storage)
         process_heritage(parse_results, self._storage)
         process_types(parse_results, self._storage)
+        process_exports(parse_results, self._storage)
 
         # Step 8: Trace execution flows from entry points
         trace_flows(self._storage)

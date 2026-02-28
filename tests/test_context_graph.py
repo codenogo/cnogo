@@ -734,3 +734,209 @@ def test_uses_type_pipeline_integration(tmp_path):
         assert count >= 1
     finally:
         g.close()
+
+
+# --- exports phase (EXPORTS edges) ---
+
+
+def _make_export_storage(tmp_path, db_name="export_test.db"):
+    """Create a GraphStorage with FILE, FUNCTION, CLASS, and METHOD nodes."""
+    from scripts.context.storage import GraphStorage
+    from scripts.context.model import GraphNode, NodeLabel
+
+    db = GraphStorage(tmp_path / db_name)
+    db.initialize()
+
+    # FILE node
+    file_node = GraphNode(
+        id="file:mymodule.py:",
+        label=NodeLabel.FILE,
+        name="mymodule.py",
+        file_path="mymodule.py",
+    )
+    # FUNCTION node
+    func_node = GraphNode(
+        id="function:mymodule.py:my_func",
+        label=NodeLabel.FUNCTION,
+        name="my_func",
+        file_path="mymodule.py",
+        start_line=1,
+        end_line=5,
+    )
+    # CLASS node
+    class_node = GraphNode(
+        id="class:mymodule.py:MyClass",
+        label=NodeLabel.CLASS,
+        name="MyClass",
+        file_path="mymodule.py",
+        start_line=7,
+        end_line=15,
+    )
+    db.add_nodes([file_node, func_node, class_node])
+    return db
+
+
+def test_exports_edges_created_from_all_list(tmp_path):
+    """EXPORTS edges should be created from __all__ entries."""
+    from scripts.context.phases.exports import process_exports
+    from scripts.context.python_parser import ParseResult
+    from scripts.context.model import RelType
+
+    db = _make_export_storage(tmp_path, "exp1.db")
+
+    parse_results = {
+        "mymodule.py": ParseResult(
+            file_path="mymodule.py",
+            exports=["my_func", "MyClass"],
+        )
+    }
+
+    process_exports(parse_results, db)
+
+    assert db._conn is not None
+    cur = db._conn.execute(
+        "SELECT source, target, type FROM relationships WHERE type = ?",
+        (RelType.EXPORTS.value,),
+    )
+    rows = cur.fetchall()
+    assert len(rows) == 2
+    targets = {row[1] for row in rows}
+    assert "function:mymodule.py:my_func" in targets
+    assert "class:mymodule.py:MyClass" in targets
+    db.close()
+
+
+def test_exports_sets_is_exported_true(tmp_path):
+    """Exported symbols should have is_exported=True after process_exports."""
+    from scripts.context.phases.exports import process_exports
+    from scripts.context.python_parser import ParseResult
+
+    db = _make_export_storage(tmp_path, "exp2.db")
+
+    parse_results = {
+        "mymodule.py": ParseResult(
+            file_path="mymodule.py",
+            exports=["my_func"],
+        )
+    }
+
+    process_exports(parse_results, db)
+
+    node = db.get_node("function:mymodule.py:my_func")
+    assert node is not None
+    assert node.is_exported is True
+    db.close()
+
+
+def test_exports_no_edge_for_unknown_name(tmp_path):
+    """No EXPORTS edges should be created for names not found in the graph."""
+    from scripts.context.phases.exports import process_exports
+    from scripts.context.python_parser import ParseResult
+    from scripts.context.model import RelType
+
+    db = _make_export_storage(tmp_path, "exp3.db")
+
+    parse_results = {
+        "mymodule.py": ParseResult(
+            file_path="mymodule.py",
+            exports=["nonexistent_symbol"],
+        )
+    }
+
+    process_exports(parse_results, db)
+
+    assert db._conn is not None
+    cur = db._conn.execute(
+        "SELECT COUNT(*) FROM relationships WHERE type = ?",
+        (RelType.EXPORTS.value,),
+    )
+    count = cur.fetchone()[0]
+    assert count == 0
+    db.close()
+
+
+def test_exports_multiple_from_same_file(tmp_path):
+    """Multiple exports from same file should produce one edge per symbol."""
+    from scripts.context.phases.exports import process_exports
+    from scripts.context.python_parser import ParseResult
+    from scripts.context.model import RelType
+    from scripts.context.storage import GraphStorage
+    from scripts.context.model import GraphNode, NodeLabel
+
+    db = GraphStorage(tmp_path / "exp4.db")
+    db.initialize()
+
+    file_node = GraphNode(
+        id="file:pkg.py:",
+        label=NodeLabel.FILE,
+        name="pkg.py",
+        file_path="pkg.py",
+    )
+    nodes = [file_node]
+    for i in range(4):
+        nodes.append(GraphNode(
+            id=f"function:pkg.py:func_{i}",
+            label=NodeLabel.FUNCTION,
+            name=f"func_{i}",
+            file_path="pkg.py",
+            start_line=i * 5 + 1,
+            end_line=i * 5 + 5,
+        ))
+    db.add_nodes(nodes)
+
+    parse_results = {
+        "pkg.py": ParseResult(
+            file_path="pkg.py",
+            exports=["func_0", "func_1", "func_2", "func_3"],
+        )
+    }
+
+    process_exports(parse_results, db)
+
+    assert db._conn is not None
+    cur = db._conn.execute(
+        "SELECT COUNT(*) FROM relationships WHERE type = ?",
+        (RelType.EXPORTS.value,),
+    )
+    count = cur.fetchone()[0]
+    assert count == 4
+    db.close()
+
+
+def test_exports_pipeline_integration(tmp_path):
+    """index() pipeline should produce EXPORTS edges from __all__."""
+    import textwrap
+    from scripts.context import ContextGraph
+    from scripts.context.model import RelType
+
+    source = textwrap.dedent("""\
+        __all__ = ["exported_func", "ExportedClass"]
+
+        def exported_func():
+            pass
+
+        class ExportedClass:
+            pass
+
+        def _private():
+            pass
+    """)
+    (tmp_path / "exports_module.py").write_text(source)
+
+    g = ContextGraph(repo_path=tmp_path)
+    try:
+        g.index()
+        assert g._storage._conn is not None
+        cur = g._storage._conn.execute(
+            "SELECT COUNT(*) FROM relationships WHERE type = ?",
+            (RelType.EXPORTS.value,),
+        )
+        count = cur.fetchone()[0]
+        assert count >= 2
+
+        # Verify is_exported flag set
+        func_nodes = g.query("exported_func")
+        assert len(func_nodes) >= 1
+        assert func_nodes[0].is_exported is True
+    finally:
+        g.close()
