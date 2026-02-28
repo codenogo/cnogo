@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph",
+  "planNumber": "07",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/__init__.py",
+      "description": "Added review_impact() method to ContextGraph: auto-indexes, runs impact analysis on changed files, deduplicates, returns structured dict"
+    },
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "description": "Added _graph_impact_section() helper and wired impactAnalysis key into write_review() contract dict"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "description": "Added graph-blast-radius CLI subcommand with --repo, --files, --json flags"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "description": "Added 4 tests for review_impact() covering structured output, empty files, unknown files, multi-file aggregation"
+    },
+    {
+      "file": "tests/test_workflow_checks.py",
+      "description": "Created 3 tests for _graph_impact_section() covering enabled/disabled/empty states"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "description": "Added 5 tests for graph-blast-radius CLI covering help, empty repo, dependencies, JSON output, multiple files"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_*.py tests/test_workflow_checks.py -x",
+      "result": "249 passed"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-blast-radius --help",
+      "result": "Shows usage with --repo, --files, --json options"
+    }
+  ],
+  "commit": "84b0ea2",
+  "timestamp": "2026-02-28T00:00:00Z"
+}
