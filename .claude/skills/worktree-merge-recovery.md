@@ -23,8 +23,8 @@ Resolve merge conflicts deterministically, preserve task order, and resume safel
 
 1. Capture current state:
 ```bash
-python3 scripts/workflow_memory.py session-status --json
-python3 scripts/workflow_memory.py session-merge --json
+python3 .cnogo/scripts/workflow_memory.py session-status --json
+python3 .cnogo/scripts/workflow_memory.py session-merge --json
 git status --porcelain
 ```
 
@@ -46,7 +46,7 @@ git status --porcelain
 
 5. Retry merge:
 ```bash
-python3 scripts/workflow_memory.py session-merge --json
+python3 .cnogo/scripts/workflow_memory.py session-merge --json
 ```
 
 6. Retry limits:

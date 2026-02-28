@@ -30,7 +30,7 @@ Rules:
 ### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash
-python3 scripts/workflow_memory.py phase-get <feature-slug>
+python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
 
 Expected: `plan` or `implement`.
@@ -48,8 +48,8 @@ If missing, stop and list available plans.
 If memory is enabled:
 
 ```bash
-python3 scripts/workflow_memory.py ready --feature <feature-slug>
-python3 scripts/workflow_memory.py phase-set <feature-slug> implement
+python3 .cnogo/scripts/workflow_memory.py ready --feature <feature-slug>
+python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> implement
 ```
 
 ### Step 2c: Team Mode Routing
@@ -63,6 +63,7 @@ python3 scripts/workflow_memory.py phase-set <feature-slug> implement
 Generate TaskDescV2 list via bridge for validation and memory bootstrapping:
 
 ```python
+import sys; sys.path.insert(0, '.cnogo')
 from scripts.memory.bridge import plan_to_task_descriptions
 from pathlib import Path
 tasks = plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<NN>-PLAN.json'), Path('.'))
@@ -76,12 +77,12 @@ For each task in the TaskDescV2 list from Step 2d:
 1. skip if `task['skipped']` is true
 1b. announce task start, review Operating Principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
 1c. if present, execute task `micro_steps` in order and respect task `tdd` contract (no time boxes)
-2. if `task['task_id']` present, run `python3 scripts/workflow_memory.py claim <task_id> --actor implementer`
+2. if `task['task_id']` present, run `python3 .cnogo/scripts/workflow_memory.py claim <task_id> --actor implementer`
 3. execute `task['action']`, editing only files in `task['file_scope']['paths']`
 4. run all `task['commands']['verify']` commands and inspect fresh output
-4b. run scope validation: `python3 scripts/workflow_memory.py graph-validate-scope --declared "<task file_scope paths>" --changed "<actually modified files>" --json`. Warn user if violations found but do not block.
+4b. run scope validation: `python3 .cnogo/scripts/workflow_memory.py graph-validate-scope --declared "<task file_scope paths>" --changed "<actually modified files>" --json`. Warn user if violations found but do not block.
 5. do not claim success before fresh evidence (avoid "should/probably/seems fixed" language)
-6. on success if task_id present: run `python3 scripts/workflow_memory.py report-done <task_id> --actor implementer`
+6. on success if task_id present: run `python3 .cnogo/scripts/workflow_memory.py report-done <task_id> --actor implementer`
    and include structured outputs evidence when workflow policy requires it
 7. on failure: inspect history, fix, retry (max 2 attempts before escalation)
 
@@ -93,8 +94,8 @@ If task files touch memory sync/import paths, apply `.claude/skills/memory-sync-
 Retry helper commands:
 
 ```bash
-python3 scripts/workflow_memory.py checkpoint --feature <feature-slug>
-python3 scripts/workflow_memory.py history <task_id>
+python3 .cnogo/scripts/workflow_memory.py checkpoint --feature <feature-slug>
+python3 .cnogo/scripts/workflow_memory.py history <task_id>
 ```
 
 ### Step 4: Run Plan Verification
@@ -103,7 +104,7 @@ Run `planVerify[]` commands from plan JSON.
 If passing and memory enabled:
 
 ```bash
-python3 scripts/workflow_memory.py phase-set <feature-slug> review
+python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> review
 ```
 
 ### Step 5: Commit
@@ -124,7 +125,7 @@ Minimum fields:
 Then render markdown summary:
 
 ```bash
-python3 scripts/workflow_render.py docs/planning/work/features/<feature>/<NN>-SUMMARY.json
+python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/<feature>/<NN>-SUMMARY.json
 ```
 
 Use `.claude/skills/workflow-contract-integrity.md` before final validation.
@@ -132,7 +133,7 @@ Use `.claude/skills/workflow-contract-integrity.md` before final validation.
 ### Step 7: Validate
 
 ```bash
-python3 scripts/workflow_validate.py --feature <feature-slug>
+python3 .cnogo/scripts/workflow_validate.py --feature <feature-slug>
 ```
 
 ## Output

@@ -33,6 +33,7 @@ Coordinate multi-agent work with explicit task boundaries and worktree sessions.
 3. Load `docs/planning/work/features/<feature>/<plan>-PLAN.json`.
 4. Generate run_id and team name:
 ```python
+import sys; sys.path.insert(0, '.cnogo')
 from scripts.memory.bridge import generate_run_id, plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts
 run_id = generate_run_id(feature)
 team_name = f"impl-{feature}-{run_id}"
@@ -62,15 +63,15 @@ try:
   11. Monitor TaskList until all non-skipped implementer tasks complete.
       Respect blockers and retries; do not force-close failed tasks.
       Poll for stalls:
-      `python3 scripts/workflow_memory.py stalled --feature <feature> --json`
+      `python3 .cnogo/scripts/workflow_memory.py stalled --feature <feature> --json`
       For each stalled task:
       - derive next actor attempt: `impl-<run_id>-t<task_index>-aN`
       - run takeover:
-        `python3 scripts/workflow_memory.py takeover <task_id> --to <next-actor> --reason "stalled (>N min)" --actor leader --json`
+        `python3 .cnogo/scripts/workflow_memory.py takeover <task_id> --to <next-actor> --reason "stalled (>N min)" --actor leader --json`
       - spawn replacement implementer using `generate_implement_prompt(taskdesc, actor_name=<next-actor>)`
   12. Run leader reconciliation:
-      python3 -c "from scripts.memory.reconcile_leader import reconcile; print(reconcile('<epic_id>'))"
-  13. Merge branches: `python3 scripts/workflow_memory.py session-merge --json`
+      python3 -c "import sys; sys.path.insert(0, '.cnogo'); from scripts.memory.reconcile_leader import reconcile; print(reconcile('<epic_id>'))"
+  13. Merge branches: `python3 .cnogo/scripts/workflow_memory.py session-merge --json`
       If conflict, run resolver agent (max 2 retries).
   14. Run planVerify commands.
   15. Run `/review` staged gate (spec-compliance first, then code-quality).
@@ -78,8 +79,8 @@ try:
   17. Write summary artifacts, commit, set phase `review`.
 finally:
   18. Cleanup (guaranteed teardown — MUST execute even if tasks fail):
-      python3 scripts/workflow_memory.py session-cleanup
-      python3 scripts/workflow_validate.py --json --feature <feature>
+      python3 .cnogo/scripts/workflow_memory.py session-cleanup
+      python3 .cnogo/scripts/workflow_validate.py --json --feature <feature>
   19. Dismiss team via TeamDelete. If TeamDelete fails, retry once then log and continue.
 ```
 

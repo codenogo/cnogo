@@ -35,9 +35,9 @@ Close features cleanly across git, artifacts, and memory state.
 ## Commands
 
 ```bash
-python3 scripts/workflow_memory.py phase-get <feature>
-python3 scripts/workflow_memory.py sync
-python3 scripts/workflow_validate.py --json
+python3 .cnogo/scripts/workflow_memory.py phase-get <feature>
+python3 .cnogo/scripts/workflow_memory.py sync
+python3 .cnogo/scripts/workflow_validate.py --json
 ```
 
 ## Output

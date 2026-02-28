@@ -11,7 +11,7 @@ Bootstrap workflow config and templates for this repo.
 
 1. Detect packages and write workflow metadata:
 ```bash
-python3 scripts/workflow_detect.py --write-workflow
+python3 .cnogo/scripts/workflow_detect.py --write-workflow
 ```
 If this fails, fall back to manifest scan (`package.json`, `pyproject.toml`, `pom.xml`, `go.mod`, `Cargo.toml`) and continue.
 
@@ -36,7 +36,7 @@ If this fails, fall back to manifest scan (`package.json`, `pyproject.toml`, `po
 
 6. Validate and report:
 ```bash
-python3 scripts/workflow_validate.py --json
+python3 .cnogo/scripts/workflow_validate.py --json
 ```
 Treat `ERROR` as blocking. Surface `WARN` with exact file paths.
 

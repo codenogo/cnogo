@@ -35,8 +35,8 @@ Run only necessary checks locally, run full checks in CI, and enforce hard timeo
 ## Commands
 
 ```bash
-python3 scripts/workflow_checks.py verify-ci <feature>
-python3 scripts/workflow_checks.py review --feature <feature>
+python3 .cnogo/scripts/workflow_checks.py verify-ci <feature>
+python3 .cnogo/scripts/workflow_checks.py review --feature <feature>
 ```
 
 ## Output

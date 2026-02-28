@@ -42,7 +42,7 @@ Explore solution space before committing to implementation decisions.
 
 6. Validate:
 ```bash
-python3 scripts/workflow_validate.py --json
+python3 .cnogo/scripts/workflow_validate.py --json
 ```
 
 ## Output

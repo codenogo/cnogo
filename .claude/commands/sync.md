@@ -17,9 +17,9 @@ Sync shared progress across memory and (optionally) Agent Teams.
 
 2. Memory sync path (always primary):
 ```bash
-python3 scripts/workflow_memory.py sync
-python3 scripts/workflow_memory.py prime
-python3 scripts/workflow_memory.py stats
+python3 .cnogo/scripts/workflow_memory.py sync
+python3 .cnogo/scripts/workflow_memory.py prime
+python3 .cnogo/scripts/workflow_memory.py stats
 ```
 This updates `.cnogo/issues.jsonl`, stages it for git, and prints compact context + counts.
 

@@ -31,7 +31,7 @@ Rules:
 ### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash
-python3 scripts/workflow_memory.py phase-get $ARGUMENTS
+python3 .cnogo/scripts/workflow_memory.py phase-get $ARGUMENTS
 ```
 
 Expected before `/plan`: `discuss` or `plan`.
@@ -40,13 +40,13 @@ Expected before `/plan`: `discuss` or `plan`.
 
 ```bash
 cat docs/planning/work/features/$ARGUMENTS/CONTEXT.json
-python3 scripts/workflow_memory.py prime --limit 5
+python3 .cnogo/scripts/workflow_memory.py prime --limit 5
 ```
 
 ### Step 2b: Graph Scope Suggestions
 
 ```bash
-python3 scripts/workflow_memory.py graph-suggest-scope --keywords "<feature keywords from CONTEXT.json>" --files "<relatedCode from CONTEXT.json>" --json
+python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords "<feature keywords from CONTEXT.json>" --files "<relatedCode from CONTEXT.json>" --json
 ```
 
 Use suggestions when authoring task `files[]` arrays. Advisory only — graph failures don't block planning.
@@ -120,7 +120,7 @@ Minimal contract shape:
 ### Step 5: Render `NN-PLAN.md` from Contract
 
 ```bash
-python3 scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json
+python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json
 ```
 
 Then make any small human-readable edits needed (rationale/notes), while keeping JSON as source of truth.
@@ -130,19 +130,19 @@ Then make any small human-readable edits needed (rationale/notes), while keeping
 If memory is initialized, set feature phase and optionally create tracking issues:
 
 ```bash
-python3 scripts/workflow_memory.py phase-set $ARGUMENTS plan
+python3 .cnogo/scripts/workflow_memory.py phase-set $ARGUMENTS plan
 ```
 
 Optional task issue creation example:
 
 ```bash
-python3 scripts/workflow_memory.py create "Task title" --type task --feature $ARGUMENTS --plan NN
+python3 .cnogo/scripts/workflow_memory.py create "Task title" --type task --feature $ARGUMENTS --plan NN
 ```
 
 ### Step 7: Validate
 
 ```bash
-python3 scripts/workflow_validate.py --feature $ARGUMENTS
+python3 .cnogo/scripts/workflow_validate.py --feature $ARGUMENTS
 ```
 
 ## Output

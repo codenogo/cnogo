@@ -29,7 +29,7 @@ Run long, non-interactive tasks without blocking foreground work.
 
 3. If memory engine is initialized, track lifecycle:
 ```bash
-python3 scripts/workflow_memory.py create --title "<task>" --type background --labels background
+python3 .cnogo/scripts/workflow_memory.py create --title "<task>" --type background --labels background
 ```
 Claim on start; close on completion/cancel.
 
@@ -43,7 +43,7 @@ Claim on start; close on completion/cancel.
 
 6. Entropy mode:
 ```bash
-python3 scripts/workflow_checks.py entropy --write-task
+python3 .cnogo/scripts/workflow_checks.py entropy --write-task
 ```
 Then launch subagent(s) for generated tiny tasks. Constraints:
 - max 3 files/task

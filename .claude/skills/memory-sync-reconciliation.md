@@ -34,9 +34,9 @@ Keep memory state merge-safe, deduplicated, and dependency-valid across branches
 ## Commands
 
 ```bash
-python3 scripts/workflow_memory.py import
-python3 scripts/workflow_memory.py export
-python3 scripts/workflow_memory.py stats --json
+python3 .cnogo/scripts/workflow_memory.py import
+python3 .cnogo/scripts/workflow_memory.py export
+python3 .cnogo/scripts/workflow_memory.py stats --json
 ```
 
 ## Output

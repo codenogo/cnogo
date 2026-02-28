@@ -7,7 +7,7 @@ Commit, push, and open a PR after review passes.
 
 1. Optional phase warning (memory-enabled repos):
 ```bash
-python3 scripts/workflow_memory.py phase-get <feature-slug>
+python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
 Warn if not in `ship` phase; continue only with confirmation.
 
@@ -17,7 +17,7 @@ Warn if not in `ship` phase; continue only with confirmation.
 - ensure review/verify artifacts are up to date
 - require staged review + freshness gate:
 ```bash
-python3 scripts/workflow_checks.py ship-ready --feature <feature-slug>
+python3 .cnogo/scripts/workflow_checks.py ship-ready --feature <feature-slug>
 ```
 If this fails, stop and return the failing checks.
 
@@ -41,7 +41,7 @@ PR body should include summary, key changes, testing evidence, and planning arti
 
 6. Memory sync (if enabled):
 ```bash
-python3 scripts/workflow_memory.py sync
+python3 .cnogo/scripts/workflow_memory.py sync
 ```
 If feature IDs are known, close shipped issues and set phase accordingly.
 

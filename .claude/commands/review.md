@@ -12,7 +12,7 @@ Review current changes for correctness, safety, and ship readiness.
 If memory is enabled and feature slug is known:
 
 ```bash
-python3 scripts/workflow_memory.py phase-get <feature-slug>
+python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
 
 Expected before `/review`: `implement` or `review`.
@@ -32,17 +32,17 @@ git diff --name-only HEAD~1..HEAD 2>/dev/null || git diff --name-only
 Run package-aware checks and write artifacts in one step:
 
 ```bash
-python3 scripts/workflow_checks.py review --feature <feature-slug>
+python3 .cnogo/scripts/workflow_checks.py review --feature <feature-slug>
 ```
 
 If feature slug is unknown, omit the flag:
 
 ```bash
-python3 scripts/workflow_checks.py review
+python3 .cnogo/scripts/workflow_checks.py review
 ```
 
 If `WORKFLOW.json` has empty `packages[]`, the checker auto-runs:
-`python3 scripts/workflow_detect.py --write-workflow`
+`python3 .cnogo/scripts/workflow_detect.py --write-workflow`
 then continues.
 
 This writes:
@@ -57,7 +57,7 @@ Or (if no feature inferred):
 Then validate workflow artifacts:
 
 ```bash
-python3 scripts/workflow_validate.py --json --feature <feature-slug>
+python3 .cnogo/scripts/workflow_validate.py --json --feature <feature-slug>
 ```
 
 ### Step 3: Stage 1 — Spec Compliance (must run first)
@@ -94,7 +94,7 @@ Update `REVIEW.json`:
 Re-run validator after stage updates:
 
 ```bash
-python3 scripts/workflow_validate.py --json --feature <feature-slug>
+python3 .cnogo/scripts/workflow_validate.py --json --feature <feature-slug>
 ```
 
 ### Step 5: Verdict
@@ -108,7 +108,7 @@ Score 7 axes (0-2 each) per `.claude/skills/performance-review.md` rubric:
 If accepted (`pass` or approved `warn`) and memory is enabled:
 
 ```bash
-python3 scripts/workflow_memory.py phase-set <feature-slug> ship
+python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> ship
 ```
 
 ## Output

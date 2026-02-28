@@ -11,8 +11,8 @@ Create a compact handoff for resuming later.
 git branch --show-current
 git status --porcelain
 git stash list
-python3 scripts/workflow_memory.py checkpoint
-python3 scripts/workflow_memory.py prime --limit 5
+python3 .cnogo/scripts/workflow_memory.py checkpoint
+python3 .cnogo/scripts/workflow_memory.py prime --limit 5
 ```
 
 ### Step 2: Write Handoff Note
@@ -42,8 +42,8 @@ Record stash reference in `HANDOFF.md`.
 If memory is enabled, add a handoff comment to active epic/task:
 
 ```bash
-python3 scripts/workflow_memory.py list --type epic --status in_progress --limit 3
-python3 scripts/workflow_memory.py update <issue-id> --description "<brief handoff note>"
+python3 .cnogo/scripts/workflow_memory.py list --type epic --status in_progress --limit 3
+python3 .cnogo/scripts/workflow_memory.py update <issue-id> --description "<brief handoff note>"
 ```
 
 ## Output

@@ -10,13 +10,13 @@ Run the doctor diagnostic command and interpret results.
 ### Step 1: Run Diagnostics
 
 ```bash
-python3 scripts/workflow_checks.py doctor
+python3 .cnogo/scripts/workflow_checks.py doctor
 ```
 
 For machine-readable output:
 
 ```bash
-python3 scripts/workflow_checks.py doctor --json
+python3 .cnogo/scripts/workflow_checks.py doctor --json
 ```
 
 ### Step 2: Interpret Results
@@ -24,9 +24,9 @@ python3 scripts/workflow_checks.py doctor --json
 The doctor runs 5 checks:
 
 1. **Workflow Validation** — Verifies `WORKFLOW.json` and planning contracts are valid. Fix with `/validate`.
-2. **Memory DB Integrity** — Runs `PRAGMA integrity_check` on `.cnogo/memory.db`. If failing, re-initialize with `python3 scripts/workflow_memory.py init`.
+2. **Memory DB Integrity** — Runs `PRAGMA integrity_check` on `.cnogo/memory.db`. If failing, re-initialize with `python3 .cnogo/scripts/workflow_memory.py init`.
 3. **Orphaned Worktrees** — Detects git worktrees not tracked by any active session. Clean up with `git worktree remove <path>`.
-4. **Stale Issues** — Finds open, unassigned issues older than 30 days. Review with `python3 scripts/workflow_memory.py list --status open`.
+4. **Stale Issues** — Finds open, unassigned issues older than 30 days. Review with `python3 .cnogo/scripts/workflow_memory.py list --status open`.
 5. **Hook Config Sanity** — Checks `.claude/settings.json` hook script paths exist on disk.
 
 Status meanings:
