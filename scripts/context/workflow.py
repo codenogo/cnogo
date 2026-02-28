@@ -83,6 +83,119 @@ def suggest_scope(
         return {"enabled": False, "error": str(e)}
 
 
+def validate_scope(
+    repo_path: Path | str,
+    declared_files: list[str],
+    changed_files: list[str] | None = None,
+) -> dict[str, Any]:
+    """Validate that changes stay within declared file scope.
+
+    Args:
+        repo_path: Path to the repository root.
+        declared_files: Files declared in the task scope.
+        changed_files: Files actually changed (defaults to declared_files).
+
+    Returns:
+        Dict with keys:
+            enabled, within_scope, declared, changed, blast_radius,
+            violations, warnings.
+        On failure:
+            enabled: False, error: str.
+    """
+    if changed_files is None:
+        changed_files = list(declared_files)
+
+    try:
+        graph = ContextGraph(repo_path=repo_path)
+        try:
+            graph.index()
+
+            impact = graph.review_impact(changed_files)
+
+            declared_set = set(declared_files)
+            blast_radius: list[dict[str, Any]] = []
+            violations: list[dict[str, Any]] = []
+            warnings: list[dict[str, Any]] = []
+
+            for sym in impact.get("affected_symbols", []):
+                path = sym.get("file_path", "")
+                if not path:
+                    continue
+                blast_radius.append({
+                    "path": path,
+                    "symbols": sym.get("name", ""),
+                    "depth": sym.get("depth", 0),
+                })
+
+            # Check affected files against declared scope
+            for affected_path in impact.get("affected_files", []):
+                if affected_path in declared_set:
+                    continue
+                # Check confidence for this edge
+                confidence = _get_affected_confidence(
+                    graph, affected_path, changed_files
+                )
+                if confidence <= 0.5:
+                    warnings.append({
+                        "path": affected_path,
+                        "confidence": confidence,
+                        "low_confidence": True,
+                    })
+                else:
+                    violations.append({
+                        "path": affected_path,
+                        "reason": f"affected by changes to {', '.join(changed_files)} but not in declared scope",
+                    })
+
+            within_scope = len(violations) == 0
+
+            return {
+                "enabled": True,
+                "within_scope": within_scope,
+                "declared": list(declared_files),
+                "changed": list(changed_files),
+                "blast_radius": blast_radius,
+                "violations": violations,
+                "warnings": warnings,
+            }
+        finally:
+            graph.close()
+
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
+def _get_affected_confidence(
+    graph: Any, affected_path: str, changed_files: list[str]
+) -> float:
+    """Get the confidence of the edge linking affected_path to changed files."""
+    try:
+        # Get all nodes in the affected file
+        assert graph._storage._conn is not None
+        cur = graph._storage._conn.execute(
+            "SELECT id FROM nodes WHERE file_path = ?", (affected_path,)
+        )
+        for (node_id,) in cur.fetchall():
+            callers = graph._storage.get_callers_with_confidence(node_id)
+            for caller, conf in callers:
+                if caller.file_path in changed_files:
+                    return conf
+            # Check outgoing calls too
+            callees = graph._storage.get_callees(node_id)
+            for callee in callees:
+                if callee.file_path in set(changed_files):
+                    # Get confidence from relationship
+                    callers_of_callee = graph._storage.get_callers_with_confidence(
+                        callee.id
+                    )
+                    for c, conf in callers_of_callee:
+                        if c.id == node_id:
+                            return conf
+    except Exception:
+        pass
+    return 1.0
+
+
 def _get_edge_confidence(graph: Any, node: Any, source_file: str) -> float:
     """Extract confidence score for the edge connecting node to source_file.
 

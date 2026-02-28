@@ -158,3 +158,101 @@ def test_suggest_scope_low_confidence_label(graph):
     ]
     assert len(fuzzy_suggestions) >= 1
     assert fuzzy_suggestions[0].get("low_confidence") is True
+
+
+# --- validate_scope tests ---
+
+
+def test_validate_scope_within_scope(graph):
+    """Declared files match changed files — expect within_scope: true."""
+    from scripts.context.workflow import validate_scope
+
+    _add_function_node(graph._storage, "src/auth.py", "authenticate")
+    graph._storage.rebuild_fts()
+
+    result = validate_scope(
+        graph.repo_path, declared_files=["src/auth.py"], changed_files=["src/auth.py"]
+    )
+    assert result["enabled"] is True
+    assert result["within_scope"] is True
+    assert result["violations"] == []
+
+
+def test_validate_scope_violation(graph):
+    """Changed files extend beyond declared scope — expect violations list."""
+    from scripts.context.workflow import validate_scope
+
+    # caller.py calls target.py — changing target.py affects caller.py
+    target_id = _add_function_node(graph._storage, "src/target.py", "target_func")
+    caller_id = _add_function_node(graph._storage, "src/caller.py", "caller_func")
+    _add_call_edge(graph._storage, caller_id, target_id)
+    graph._storage.rebuild_fts()
+
+    # Declared only target.py, but blast radius includes caller.py
+    result = validate_scope(
+        graph.repo_path,
+        declared_files=["src/target.py"],
+        changed_files=["src/target.py"],
+    )
+    assert result["enabled"] is True
+    assert result["within_scope"] is False
+    violation_paths = [v["path"] for v in result["violations"]]
+    assert "src/caller.py" in violation_paths
+
+
+def test_validate_scope_blast_radius(graph):
+    """Blast-radius symbols from impact analysis are included."""
+    from scripts.context.workflow import validate_scope
+
+    target_id = _add_function_node(graph._storage, "src/target.py", "target_func")
+    caller_id = _add_function_node(graph._storage, "src/caller.py", "caller_func")
+    _add_call_edge(graph._storage, caller_id, target_id)
+    graph._storage.rebuild_fts()
+
+    result = validate_scope(
+        graph.repo_path,
+        declared_files=["src/target.py"],
+        changed_files=["src/target.py"],
+    )
+    assert result["enabled"] is True
+    assert len(result["blast_radius"]) >= 1
+    blast_paths = [b["path"] for b in result["blast_radius"]]
+    assert "src/caller.py" in blast_paths
+
+
+def test_validate_scope_low_confidence_warnings(graph):
+    """Fuzzy edges appear with low_confidence: true in warnings."""
+    from scripts.context.workflow import validate_scope
+
+    target_id = _add_function_node(graph._storage, "src/target.py", "target_func")
+    fuzzy_id = _add_function_node(graph._storage, "src/fuzzy.py", "fuzzy_func")
+    _add_call_edge(graph._storage, fuzzy_id, target_id, confidence=0.5)
+    graph._storage.rebuild_fts()
+
+    result = validate_scope(
+        graph.repo_path,
+        declared_files=["src/target.py"],
+        changed_files=["src/target.py"],
+    )
+    assert result["enabled"] is True
+    # Fuzzy caller should appear in warnings, not violations
+    warning_paths = [w["path"] for w in result["warnings"]]
+    assert "src/fuzzy.py" in warning_paths
+    fuzzy_warning = [w for w in result["warnings"] if w["path"] == "src/fuzzy.py"][0]
+    assert fuzzy_warning.get("low_confidence") is True
+
+
+def test_validate_scope_graceful_degradation(tmp_path):
+    """Returns {enabled: false, error: ...} on failure."""
+    from unittest.mock import patch
+
+    from scripts.context.workflow import validate_scope
+
+    with patch(
+        "scripts.context.workflow.ContextGraph",
+        side_effect=RuntimeError("graph init failed"),
+    ):
+        result = validate_scope(tmp_path, declared_files=["foo.py"])
+    assert result["enabled"] is False
+    assert "error" in result
+    assert "graph init failed" in result["error"]
