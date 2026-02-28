@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "displayName": "cnogo Packaging & Lifecycle",
+  "decisions": [
+    {
+      "area": "identity",
+      "decision": "This repo is cnogo's source AND a cnogo-managed project (self-hosting)",
+      "rationale": "The cnogo source repo uses cnogo to manage its own development. After packaging, cnogo is installed into this repo the same way it's installed anywhere else. Development-only files (tests/, install.sh, docs/templates/) sit outside cnogo's installed scope."
+    },
+    {
+      "area": "layout",
+      "decision": "Same installed layout everywhere — source repo and target repos are identical",
+      "rationale": "No 'source layout' vs 'installed layout' distinction. The files in git ARE the installable artifact. install.sh copies them as-is. No transformation during install."
+    },
+    {
+      "area": "distribution",
+      "decision": "Git-based distribution — install.sh clones/pulls from cnogo repo",
+      "rationale": "install.sh fetches from the cnogo git repo (clone for first install, pull for updates). Also supports local path for offline/dev use. The git repo IS the package — no separate build/archive step."
+    },
+    {
+      "area": "structure",
+      "decision": "All cnogo runtime in .cnogo/scripts/ from the start",
+      "rationale": "Scripts, memory engine, context graph, hooks all live under .cnogo/. Claude Code integration stays in .claude/ (fixed paths). Clear ownership: if it's in .cnogo/, it's cnogo. No ambiguity with project scripts/ directories."
+    },
+    {
+      "area": "ownership-model",
+      "decision": "Five file ownership categories: managed, seeded, merged, runtime, scaffold",
+      "rationale": "Each cnogo file has exactly one ownership category that determines behavior on install/update/uninstall. managed=cnogo owns entirely (overwrite on update, remove on uninstall). seeded=cnogo creates once, user owns after (never overwrite, leave on uninstall). merged=shared ownership with marker-based separation (merge cnogo parts only). runtime=created at runtime, gitignored (recreate if missing, remove on uninstall). scaffold=directory structure (create once, leave on uninstall)."
+    },
+    {
+      "area": "manifest",
+      "decision": "manifest.json with content hashes and ownership categories",
+      "rationale": "Single source of truth for what cnogo installed. Each file entry has category and sha256 hash at install time. Hash enables detecting user modifications to managed files — backup before overwriting on update. Covers files across both .cnogo/ and .claude/."
+    },
+    {
+      "area": "settings-merge",
+      "decision": "settings.json merge via _cnogo marker on hook entries",
+      "rationale": "cnogo hook entries carry '_cnogo': true field. On install: add hooks with marker. On update: find and replace entries with marker. On uninstall: remove entries with marker. User hooks (no marker) are never touched. Claude Code ignores unknown fields in hook entries."
+    },
+    {
+      "area": "gitignore-merge",
+      "decision": ".gitignore merge via comment block markers",
+      "rationale": "cnogo entries wrapped in '# >>> cnogo (do not edit this block)' / '# <<< cnogo'. Install adds block, update replaces block, uninstall removes block. User entries outside block are never touched."
+    },
+    {
+      "area": "context-graph",
+      "decision": "Context graph always ships as core feature",
+      "rationale": "scripts/context/ is installed as part of every cnogo installation. Not optional. Includes all phases, walker, parser, model, storage."
+    },
+    {
+      "area": "versioning",
+      "decision": "version.json in .cnogo/ tracks installed version and source commit",
+      "rationale": "Contains version, source repo URL, source commit hash, installedAt, updatedAt. Enables upgrade detection, version comparison, and install health checks."
+    },
+    {
+      "area": "lifecycle-install",
+      "decision": "install.sh handles all lifecycle operations via flags",
+      "rationale": "Single script: install.sh [--update|--uninstall|--force] [--from <git-url>] <project-dir>. No separate uninstall.sh needed — manifest-based operations are all in one place."
+    },
+    {
+      "area": "lifecycle-update",
+      "decision": "Update detects user modifications via hash comparison, backs up before overwriting",
+      "rationale": "Compare current file hash vs manifest hash. If match: file unchanged by user, safe to overwrite. If mismatch: user modified it, backup to .cnogo/backup/<timestamp>/ then overwrite. Files removed in new version are removed from project. New files are added."
+    },
+    {
+      "area": "lifecycle-uninstall",
+      "decision": "Clean uninstall removes managed files, leaves user content",
+      "rationale": "Remove managed files. Clean settings.json (remove _cnogo hooks). Clean .gitignore (remove cnogo block). Leave seeded files (CLAUDE.md, PROJECT.md, ROADMAP.md). Leave scaffold directories (user has artifacts). Remove .cnogo/ entirely."
+    },
+    {
+      "area": "seeded-files",
+      "decision": "Seeded files are created once and never overwritten",
+      "rationale": "CLAUDE.md (root), PROJECT.md, ROADMAP.md, WORKFLOW.json are initialized from templates on first install. User edits them freely. Update never touches them. Uninstall leaves them. WORKFLOW.json gets new fields added with defaults on update (additive merge, not replace)."
+    },
+    {
+      "area": "import-paths",
+      "decision": "_bootstrap.py in .cnogo/scripts/ for Python import resolution",
+      "rationale": "Entry-point scripts import _bootstrap as first import. _bootstrap.py adds .cnogo/ to sys.path so 'from scripts.memory import ...' resolves to .cnogo/scripts/memory/. All existing import patterns work unchanged. tests/conftest.py also adds .cnogo/ to sys.path."
+    },
+    {
+      "area": "reference-paths",
+      "decision": "All commands, skills, hooks reference .cnogo/scripts/ paths",
+      "rationale": "Hook paths in settings.json use $ROOT/.cnogo/scripts/. Command markdown uses 'python3 .cnogo/scripts/workflow_memory.py'. .claude/CLAUDE.md documents .cnogo/scripts/ paths. Consistent .cnogo/ prefix makes ownership visible."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no third-party dependencies",
+    "Claude Code requires .claude/commands/, .claude/agents/, .claude/skills/, .claude/settings.json at fixed paths",
+    ".cnogo/ starts with dot — invalid Python package name, _bootstrap.py resolves imports",
+    "install.sh must be a single bash script (no build tools required)",
+    "Uninstall must be clean — no orphaned files, no broken imports in target project",
+    "Context graph ships with every install (not optional)",
+    "Runtime databases (memory.db, graph.db) are gitignored, not tracked in manifest",
+    "issues.jsonl is git-tracked sync format, managed by memory engine",
+    "Self-hosting: cnogo installs into its own repo via the same mechanism as any other project",
+    "Same file layout in source repo and all installed repos — no transformation during install",
+    "settings.json is shared ownership — cnogo hooks coexist with user hooks",
+    ".gitignore is shared ownership — cnogo block coexists with user entries"
+  ],
+  "openQuestions": [],
+  "resolvedQuestions": [
+    {
+      "question": "Python import path strategy for .cnogo/scripts/",
+      "resolution": "_bootstrap.py adds .cnogo/ to sys.path. Entry-point scripts import it first. All 'from scripts.memory import ...' patterns work unchanged.",
+      "resolvedAt": "2026-02-28"
+    },
+    {
+      "question": "How do reference paths adapt to .cnogo/scripts/?",
+      "resolution": "All commands, skills, hooks updated to reference .cnogo/scripts/ paths. settings.json hooks use $ROOT/.cnogo/scripts/. Consistent prefix makes ownership visible.",
+      "resolvedAt": "2026-02-28"
+    },
+    {
+      "question": ".gitignore management strategy",
+      "resolution": "Comment block markers (# >>> cnogo / # <<< cnogo) wrap cnogo entries in project .gitignore. Install adds, update replaces, uninstall removes the block.",
+      "resolvedAt": "2026-02-28"
+    }
+  ],
+  "relatedCode": [
+    "install.sh",
+    "scripts/workflow_memory.py",
+    "scripts/workflow_checks.py",
+    "scripts/workflow_checks_core.py",
+    "scripts/workflow_validate.py",
+    "scripts/workflow_validate_core.py",
+    "scripts/workflow_hooks.py",
+    "scripts/workflow_render.py",
+    "scripts/workflow_detect.py",
+    "scripts/workflow_utils.py",
+    "scripts/memory/",
+    "scripts/context/",
+    "scripts/hook-dangerous-cmd.sh",
+    "scripts/hook-pre-commit-secrets.sh",
+    "scripts/hook-commit-confirm.sh",
+    "scripts/hook-sensitive-file.sh",
+    "scripts/hook-post-commit-graph.sh",
+    "scripts/hook-subagent-stop.py",
+    "scripts/hook-pre-compact.py",
+    "scripts/install-githooks.sh",
+    ".claude/commands/",
+    ".claude/agents/",
+    ".claude/skills/",
+    ".claude/settings.json",
+    ".claude/CLAUDE.md",
+    "docs/planning/WORKFLOW.json",
+    "docs/planning/PROJECT.md",
+    "docs/templates/"
+  ],
+  "fileOwnershipModel": {
+    "managed": {
+      "description": "cnogo owns entirely. Overwrite on update. Remove on uninstall.",
+      "files": [
+        ".cnogo/scripts/**",
+        ".cnogo/hooks/**",
+        ".cnogo/templates/**",
+        ".cnogo/manifest.json",
+        ".cnogo/version.json",
+        ".claude/commands/*.md",
+        ".claude/agents/*.md",
+        ".claude/skills/*.md",
+        ".claude/CLAUDE.md",
+        "docs/planning/WORKFLOW.schema.json",
+        "docs/planning/adr/ADR-TEMPLATE.md",
+        "docs/planning/work/features/CONTEXT-TEMPLATE.md"
+      ]
+    },
+    "seeded": {
+      "description": "cnogo creates once from template. User owns after. Never overwrite. Leave on uninstall.",
+      "files": [
+        "CLAUDE.md",
+        "CHANGELOG.md",
+        "docs/planning/PROJECT.md",
+        "docs/planning/ROADMAP.md",
+        "docs/planning/WORKFLOW.json",
+        ".github/CODEOWNERS",
+        ".github/PULL_REQUEST_TEMPLATE.md"
+      ]
+    },
+    "merged": {
+      "description": "Shared ownership. cnogo parts identified by markers. Merge on install/update. Remove cnogo parts on uninstall.",
+      "files": [
+        ".claude/settings.json",
+        ".gitignore"
+      ]
+    },
+    "runtime": {
+      "description": "Created at runtime, gitignored. Recreate if missing. Remove on uninstall.",
+      "files": [
+        ".cnogo/memory.db",
+        ".cnogo/graph.db",
+        ".cnogo/tee/",
+        ".cnogo/command-usage.jsonl",
+        ".cnogo/worktree-session.json",
+        ".cnogo/compaction-checkpoint.json",
+        ".cnogo/validate-baseline.json",
+        ".cnogo/validate-latest.json"
+      ]
+    },
+    "scaffold": {
+      "description": "Directory structure + .gitkeep files. Create once. Leave on uninstall (user has content).",
+      "files": [
+        "docs/planning/work/quick/",
+        "docs/planning/work/features/",
+        "docs/planning/work/debug/",
+        "docs/planning/work/background/",
+        "docs/planning/work/review/",
+        "docs/planning/work/research/",
+        "docs/planning/work/ideas/",
+        "docs/planning/archive/features/",
+        "docs/planning/adr/",
+        ".claude/agent-memory/"
+      ]
+    }
+  },
+  "targetStructure": {
+    ".cnogo/": {
+      "manifest.json": "tracks ALL cnogo files across .cnogo/ and .claude/ with hashes and categories",
+      "version.json": "version, source, sourceCommit, installedAt, updatedAt",
+      "scripts/": {
+        "_bootstrap.py": "adds .cnogo/ to sys.path for import resolution",
+        "workflow_memory.py": "CLI + memory engine entry point",
+        "workflow_checks.py": "stub wrapper",
+        "workflow_checks_core.py": "package-aware review/verify + token telemetry",
+        "workflow_validate.py": "stub wrapper",
+        "workflow_validate_core.py": "workflow contract + freshness validation",
+        "workflow_hooks.py": "post-edit formatting, pre-bash optimization",
+        "workflow_render.py": "JSON contract to markdown renderer",
+        "workflow_detect.py": "package detection",
+        "workflow_utils.py": "shared utilities",
+        "memory/": "memory engine package (13 modules, SQLite + JSONL sync)",
+        "context/": "context graph package (22 modules, AST parser, indexer, phases)"
+      },
+      "hooks/": {
+        "hook-dangerous-cmd.sh": "PreToolUse: block destructive patterns",
+        "hook-pre-commit-secrets.sh": "PreToolUse: secret scanning",
+        "hook-sensitive-file.sh": "PreToolUse: block .env reads",
+        "hook-commit-confirm.sh": "PostToolUse: commit confirmation",
+        "hook-post-commit-graph.sh": "PostToolUse: context graph indexing",
+        "hook-subagent-stop.py": "SubagentStop: task evidence validation",
+        "hook-pre-compact.py": "PreCompact: state checkpointing",
+        "install-githooks.sh": "git hook installer"
+      },
+      "templates/": "CLAUDE-generic.md, CLAUDE-python.md, etc. (language-specific templates)",
+      "issues.jsonl": "git-tracked memory sync format",
+      "memory.db": "runtime SQLite (gitignored)",
+      "graph.db": "context graph SQLite (gitignored)"
+    },
+    ".claude/": {
+      "commands/": "30 slash commands (cnogo-managed)",
+      "agents/": "3 agent definitions (cnogo-managed)",
+      "skills/": "16 skill files (cnogo-managed)",
+      "settings.json": "merged ownership — cnogo hooks marked with _cnogo:true",
+      "CLAUDE.md": "cnogo-managed workflow docs (always overwritten)"
+    },
+    "docs/planning/": {
+      "PROJECT.md": "seeded (user-owned after creation)",
+      "ROADMAP.md": "seeded (user-owned after creation)",
+      "WORKFLOW.json": "seeded (user-owned, additive merge on update for new fields)",
+      "WORKFLOW.schema.json": "managed (cnogo-owned)"
+    }
+  },
+  "lifecycleOperations": {
+    "install": {
+      "command": "install.sh [--from <git-url>] <project-dir>",
+      "steps": [
+        "Resolve source (clone repo or use local path)",
+        "Deploy managed files (copy to target)",
+        "Deploy seeded files (copy only if not exists)",
+        "Deploy scaffold (create directories + .gitkeep)",
+        "Merge settings.json (add cnogo hooks with _cnogo marker)",
+        "Merge .gitignore (add cnogo block between comment markers)",
+        "Init runtime (create memory.db, index context graph)",
+        "Write manifest (record all files + hashes + version)",
+        "Report (list what was installed)"
+      ]
+    },
+    "update": {
+      "command": "install.sh --update [--from <git-url>] <project-dir>",
+      "steps": [
+        "Read existing manifest (fail if not installed)",
+        "Resolve new source version",
+        "For each managed file: compare hash, backup if user-modified, overwrite",
+        "Remove files in old manifest but not in new version",
+        "Add new files not in old manifest",
+        "Re-merge settings.json hooks",
+        "Re-merge .gitignore block",
+        "Additive merge WORKFLOW.json (add new fields with defaults)",
+        "Re-index context graph",
+        "Update manifest (new version, new hashes, new timestamp)"
+      ]
+    },
+    "uninstall": {
+      "command": "install.sh --uninstall <project-dir>",
+      "steps": [
+        "Read manifest (fail if not installed)",
+        "Remove all managed files",
+        "Clean settings.json (remove _cnogo hook entries)",
+        "Clean .gitignore (remove cnogo block)",
+        "Leave seeded files (user's content)",
+        "Leave scaffold directories (user has artifacts)",
+        "Remove .cnogo/ directory entirely",
+        "Report what was removed vs kept"
+      ]
+    },
+    "reinstall": {
+      "command": "install.sh --force [--from <git-url>] <project-dir>",
+      "description": "Uninstall + fresh install. Seeded files left in place."
+    }
+  },
+  "timestamp": "2026-02-28T00:00:00Z"
+}

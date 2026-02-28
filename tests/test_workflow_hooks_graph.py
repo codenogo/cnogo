@@ -10,9 +10,9 @@ from unittest import mock
 
 import pytest
 
-# Ensure repo root is on sys.path for imports.
+# Ensure repo root and .cnogo/scripts are on sys.path for imports.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / ".cnogo" / "scripts"))
 
 import workflow_hooks as hooks
 
