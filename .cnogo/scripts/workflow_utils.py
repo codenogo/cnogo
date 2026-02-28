@@ -8,6 +8,11 @@ into a single module. All stdlib-only, no external dependencies.
 
 from __future__ import annotations
 
+try:
+    import _bootstrap  # noqa: F401
+except ImportError:
+    pass  # imported as module; caller manages sys.path
+
 import json
 import re
 import subprocess

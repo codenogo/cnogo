@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "feature": "cnogo-packaging",
+  "planNumber": "01",
+  "outcome": "complete",
+  "goal": "Move all Python runtime files to .cnogo/scripts/ with working imports",
+  "changes": [
+    {
+      "task": "Create _bootstrap.py and move workflow scripts",
+      "status": "complete",
+      "files": [
+        ".cnogo/scripts/_bootstrap.py (created)",
+        ".cnogo/scripts/workflow_memory.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_checks.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_checks_core.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_validate.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_validate_core.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_hooks.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_render.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_detect.py (moved from scripts/)",
+        ".cnogo/scripts/workflow_utils.py (moved from scripts/)"
+      ],
+      "notes": "Bootstrap import uses try/except to support both entry-point execution and module import patterns"
+    },
+    {
+      "task": "Move memory and context packages",
+      "status": "complete",
+      "files": [
+        ".cnogo/scripts/memory/ (12 modules, moved from scripts/memory/)",
+        ".cnogo/scripts/context/ (19 modules incl. phases/, moved from scripts/context/)"
+      ],
+      "notes": "Pure directory moves; no code changes needed inside packages"
+    },
+    {
+      "task": "Create tests/conftest.py and verify all tests pass",
+      "status": "complete",
+      "files": [
+        "tests/conftest.py (created)",
+        "tests/test_context_cli.py (updated subprocess path)",
+        "tests/test_workflow_hooks_graph.py (updated sys.path)"
+      ],
+      "notes": "conftest.py adds .cnogo/ to sys.path; 2 test files had hardcoded paths that needed updating"
+    }
+  ],
+  "verification": [
+    {"command": "test -f .cnogo/scripts/_bootstrap.py", "result": "pass"},
+    {"command": "test -d .cnogo/scripts/memory", "result": "pass"},
+    {"command": "test -d .cnogo/scripts/context/phases", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_memory.py prime --limit 1", "result": "pass"},
+    {"command": "python3 -m pytest tests/ -x -q --tb=short", "result": "pass (406 passed)"},
+    {"command": "test ! -f scripts/workflow_memory.py", "result": "pass"}
+  ],
+  "commit": "45e343a",
+  "commitMessage": "refactor(cnogo-packaging): move Python runtime to .cnogo/scripts/",
+  "timestamp": "2026-02-28T19:50:00Z"
+}
