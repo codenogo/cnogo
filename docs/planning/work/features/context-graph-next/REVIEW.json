@@ -1,0 +1,151 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass",
+      "details": "All 7 changed source files compile cleanly"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "pass",
+      "details": "138 tests passed across 6 test modules in 0.99s"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/context-graph-next",
+  "feature": "context-graph-next",
+  "impactAnalysis": {
+    "affected_files": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile (7 source files)",
+          "name": "lint",
+          "result": "pass"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": "python3 -m pytest (6 test modules)",
+          "name": "test",
+          "result": "pass"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": "scripts"
+    }
+  ],
+  "patternCompliance": [
+    {
+      "pattern": "Graceful degradation",
+      "status": "compliant",
+      "details": "All 3 new workflow functions (test_coverage_report, contract_warnings, prioritize_context) return {enabled: false, error: ...} on failure"
+    },
+    {
+      "pattern": "Public API via ContextGraph",
+      "status": "compliant",
+      "details": "4 new public methods (test_coverage, contract_check, prioritize_files, visualize) added to ContextGraph"
+    },
+    {
+      "pattern": "CLI via workflow_memory.py",
+      "status": "compliant",
+      "details": "4 new CLI commands (graph-test-coverage, graph-viz, graph-contract-check, graph-prioritize)"
+    },
+    {
+      "pattern": "stdlib-only",
+      "status": "compliant",
+      "details": "All new modules use only stdlib (ast, collections, pathlib)"
+    }
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    {
+      "principle": "Surgical Changes",
+      "status": "pass",
+      "notes": "17 files changed, net +2846 lines. Old 1026-line test file replaced with 4 focused modules."
+    },
+    {
+      "principle": "TDD",
+      "status": "pass",
+      "notes": "All 4 plans used TDD with failing/passing verify cycles. 138 total tests."
+    }
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "evidence": [
+        "4 plans executed: 01 (test split + coverage), 02 (visualization), 03 (contracts), 04 (proximity)",
+        "All planVerify commands pass",
+        "138 tests across 6 modules, all pass",
+        "4 CLI commands verified via --help",
+        "All files within declared scope per plan files[]"
+      ],
+      "findings": [],
+      "notes": "All 4 plans implemented per spec. Test file split clears 800-line invariant. 4 new ContextGraph methods, 3 new workflow functions, 4 new CLI commands.",
+      "stage": "spec-compliance",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "All source files compile without errors",
+        "138 tests pass in 0.99s",
+        "New modules follow existing patterns (phase modules, graceful degradation)",
+        "No security concerns (stdlib-only, no user input at boundaries)",
+        "Consistent code style with existing codebase"
+      ],
+      "findings": [
+        {
+          "severity": "info",
+          "description": "proximity.py uses storage._conn directly (line 53, 93, 103) — consistent with other phase modules but bypasses public API"
+        }
+      ],
+      "notes": "Code quality is consistent with existing codebase. All new modules follow established patterns.",
+      "stage": "code-quality",
+      "status": "pass"
+    }
+  ],
+  "scores": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "testCoverage": 2,
+    "codeQuality": 2,
+    "performance": 2,
+    "documentation": 1,
+    "total": 13,
+    "maxTotal": 14
+  },
+  "timestamp": "2026-02-28T16:25:00Z",
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}
