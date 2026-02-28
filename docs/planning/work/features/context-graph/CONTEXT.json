@@ -62,6 +62,26 @@
       "area": "search",
       "decision": "FTS table populated during index() pipeline, rebuilt on incremental reindex",
       "rationale": "Keeps search index in sync with graph. FTS5 supports content-sync via INSERT/DELETE, so incremental updates are efficient."
+    },
+    {
+      "area": "search",
+      "decision": "Porter stemming tokenizer for FTS5",
+      "rationale": "User chose porter over unicode61 default. Better recall for natural language in docstrings (e.g., 'parsing' matches 'parse'). Slightly fuzzier but appropriate for code search."
+    },
+    {
+      "area": "search",
+      "decision": "Docstrings extracted via ast.get_docstring() and stored in nodes.content column",
+      "rationale": "content column already exists in schema but is unpopulated. Docstrings are the primary natural language text for FTS search. Extracted during symbols phase."
+    },
+    {
+      "area": "type-refs",
+      "decision": "USES_TYPE edges persisted from ParseResult.type_refs via new types phase module",
+      "rationale": "Type refs are already parsed by PythonParser but not stored as edges. Connecting symbols to their type references completes the type dependency graph."
+    },
+    {
+      "area": "exports",
+      "decision": "EXPORTS edges persisted from ParseResult.exports via new exports phase module",
+      "rationale": "Exports are already parsed from __all__ but not linked in graph. EXPORTS edges connect files to their publicly exported symbols."
     }
   ],
   "constraints": [
@@ -73,8 +93,7 @@
     "Max 800 lines per file (WORKFLOW.json invariant)"
   ],
   "openQuestions": [
-    "Should flow trace Process nodes be persisted in storage or computed on-the-fly? (likely persisted for CLI reuse)",
-    "FTS5 tokenizer choice: unicode61 (default) vs porter stemming (better recall, slightly fuzzier)"
+    "Should graph-search CLI support prefix/wildcard queries in addition to BM25 full-text?"
   ],
   "relatedCode": [
     "scripts/memory/__init__.py",
@@ -91,5 +110,5 @@
     }
   ],
   "memoryEpicId": "cn-9gsoik",
-  "timestamp": "2026-02-28T13:30:00Z"
+  "timestamp": "2026-02-28T15:30:00Z"
 }

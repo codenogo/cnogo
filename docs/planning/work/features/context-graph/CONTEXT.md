@@ -33,8 +33,10 @@ Port [axon](https://github.com/harshkedia177/axon)'s code knowledge graph into c
 - ~~Structural coupling (Jaccard similarity)~~ — Plan 06
 - ~~Review/workflow integration~~ — Plans 07, 09
 - ~~Community detection (label propagation)~~ — Plan 08
-- **Execution flow tracing (entry point BFS)** — Plan 10 (next)
-- **BM25 search (SQLite FTS5)** — Plan 11
+- ~~Execution flow tracing (entry point BFS)~~ — Plan 10
+- **BM25 search (SQLite FTS5 + porter stemming)** — Plan 11 (next)
+- **USES_TYPE edges (type reference linking)** — Plan 12
+- **EXPORTS edges (__all__ export linking)** — Plan 13
 
 ### Data Model (ported from axon)
 - **10 node types**: File, Folder, Function, Class, Method, Interface, TypeAlias, Enum, Community, Process
@@ -46,9 +48,22 @@ Port [axon](https://github.com/harshkedia177/axon)'s code knowledge graph into c
 - Max 800 lines per file
 - Must not break existing memory engine or workflow commands
 
+### Search (Plan 11)
+- **FTS5** virtual table over symbol names, signatures, and docstrings
+- **Porter stemming** tokenizer (user choice — better recall for natural language)
+- **Docstrings** extracted via `ast.get_docstring()`, stored in `nodes.content` column
+- FTS table populated during `index()` pipeline, rebuilt on incremental reindex
+
+### Type References (Plan 12)
+- **USES_TYPE edges** from `ParseResult.type_refs` (already parsed, not yet persisted)
+- Connects symbols to their type annotations (param types, return types)
+
+### Exports (Plan 13)
+- **EXPORTS edges** from `ParseResult.exports` (already parsed from `__all__`, not yet linked)
+- Connects files to their publicly exported symbols
+
 ## Open Questions
-- Should flow trace Process nodes be persisted or computed on-the-fly?
-- FTS5 tokenizer: unicode61 (default) vs porter stemming?
+- Should `graph-search` CLI support prefix/wildcard queries in addition to BM25 full-text?
 
 ## Related
 - Brainstorm: `docs/planning/work/ideas/context-graph/BRAINSTORM.md`
