@@ -162,6 +162,20 @@ class ContextGraph:
             "child_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "incoming"),
         }
 
+    def nodes_in_file(self, file_path: str) -> list[GraphNode]:
+        """Return all nodes in the given file."""
+        return self._storage.get_nodes_by_file(file_path)
+
+    def callers_with_confidence(
+        self, node_id: str
+    ) -> list[tuple[GraphNode, float]]:
+        """Get nodes that call the given node, with confidence scores."""
+        return self._storage.get_callers_with_confidence(node_id)
+
+    def callees(self, node_id: str) -> list[GraphNode]:
+        """Get nodes called by the given node."""
+        return self._storage.get_callees(node_id)
+
     def communities(self, min_size: int = 2) -> CommunityDetectionResult:
         """Detect communities of tightly-coupled symbols via label propagation."""
         self.index()

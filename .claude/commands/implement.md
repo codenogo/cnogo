@@ -79,6 +79,7 @@ For each task in the TaskDescV2 list from Step 2d:
 2. if `task['task_id']` present, run `python3 scripts/workflow_memory.py claim <task_id> --actor implementer`
 3. execute `task['action']`, editing only files in `task['file_scope']['paths']`
 4. run all `task['commands']['verify']` commands and inspect fresh output
+4b. run scope validation: `python3 scripts/workflow_memory.py graph-validate-scope --declared "<task file_scope paths>" --changed "<actually modified files>" --json`. Warn user if violations found but do not block.
 5. do not claim success before fresh evidence (avoid "should/probably/seems fixed" language)
 6. on success if task_id present: run `python3 scripts/workflow_memory.py report-done <task_id> --actor implementer`
    and include structured outputs evidence when workflow policy requires it

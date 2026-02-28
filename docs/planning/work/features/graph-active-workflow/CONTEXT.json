@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "feature": "graph-active-workflow",
+  "displayName": "Context Graph Active Workflow Integration",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "New scripts/context/workflow.py module with 3 public functions",
+      "rationale": "Clean separation from ContextGraph core. Module holds workflow-facing logic (suggest, validate, enrich) that composes existing graph primitives. Avoids bloating __init__.py."
+    },
+    {
+      "area": "architecture",
+      "decision": "Three functions: suggest_scope(), validate_scope(), enrich_context()",
+      "rationale": "Each maps 1:1 to a workflow command integration (/plan, /implement, /discuss). Single-purpose functions are easier to test and evolve independently."
+    },
+    {
+      "area": "integration",
+      "decision": "CLI subcommands in workflow_memory.py wrapping the Python functions",
+      "rationale": "Markdown commands can only call the graph via bash. Thin CLI wrappers (graph-suggest-scope, graph-validate-scope, graph-enrich) follow the existing graph-* subcommand pattern. Commands call them via bash."
+    },
+    {
+      "area": "integration",
+      "decision": "Automatic with graceful degradation — no opt-in flag needed",
+      "rationale": "Matches /review's _graph_impact_section() pattern. If graph is missing/stale/fails, return {enabled: false, error: ...} and let the command continue without graph data. No workflow disruption."
+    },
+    {
+      "area": "confidence",
+      "decision": "Include fuzzy CALLS edges (0.5 confidence) with warning labels",
+      "rationale": "Reduces false negatives. Each edge in results carries a confidence field. Edges with confidence <= 0.5 are labeled 'low_confidence': true so the user can make informed decisions."
+    },
+    {
+      "area": "sequencing",
+      "decision": "Build all three integrations: /plan first, then /implement, then /discuss",
+      "rationale": "/plan scope suggestion has highest value (directly reduces manual guessing). /implement validation prevents scope creep. /discuss enrichment improves decision-making. Each builds on the same module."
+    },
+    {
+      "area": "command-updates",
+      "decision": "Modify Markdown commands to call new CLI subcommands at specific steps",
+      "rationale": "/plan Step 2-3 calls graph-suggest-scope. /implement Step 3 calls graph-validate-scope after each task. /discuss Step 2 calls graph-enrich. Minimal invasive changes."
+    }
+  ],
+  "constraints": [
+    "Python 3.10+ stdlib only — no pip dependencies",
+    "Graceful degradation — graph failures must never block workflow commands",
+    "Auto-indexing — functions call graph.index() internally, no manual step required",
+    "Max 800 lines per file (WORKFLOW.json invariant)",
+    "Must not modify existing ContextGraph class or phase modules",
+    "All SQL must be parameterized (no string interpolation)"
+  ],
+  "openQuestions": [
+    "Should suggest_scope() weight recently-committed files higher than old ones?",
+    "Should validate_scope() auto-expand declared scope or only warn on violations?"
+  ],
+  "relatedCode": [
+    "scripts/context/__init__.py",
+    "scripts/context/phases/impact.py",
+    "scripts/context/storage.py",
+    "scripts/workflow_memory.py",
+    "scripts/workflow_checks_core.py",
+    ".claude/commands/plan.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/discuss.md"
+  ],
+  "research": [
+    {
+      "source": "docs/planning/work/research/cnogo-context-graph-execution/RESEARCH.md",
+      "summary": "Research artifact documenting current graph architecture, 10-phase pipeline, 3 integration points (review/PostCommit/CLI), and gap analysis showing /plan, /implement, /discuss lack graph integration."
+    }
+  ],
+  "memoryEpicId": "cn-127m7gl",
+  "timestamp": "2026-02-28T19:00:00Z"
+}

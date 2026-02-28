@@ -68,6 +68,14 @@ python3 scripts/workflow_memory.py prime --limit 5
 rg -l "$ARGUMENTS" --type-add 'code:*.{java,ts,tsx,js,jsx,py,go}' -t code
 ```
 
+### Step 2a: Graph Context Enrichment
+
+```bash
+python3 scripts/workflow_memory.py graph-enrich --keywords "<feature keywords>" --json
+```
+
+Use enriched results to auto-populate `relatedCode[]` in CONTEXT.json and surface architectural constraints (callers, callees, heritage) during the decision conversation. Advisory only — graph failures don't block.
+
 ### Step 2b: Research Only When Needed
 
 If decisions depend on external standards/best-practices/high-risk domains:

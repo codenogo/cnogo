@@ -43,6 +43,14 @@ cat docs/planning/work/features/$ARGUMENTS/CONTEXT.json
 python3 scripts/workflow_memory.py prime --limit 5
 ```
 
+### Step 2b: Graph Scope Suggestions
+
+```bash
+python3 scripts/workflow_memory.py graph-suggest-scope --keywords "<feature keywords from CONTEXT.json>" --files "<relatedCode from CONTEXT.json>" --json
+```
+
+Use suggestions when authoring task `files[]` arrays. Advisory only — graph failures don't block planning.
+
 ### Step 3: Partition Work
 
 Split by boundaries:
