@@ -23,8 +23,10 @@
     "graph_status": "indexed",
     "per_file": {
       ".cnogo/graph.db": [],
-      "docs/planning/work/features/context-graph/11-SUMMARY.json": [],
-      "docs/planning/work/features/context-graph/11-SUMMARY.md": []
+      ".cnogo/task-descriptions-context-graph-12.json": [],
+      ".cnogo/task-descriptions-context-graph-13.json": [],
+      "docs/planning/work/features/context-graph/REVIEW.json": [],
+      "docs/planning/work/features/context-graph/REVIEW.md": []
     },
     "total_affected": 0
   },
@@ -62,90 +64,50 @@
     }
   ],
   "patternCompliance": [
-    {
-      "pattern": "stdlib-only",
-      "status": "compliant",
-      "notes": "FTS5 uses sqlite3 stdlib module, no external dependencies"
-    },
-    {
-      "pattern": "existing-patterns",
-      "status": "compliant",
-      "notes": "search() follows same API pattern as query(), communities(), flows()"
-    },
-    {
-      "pattern": "CLI-conventions",
-      "status": "compliant",
-      "notes": "graph-search follows same subparser pattern as graph-query, graph-context, graph-status"
-    }
+    {"pattern": "phase module structure (docstring, private helpers, public process_*)", "status": "compliant", "files": ["scripts/context/phases/types.py", "scripts/context/phases/exports.py"]},
+    {"pattern": "parameterized SQL queries", "status": "compliant", "files": ["scripts/context/phases/types.py", "scripts/context/phases/exports.py"]},
+    {"pattern": "stdlib-only dependency", "status": "compliant", "files": ["scripts/context/phases/types.py", "scripts/context/phases/exports.py"]},
+    {"pattern": "TDD RED-GREEN cycle", "status": "compliant", "files": ["tests/test_context_graph.py"]}
   ],
   "performanceFindings": [],
   "principleNotes": [
-    {
-      "axis": "Correctness",
-      "score": 2,
-      "notes": "FTS5 standalone table correct for TEXT PK schema. BM25 ranking, quote escaping, empty input handling all verified."
-    },
-    {
-      "axis": "Security",
-      "score": 2,
-      "notes": "Parameterized queries, quote escaping, no injection risk, no secrets."
-    },
-    {
-      "axis": "Contract Compliance",
-      "score": 2,
-      "notes": "PLAN.json tasks match changes. SUMMARY.json complete. Phase progression correct."
-    },
-    {
-      "axis": "Performance",
-      "score": 2,
-      "notes": "rebuild_fts() once per index run. FTS5 BM25 native. LIMIT prevents unbounded results."
-    },
-    {
-      "axis": "Maintainability",
-      "score": 2,
-      "notes": "Clean storage/API/CLI separation. Follows existing patterns."
-    },
-    {
-      "axis": "Test Coverage",
-      "score": 2,
-      "notes": "20 new tests: FTS CRUD, stemming, ranking, limit, cleanup, special chars, docstrings, API, CLI."
-    },
-    {
-      "axis": "Scope Discipline",
-      "score": 2,
-      "notes": "Surgical changes. No drive-by edits or unrelated refactoring."
-    }
+    {"axis": "Correctness", "score": 2, "note": "Line-range matching, same-file preference, graceful skip for unresolvable refs — all verified by tests"},
+    {"axis": "Security", "score": 2, "note": "All SQL parameterized, no user input, no secrets"},
+    {"axis": "Contract Compliance", "score": 2, "note": "PLAN/SUMMARY artifacts aligned, memory phases correct, leader closure only"},
+    {"axis": "Performance", "score": 2, "note": "Single-pass index builds, linear iteration, bulk UPDATE for exports"},
+    {"axis": "Maintainability", "score": 2, "note": "Follows established phase pattern (heritage.py, calls.py), clean naming"},
+    {"axis": "Test Coverage", "score": 2, "note": "13 new tests (5 types + 8 exports) covering unit, edge cases, and pipeline integration"},
+    {"axis": "Scope Discipline", "score": 2, "note": "Only new files + minimal pipeline wiring, no drive-by edits"}
   ],
   "schemaVersion": 4,
   "securityFindings": [],
   "stageReviews": [
     {
       "evidence": [
-        "All 9 changed files match PLAN.json files[] scope exactly",
-        "3 tasks align 1:1 with plan: FTS5 storage, docstring+pipeline, API+CLI",
-        "SUMMARY.json has correct outcome/changes/verification/commit fields",
-        "121 tests passed in plan verification"
+        "Plan 12 goal matches types.py: USES_TYPE edges from ParseResult.type_refs",
+        "Plan 13 goal matches exports.py: EXPORTS edges from ParseResult.exports + is_exported flag",
+        "Changed files: types.py, exports.py (new), __init__.py, tests — all within plan file_scope",
+        "No out-of-scope modifications detected"
       ],
       "findings": [],
-      "notes": "All changes serve plan goal. No scope violations. Contract artifacts complete.",
+      "notes": "Both plans fully implemented within declared scope. Pipeline ordering correct.",
       "stage": "spec-compliance",
       "status": "pass"
     },
     {
       "evidence": [
-        "14/14 scoring across 7 axes",
-        "20 new tests with edge case coverage (stemming, special chars, cleanup)",
-        "Parameterized queries, no injection vectors",
-        "FTS5 BM25 native ranking, single rebuild per index run",
-        "Clean storage/API/CLI layer separation following existing patterns"
+        "python3 -m py_compile on all 3 changed files: OK",
+        "python3 -m pytest tests/test_context_graph.py -x -q: 41 passed",
+        "python3 -m pytest tests/ -x -q: 131 passed (full suite)",
+        "git diff main...HEAD --stat: 4 code files, ~600 lines added"
       ],
       "findings": [],
-      "notes": "High quality implementation. Follows stdlib-only constraint. No concerns.",
+      "notes": "Score 14/14. Both modules follow established phase patterns, parameterized SQL, comprehensive test coverage.",
       "stage": "code-quality",
       "status": "pass"
     }
   ],
-  "timestamp": "2026-02-28T16:45:00Z",
+  "timestamp": "2026-02-28T18:10:00Z",
   "tokenTelemetry": {
     "checksRun": 0,
     "checksSkipped": 3,
