@@ -3,7 +3,7 @@
     {
       "name": "lint",
       "result": "pass",
-      "detail": "py_compile pass on all 4 changed source files"
+      "detail": "py_compile passes for all 4 changed source files"
     },
     {
       "name": "types",
@@ -12,7 +12,7 @@
     {
       "name": "tests",
       "result": "pass",
-      "detail": "213 passed in 3.17s"
+      "detail": "237 passed in 3.95s"
     }
   ],
   "blockers": [],
@@ -30,7 +30,7 @@
     {
       "checks": [
         {
-          "cmd": "python3 -m py_compile scripts/context/phases/dead_code.py scripts/context/__init__.py scripts/context/storage.py scripts/workflow_memory.py",
+          "cmd": "python3 -m py_compile scripts/context/phases/coupling.py scripts/context/storage.py scripts/context/__init__.py scripts/workflow_memory.py",
           "name": "lint",
           "result": "pass"
         },
@@ -43,7 +43,7 @@
           "cmd": "python3 -m pytest tests/test_context_*.py -x",
           "name": "test",
           "result": "pass",
-          "detail": "213 passed"
+          "detail": "237 passed in 3.95s"
         }
       ],
       "kind": "python",
@@ -55,89 +55,90 @@
     {
       "pattern": "stdlib-only",
       "status": "pass",
-      "detail": "All new code uses only stdlib imports (dataclasses, sqlite3, pathlib)"
+      "detail": "coupling.py uses only collections.defaultdict and dataclasses — no external deps"
     },
     {
-      "pattern": "existing-cli-pattern",
+      "pattern": "tdd-red-green",
       "status": "pass",
-      "detail": "graph-dead follows same argparse + dispatch + _graph_cmds pattern as existing graph-* commands"
+      "detail": "All 3 tasks followed RED→GREEN TDD cycle with verified failing/passing tests"
     },
     {
-      "pattern": "TDD",
+      "pattern": "storage-assert-conn",
       "status": "pass",
-      "detail": "All 3 tasks followed RED-GREEN cycle; 33 new tests (27+3+3)"
+      "detail": "get_all_relationships_by_types follows assert self._conn is not None pattern"
+    },
+    {
+      "pattern": "cli-try-finally-close",
+      "status": "pass",
+      "detail": "cmd_graph_coupling uses _graph_open + try/finally graph.close() pattern"
+    },
+    {
+      "pattern": "graph-cmds-exclusion",
+      "status": "pass",
+      "detail": "graph-coupling added to _graph_cmds set for memory DB check exclusion"
     }
   ],
-  "performanceFindings": [],
+  "performanceFindings": [
+    {
+      "severity": "info",
+      "detail": "Inverted index optimization avoids O(N²) symbol-pair comparison — only pairs sharing at least one neighbor are evaluated"
+    }
+  ],
   "principleNotes": [
     {
       "principle": "Simplicity First",
-      "status": "pass",
-      "detail": "dead_code.py is ~107 LOC with clear entry point heuristics; ContextGraph.dead_code() is a one-line delegation"
+      "note": "Clean dataclass + single function, no unnecessary abstractions"
     },
     {
       "principle": "Surgical Changes",
-      "status": "pass",
-      "detail": "Only files in plan scope were modified; no drive-by refactors"
-    },
-    {
-      "principle": "Goal-Driven Execution",
-      "status": "pass",
-      "detail": "All 3 plan tasks verified with fresh test evidence"
-    },
-    {
-      "principle": "TDD Is Core",
-      "status": "pass",
-      "detail": "Each task showed RED then GREEN with explicit evidence"
+      "note": "Only files in plan scope were touched; no drive-by edits"
     }
   ],
   "schemaVersion": 4,
-  "securityFindings": [],
+  "securityFindings": [
+    {
+      "severity": "info",
+      "detail": "SQL uses parameterized placeholders for IN clause — no injection risk"
+    }
+  ],
   "stageReviews": [
     {
       "stage": "spec-compliance",
       "status": "pass",
-      "findings": [],
-      "evidence": [
-        "Plan goal: 'Detect dead code (unreferenced symbols) and entry points, expose results via ContextGraph.dead_code() and CLI graph-dead command' — all 3 tasks delivered",
-        "Task 0: dead_code.py created with DeadCodeResult + detect_dead_code() + entry point heuristics — 27 tests pass",
-        "Task 1: ContextGraph.dead_code() method added, DeadCodeResult exported — 3 tests pass",
-        "Task 2: graph-dead CLI subcommand with --repo flag, added to _graph_cmds set — 3 tests pass",
-        "planVerify: 201 tests pass + graph-dead --help works",
-        "Changed files match plan scope exactly"
+      "findings": [
+        "Plan goal fully delivered: CouplingResult, compute_coupling, ContextGraph.coupling(), CLI graph-coupling",
+        "File scope matches plan exactly — 4 source files, 4 test files, 0 out-of-scope",
+        "All planVerify commands pass: 237 tests, graph-coupling --help",
+        "Summary artifact 06-SUMMARY.json written with correct schema"
       ],
-      "notes": "All 3 tasks complete. Plan scope respected."
+      "evidence": [
+        "python3 -m pytest tests/test_context_*.py -x → 237 passed in 3.95s",
+        "python3 scripts/workflow_memory.py graph-coupling --help → exit 0",
+        "git diff --stat HEAD~1: 11 files, 817 insertions, 5 deletions"
+      ],
+      "notes": "TDD cycle followed for all 3 tasks with verified RED→GREEN transitions"
     },
     {
       "stage": "code-quality",
       "status": "pass",
-      "findings": [],
-      "evidence": [
-        "py_compile: all source files pass",
-        "213/213 tests pass (12 new tests for --json + storage methods)",
-        "No security findings (parameterized SQL throughout, no user input injection vectors)",
-        "Entry point heuristics are well-documented and tested (5 distinct heuristics)",
-        "CLI handler properly uses try/finally for graph.close()",
-        "graph-dead correctly exempted from memory engine DB check",
-        "mark_dead_nodes handles empty list gracefully",
-        "All info observations resolved: get_referenced_node_ids() replaces _conn access, single-query O(1) lookup, --json flag on all 5 graph commands"
+      "findings": [
+        "Jaccard similarity algorithm is correct and well-documented",
+        "Inverted index optimization is efficient — O(E + C) where E is edge count, C is candidate pairs",
+        "CouplingResult dataclass is clean with 6 typed fields",
+        "COUPLED_WITH edges persisted with strength and shared_count properties",
+        "24 new tests: 12 coupling unit, 4 storage, 3 graph integration, 5 CLI",
+        "Tests cover edge cases: empty graph, single node, disjoint components, bidirectional symmetry",
+        "CLI output supports both human-readable and --json modes"
       ],
-      "notes": "All info observations from initial review resolved. No findings remain."
+      "evidence": [
+        "coupling.py: 128 lines, stdlib-only, well-structured algorithm",
+        "test_context_coupling.py: 263 lines, 12 tests with clear docstrings",
+        "storage helper: 17 lines, follows existing patterns exactly"
+      ],
+      "notes": "No issues found. Code is clean, well-tested, and follows project conventions."
     }
   ],
-  "scoring": {
-    "correctness": 2,
-    "security": 2,
-    "contractCompliance": 2,
-    "testCoverage": 2,
-    "codeClarity": 2,
-    "performance": 2,
-    "operationalReadiness": 2,
-    "total": 14,
-    "maxScore": 14,
-    "notes": "All info observations resolved. --json flag added to all 5 graph commands. O(N) queries replaced with single-query set lookup. No direct _conn access in phases."
-  },
-  "timestamp": "2026-02-28T03:35:00Z",
+  "timestamp": "2026-02-28T08:30:00Z",
   "tokenTelemetry": {
     "checksRun": 2,
     "checksSkipped": 1,
