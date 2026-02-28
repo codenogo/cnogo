@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 4,
+  "feature": "graph-active-workflow",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/workflow.py",
+      "action": "modified",
+      "description": "Added validate_scope() function for blast-radius validation against declared file scope"
+    },
+    {
+      "file": "tests/test_context_workflow.py",
+      "action": "modified",
+      "description": "Added 5 tests: within_scope, violation, blast_radius, low_confidence_warnings, graceful_degradation"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-validate-scope CLI subcommand with --declared, --changed, --repo, --json args"
+    },
+    {
+      "file": ".claude/commands/implement.md",
+      "action": "modified",
+      "description": "Added step 4b: scope validation via graph-validate-scope after verify commands"
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m pytest tests/test_context_workflow.py -x -q", "result": "10 passed"},
+    {"command": "python3 -m py_compile scripts/context/workflow.py", "result": "pass"},
+    {"command": "python3 -m py_compile scripts/workflow_memory.py", "result": "pass"},
+    {"command": "python3 scripts/workflow_memory.py graph-validate-scope --declared scripts/context/workflow.py --json", "result": "pass"}
+  ],
+  "commit": "dc1eeb1",
+  "timestamp": "2026-02-28T20:15:00Z"
+}

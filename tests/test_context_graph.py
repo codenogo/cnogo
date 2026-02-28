@@ -73,6 +73,90 @@ def test_context_raises_for_unknown_node(graph):
         graph.context("function:foo.py:bar")
 
 
+# --- nodes_in_file ---
+
+
+def test_nodes_in_file_returns_empty_for_unknown_file(graph):
+    assert graph.nodes_in_file("unknown.py") == []
+
+
+def test_nodes_in_file_returns_nodes(graph):
+    from scripts.context.model import GraphNode, NodeLabel, generate_id
+
+    nid = generate_id(NodeLabel.FUNCTION, "src/a.py", "foo")
+    graph._storage.add_nodes(
+        [GraphNode(id=nid, label=NodeLabel.FUNCTION, name="foo", file_path="src/a.py")]
+    )
+    result = graph.nodes_in_file("src/a.py")
+    assert len(result) == 1
+    assert result[0].id == nid
+
+
+# --- callers_with_confidence ---
+
+
+def test_callers_with_confidence_returns_empty(graph):
+    assert graph.callers_with_confidence("nonexistent") == []
+
+
+def test_callers_with_confidence_returns_caller_and_score(graph):
+    from scripts.context.model import (
+        GraphNode, GraphRelationship, NodeLabel, RelType, generate_id,
+    )
+
+    callee_id = generate_id(NodeLabel.FUNCTION, "a.py", "callee")
+    caller_id = generate_id(NodeLabel.FUNCTION, "b.py", "caller")
+    graph._storage.add_nodes([
+        GraphNode(id=callee_id, label=NodeLabel.FUNCTION, name="callee", file_path="a.py"),
+        GraphNode(id=caller_id, label=NodeLabel.FUNCTION, name="caller", file_path="b.py"),
+    ])
+    graph._storage.add_relationships([
+        GraphRelationship(
+            id=f"calls:{caller_id}->{callee_id}",
+            type=RelType.CALLS,
+            source=caller_id,
+            target=callee_id,
+            properties={"confidence": 0.5},
+        )
+    ])
+    results = graph.callers_with_confidence(callee_id)
+    assert len(results) == 1
+    node, conf = results[0]
+    assert node.id == caller_id
+    assert conf == 0.5
+
+
+# --- callees ---
+
+
+def test_callees_returns_empty(graph):
+    assert graph.callees("nonexistent") == []
+
+
+def test_callees_returns_called_nodes(graph):
+    from scripts.context.model import (
+        GraphNode, GraphRelationship, NodeLabel, RelType, generate_id,
+    )
+
+    caller_id = generate_id(NodeLabel.FUNCTION, "a.py", "caller")
+    callee_id = generate_id(NodeLabel.FUNCTION, "b.py", "callee")
+    graph._storage.add_nodes([
+        GraphNode(id=caller_id, label=NodeLabel.FUNCTION, name="caller", file_path="a.py"),
+        GraphNode(id=callee_id, label=NodeLabel.FUNCTION, name="callee", file_path="b.py"),
+    ])
+    graph._storage.add_relationships([
+        GraphRelationship(
+            id=f"calls:{caller_id}->{callee_id}",
+            type=RelType.CALLS,
+            source=caller_id,
+            target=callee_id,
+        )
+    ])
+    results = graph.callees(caller_id)
+    assert len(results) == 1
+    assert results[0].id == callee_id
+
+
 # --- Package exports ---
 
 

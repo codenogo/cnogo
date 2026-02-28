@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 4,
+  "feature": "graph-active-workflow",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/workflow.py",
+      "action": "created",
+      "description": "New module with suggest_scope() function for keyword search and impact analysis file scope suggestions"
+    },
+    {
+      "file": "tests/test_context_workflow.py",
+      "action": "created",
+      "description": "5 tests covering enabled structure, keyword search, related files impact, graceful degradation, and low-confidence labeling"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-suggest-scope CLI subcommand with --keywords, --files, --repo, --limit, --json args"
+    },
+    {
+      "file": ".claude/commands/plan.md",
+      "action": "modified",
+      "description": "Added Step 2b: Graph Scope Suggestions calling graph-suggest-scope before partition work"
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m pytest tests/test_context_workflow.py -x -q", "result": "5 passed"},
+    {"command": "python3 -m pytest tests/test_context_graph.py -x -q", "result": "41 passed"},
+    {"command": "python3 -m py_compile scripts/context/workflow.py", "result": "pass"},
+    {"command": "python3 -m py_compile scripts/workflow_memory.py", "result": "pass"},
+    {"command": "python3 scripts/workflow_memory.py graph-suggest-scope --keywords test --json", "result": "pass"}
+  ],
+  "commit": "079c27c",
+  "timestamp": "2026-02-28T20:00:00Z"
+}

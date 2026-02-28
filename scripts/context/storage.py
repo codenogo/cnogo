@@ -302,6 +302,14 @@ class GraphStorage:
         self._conn.commit()
         return len(node_ids)
 
+    def get_nodes_by_file(self, file_path: str) -> list[GraphNode]:
+        """Return all nodes in the given file."""
+        assert self._conn is not None
+        cur = self._conn.execute(
+            "SELECT * FROM nodes WHERE file_path = ?", (file_path,)
+        )
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
     # --- Dead code helpers ---
 
     def get_all_symbol_nodes(self) -> list[GraphNode]:

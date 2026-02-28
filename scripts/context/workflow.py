@@ -257,26 +257,18 @@ def _get_affected_confidence(
 ) -> float:
     """Get the confidence of the edge linking affected_path to changed files."""
     try:
-        # Get all nodes in the affected file
-        assert graph._storage._conn is not None
-        cur = graph._storage._conn.execute(
-            "SELECT id FROM nodes WHERE file_path = ?", (affected_path,)
-        )
-        for (node_id,) in cur.fetchall():
-            callers = graph._storage.get_callers_with_confidence(node_id)
+        changed_set = set(changed_files)
+        for node in graph.nodes_in_file(affected_path):
+            callers = graph.callers_with_confidence(node.id)
             for caller, conf in callers:
-                if caller.file_path in changed_files:
+                if caller.file_path in changed_set:
                     return conf
             # Check outgoing calls too
-            callees = graph._storage.get_callees(node_id)
-            for callee in callees:
-                if callee.file_path in set(changed_files):
+            for callee in graph.callees(node.id):
+                if callee.file_path in changed_set:
                     # Get confidence from relationship
-                    callers_of_callee = graph._storage.get_callers_with_confidence(
-                        callee.id
-                    )
-                    for c, conf in callers_of_callee:
-                        if c.id == node_id:
+                    for c, conf in graph.callers_with_confidence(callee.id):
+                        if c.id == node.id:
                             return conf
     except Exception:
         pass
@@ -290,20 +282,14 @@ def _get_edge_confidence(graph: Any, node: Any, source_file: str) -> float:
     confidence values. Falls back to 1.0 if no confidence data is stored.
     """
     try:
-        callers = graph._storage.get_callers_with_confidence(node.id)
-        for caller_node, confidence in callers:
+        for caller_node, confidence in graph.callers_with_confidence(node.id):
             if caller_node.file_path == source_file or caller_node.id == node.id:
                 return confidence
         # Check if this node is a caller of something in source_file
         # by looking at reverse direction
-        callees = graph._storage.get_callees(node.id)
-        for callee in callees:
+        for callee in graph.callees(node.id):
             if callee.file_path == source_file:
-                # Get confidence from the relationship
-                callers_of_callee = graph._storage.get_callers_with_confidence(
-                    callee.id
-                )
-                for caller, conf in callers_of_callee:
+                for caller, conf in graph.callers_with_confidence(callee.id):
                     if caller.id == node.id:
                         return conf
     except Exception:
