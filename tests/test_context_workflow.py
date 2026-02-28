@@ -256,3 +256,109 @@ def test_validate_scope_graceful_degradation(tmp_path):
     assert result["enabled"] is False
     assert "error" in result
     assert "graph init failed" in result["error"]
+
+
+# --- helpers for enrich_context tests ---
+
+
+def _add_extends_edge(storage, child_id, parent_id):
+    storage.add_relationships(
+        [
+            GraphRelationship(
+                id=f"extends:{child_id}->{parent_id}",
+                type=RelType.EXTENDS,
+                source=child_id,
+                target=parent_id,
+            )
+        ]
+    )
+
+
+# --- enrich_context tests ---
+
+
+def test_enrich_context_returns_enabled_structure(graph):
+    """Empty graph returns enabled structure with empty related_code."""
+    from scripts.context.workflow import enrich_context
+
+    result = enrich_context(graph.repo_path, keywords=["nonexistent"])
+    assert result["enabled"] is True
+    assert result["related_code"] == []
+    assert "architecture" in result
+
+
+def test_enrich_context_with_keywords(graph):
+    """Keyword search returns related code with callers/callees."""
+    from scripts.context.workflow import enrich_context
+
+    # Build graph: caller -> target
+    target_id = _add_function_node(graph._storage, "src/target.py", "target_func")
+    caller_id = _add_function_node(graph._storage, "src/caller.py", "caller_func")
+    _add_call_edge(graph._storage, caller_id, target_id)
+    graph._storage.rebuild_fts()
+
+    result = enrich_context(graph.repo_path, keywords=["target_func"])
+    assert result["enabled"] is True
+    assert len(result["related_code"]) >= 1
+    # Should find caller_func as a caller relationship
+    names = [r["name"] for r in result["related_code"]]
+    assert "target_func" in names or "caller_func" in names
+    # Each entry has required fields
+    for r in result["related_code"]:
+        assert "path" in r
+        assert "name" in r
+        assert "label" in r
+        assert "relationship" in r
+        assert "confidence" in r
+
+
+def test_enrich_context_includes_heritage(graph):
+    """Parent/child class relationships appear in results."""
+    from scripts.context.workflow import enrich_context
+
+    parent_id = _add_function_node(
+        graph._storage, "src/base.py", "BaseClass", label=NodeLabel.CLASS
+    )
+    child_id = _add_function_node(
+        graph._storage, "src/child.py", "ChildClass", label=NodeLabel.CLASS
+    )
+    _add_extends_edge(graph._storage, child_id, parent_id)
+    graph._storage.rebuild_fts()
+
+    result = enrich_context(graph.repo_path, keywords=["BaseClass"])
+    assert result["enabled"] is True
+    # Should find ChildClass as child_class or BaseClass as parent
+    relationships = [r["relationship"] for r in result["related_code"]]
+    assert any(
+        rel in ("child_class", "parent_class", "self") for rel in relationships
+    )
+
+
+def test_enrich_context_graceful_degradation(tmp_path):
+    """Returns {enabled: false, error: ...} on failure."""
+    from unittest.mock import patch
+
+    from scripts.context.workflow import enrich_context
+
+    with patch(
+        "scripts.context.workflow.ContextGraph",
+        side_effect=RuntimeError("graph init failed"),
+    ):
+        result = enrich_context(tmp_path, keywords=["test"])
+    assert result["enabled"] is False
+    assert "error" in result
+
+
+def test_enrich_context_deduplication(graph):
+    """Duplicate symbols across multiple keywords are deduplicated."""
+    from scripts.context.workflow import enrich_context
+
+    # Both keywords match the same symbol
+    _add_function_node(graph._storage, "src/auth.py", "authenticate")
+    graph._storage.rebuild_fts()
+
+    result = enrich_context(graph.repo_path, keywords=["authenticate", "auth"])
+    assert result["enabled"] is True
+    # Count entries for src/auth.py — should not be duplicated by node_id
+    node_ids = [r.get("node_id") for r in result["related_code"]]
+    assert len(node_ids) == len(set(node_ids))

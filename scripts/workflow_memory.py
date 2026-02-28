@@ -1063,6 +1063,43 @@ def cmd_graph_suggest_scope(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_enrich(args: argparse.Namespace) -> int:
+    from scripts.context.workflow import enrich_context
+
+    repo = getattr(args, "repo", None) or "."
+    keywords = [k.strip() for k in args.keywords.split(",")]
+    limit = getattr(args, "limit", 20)
+
+    result = enrich_context(repo, keywords=keywords, limit=limit)
+
+    if getattr(args, "json", False):
+        print(json.dumps(result))
+        return 0
+
+    if not result.get("enabled"):
+        print(f"Graph unavailable: {result.get('error', 'unknown')}", file=sys.stderr)
+        return 1
+
+    related = result.get("related_code", [])
+    if not related:
+        print("No related code found.")
+        return 0
+
+    # Group by relationship type
+    by_rel: dict[str, list] = {}
+    for r in related:
+        by_rel.setdefault(r["relationship"], []).append(r)
+
+    for rel_type, items in sorted(by_rel.items()):
+        print(f"\n{rel_type.upper()} ({len(items)}):")
+        for item in items:
+            print(f"  {item['name']:<30} {item['label']:<12} {item['path']}")
+
+    arch = result.get("architecture", {})
+    print(f"\nArchitecture: {arch.get('communities_hint', 0)} files touched")
+    return 0
+
+
 def cmd_graph_validate_scope(args: argparse.Namespace) -> int:
     from scripts.context.workflow import validate_scope
 
@@ -1421,6 +1458,13 @@ def main() -> int:
     p.add_argument("--repo", help="Repository root path (default: cwd)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-enrich
+    p = sub.add_parser("graph-enrich", help="Discover related code and architecture for context enrichment")
+    p.add_argument("--keywords", required=True, help="Comma-separated keywords to search for")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--limit", type=int, default=20, help="Maximum results per keyword (default: 20)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1430,7 +1474,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope", "graph-enrich"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1489,6 +1533,7 @@ def main() -> int:
         "graph-status": cmd_graph_status,
         "graph-suggest-scope": cmd_graph_suggest_scope,
         "graph-validate-scope": cmd_graph_validate_scope,
+        "graph-enrich": cmd_graph_enrich,
     }
 
     handler = dispatch.get(args.command)

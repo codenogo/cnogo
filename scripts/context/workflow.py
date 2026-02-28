@@ -83,6 +83,93 @@ def suggest_scope(
         return {"enabled": False, "error": str(e)}
 
 
+def enrich_context(
+    repo_path: Path | str,
+    keywords: list[str] | None = None,
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Discover related code and architecture for context enrichment.
+
+    Args:
+        repo_path: Path to the repository root.
+        keywords: Keywords to search for in the graph.
+        limit: Maximum search results per keyword.
+
+    Returns:
+        Dict with keys:
+            enabled: True if graph was available.
+            related_code: List of {path, name, label, relationship, confidence, node_id}.
+            architecture: {communities_hint: int}.
+        On failure:
+            enabled: False, error: str.
+    """
+    try:
+        graph = ContextGraph(repo_path=repo_path)
+        try:
+            graph.index()
+
+            seen: dict[str, dict[str, Any]] = {}  # node_id -> entry
+            files_touched: set[str] = set()
+
+            for kw in keywords or []:
+                results = graph.search(kw, limit=limit)
+                for node, score in results:
+                    if node.id in seen:
+                        continue
+                    # Add the matched node itself
+                    seen[node.id] = {
+                        "path": node.file_path,
+                        "name": node.name,
+                        "label": node.label.value if hasattr(node.label, "value") else str(node.label),
+                        "relationship": "self",
+                        "confidence": 1.0,
+                        "node_id": node.id,
+                    }
+                    if node.file_path:
+                        files_touched.add(node.file_path)
+
+                    # Get context neighborhood
+                    try:
+                        ctx = graph.context(node.id)
+                    except ValueError:
+                        continue
+
+                    for rel_key, rel_label in [
+                        ("callers", "caller"),
+                        ("callees", "callee"),
+                        ("importers", "importer"),
+                        ("imports", "import"),
+                        ("parent_classes", "parent_class"),
+                        ("child_classes", "child_class"),
+                    ]:
+                        for related_node in ctx.get(rel_key, []):
+                            if related_node.id in seen:
+                                continue
+                            seen[related_node.id] = {
+                                "path": related_node.file_path,
+                                "name": related_node.name,
+                                "label": related_node.label.value if hasattr(related_node.label, "value") else str(related_node.label),
+                                "relationship": rel_label,
+                                "confidence": 1.0,
+                                "node_id": related_node.id,
+                            }
+                            if related_node.file_path:
+                                files_touched.add(related_node.file_path)
+
+            return {
+                "enabled": True,
+                "related_code": list(seen.values()),
+                "architecture": {
+                    "communities_hint": len(files_touched),
+                },
+            }
+        finally:
+            graph.close()
+
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
 def validate_scope(
     repo_path: Path | str,
     declared_files: list[str],
