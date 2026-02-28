@@ -1032,6 +1032,37 @@ def cmd_graph_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_suggest_scope(args: argparse.Namespace) -> int:
+    from scripts.context.workflow import suggest_scope
+
+    repo = getattr(args, "repo", None) or "."
+    keywords = [k.strip() for k in args.keywords.split(",")] if args.keywords else []
+    related_files = [f.strip() for f in args.files.split(",")] if getattr(args, "files", None) else []
+    limit = getattr(args, "limit", 20)
+
+    result = suggest_scope(repo, keywords=keywords, related_files=related_files, limit=limit)
+
+    if getattr(args, "json", False):
+        print(json.dumps(result))
+        return 0
+
+    if not result.get("enabled"):
+        print(f"Graph unavailable: {result.get('error', 'unknown')}", file=sys.stderr)
+        return 1
+
+    suggestions = result.get("suggestions", [])
+    if not suggestions:
+        print("No scope suggestions found.")
+        return 0
+
+    print(f"{'Path':<50} {'Reason':<35} {'Confidence'}")
+    print("-" * 95)
+    for s in suggestions:
+        flag = " (low)" if s.get("low_confidence") else ""
+        print(f"{s['path']:<50} {s['reason']:<35} {s['confidence']:.2f}{flag}")
+    return 0
+
+
 def cmd_costs(args: argparse.Namespace) -> int:
     if args.project_slug:
         from scripts.memory.costs import summarize_project_costs
@@ -1345,6 +1376,14 @@ def main() -> int:
     p.add_argument("--repo", help="Repository root path (default: cwd)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-suggest-scope
+    p = sub.add_parser("graph-suggest-scope", help="Suggest file scope for a plan based on keyword search and impact analysis")
+    p.add_argument("--keywords", help="Comma-separated keywords to search for")
+    p.add_argument("--files", help="Comma-separated related file paths for impact analysis")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--limit", type=int, default=20, help="Maximum results per keyword (default: 20)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1354,7 +1393,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1411,6 +1450,7 @@ def main() -> int:
         "graph-flows": cmd_graph_flows,
         "graph-search": cmd_graph_search,
         "graph-status": cmd_graph_status,
+        "graph-suggest-scope": cmd_graph_suggest_scope,
     }
 
     handler = dispatch.get(args.command)
