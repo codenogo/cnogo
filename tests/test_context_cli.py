@@ -551,3 +551,52 @@ class TestGraphFlows:
         assert "func_a" in step_names
         # func_b at depth 2 should be excluded with max_depth=1
         assert "func_b" not in step_names
+
+
+# --- graph-search ---
+
+
+class TestGraphSearch:
+    """Tests for the graph-search subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-search", "--help")
+        assert result.returncode == 0
+        assert "search" in result.stdout.lower()
+
+    def test_empty_repo(self, tmp_path):
+        """graph-search on empty repo — no results."""
+        result = _run_cli("graph-search", "foo", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "no" in result.stdout.lower() or "0" in result.stdout
+
+    def test_search_finds_symbol(self, repo_with_python):
+        """Index and search for a known function."""
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-search", "greet", "--repo", str(repo_with_python))
+        assert result.returncode == 0
+        assert "greet" in result.stdout
+
+    def test_json_output(self, repo_with_python):
+        """--json flag produces valid JSON with expected keys."""
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-search", "greet", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert isinstance(data, list)
+        assert len(data) >= 1
+        assert "name" in data[0]
+        assert "score" in data[0]
+        assert "label" in data[0]
+        assert "file_path" in data[0]
+
+    def test_limit_flag(self, repo_with_python):
+        """--limit flag caps results."""
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli(
+            "graph-search", "greet", "--repo", str(repo_with_python),
+            "--limit", "1", "--json",
+        )
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert len(data) <= 1

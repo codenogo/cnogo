@@ -116,7 +116,10 @@ class ContextGraph:
         # Step 8: Trace execution flows from entry points
         trace_flows(self._storage)
 
-        # Step 9: Update file hashes
+        # Step 9: Rebuild FTS index
+        self._storage.rebuild_fts()
+
+        # Step 10: Update file hashes
         for entry in changed_files:
             file_path = str(PurePosixPath(entry.path))
             self._storage.update_file_hash(file_path, entry.content_hash)
@@ -172,6 +175,19 @@ class ContextGraph:
         """Trace execution flows from entry points through forward CALLS edges."""
         self.index()
         return trace_flows(self._storage, max_depth)
+
+    def search(self, query: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
+        """Full-text search over symbol names, signatures, and docstrings.
+
+        Args:
+            query: Search query string (supports FTS5 syntax).
+            limit: Maximum number of results (default 20).
+
+        Returns:
+            List of (GraphNode, score) tuples, highest relevance first.
+        """
+        self.index()
+        return self._storage.search(query, limit)
 
     def review_impact(self, changed_files: list[str]) -> dict:
         """Compute blast-radius impact for a set of changed files.

@@ -66,6 +66,11 @@ class GraphStorage:
             CREATE INDEX IF NOT EXISTS idx_rels_source ON relationships(source);
             CREATE INDEX IF NOT EXISTS idx_rels_target ON relationships(target);
             CREATE INDEX IF NOT EXISTS idx_rels_type ON relationships(type);
+
+            CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
+                name, signature, content,
+                tokenize='porter unicode61'
+            );
         """)
         self._conn.commit()
 
@@ -360,6 +365,56 @@ class GraphStorage:
             rel_types,
         )
         return {row[0] for row in cur.fetchall()}
+
+    # --- Full-text search ---
+
+    def rebuild_fts(self) -> None:
+        """Rebuild the FTS5 index from the nodes table.
+
+        Must be called after batch inserts/deletes to sync the FTS index.
+        """
+        assert self._conn is not None
+        self._conn.execute("DELETE FROM nodes_fts")
+        self._conn.execute(
+            "INSERT INTO nodes_fts(rowid, name, signature, content) "
+            "SELECT rowid, name, signature, content FROM nodes"
+        )
+        self._conn.commit()
+
+    def search(self, query: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
+        """Search nodes using FTS5 BM25 ranking.
+
+        Args:
+            query: Search query string (supports FTS5 syntax).
+            limit: Maximum number of results (default 20).
+
+        Returns:
+            List of (GraphNode, score) tuples, highest relevance first.
+            Score is the negative BM25 rank (lower raw value = better match).
+        """
+        assert self._conn is not None
+        if not query or not query.strip():
+            return []
+        # Escape quotes in query to prevent FTS syntax errors
+        safe_query = query.replace('"', '""')
+        try:
+            cur = self._conn.execute(
+                """SELECT n.*, rank
+                   FROM nodes_fts fts
+                   JOIN nodes n ON n.rowid = fts.rowid
+                   WHERE nodes_fts MATCH ?
+                   ORDER BY rank
+                   LIMIT ?""",
+                (f'"{safe_query}"', limit),
+            )
+            results = []
+            for row in cur.fetchall():
+                node = self._row_to_node(row[:14])
+                score = row[14]
+                results.append((node, score))
+            return results
+        except sqlite3.OperationalError:
+            return []
 
     # --- Internal helpers ---
 

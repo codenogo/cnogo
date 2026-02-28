@@ -24,6 +24,7 @@ class SymbolInfo:
     signature: str = ""
     class_name: str = ""
     decorators: list[str] = field(default_factory=list)
+    docstring: str = ""
 
 
 @dataclass
@@ -205,6 +206,7 @@ def _extract_symbols(tree: ast.Module, result: ParseResult) -> None:
                 signature=_build_signature(node),
                 class_name=class_name,
                 decorators=_get_decorator_names(node),
+                docstring=ast.get_docstring(node) or "",
             ))
 
         elif isinstance(node, ast.ClassDef):
@@ -214,6 +216,7 @@ def _extract_symbols(tree: ast.Module, result: ParseResult) -> None:
                 start_line=node.lineno,
                 end_line=node.end_lineno or node.lineno,
                 decorators=_get_decorator_names(node),
+                docstring=ast.get_docstring(node) or "",
             ))
 
 
