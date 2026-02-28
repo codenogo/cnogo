@@ -198,6 +198,39 @@ class GraphStorage:
             results.append((node, confidence))
         return results
 
+    def get_related_nodes(
+        self,
+        node_id: str,
+        rel_type: RelType,
+        direction: str = "outgoing",
+    ) -> list[GraphNode]:
+        """Get nodes related to node_id via edges of rel_type.
+
+        Args:
+            node_id: The anchor node ID.
+            rel_type: Relationship type to traverse.
+            direction: "outgoing" (node_id is source) or "incoming" (node_id is target).
+
+        Returns:
+            List of related GraphNode instances.
+        """
+        assert self._conn is not None
+        if direction == "outgoing":
+            cur = self._conn.execute(
+                """SELECT n.* FROM nodes n
+                   JOIN relationships r ON n.id = r.target
+                   WHERE r.source = ? AND r.type = ?""",
+                (node_id, rel_type.value),
+            )
+        else:
+            cur = self._conn.execute(
+                """SELECT n.* FROM nodes n
+                   JOIN relationships r ON n.id = r.source
+                   WHERE r.target = ? AND r.type = ?""",
+                (node_id, rel_type.value),
+            )
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
     # --- File hash tracking ---
 
     def get_indexed_files(self) -> dict[str, str]:

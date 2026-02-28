@@ -17,6 +17,7 @@ from scripts.context.model import (
 )
 from scripts.context.phases.calls import process_calls
 from scripts.context.phases.heritage import process_heritage
+from scripts.context.phases.impact import ImpactResult, impact_analysis
 from scripts.context.phases.imports import process_imports
 from scripts.context.phases.structure import process_structure
 from scripts.context.phases.symbols import process_symbols
@@ -117,13 +118,31 @@ class ContextGraph:
         )
         return [self._storage._row_to_node(row) for row in cur.fetchall()]
 
-    def impact(self, file_path: str) -> list[GraphNode]:
-        """Analyze change impact for a file."""
-        raise NotImplementedError
+    def impact(self, file_path: str, max_depth: int = 3) -> list[ImpactResult]:
+        """Analyze change impact for a file (BFS blast radius)."""
+        return impact_analysis(self._storage, file_path, max_depth)
 
     def context(self, node_id: str) -> dict:
-        """Get context around a node (callers, callees, etc.)."""
-        raise NotImplementedError
+        """Get context around a node (callers, callees, imports, heritage).
+
+        Returns a dict with keys: node, callers, callees, importers, imports,
+        parent_classes, child_classes. Each value is a list of GraphNode.
+
+        Raises ValueError if node_id is not found.
+        """
+        node = self._storage.get_node(node_id)
+        if node is None:
+            raise ValueError(f"Node '{node_id}' not found")
+
+        return {
+            "node": node,
+            "callers": self._storage.get_related_nodes(node_id, RelType.CALLS, "incoming"),
+            "callees": self._storage.get_related_nodes(node_id, RelType.CALLS, "outgoing"),
+            "importers": self._storage.get_related_nodes(node_id, RelType.IMPORTS, "incoming"),
+            "imports": self._storage.get_related_nodes(node_id, RelType.IMPORTS, "outgoing"),
+            "parent_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "outgoing"),
+            "child_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "incoming"),
+        }
 
     def close(self) -> None:
         """Close the underlying storage connection."""
