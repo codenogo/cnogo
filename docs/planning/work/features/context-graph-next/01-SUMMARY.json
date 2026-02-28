@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph-next",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "tests/test_context_graph.py",
+      "action": "deleted",
+      "description": "Removed 1026-line monolithic test file"
+    },
+    {
+      "file": "tests/conftest_context.py",
+      "action": "created",
+      "description": "Shared fixtures for context graph tests (sample code strings, graph setup helper)"
+    },
+    {
+      "file": "tests/test_context_core.py",
+      "action": "created",
+      "description": "30 tests for construction, indexing, queries, call analysis, search, exports API (425 lines)"
+    },
+    {
+      "file": "tests/test_context_analysis.py",
+      "action": "created",
+      "description": "20 tests for dead code, coupling, impact, community, flow analysis (237 lines)"
+    },
+    {
+      "file": "tests/test_context_types_exports.py",
+      "action": "created",
+      "description": "15 tests for type annotations and exports phase (386 lines)"
+    },
+    {
+      "file": "scripts/context/phases/test_coverage.py",
+      "action": "created",
+      "description": "Test coverage mapping via CALLS edges from test file symbols to production symbols"
+    },
+    {
+      "file": "scripts/context/storage.py",
+      "action": "modified",
+      "description": "Added get_test_file_nodes() query for efficient test file lookup"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "action": "modified",
+      "description": "Added test_coverage() public method to ContextGraph"
+    },
+    {
+      "file": "scripts/context/workflow.py",
+      "action": "modified",
+      "description": "Added test_coverage_report() workflow function with graceful degradation"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-test-coverage CLI command"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_core.py tests/test_context_analysis.py tests/test_context_types_exports.py -v",
+      "result": "pass",
+      "details": "56 tests passed"
+    },
+    {
+      "command": "python3 -c \"import pathlib; files = list(pathlib.Path('tests').glob('test_context_*.py')); assert all(sum(1 for _ in open(f)) <= 800 for f in files)\"",
+      "result": "pass",
+      "details": "All test files under 800 lines"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage",
+      "result": "pass",
+      "details": "CLI command available"
+    }
+  ],
+  "commit": "8515383",
+  "timestamp": "2026-02-28T16:05:00Z"
+}

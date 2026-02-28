@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph-next",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/contracts.py",
+      "action": "created",
+      "description": "Signature snapshot and comparison via AST: extract_current_signatures, compare_signatures"
+    },
+    {
+      "file": "tests/test_context_contracts.py",
+      "action": "created",
+      "description": "25 tests: signature extraction, comparison, contract_check, workflow integration, auto_populate"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "action": "modified",
+      "description": "Added contract_check(changed_files) method to ContextGraph"
+    },
+    {
+      "file": "scripts/workflow_memory.py",
+      "action": "modified",
+      "description": "Added graph-contract-check CLI command with --json flag"
+    },
+    {
+      "file": "scripts/context/workflow.py",
+      "action": "modified",
+      "description": "Added contract_warnings() workflow function and enhanced suggest_scope() with auto_populate key"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_contracts.py -v",
+      "result": "pass",
+      "details": "25 tests passed"
+    },
+    {
+      "command": "python3 scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract",
+      "result": "pass",
+      "details": "CLI command available"
+    }
+  ],
+  "commit": "762c206",
+  "timestamp": "2026-02-28T16:05:00Z"
+}
