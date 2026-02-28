@@ -1,0 +1,181 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped",
+      "reason": "no changed files for cnogo-scripts package"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "pass",
+      "cmd": "python3 -m pytest tests/test_remote_install.py -x -q --tb=short",
+      "output": "10 passed in 0.05s"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/remote-installer",
+  "feature": "remote-installer",
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "bash -n remote-install.sh",
+          "name": "lint",
+          "result": "pass"
+        },
+        {
+          "cmd": "python3 -m pytest tests/test_remote_install.py -x -q --tb=short",
+          "name": "test",
+          "result": "pass"
+        }
+      ],
+      "kind": "bash",
+      "name": "remote-installer",
+      "path": "."
+    },
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "patternCompliance": [
+    {
+      "pattern": "Thin wrapper delegates to install.sh",
+      "status": "compliant",
+      "detail": "remote-install.sh only clones and delegates — all install logic stays in install.sh"
+    },
+    {
+      "pattern": "trap EXIT for cleanup",
+      "status": "compliant",
+      "detail": "mktemp dir cleaned up via trap EXIT, verified by grep"
+    },
+    {
+      "pattern": "Proper quoting and set -e",
+      "status": "compliant",
+      "detail": "All variable expansions quoted, set -e at top, errors to stderr"
+    },
+    {
+      "pattern": "Planning artifact lifecycle",
+      "status": "compliant",
+      "detail": "CONTEXT → PLAN (01, 02) → SUMMARY (01, 02) → REVIEW chain complete"
+    },
+    {
+      "pattern": "Validation cleanup non-semantic",
+      "status": "compliant",
+      "detail": "14 REVIEW.json upgrades: schemaVersion bumped, stageReviews derived from existing data, no semantic changes"
+    }
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    "Correctness (2/2): bash -n passes, 10 integration tests pass, all plan verify commands pass, SSH/HTTPS fallback tested",
+    "Security (2/2): No secrets, proper quoting, rm -rf scoped to mktemp output, errors to stderr, no eval/unquoted expansions",
+    "Contract Compliance (2/2): Full CONTEXT → PLAN → SUMMARY → REVIEW chain, phase progression correct, no worker closure violations",
+    "Performance (2/2): One-shot CLI script, no hot paths or unbounded operations",
+    "Maintainability (2/2): Clear structure, comprehensive usage/help text, explicit error messages with actionable hints",
+    "Test Coverage (2/2): 10 tests covering syntax, shebang, permissions, help flags, and 5 error edge cases",
+    "Scope Discipline (2/2): Only plan-listed files touched; REVIEW.json upgrades explicitly scoped in Plan 01"
+  ],
+  "rubric": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "performance": 2,
+    "maintainability": 2,
+    "testCoverage": 2,
+    "scopeDiscipline": 2
+  },
+  "score": 14,
+  "maxScore": 14,
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "timestamp": "2026-02-28T21:20:00Z",
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": [],
+  "commits": [
+    {
+      "hash": "a351291",
+      "message": "chore(planning): fix 14 REVIEW.json schemaVersion errors and 3 ambiguous-path warnings"
+    },
+    {
+      "hash": "96d7201",
+      "message": "feat(remote-installer): add remote-install.sh bootstrap script with tests"
+    },
+    {
+      "hash": "5fbd826",
+      "message": "docs(remote-installer): add Plan 01 and 02 summary artifacts"
+    }
+  ],
+  "diffStats": {
+    "filesChanged": 28,
+    "insertions": 1148,
+    "deletions": 59
+  },
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Plan 01 goal matched: 14 REVIEW.json schemaVersion errors eliminated, 3 ambiguous-path warnings fixed",
+        "Plan 02 goal matched: remote-install.sh created with SSH/HTTPS clone, arg parsing, trap cleanup, install.sh delegation",
+        "Full artifact chain: CONTEXT → 01-PLAN → 01-SUMMARY → 02-PLAN → 02-SUMMARY → REVIEW",
+        "Phase progression: discuss → plan → implement → review",
+        "No out-of-scope files modified",
+        "Reviewed on branch: feature/remote-installer"
+      ],
+      "notes": "Both plans fully executed with all verify commands passing"
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "bash -n remote-install.sh: pass",
+        "python3 -m pytest tests/test_remote_install.py: 10 passed",
+        "python3 workflow_validate.py --json: 0 errors, 44 warnings (all pre-existing)",
+        "Security: no secrets, proper quoting, scoped cleanup, errors to stderr",
+        "Failed git clone leaves empty dir (verified) — HTTPS fallback safe"
+      ],
+      "notes": "Clean code quality across both plans"
+    }
+  ]
+}
