@@ -1317,6 +1317,9 @@ def _graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict[str, A
     Gracefully degrades: returns {enabled: false, error: ...} on any failure.
     """
     try:
+        import sys
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
         from scripts.context import ContextGraph
 
         graph = ContextGraph(repo_path=root)

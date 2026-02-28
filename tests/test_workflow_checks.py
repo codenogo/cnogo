@@ -50,3 +50,22 @@ def test_graph_impact_section_empty_changed_files(tmp_path):
     assert result["enabled"] is True
     assert result["total_affected"] == 0
     assert result["affected_files"] == []
+
+
+def test_graph_impact_section_resolves_import_without_repo_on_syspath(tmp_path):
+    """_graph_impact_section must add root to sys.path so ContextGraph imports succeed.
+
+    Reproduces the 'No module named scripts' error from REVIEW.json when the
+    repo root is not already on sys.path (e.g. when called from a subprocess).
+    """
+    _make_python_repo(tmp_path)
+    repo_root = str(Path(__file__).resolve().parent.parent)
+    # Temporarily remove repo root from sys.path to simulate subprocess env
+    original_path = sys.path[:]
+    sys.path[:] = [p for p in sys.path if p != repo_root]
+    try:
+        # Must still succeed — the function should add root internally
+        result = checks._graph_impact_section(Path(repo_root), {"tests/test_workflow_checks.py"})
+        assert result["enabled"] is True, f"Expected enabled=True, got error: {result.get('error')}"
+    finally:
+        sys.path[:] = original_path

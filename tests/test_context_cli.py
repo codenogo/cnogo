@@ -421,3 +421,51 @@ class TestGraphCommunities:
         result = _run_cli("graph-communities", "--repo", str(tmp_path), "--min-size", "100")
         assert result.returncode == 0
         assert "0" in result.stdout
+
+
+# --- graph-status ---
+
+
+class TestGraphStatus:
+    """Tests for the graph-status subcommand."""
+
+    def test_help(self):
+        result = _run_cli("graph-status", "--help")
+        assert result.returncode == 0
+        assert "status" in result.stdout.lower()
+
+    def test_no_graph(self, tmp_path):
+        """graph-status on empty dir with no graph.db should report no graph."""
+        result = _run_cli("graph-status", "--repo", str(tmp_path))
+        assert result.returncode == 0
+        assert "no graph" in result.stdout.lower() or "not indexed" in result.stdout.lower()
+
+    def test_indexed_repo(self, repo_with_python):
+        """graph-status on indexed repo reports node count."""
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-status", "--repo", str(repo_with_python))
+        assert result.returncode == 0
+        assert "node" in result.stdout.lower()
+        # Should mention a non-zero count
+        assert "0 nodes" not in result.stdout
+
+    def test_json_output(self, repo_with_python):
+        """--json returns valid JSON with expected keys."""
+        _run_cli("graph-index", "--repo", str(repo_with_python))
+        result = _run_cli("graph-status", "--repo", str(repo_with_python), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert "exists" in data
+        assert data["exists"] is True
+        assert "nodes" in data
+        assert "relationships" in data
+        assert "files" in data
+        assert "stale_files" in data
+        assert data["nodes"] > 0
+
+    def test_json_no_graph(self, tmp_path):
+        """--json with no graph returns exists=false."""
+        result = _run_cli("graph-status", "--repo", str(tmp_path), "--json")
+        assert result.returncode == 0
+        data = json.loads(result.stdout)
+        assert data["exists"] is False

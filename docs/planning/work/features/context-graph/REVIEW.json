@@ -2,7 +2,7 @@
   "automated": [
     {
       "name": "lint",
-      "result": "skipped"
+      "result": "pass"
     },
     {
       "name": "types",
@@ -17,15 +17,66 @@
   "branch": "feature/context-graph",
   "feature": "context-graph",
   "impactAnalysis": {
-    "enabled": false,
-    "error": "No module named 'scripts'"
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {
+      ".cnogo/graph.db": [],
+      ".cnogo/issues.jsonl": [],
+      "docs/planning/work/features/context-graph/09-CONTEXT.json": [],
+      "docs/planning/work/features/context-graph/09-CONTEXT.md": [],
+      "docs/planning/work/features/context-graph/09-PLAN.json": [],
+      "docs/planning/work/features/context-graph/09-PLAN.md": [],
+      "docs/planning/work/features/context-graph/REVIEW.json": [],
+      "docs/planning/work/features/context-graph/REVIEW.md": [],
+      "scripts/workflow_checks_core.py": [],
+      "tests/test_workflow_checks.py": []
+    },
+    "total_affected": 0
   },
   "invariants": {
-    "findings": [],
+    "findings": [
+      {
+        "file": "scripts/workflow_checks_core.py",
+        "line": 44,
+        "message": "Line length 143 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_checks_core.py",
+        "line": 1874,
+        "message": "Line length 151 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_checks_core.py",
+        "line": 1906,
+        "message": "Line length 154 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_checks_core.py",
+        "line": 1908,
+        "message": "Line length 144 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": "scripts/workflow_checks_core.py",
+        "line": 1949,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      }
+    ],
     "summary": {
       "fail": 0,
-      "total": 0,
-      "warn": 0
+      "total": 5,
+      "warn": 5
     }
   },
   "packages": [
@@ -33,9 +84,20 @@
       "checks": [
         {
           "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "fullOutputPath": null,
           "name": "lint",
-          "reason": "no changed files for package",
-          "result": "skipped"
+          "output": "",
+          "outputReducer": "empty",
+          "reason": null,
+          "result": "pass",
+          "tokenTelemetry": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "savedTokens": 0,
+            "savingsPct": 0.0
+          }
         },
         {
           "cmd": null,
@@ -55,54 +117,70 @@
   ],
   "patternCompliance": [],
   "performanceFindings": [],
-  "principleNotes": [
-    "Correctness: 2/2 — Logic verified, 265 tests pass, edge cases handled (empty graph, min_size, convergence)",
-    "Security: 2/2 — No secrets, no subprocess calls in new code, no injection risk",
-    "Contract Compliance: 2/2 — All artifacts present, lifecycle correct, workers report-done only",
-    "Performance: 2/2 — O(N*E*iterations) acceptable, bulk query, early convergence, max 100 iterations",
-    "Maintainability: 2/2 — Follows coupling.py pattern exactly, clean separation",
-    "Test Coverage: 2/2 — 16 new tests (8 community, 3 graph, 5 CLI) covering happy/error/edge cases",
-    "Scope Discipline: 2/2 — Surgical changes, plan-scoped only, no drive-by edits",
-    "Total: 14/14 — PASS"
-  ],
+  "principleNotes": [],
   "schemaVersion": 4,
   "securityFindings": [],
   "stageReviews": [
     {
-      "stage": "spec-compliance",
-      "status": "pass",
+      "evidence": [],
       "findings": [],
-      "evidence": [
-        "All 3 plan tasks implemented: community.py algorithm, ContextGraph.communities() method, CLI graph-communities",
-        "Only plan-scoped files modified (no drive-by edits)",
-        "08-PLAN.json, 08-PLAN.md, 08-SUMMARY.json, 08-SUMMARY.md artifacts present",
-        "Phase progression: discuss -> plan -> implement -> review"
-      ],
-      "notes": "Scope matches plan goal exactly. 16 new tests across 3 test files."
+      "notes": "",
+      "stage": "spec-compliance",
+      "status": "pending"
     },
     {
-      "stage": "code-quality",
-      "status": "pass",
+      "evidence": [],
       "findings": [],
-      "evidence": [
-        "265 tests pass (python3 -m pytest tests/test_context_*.py tests/test_workflow_checks.py -x)",
-        "graph-communities --help outputs correctly with --repo, --min-size, --json options",
-        "Label propagation uses sorted iteration for determinism, Counter for voting, min() tie-breaking",
-        "CLI handler follows try/finally pattern for graph.close()",
-        "All new code follows existing patterns in coupling.py and workflow_memory.py"
-      ],
-      "notes": "Clean implementation. No security, performance, or maintainability concerns."
+      "notes": "",
+      "stage": "code-quality",
+      "status": "pending"
     }
   ],
-  "timestamp": "2026-02-28T10:59:19Z",
+  "timestamp": "2026-02-28T11:50:56Z",
   "tokenTelemetry": {
-    "checksRun": 0,
-    "checksSkipped": 3,
+    "checksRun": 1,
+    "checksSkipped": 2,
     "inputTokens": 0,
     "outputTokens": 0,
     "savedTokens": 0,
     "savingsPct": 0.0
   },
-  "verdict": "pass",
-  "warnings": []
+  "verdict": "warn",
+  "warnings": [
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "issue": "Line length 143 exceeds 140.",
+      "line": 44,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "issue": "Line length 151 exceeds 140.",
+      "line": 1874,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "issue": "Line length 154 exceeds 140.",
+      "line": 1906,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "issue": "Line length 144 exceeds 140.",
+      "line": 1908,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": "scripts/workflow_checks_core.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 1949,
+      "rule": "max-line-length",
+      "severity": "medium"
+    }
+  ]
 }
