@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "10",
+  "goal": "Implement execution flow tracing: BFS from entry points through forward CALLS edges, creating Process nodes with STEP_IN_PROCESS edges, exposed via ContextGraph.flows() and CLI graph-flows command",
+  "tasks": [
+    {
+      "name": "Implement flow tracing phase",
+      "files": [
+        "scripts/context/phases/flows.py",
+        "tests/test_context_flows.py"
+      ],
+      "microSteps": [
+        "Create tests/test_context_flows.py with tests: empty graph returns empty, single entry point traces forward calls, multi-hop BFS respects max_depth, multiple entry points produce distinct Process nodes, STEP_IN_PROCESS edges connect process to each step with depth property, cycles in call graph don't cause infinite loop",
+        "Run tests to verify RED (flows module doesn't exist)",
+        "Create scripts/context/phases/flows.py with FlowResult dataclass and trace_flows() function",
+        "Implement entry point detection reusing _is_entry_point logic from dead_code.py, plus if-__name__-main guard detection",
+        "Implement forward BFS from each entry point through CALLS edges, creating Process node and STEP_IN_PROCESS edges at each depth",
+        "Persist Process nodes and STEP_IN_PROCESS edges to storage",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_flows.py -x"],
+        "passingVerify": ["python3 -m pytest tests/test_context_flows.py -x"]
+      },
+      "action": "Create the flow tracing phase module. FlowResult should contain: process_id, entry_point (GraphNode), steps (list of FlowStep with node, depth). trace_flows(storage, max_depth=10) finds all entry points, runs forward BFS through CALLS edges for each, creates Process nodes (NodeLabel.PROCESS) with STEP_IN_PROCESS edges. Entry point detection: reuse dead_code._is_entry_point() heuristic (main, test_*, Test*, __init__.py, is_entry_point flag). Persist Process nodes and edges to storage. Handle cycles via visited set.",
+      "verify": ["python3 -m pytest tests/test_context_flows.py -x"]
+    },
+    {
+      "name": "Wire flows() into ContextGraph and index pipeline",
+      "files": [
+        "scripts/context/__init__.py",
+        "tests/test_context_graph.py"
+      ],
+      "microSteps": [
+        "Add test in tests/test_context_graph.py for flows() method: index a repo with entry points, call flows(), verify Process nodes and STEP_IN_PROCESS edges exist",
+        "Run test to verify RED",
+        "Import FlowResult and trace_flows in scripts/context/__init__.py",
+        "Add flows(max_depth=10) method to ContextGraph class that calls trace_flows(self._storage, max_depth)",
+        "Add trace_flows call to end of index() pipeline (after heritage, before file hash update)",
+        "Update __all__ export list",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_graph.py -x -k flows"],
+        "passingVerify": ["python3 -m pytest tests/test_context_graph.py tests/test_context_flows.py -x"]
+      },
+      "action": "Wire trace_flows into ContextGraph: import FlowResult and trace_flows from phases.flows, add flows(max_depth=10) method, add trace_flows() call at end of index() pipeline. Update __all__.",
+      "verify": ["python3 -m pytest tests/test_context_graph.py tests/test_context_flows.py -x"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Add graph-flows CLI subcommand",
+      "files": [
+        "scripts/workflow_memory.py",
+        "tests/test_context_cli.py"
+      ],
+      "microSteps": [
+        "Add TestGraphFlows class in tests/test_context_cli.py with tests: help, empty repo, indexed repo shows flows, --json output with expected keys, --max-depth flag",
+        "Run tests to verify RED",
+        "Add cmd_graph_flows() function in workflow_memory.py following cmd_graph_communities pattern",
+        "Register graph-flows subparser with --repo, --json, --max-depth arguments",
+        "Add graph-flows to _graph_cmds set and dispatch dict",
+        "Run tests to verify GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_cli.py -x -k TestGraphFlows"],
+        "passingVerify": ["python3 -m pytest tests/test_context_cli.py -x -k TestGraphFlows"]
+      },
+      "action": "Add graph-flows CLI subcommand to workflow_memory.py. Human-readable output: list each flow with entry point and step count. JSON output: list of {process_id, entry_point: {name, file_path, label}, steps: [{name, file_path, label, depth}]}. Add --max-depth flag (default 10). Register in _graph_cmds and dispatch.",
+      "verify": ["python3 -m pytest tests/test_context_cli.py -x -k TestGraphFlows"],
+      "blockedBy": [1]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_context_flows.py tests/test_context_graph.py tests/test_context_cli.py -x"
+  ],
+  "commitMessage": "feat(context-graph): add execution flow tracing with Process nodes, STEP_IN_PROCESS edges, and graph-flows CLI",
+  "timestamp": "2026-02-28T13:45:00Z"
+}

@@ -42,6 +42,26 @@
       "area": "data-model",
       "decision": "Port axon's GraphNode/GraphRelationship dataclasses and NodeLabel/RelType enums",
       "rationale": "Proven data model with 10 node types and 11 relationship types. Deterministic IDs (label:file:name)."
+    },
+    {
+      "area": "flow-tracing",
+      "decision": "BFS from entry points (main, CLI dispatch, test_) through forward CALLS edges, creating Process nodes with STEP_IN_PROCESS edges at each depth",
+      "rationale": "Answers 'how does execution reach this function?'. Reuses existing entry point heuristics from dead_code phase. Forward BFS mirrors impact analysis's reverse BFS pattern."
+    },
+    {
+      "area": "flow-tracing",
+      "decision": "Entry points detected via existing _is_entry_point() heuristic plus if-name-main guard detection in AST",
+      "rationale": "dead_code.py already identifies main(), test_*, Test*, __init__.py symbols. Extend with explicit __name__=='__main__' block detection for script entry points."
+    },
+    {
+      "area": "search",
+      "decision": "SQLite FTS5 virtual table over symbol names, signatures, and docstrings with BM25 ranking",
+      "rationale": "FTS5 is built into stdlib sqlite3, no external deps. BM25 ranking gives relevance-sorted results. Enables fuzzy keyword search without exact symbol names."
+    },
+    {
+      "area": "search",
+      "decision": "FTS table populated during index() pipeline, rebuilt on incremental reindex",
+      "rationale": "Keeps search index in sync with graph. FTS5 supports content-sync via INSERT/DELETE, so incremental updates are efficient."
     }
   ],
   "constraints": [
@@ -53,10 +73,8 @@
     "Max 800 lines per file (WORKFLOW.json invariant)"
   ],
   "openQuestions": [
-    "How should /review format the blast radius output? (defer to plan phase)",
-    "Should graph.db be gitignored like memory.db? (likely yes — rebuild from source)",
-    "What's the right confidence threshold for call tracing without tree-sitter? (calibrate during TDD)",
-    "Should community detection use label propagation or SCC? (post-MVP decision)"
+    "Should flow trace Process nodes be persisted in storage or computed on-the-fly? (likely persisted for CLI reuse)",
+    "FTS5 tokenizer choice: unicode61 (default) vs porter stemming (better recall, slightly fuzzier)"
   ],
   "relatedCode": [
     "scripts/memory/__init__.py",
@@ -73,5 +91,5 @@
     }
   ],
   "memoryEpicId": "cn-9gsoik",
-  "timestamp": "2026-02-27T23:10:00Z"
+  "timestamp": "2026-02-28T13:30:00Z"
 }
