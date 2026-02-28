@@ -43,6 +43,7 @@ Commands:
     graph-context <id>  Show node neighborhood (callers, callees, etc.)
     graph-blast-radius  Compute blast-radius impact for changed files
     graph-search <q>    Full-text search over symbols (BM25 + porter stemming)
+    graph-viz           Generate graph visualization (Mermaid or DOT)
 
 No external dependencies. Python 3.9+ required.
 """
@@ -1032,6 +1033,55 @@ def cmd_graph_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_contract_check(args: argparse.Namespace) -> int:
+    """Detect contract (signature) breaks in changed files and find affected callers."""
+    from scripts.context.workflow import contract_warnings
+
+    repo = getattr(args, "repo", None) or "."
+    files_arg = getattr(args, "files", None)
+    if files_arg:
+        changed = [f.strip() for f in files_arg.split(",") if f.strip()]
+    else:
+        import subprocess
+        try:
+            proc = subprocess.run(
+                ["git", "diff", "--name-only"],
+                capture_output=True, text=True, cwd=repo,
+            )
+            changed = [l.strip() for l in proc.stdout.splitlines() if l.strip()]
+        except Exception:
+            changed = []
+
+    result = contract_warnings(repo, changed_files=changed)
+
+    if getattr(args, "json", False):
+        print(json.dumps(result))
+        return 0
+
+    if not result.get("enabled"):
+        print(f"Graph unavailable: {result.get('error', 'unknown')}", file=sys.stderr)
+        return 1
+
+    breaks = result.get("breaks", [])
+    summary = result.get("summary", {})
+
+    if not breaks:
+        print("No contract breaks detected.")
+        return 0
+
+    print(f"Contract breaks: {summary.get('total_breaks', 0)} break(s), "
+          f"{summary.get('total_affected_callers', 0)} affected caller(s)\n")
+    for brk in breaks:
+        print(f"  BREAK  {brk['symbol']}  [{brk['change_type']}]")
+        print(f"    old: {brk['old_signature']}")
+        print(f"    new: {brk['new_signature']}")
+        if brk.get("callers"):
+            print(f"    callers ({len(brk['callers'])}):")
+            for c in brk["callers"]:
+                print(f"      {c['name']} — {c['file']} (confidence={c['confidence']:.2f})")
+    return 0
+
+
 def cmd_graph_suggest_scope(args: argparse.Namespace) -> int:
     from scripts.context.workflow import suggest_scope
 
@@ -1177,6 +1227,30 @@ def cmd_cost_record(args: argparse.Namespace) -> int:
     print(f"Recorded cost event for {args.issue_id}: "
           f"tokens={usage.input_tokens + usage.output_tokens:,}  "
           f"cost=${cost:.4f}  model={usage.model}")
+    return 0
+
+
+def cmd_graph_viz(args: argparse.Namespace) -> int:
+    """Generate a graph visualization in Mermaid or DOT format."""
+    from scripts.context import ContextGraph
+
+    repo = getattr(args, "repo", None) or "."
+    graph = ContextGraph(repo_path=repo)
+    try:
+        scope = getattr(args, "scope", "full")
+        center = getattr(args, "center", None)
+        depth = getattr(args, "depth", 3)
+        fmt = getattr(args, "format", "mermaid")
+
+        try:
+            output = graph.visualize(scope=scope, center=center, depth=depth, format=fmt)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+
+        print(output)
+    finally:
+        graph.close()
     return 0
 
 
@@ -1465,6 +1539,24 @@ def main() -> int:
     p.add_argument("--limit", type=int, default=20, help="Maximum results per keyword (default: 20)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-contract-check
+    p = sub.add_parser("graph-contract-check", help="Detect API contract (signature) breaks in changed files and find affected callers")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--files", help="Comma-separated file paths (default: auto-detect via git diff)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # graph-viz
+    p = sub.add_parser("graph-viz", help="Generate graph visualization in Mermaid or DOT format")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--format", default="mermaid", choices=["mermaid", "dot"],
+                   help="Output format: mermaid or dot (default: mermaid)")
+    p.add_argument("--scope", default="full", choices=["file", "module", "full"],
+                   help="Subgraph scope: file, module, or full (default: full)")
+    p.add_argument("--depth", type=int, default=3,
+                   help="Maximum BFS depth from center node (default: 3)")
+    p.add_argument("--center", default=None,
+                   help="Center node ID for BFS (required for file/module scope)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -1474,7 +1566,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope", "graph-enrich"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope", "graph-enrich", "graph-contract-check"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1534,6 +1626,7 @@ def main() -> int:
         "graph-suggest-scope": cmd_graph_suggest_scope,
         "graph-validate-scope": cmd_graph_validate_scope,
         "graph-enrich": cmd_graph_enrich,
+        "graph-contract-check": cmd_graph_contract_check,
     }
 
     handler = dispatch.get(args.command)
