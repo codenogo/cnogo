@@ -9,12 +9,12 @@ Port [axon](https://github.com/harshkedia177/axon)'s code knowledge graph into c
 ## Key Decisions
 
 ### Architecture
-- **Package**: `scripts/context/` (new, parallel to `scripts/memory/`)
+- **Package**: `scripts/context/` (new, parallel to `.cnogo/scripts/memory/`)
 - **Storage**: `.cnogo/graph.db` (separate from `memory.db`)
 - **API**: OOP `ContextGraph` class with `index()`, `query()`, `impact()`, `context()`, `is_indexed()`
 
 ### Indexing Strategy
-- **Explicit CLI**: `python3 scripts/workflow_memory.py graph-index`
+- **Explicit CLI**: `python3 .cnogo/scripts/workflow_memory.py graph-index`
 - **Auto**: triggered by `/review` and `/plan` when graph is stale
 - **Hook**: PostCommit hook for incremental re-index
 - **Incremental**: file hash tracking from day one — only re-parse changed files
@@ -68,4 +68,4 @@ Port [axon](https://github.com/harshkedia177/axon)'s code knowledge graph into c
 ## Related
 - Brainstorm: `docs/planning/work/ideas/context-graph/BRAINSTORM.md`
 - Axon source: https://github.com/harshkedia177/axon
-- Memory engine: `scripts/memory/`
+- Memory engine: `.cnogo/scripts/memory/`

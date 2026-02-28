@@ -20,7 +20,7 @@ cnogo is a zero-dependency workflow engine that orchestrates Claude Code session
 
 - 2 agent definitions: `implementer` (sonnet, task execution) and `debugger` (inherited model, root cause analysis)
 - Memory engine with SQLite storage, dependency graph, JSONL sync
-- Bridge module (`scripts/memory/bridge.py`) translating plan JSON into agent task descriptions
+- Bridge module (`.cnogo/scripts/memory/bridge.py`) translating plan JSON into agent task descriptions
 - `/team implement` command for parallel plan execution with file conflict detection
 - `/spawn` command for single-agent fire-and-forget tasks
 - Recovery mechanism in `/resume` for stale claims from dead agents
@@ -224,9 +224,9 @@ NN-SUMMARY.md + NN-SUMMARY.json
 - `.claude/agents/debugger.md` — cnogo's debugger agent definition (hypothesis-driven, escalation)
 - `.claude/commands/team.md` — cnogo's team orchestration command (create, implement, status, dismiss)
 - `.claude/commands/implement.md` — Serial vs team auto-detection logic
-- `scripts/memory/bridge.py` — Plan-to-task translation, file conflict detection, prompt generation
-- `scripts/memory/__init__.py` — Memory engine public API (claim, close, ready, prime)
-- `scripts/memory/storage.py` — SQLite storage with WAL, atomic operations, cycle detection
+- `.cnogo/scripts/memory/bridge.py` — Plan-to-task translation, file conflict detection, prompt generation
+- `.cnogo/scripts/memory/__init__.py` — Memory engine public API (claim, close, ready, prime)
+- `.cnogo/scripts/memory/storage.py` — SQLite storage with WAL, atomic operations, cycle detection
 - `docs/planning/WORKFLOW.json` — Agent Teams configuration (enabled, delegateMode, defaultCompositions)
 - `docs/planning/PROJECT.md` — Project constraints (stdlib only, no runtime services)
 

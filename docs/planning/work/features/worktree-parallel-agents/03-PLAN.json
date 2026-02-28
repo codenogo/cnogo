@@ -43,7 +43,7 @@
     "grep 'advisory' scripts/memory/bridge.py && echo 'bridge.py PASS'",
     "grep 'load_session' .claude/commands/resume.md && echo 'resume.md PASS'",
     "grep 'Commit' .claude/agents/implementer.md && echo 'implementer.md PASS'",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(worktree-parallel-agents): wire worktrees into team, implement, resume commands\n\n- Replace shared-dir parallel execution with worktree isolation in team.md\n- Update implement.md — file conflicts are advisory, not blocking\n- Add worktree session recovery to resume.md\n- Add commit step to implementer.md for worktree branches\n- Update bridge.py detect_file_conflicts() to return advisory severity",
   "timestamp": "2026-02-14T00:00:00Z"

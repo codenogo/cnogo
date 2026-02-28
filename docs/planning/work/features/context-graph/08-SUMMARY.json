@@ -13,7 +13,7 @@
       "description": "Added communities() method to ContextGraph, imported and exported CommunityDetectionResult"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "description": "Added graph-communities CLI subcommand with --repo, --min-size, --json flags"
     },
     {
@@ -35,7 +35,7 @@
       "result": "262 passed"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-communities --help",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-communities --help",
       "result": "Shows usage with --repo, --min-size, --json options"
     }
   ],

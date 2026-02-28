@@ -28,7 +28,7 @@
   ],
   "planVerify": [
     "bash -n install.sh",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "memoryEpicId": "cn-145b2y1",
   "commitMessage": "feat(kill-state-md): migrate install + session commands off STATE.md",

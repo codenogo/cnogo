@@ -24,7 +24,7 @@ complete
 - {'command': "grep -q 'file_scope' .claude/commands/implement.md", 'result': 'pass'}
 - {'command': "grep -q 'TaskDescV2' .claude/commands/implement.md", 'result': 'pass'}
 - {'command': "test $(find .cnogo/ -name 'task-descriptions-*.json' 2>/dev/null | wc -l) -eq 0", 'result': 'pass'}
-- {'command': 'python3 scripts/workflow_validate.py', 'result': 'pass (warnings only, pre-existing)'}
+- {'command': 'python3 .cnogo/scripts/workflow_validate.py', 'result': 'pass (warnings only, pre-existing)'}
 
 ## Commit
 `abc123f` - [commit message]

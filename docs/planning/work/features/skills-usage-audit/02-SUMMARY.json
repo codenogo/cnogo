@@ -9,7 +9,7 @@
       "description": "Added YAML frontmatter (name, tags, appliesTo) to all 15 skill files. Tags categorize skills by domain/workflow/quality/security/testing/debug/release/performance. appliesTo maps each skill to commands that reference it."
     },
     {
-      "file": "scripts/workflow_checks_core.py",
+      "file": ".cnogo/scripts/workflow_checks_core.py",
       "description": "Replaced 3 hardcoded review tables (Security, Performance, Design Patterns — 28 lines) with a single Manual Review section referencing .claude/skills/code-review.md as the authoritative source. REVIEW.json fields remain the structured data target."
     }
   ],
@@ -19,7 +19,7 @@
       "result": "pass"
     },
     {
-      "command": "python3 scripts/workflow_validate.py — 0 skill frontmatter warnings",
+      "command": "python3 .cnogo/scripts/workflow_validate.py — 0 skill frontmatter warnings",
       "result": "pass"
     },
     {

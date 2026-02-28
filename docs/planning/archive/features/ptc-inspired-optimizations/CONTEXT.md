@@ -34,5 +34,5 @@ A stdlib `urllib.request` wrapper against the Claude Messages API would enable p
 ## Related
 
 - Research: `docs/planning/work/research/programmatic-tool-calling/`
-- Bridge: `scripts/memory/bridge.py`
+- Bridge: `.cnogo/scripts/memory/bridge.py`
 - Skills mapping: `.claude/commands/spawn.md`

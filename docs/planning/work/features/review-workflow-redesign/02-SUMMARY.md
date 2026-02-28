@@ -7,7 +7,7 @@ complete
 
 | File | Change |
 |------|--------|
-| `scripts/workflow_checks_core.py` |  |
+| `.cnogo/scripts/workflow_checks_core.py` |  |
 | `.claude/commands/review.md` |  |
 | `.claude/skills/code-review.md` |  |
 

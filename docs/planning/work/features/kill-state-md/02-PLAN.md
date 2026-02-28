@@ -27,7 +27,7 @@ fi
 3. **Add memory auto-init** — after the "Done" banner, before "Next steps", add:
 ```bash
 # Initialize memory engine
-python3 "$TARGET_DIR/scripts/workflow_memory.py" init 2>/dev/null && echo -e "${GREEN}Memory engine initialized${NC}" || echo -e "${YELLOW}Memory engine init skipped (run manually: python3 scripts/workflow_memory.py init)${NC}"
+python3 "$TARGET_DIR/scripts/workflow_memory.py" init 2>/dev/null && echo -e "${GREEN}Memory engine initialized${NC}" || echo -e "${YELLOW}Memory engine init skipped (run manually: python3 .cnogo/scripts/workflow_memory.py init)${NC}"
 ```
 
 This enforces CONTEXT.md decisions #1 (memory required at install) and #8 (auto-delete on install).
@@ -134,7 +134,7 @@ for f in pause resume status sync; do
 done
 
 # Validation still passes
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

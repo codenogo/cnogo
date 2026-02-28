@@ -78,7 +78,7 @@
       "severity": "medium"
     },
     {
-      "file": "scripts/workflow_checks.py",
+      "file": ".cnogo/scripts/workflow_checks.py",
       "issue": "Bare except Exception: pass swallows all errors silently",
       "line": 66,
       "severity": "low"

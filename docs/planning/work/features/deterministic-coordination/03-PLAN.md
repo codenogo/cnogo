@@ -6,22 +6,22 @@ Rewrite SubagentStop hook and worker prompts for safe report-only behavior (Cont
 ## Tasks
 
 ### Task 1: Rewrite SubagentStop hook for report-only behavior
-**Files:** `scripts/hook-subagent-stop.py`
+**Files:** `.cnogo/hooks/hook-subagent-stop.py`
 **Action:**
-Complete rewrite. The new hook must: (1) Parse stdin JSON (same shape: last_assistant_message, cwd, etc). (2) Look for structured footer 'TASK_DONE: [cn-xxx, cn-yyy]' in last_assistant_message using regex pattern r'TASK_DONE:\s*\[([^\]]+)\]'. Parse the comma-separated IDs. (3) For each extracted ID, call report-done (NOT close): `python3 scripts/workflow_memory.py report-done <id> --actor subagent-stop-hook`. This calls report_done() which validates type=TASK and owner before setting DONE_BY_WORKER. (4) Remove ALL existing close logic — no _close_memory_id, no _fallback_session_close, no regex-scanning cn-* from message body. (5) Keep: < 3 second timeout, always exit 0, stderr logging, shebang. (6) If the structured footer is not found, do nothing (log 'no TASK_DONE footer found' to stderr).
+Complete rewrite. The new hook must: (1) Parse stdin JSON (same shape: last_assistant_message, cwd, etc). (2) Look for structured footer 'TASK_DONE: [cn-xxx, cn-yyy]' in last_assistant_message using regex pattern r'TASK_DONE:\s*\[([^\]]+)\]'. Parse the comma-separated IDs. (3) For each extracted ID, call report-done (NOT close): `python3 .cnogo/scripts/workflow_memory.py report-done <id> --actor subagent-stop-hook`. This calls report_done() which validates type=TASK and owner before setting DONE_BY_WORKER. (4) Remove ALL existing close logic — no _close_memory_id, no _fallback_session_close, no regex-scanning cn-* from message body. (5) Keep: < 3 second timeout, always exit 0, stderr logging, shebang. (6) If the structured footer is not found, do nothing (log 'no TASK_DONE footer found' to stderr).
 
 **Verify:**
 ```bash
-python3 -m py_compile scripts/hook-subagent-stop.py
-echo '{"last_assistant_message":"Done.\nTASK_DONE: [cn-abc123]","cwd":"/tmp"}' | python3 scripts/hook-subagent-stop.py 2>&1; echo "exit: $?"
+python3 -m py_compile .cnogo/hooks/hook-subagent-stop.py
+echo '{"last_assistant_message":"Done.\nTASK_DONE: [cn-abc123]","cwd":"/tmp"}' | python3 .cnogo/hooks/hook-subagent-stop.py 2>&1; echo "exit: $?"
 ```
 
 **Done when:** [Observable outcome]
 
 ### Task 2: Rewrite bridge.py for minimal worker prompts
-**Files:** `scripts/memory/bridge.py`
+**Files:** `.cnogo/scripts/memory/bridge.py`
 **Action:**
-Rewrite generate_implement_prompt() to produce minimal worker context per Contract 10. The new prompt format: (1) '# Implement: {task_name}' heading. (2) action text. (3) '**Files (ONLY touch these):** file1, file2' (4) '**Verify (must ALL pass):**' with bullet list. (5) If memory_id: '**Memory:** `{memory_id}`' followed by '- Claim: `python3 scripts/workflow_memory.py claim {memory_id} --actor implementer`' and '- Report done: `python3 scripts/workflow_memory.py report-done {memory_id} --actor implementer`' and '- Context: `python3 scripts/workflow_memory.py show {memory_id}`'. (6) Remove ALL close instructions — no 'Close:' command, no 'CRITICAL LIFECYCLE' close step. (7) Add: '**On completion:** Add this footer as the LAST line of your final message: `TASK_DONE: [{memory_id}]`'. (8) Keep failure/retry instructions but change 'close' references to 'report done'. (9) Add: '**NEVER close issues. Only report_done. The leader handles closure.**'
+Rewrite generate_implement_prompt() to produce minimal worker context per Contract 10. The new prompt format: (1) '# Implement: {task_name}' heading. (2) action text. (3) '**Files (ONLY touch these):** file1, file2' (4) '**Verify (must ALL pass):**' with bullet list. (5) If memory_id: '**Memory:** `{memory_id}`' followed by '- Claim: `python3 .cnogo/scripts/workflow_memory.py claim {memory_id} --actor implementer`' and '- Report done: `python3 .cnogo/scripts/workflow_memory.py report-done {memory_id} --actor implementer`' and '- Context: `python3 .cnogo/scripts/workflow_memory.py show {memory_id}`'. (6) Remove ALL close instructions — no 'Close:' command, no 'CRITICAL LIFECYCLE' close step. (7) Add: '**On completion:** Add this footer as the LAST line of your final message: `TASK_DONE: [{memory_id}]`'. (8) Keep failure/retry instructions but change 'close' references to 'report done'. (9) Add: '**NEVER close issues. Only report_done. The leader handles closure.**'
 
 **Verify:**
 ```bash
@@ -48,9 +48,9 @@ python3 -c "f=open('.claude/commands/implement.md').read(); assert 'TASK_DONE' i
 
 After all tasks:
 ```bash
-python3 -m py_compile scripts/hook-subagent-stop.py
+python3 -m py_compile .cnogo/hooks/hook-subagent-stop.py
 python3 -m py_compile scripts/memory/bridge.py
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

@@ -20,7 +20,7 @@
       "description": "Imported CouplingResult and compute_coupling, added coupling() method to ContextGraph, exported CouplingResult in __all__"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "action": "modified",
       "description": "Added graph-coupling subcommand with --repo, --strength, --json flags and cmd_graph_coupling handler"
     },
@@ -52,7 +52,7 @@
       "detail": "237 passed in 3.91s"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-coupling --help",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-coupling --help",
       "result": "pass",
       "detail": "Shows usage with --repo, --strength, --json flags"
     }

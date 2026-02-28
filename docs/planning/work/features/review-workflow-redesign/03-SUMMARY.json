@@ -5,7 +5,7 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": "scripts/workflow_validate_core.py",
+      "file": ".cnogo/scripts/workflow_validate_core.py",
       "action": "Removed REVIEW_PRINCIPLES_REQUIRED_SCHEMA, DEFAULT_REVIEW_PRINCIPLES, _review_principles_cfg(). Renamed _get_karpathy_checklist_level() to _get_operating_principles_level() with backward-compat fallback. Updated _validate_workflow_config() to validate operatingPrinciples (accept karpathyChecklist fallback), removed reviewPrinciples validation. Rewrote _validate_ci_verification() to validate securityFindings/performanceFindings/patternCompliance for schemaVersion>=3, accept old schema silently. Updated _validate_features() and validate_repo() signatures."
     },
     {
@@ -23,7 +23,7 @@
       "result": "pass"
     },
     {
-      "command": "python3 scripts/workflow_validate.py",
+      "command": "python3 .cnogo/scripts/workflow_validate.py",
       "result": "pass (pre-existing warnings only)"
     }
   ],

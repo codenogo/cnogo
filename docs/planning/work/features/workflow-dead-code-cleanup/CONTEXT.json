@@ -49,7 +49,7 @@
     "scripts/memory/ledger.py",
     "scripts/memory/sessions.py",
     "scripts/memory/watchdog.py",
-    "scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_validate_core.py",
     "docs/planning/work/features/event-hardening/",
     "docs/planning/work/features/context-engineering-fixes/",
     "docs/planning/work/features/overstory-workflow-patterns/"

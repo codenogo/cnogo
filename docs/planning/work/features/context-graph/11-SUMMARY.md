@@ -11,7 +11,7 @@ pass
 | `scripts/context/python_parser.py` |  |
 | `scripts/context/phases/symbols.py` |  |
 | `scripts/context/__init__.py` |  |
-| `scripts/workflow_memory.py` |  |
+| `.cnogo/scripts/workflow_memory.py` |  |
 | `tests/test_context_storage.py` |  |
 | `tests/test_context_graph.py` |  |
 | `tests/test_context_cli.py` |  |

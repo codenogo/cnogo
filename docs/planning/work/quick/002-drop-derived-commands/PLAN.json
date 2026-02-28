@@ -13,7 +13,7 @@
     "python3 -c \"from scripts.memory.bridge import plan_to_task_descriptions, generate_implement_prompt; print('imports OK')\"",
     "python3 -c \"from scripts.memory.bridge import TASK_DESC_SCHEMA_VERSION; assert TASK_DESC_SCHEMA_VERSION == 2\"",
     "python3 -m pytest tests/test_bridge.py -v",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "timestamp": "2026-02-21T16:00:00Z"
 }

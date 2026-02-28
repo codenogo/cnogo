@@ -4,6 +4,6 @@
   "slug": "verify-install-completeness",
   "goal": "Verify install.sh copies all required files and gitignore entries; fix missing .cnogo/ gitignore entries",
   "files": ["install.sh"],
-  "verify": ["bash install.sh --help 2>&1 || true", "python3 scripts/workflow_validate.py"],
+  "verify": ["bash install.sh --help 2>&1 || true", "python3 .cnogo/scripts/workflow_validate.py"],
   "timestamp": "2026-02-21T00:00:00Z"
 }

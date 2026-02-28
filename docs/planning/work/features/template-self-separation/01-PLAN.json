@@ -44,7 +44,7 @@
   "planVerify": [
     "diff docs/planning/PROJECT.md docs/templates/PROJECT-TEMPLATE.md",
     "grep TEMPLATE install.sh",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(template-self-separation): extract install templates to docs/templates/\n\n- Copy PROJECT.md, ROADMAP.md, WORKFLOW.json as *-TEMPLATE files\n- Update install.sh to copy from docs/templates/ instead of docs/planning/\n- cnogo's own docs/planning/ files are now free to contain real content",
   "memoryEpicId": "cn-ngp191",

@@ -85,8 +85,8 @@ Teammate spawned → loads implementer.md (~35 lines)
 - `.claude/agents/implementer.md` — current 125-line agent (to be trimmed to ~35)
 - `.claude/agents/code-reviewer.md` — becomes `.claude/skills/code-review.md`
 - `.claude/commands/team.md` — 307 lines (to be trimmed to ~120)
-- `scripts/memory/bridge.py` — generates task descriptions (needs to output memory IDs instead of full content)
-- `scripts/memory/__init__.py` — public API, `show()` becomes the primary agent-facing function
+- `.cnogo/scripts/memory/bridge.py` — generates task descriptions (needs to output memory IDs instead of full content)
+- `.cnogo/scripts/memory/__init__.py` — public API, `show()` becomes the primary agent-facing function
 - `docs/skills.md` — 287 lines (to be dissolved)
 - `CLAUDE.md` — 163 lines of placeholders (to be filled and trimmed)
 

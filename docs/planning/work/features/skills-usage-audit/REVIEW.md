@@ -22,7 +22,7 @@ None.
 
 ### Concerns (score = 1)
 
-- **Test Coverage**: No formal unit tests for `parse_skill_frontmatter()` in `scripts/workflow_utils.py:51`. Verification commands serve as integration tests. Pre-existing pattern: workflow scripts rely on validation commands, not a test suite.
+- **Test Coverage**: No formal unit tests for `parse_skill_frontmatter()` in `.cnogo/scripts/workflow_utils.py:51`. Verification commands serve as integration tests. Pre-existing pattern: workflow scripts rely on validation commands, not a test suite.
 
 ### Scoring Summary
 

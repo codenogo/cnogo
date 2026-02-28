@@ -79,9 +79,9 @@
     ".claude/skills/security-scan.md (subsumes into Performance Review Step D)",
     ".claude/skills/perf-analysis.md (subsumes into Performance Review Step B)",
     ".claude/skills/release-readiness.md (subsumes into Performance Review Step E)",
-    "scripts/workflow_utils.py (frontmatter parser)",
-    "scripts/workflow_validate_core.py (skill validation)",
-    "scripts/workflow_checks_core.py (REVIEW.md generation — dedup + scoring integration)",
+    ".cnogo/scripts/workflow_utils.py (frontmatter parser)",
+    ".cnogo/scripts/workflow_validate_core.py (skill validation)",
+    ".cnogo/scripts/workflow_checks_core.py (REVIEW.md generation — dedup + scoring integration)",
     ".claude/commands/ (11 commands reference skills)",
     ".claude/commands/review.md (Performance Review as final gate)",
     "docs/planning/WORKFLOW.schema.json (karpathyChecklist cleanup)"

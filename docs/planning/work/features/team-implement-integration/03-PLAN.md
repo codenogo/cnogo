@@ -112,7 +112,7 @@ grep -q 'Team Context' .claude/agents/code-reviewer.md && grep -q 'Team Context'
 
 After all tasks:
 ```bash
-grep -q 'team implement' .claude/commands/resume.md && grep -q 'Team Implementation' docs/skills.md && grep -q 'Team Context' .claude/agents/code-reviewer.md && python3 scripts/workflow_validate.py
+grep -q 'team implement' .claude/commands/resume.md && grep -q 'Team Implementation' docs/skills.md && grep -q 'Team Context' .claude/agents/code-reviewer.md && python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

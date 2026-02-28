@@ -20,13 +20,13 @@
       "name": "Wire cost events into memory and CLI",
       "files": [
         "scripts/memory/__init__.py",
-        "scripts/workflow_memory.py"
+        ".cnogo/scripts/workflow_memory.py"
       ],
       "action": "In __init__.py: (1) Add to __all__: 'record_cost_event', 'get_cost_summary'. (2) Add record_cost_event(issue_id, usage_dict, actor, root) that calls _emit with event_type='cost_report' and data containing inputTokens, outputTokens, cacheTokens, model, estimatedCostUsd. (3) Add get_cost_summary(feature_slug, root) that queries events table for cost_report events linked to issues in the feature, aggregates totals. In workflow_memory.py: (4) Add 'costs' subcommand that takes optional --feature flag. Calls costs.py to find/parse transcripts and prints summary (total tokens, cost by model, per-session). (5) Add 'cost-record' subcommand that takes issue_id and session path, parses transcript, records cost_report event.",
       "verify": [
         "python3 -m py_compile scripts/memory/__init__.py",
         "python3 -m py_compile scripts/workflow_memory.py",
-        "python3 scripts/workflow_memory.py costs --help"
+        "python3 .cnogo/scripts/workflow_memory.py costs --help"
       ],
       "blockedBy": [0]
     },

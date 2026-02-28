@@ -23,7 +23,7 @@
       "verify": ["grep -c 'Bash' .claude/agents/code-reviewer.md"]
     }
   ],
-  "planVerify": ["bash -n install.sh", "python3 -c \"import json; json.load(open('.claude/settings.json'))\"", "python3 scripts/workflow_validate.py"],
+  "planVerify": ["bash -n install.sh", "python3 -c \"import json; json.load(open('.claude/settings.json'))\"", "python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "fix(review-findings-remediation): installer fixes, security hardening, agent restrictions",
   "timestamp": "2026-02-10T00:00:00Z"
 }

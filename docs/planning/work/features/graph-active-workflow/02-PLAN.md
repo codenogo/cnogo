@@ -36,7 +36,7 @@ python3 -m py_compile scripts/context/workflow.py
 **Done when:** [Observable outcome]
 
 ### Task 2: Add graph-validate-scope CLI subcommand
-**Files:** `scripts/workflow_memory.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`
 **Action:**
 Add graph-validate-scope subcommand to workflow_memory.py. Register argparse with: --declared (comma-separated declared file paths, required), --changed (comma-separated changed file paths, optional), --repo, --json. Handler function cmd_graph_validate_scope(): parse args, call validate_scope() from scripts.context.workflow, output JSON or human-readable summary showing within_scope status, violations, and warnings. Add to _graph_cmds and dispatch.
 
@@ -54,7 +54,7 @@ Add graph-validate-scope subcommand to workflow_memory.py. Register argparse wit
 **Verify:**
 ```bash
 python3 -m py_compile scripts/workflow_memory.py
-python3 scripts/workflow_memory.py graph-validate-scope --declared scripts/context/workflow.py --json
+python3 .cnogo/scripts/workflow_memory.py graph-validate-scope --declared scripts/context/workflow.py --json
 ```
 
 **Done when:** [Observable outcome]
@@ -62,7 +62,7 @@ python3 scripts/workflow_memory.py graph-validate-scope --declared scripts/conte
 ### Task 3: Update /implement command to call graph-validate-scope
 **Files:** `.claude/commands/implement.md`
 **Action:**
-Add a scope validation step to implement.md in Step 3 (Execute Tasks), after running verify commands (step 4) and before claiming success (step 5). Add a bash call: `python3 scripts/workflow_memory.py graph-validate-scope --declared "<task file_scope paths>" --changed "<actually modified files>" --json`. Instruct Claude to warn the user if violations are found (files outside declared scope affected) but not block task completion. Keep the addition under 40 words.
+Add a scope validation step to implement.md in Step 3 (Execute Tasks), after running verify commands (step 4) and before claiming success (step 5). Add a bash call: `python3 .cnogo/scripts/workflow_memory.py graph-validate-scope --declared "<task file_scope paths>" --changed "<actually modified files>" --json`. Instruct Claude to warn the user if violations are found (files outside declared scope affected) but not block task completion. Keep the addition under 40 words.
 
 **Micro-steps:**
 - Read current implement.md Step 3 content
@@ -76,7 +76,7 @@ Add a scope validation step to implement.md in Step 3 (Execute Tasks), after run
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py --feature graph-active-workflow
+python3 .cnogo/scripts/workflow_validate.py --feature graph-active-workflow
 ```
 
 **Done when:** [Observable outcome]
@@ -88,7 +88,7 @@ After all tasks:
 python3 -m pytest tests/test_context_workflow.py -x -q
 python3 -m py_compile scripts/context/workflow.py
 python3 -m py_compile scripts/workflow_memory.py
-python3 scripts/workflow_memory.py graph-validate-scope --declared scripts/context/workflow.py --json
+python3 .cnogo/scripts/workflow_memory.py graph-validate-scope --declared scripts/context/workflow.py --json
 ```
 
 ## Commit Message

@@ -34,7 +34,7 @@
     {
       "name": "Add graph-suggest-scope CLI subcommand",
       "files": [
-        "scripts/workflow_memory.py"
+        ".cnogo/scripts/workflow_memory.py"
       ],
       "microSteps": [
         "Add 'graph-suggest-scope' to _graph_cmds exclusion set",
@@ -50,7 +50,7 @@
       "action": "Add graph-suggest-scope subcommand to workflow_memory.py. Register argparse with: --keywords (comma-separated), --files (comma-separated related file paths), --repo, --limit (default 20), --json. Handler function cmd_graph_suggest_scope(): parse args, call suggest_scope() from scripts.context.workflow, output JSON or human-readable table. Add 'graph-suggest-scope' to _graph_cmds set. Add dispatch entry.",
       "verify": [
         "python3 -m py_compile scripts/workflow_memory.py",
-        "python3 scripts/workflow_memory.py graph-suggest-scope --keywords test --json"
+        "python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords test --json"
       ],
       "blockedBy": [0]
     },
@@ -69,9 +69,9 @@
         "required": false,
         "reason": "Markdown template — no testable code"
       },
-      "action": "Add a graph scope suggestion step to plan.md between Step 2 (Load Minimal Context) and Step 3 (Partition Work). Add a bash call: `python3 scripts/workflow_memory.py graph-suggest-scope --keywords \"<feature keywords from CONTEXT.json>\" --files \"<relatedCode from CONTEXT.json>\" --json`. Instruct Claude to use the suggestions when authoring task files[] arrays. Note that suggestions are advisory — graph failures don't block planning. Keep the addition under 40 words to respect word budget.",
+      "action": "Add a graph scope suggestion step to plan.md between Step 2 (Load Minimal Context) and Step 3 (Partition Work). Add a bash call: `python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords \"<feature keywords from CONTEXT.json>\" --files \"<relatedCode from CONTEXT.json>\" --json`. Instruct Claude to use the suggestions when authoring task files[] arrays. Note that suggestions are advisory — graph failures don't block planning. Keep the addition under 40 words to respect word budget.",
       "verify": [
-        "python3 scripts/workflow_validate.py --feature graph-active-workflow"
+        "python3 .cnogo/scripts/workflow_validate.py --feature graph-active-workflow"
       ],
       "blockedBy": [1]
     }
@@ -80,7 +80,7 @@
     "python3 -m pytest tests/test_context_workflow.py -x -q",
     "python3 -m py_compile scripts/context/workflow.py",
     "python3 -m py_compile scripts/workflow_memory.py",
-    "python3 scripts/workflow_memory.py graph-suggest-scope --keywords test --json"
+    "python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords test --json"
   ],
   "commitMessage": "feat(graph-active-workflow): add suggest_scope() and graph-suggest-scope CLI for /plan file scope suggestions",
   "timestamp": "2026-02-28T19:30:00Z"

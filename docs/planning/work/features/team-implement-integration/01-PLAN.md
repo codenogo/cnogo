@@ -11,9 +11,9 @@ Create the core infrastructure: a bridge module that translates plan tasks into 
 ## Tasks
 
 ### Task 1: Create bridge module
-**Files:** `scripts/memory/bridge.py`
+**Files:** `.cnogo/scripts/memory/bridge.py`
 **Action:**
-Create `scripts/memory/bridge.py` with two key functions:
+Create `.cnogo/scripts/memory/bridge.py` with two key functions:
 
 1. `plan_to_task_descriptions(plan_json_path, root)` — Reads an `NN-PLAN.json` file, ensures memory issues exist for each task (creating them if `memoryId` is missing), and returns a list of dicts containing: `name`, `description` (full agent prompt), `memoryId`, `files`, `verify`, `blockedBy`.
 
@@ -73,7 +73,7 @@ test -f .claude/agents/implementer.md && grep -q 'name: implementer' .claude/age
 **Done when:** Agent file exists with correct frontmatter and claim/verify/close cycle instructions.
 
 ### Task 3: Expose bridge in public API
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 Add bridge module functions to the public API:
 
@@ -102,7 +102,7 @@ import sys; sys.path.insert(0, '.')
 from scripts.memory.bridge import plan_to_task_descriptions, generate_implement_prompt
 from scripts.memory import plan_to_task_descriptions as p2t
 print('All imports OK')
-" && test -f .claude/agents/implementer.md && python3 scripts/workflow_validate.py
+" && test -f .claude/agents/implementer.md && python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message
@@ -111,7 +111,7 @@ feat(team-implement-integration): add bridge module and implementer agent
 
 - Create scripts/memory/bridge.py with plan-to-task translation
 - Create .claude/agents/implementer.md for plan task execution
-- Expose bridge functions in scripts/memory/__init__.py
+- Expose bridge functions in .cnogo/scripts/memory/__init__.py
 ```
 
 ---

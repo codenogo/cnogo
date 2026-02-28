@@ -25,7 +25,7 @@
       "description": "Added 3 tests: flows_returns_list, flows_max_depth, flows_exported_in_package"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "action": "modified",
       "description": "Added cmd_graph_flows() with human-readable and JSON output, --max-depth flag, registered in _graph_cmds and dispatch"
     },

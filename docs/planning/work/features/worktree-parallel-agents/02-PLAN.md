@@ -46,7 +46,7 @@ grep 'model: opus' .claude/agents/resolver.md && grep 'conflict' .claude/agents/
 **Done when:** `.claude/agents/resolver.md` exists with opus model and conflict resolution instructions.
 
 ### Task 2: Export Worktree Functions from Memory API
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 Add worktree function exports following the existing bridge pattern:
 
@@ -89,7 +89,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import creat
 **Done when:** All worktree functions are importable from `scripts.memory`.
 
 ### Task 3: Validation + WORKFLOW.json Config
-**Files:** `scripts/workflow_validate.py`, `docs/planning/WORKFLOW.json`
+**Files:** `.cnogo/scripts/workflow_validate.py`, `docs/planning/WORKFLOW.json`
 **Action:**
 
 **workflow_validate.py** — Add worktree-session.json validation in the WORKFLOW.json validation section:
@@ -114,7 +114,7 @@ Also add a standalone function `_validate_worktree_session(root, findings)` that
 python3 -c "compile(open('scripts/workflow_validate.py').read(), 'w.py', 'exec'); print('PASS')"
 ```
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 ```bash
 python3 -c "import json; wf=json.loads(open('docs/planning/WORKFLOW.json').read()); assert wf['agentTeams']['worktreeMode'] == 'always'; print('PASS')"
@@ -128,7 +128,7 @@ After all tasks:
 ```bash
 python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import create_session, merge_session, cleanup_session; print('PASS')"
 grep 'model: opus' .claude/agents/resolver.md
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

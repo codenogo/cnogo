@@ -29,8 +29,8 @@ None.
 
 | # | File | Line | Issue | Severity |
 |---|------|------|-------|----------|
-| W1 | `scripts/workflow_validate.py` | 396-466 | `_validate_features()` is ~80 lines (guideline: ≤50). Handles complex plan validation including monorepo scoping — functional but verbose. | Low |
-| W2 | `scripts/hook-pre-commit-secrets.sh` | 34 | `for file in $STAGED` doesn't handle filenames with spaces. Low risk (git staged files rarely have spaces). | Low |
+| W1 | `.cnogo/scripts/workflow_validate.py` | 396-466 | `_validate_features()` is ~80 lines (guideline: ≤50). Handles complex plan validation including monorepo scoping — functional but verbose. | Low |
+| W2 | `.cnogo/hooks/hook-pre-commit-secrets.sh` | 34 | `for file in $STAGED` doesn't handle filenames with spaces. Low risk (git staged files rarely have spaces). | Low |
 | W3 | `install.sh` | 270 | Output says "PreCommit: Secret scanning" but scanning runs via PreToolUse hook on `git commit` commands, not a git pre-commit hook. Cosmetic. | Low |
 | W4 | `.claude/settings.json` | 37 | SubagentStop hook still uses `echo` with `$CLAUDE_AGENT_TYPE`. Minimal risk (system-provided value, not user input) but inconsistent with the `printf '%s'` pattern applied to PreToolUse hooks. | Low |
 
@@ -38,8 +38,8 @@ None.
 
 | # | File | Line | Suggestion |
 |---|------|------|------------|
-| S1 | `scripts/hook-pre-commit-secrets.sh` | 34 | Use `while IFS= read -r file` instead of `for file in $STAGED` for robustness with spaces. |
-| S2 | `scripts/workflow_utils.py` | 16 | `_repo_root_cache` has no invalidation. Fine for single-script execution but document the assumption. |
+| S1 | `.cnogo/hooks/hook-pre-commit-secrets.sh` | 34 | Use `while IFS= read -r file` instead of `for file in $STAGED` for robustness with spaces. |
+| S2 | `.cnogo/scripts/workflow_utils.py` | 16 | `_repo_root_cache` has no invalidation. Fine for single-script execution but document the assumption. |
 
 ## Manual Review Checklist
 

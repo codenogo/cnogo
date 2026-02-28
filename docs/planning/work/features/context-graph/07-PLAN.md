@@ -31,7 +31,7 @@ python3 -m pytest tests/test_context_graph.py -x
 **Done when:** [Observable outcome]
 
 ### Task 2: Integrate impact analysis into write_review() in workflow_checks_core.py
-**Files:** `scripts/workflow_checks_core.py`, `tests/test_workflow_checks.py`
+**Files:** `.cnogo/scripts/workflow_checks_core.py`, `tests/test_workflow_checks.py`
 **Action:**
 Add _graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict function to workflow_checks_core.py. Implementation: (1) try to import ContextGraph and instantiate with root, (2) call graph.review_impact(sorted(changed_relpaths)), (3) wrap result in {enabled: true, ...impact_data}, (4) on any exception return {enabled: false, error: str(e)}. (5) Always call graph.close() in finally. Wire into write_review(): after tokens = summarize_token_telemetry(per_pkg), call _graph_impact_section(root, _changed_relpaths(root)) and add 'impactAnalysis' key to the contract dict before writing. Use _changed_relpaths(root) which already computes changed files. Write 3 tests using a temporary repo with Python files.
 
@@ -57,7 +57,7 @@ python3 -m pytest tests/test_workflow_checks.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: CLI graph-blast-radius subcommand
-**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `tests/test_context_cli.py`
 **Action:**
 Add graph-blast-radius subcommand to workflow_memory.py. Argparse: --repo (path), --files (comma-separated file paths, optional), --json (flag). Handler cmd_graph_blast_radius: (1) open graph via _graph_open(repo), (2) if --files provided split by comma, else run git diff --name-only to detect changed files, (3) call graph.review_impact(files), (4) output results. Human format: header with file count, then per-file impact list with affected symbols and depth. JSON format: the review_impact dict directly. Add 'graph-blast-radius' to _graph_cmds set and dispatch dict. Write 5 tests.
 
@@ -88,7 +88,7 @@ python3 -m pytest tests/test_context_cli.py -x
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_*.py tests/test_workflow_checks.py -x
-python3 scripts/workflow_memory.py graph-blast-radius --help
+python3 .cnogo/scripts/workflow_memory.py graph-blast-radius --help
 ```
 
 ## Commit Message

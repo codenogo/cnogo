@@ -107,7 +107,7 @@ For WORKFLOW.json:
 ```bash
 python3 -c "import json; d=json.load(open('.claude/settings.json')); assert 'SubagentStop' in d['hooks']; print('Hook OK')"
 python3 -c "import json; d=json.load(open('docs/planning/WORKFLOW.json')); assert 'agentTeams' in d; print('Config OK')"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** SubagentStop hook added to settings, agentTeams config added to WORKFLOW.json, validation passes.
@@ -120,7 +120,7 @@ test -f .claude/commands/team.md && echo "TEAM CMD OK"
 grep "Agent Teams" .claude/commands/sync.md && echo "SYNC DUAL-MODE OK"
 python3 -c "import json; d=json.load(open('.claude/settings.json')); print('Hooks:', list(d['hooks'].keys()))"
 python3 -c "import json; d=json.load(open('docs/planning/WORKFLOW.json')); print('Agent Teams:', d.get('agentTeams', {}).get('enabled'))"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

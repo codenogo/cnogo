@@ -13,7 +13,7 @@ Create a new skill file with YAML frontmatter (name: performance-review, tags: [
 **Verify:**
 ```bash
 python3 -c "from pathlib import Path; from scripts.workflow_utils import parse_skill_frontmatter; r = parse_skill_frontmatter(Path('.claude/skills/performance-review.md')); assert r['name'] == 'performance-review'; assert 'review' in r['appliesTo']; print('frontmatter ok')"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** [Observable outcome]
@@ -25,7 +25,7 @@ Update Step 3 (Focused Manual Pass) to use the Performance Review skill as the p
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** [Observable outcome]
@@ -35,7 +35,7 @@ python3 scripts/workflow_validate.py
 After all tasks:
 ```bash
 python3 -c "from pathlib import Path; from scripts.workflow_utils import discover_skills; skills = discover_skills(Path('.claude/skills')); names = [s['name'] for s in skills]; assert 'performance-review' in names; print(f'{len(skills)} skills including performance-review')"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

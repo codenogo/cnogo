@@ -23,7 +23,7 @@ None.
 
 | # | File | Issue | Fix |
 |---|------|-------|-----|
-| W-1 | `scripts/workflow_validate.py:339` | `isinstance(True, int)` is `True` in Python — `staleIndicatorMinutes` validation would accept booleans | Added `isinstance(stale, bool)` exclusion before int check |
+| W-1 | `.cnogo/scripts/workflow_validate.py:339` | `isinstance(True, int)` is `True` in Python — `staleIndicatorMinutes` validation would accept booleans | Added `isinstance(stale, bool)` exclusion before int check |
 | W-2 | `.claude/commands/implement.md:44` | `--team` flag vs `parallelizable: false` conflict undocumented — unclear which wins | Added "(explicit flag overrides all plan metadata)" clarification |
 | W-3 | `.claude/commands/status.md:122` | Clock skew could produce negative age values | Added `max(0, ...)` guard |
 
@@ -39,9 +39,9 @@ None.
 
 | # | Severity | File | Issue |
 |---|----------|------|-------|
-| H-1 | High | `scripts/workflow_validate.py` | `subprocess.run(shell=True)` with WORKFLOW.json commands — pre-existing |
-| M-1 | Medium | `scripts/memory/bridge.py` | Path traversal in feature_slug parameter — pre-existing |
-| M-2 | Medium | `scripts/memory/storage.py` | String interpolation in SQL — pre-existing |
+| H-1 | High | `.cnogo/scripts/workflow_validate.py` | `subprocess.run(shell=True)` with WORKFLOW.json commands — pre-existing |
+| M-1 | Medium | `.cnogo/scripts/memory/bridge.py` | Path traversal in feature_slug parameter — pre-existing |
+| M-2 | Medium | `.cnogo/scripts/memory/storage.py` | String interpolation in SQL — pre-existing |
 
 These are all pre-existing and outside the scope of this feature. Tracked for future attention.
 

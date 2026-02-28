@@ -10,8 +10,8 @@ fi
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
-if [ -f "$ROOT/scripts/workflow_hooks.py" ]; then
-  python3 "$ROOT/scripts/workflow_hooks.py" post_commit_graph
+if [ -f "$ROOT/.cnogo/scripts/workflow_hooks.py" ]; then
+  python3 "$ROOT/.cnogo/scripts/workflow_hooks.py" post_commit_graph
 else
   exit 0
 fi

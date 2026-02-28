@@ -28,7 +28,7 @@
       "blockedBy": [0]
     }
   ],
-  "planVerify": ["python3 scripts/workflow_validate.py", "python3 -c \"from scripts.memory.bridge import generate_implement_prompt; print('OK')\""],
+  "planVerify": ["python3 .cnogo/scripts/workflow_validate.py", "python3 -c \"from scripts.memory.bridge import generate_implement_prompt; print('OK')\""],
   "commitMessage": "refactor(agent-architecture): restructure agents — ultra-lean teammates, skills migration",
   "timestamp": "2026-02-14T00:00:00Z"
 }

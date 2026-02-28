@@ -33,7 +33,7 @@ python3 -m pytest tests/test_context_visualization.py -v
 **Done when:** [Observable outcome]
 
 ### Task 2: Add visualize() method to ContextGraph and graph-viz CLI command
-**Files:** `scripts/context/__init__.py`, `scripts/workflow_memory.py`, `tests/test_context_visualization.py`
+**Files:** `scripts/context/__init__.py`, `.cnogo/scripts/workflow_memory.py`, `tests/test_context_visualization.py`
 **Action:**
 Add ContextGraph.visualize(scope='file'|'module'|'full', center=None, depth=3, format='mermaid'|'dot') that delegates to visualization module. Add graph-viz CLI command: --format mermaid|dot (default: mermaid), --scope file|module|full (default: file), --depth N (default: 3), --center PATH (file or symbol). Output goes to stdout for piping/redirection.
 
@@ -55,7 +55,7 @@ Add ContextGraph.visualize(scope='file'|'module'|'full', center=None, depth=3, f
 **Verify:**
 ```bash
 python3 -m pytest tests/test_context_visualization.py -v
-python3 scripts/workflow_memory.py graph-viz --help 2>&1 | grep -q viz
+python3 .cnogo/scripts/workflow_memory.py graph-viz --help 2>&1 | grep -q viz
 ```
 
 **Done when:** [Observable outcome]
@@ -92,7 +92,7 @@ python3 -m pytest tests/test_context_visualization.py -v
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_visualization.py -v
-python3 scripts/workflow_memory.py graph-viz --help 2>&1 | grep -q viz
+python3 .cnogo/scripts/workflow_memory.py graph-viz --help 2>&1 | grep -q viz
 ```
 
 ## Commit Message

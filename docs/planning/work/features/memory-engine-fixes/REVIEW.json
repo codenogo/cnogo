@@ -19,42 +19,42 @@
   "invariants": {
     "findings": [
       {
-        "file": "scripts/workflow_checks.py",
+        "file": ".cnogo/scripts/workflow_checks.py",
         "line": 1,
         "message": "File has 991 lines (max 800).",
         "rule": "max-file-lines",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate.py",
+        "file": ".cnogo/scripts/workflow_validate.py",
         "line": 1,
         "message": "File has 1464 lines (max 800).",
         "rule": "max-file-lines",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate.py",
+        "file": ".cnogo/scripts/workflow_validate.py",
         "line": 503,
         "message": "Line length 150 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate.py",
+        "file": ".cnogo/scripts/workflow_validate.py",
         "line": 537,
         "message": "Line length 147 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate.py",
+        "file": ".cnogo/scripts/workflow_validate.py",
         "line": 862,
         "message": "Line length 142 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate.py",
+        "file": ".cnogo/scripts/workflow_validate.py",
         "line": 922,
         "message": "Line length 142 exceeds 140.",
         "rule": "max-line-length",
@@ -141,42 +141,42 @@
   "verdict": "warn",
   "warnings": [
     {
-      "file": "scripts/workflow_checks.py",
+      "file": ".cnogo/scripts/workflow_checks.py",
       "issue": "File has 991 lines (max 800).",
       "line": 1,
       "rule": "max-file-lines",
       "severity": "medium"
     },
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "issue": "File has 1464 lines (max 800).",
       "line": 1,
       "rule": "max-file-lines",
       "severity": "medium"
     },
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "issue": "Line length 150 exceeds 140.",
       "line": 503,
       "rule": "max-line-length",
       "severity": "medium"
     },
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "issue": "Line length 147 exceeds 140.",
       "line": 537,
       "rule": "max-line-length",
       "severity": "medium"
     },
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "issue": "Line length 142 exceeds 140.",
       "line": 862,
       "rule": "max-line-length",
       "severity": "medium"
     },
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "issue": "Line length 142 exceeds 140.",
       "line": 922,
       "rule": "max-line-length",

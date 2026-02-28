@@ -43,7 +43,7 @@
   ],
   "relatedCode": [
     "scripts/memory/bridge.py",
-    "scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_validate_core.py",
     "docs/planning/WORKFLOW.json",
     ".claude/commands/plan.md"
   ],

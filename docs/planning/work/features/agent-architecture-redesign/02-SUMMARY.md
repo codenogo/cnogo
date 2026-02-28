@@ -19,7 +19,7 @@
 | `.claude/agents/migrate.md` | Deleted |
 | `.claude/agents/explorer.md` | Deleted |
 | `docs/skills.md` | Deleted (dissolved into CLAUDE.md + .claude/skills/) |
-| `scripts/memory/bridge.py` | Removed context_snippet, _load_context_snippet, _extract_sections, _CONTEXT_MAX_LINES. Prompt: 60 → 17 lines. |
+| `.cnogo/scripts/memory/bridge.py` | Removed context_snippet, _load_context_snippet, _extract_sections, _CONTEXT_MAX_LINES. Prompt: 60 → 17 lines. |
 
 ## Verification Results
 

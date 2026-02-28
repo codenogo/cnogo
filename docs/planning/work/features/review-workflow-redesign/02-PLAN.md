@@ -6,7 +6,7 @@ Rewrite review generation to output Security/Performance/Design Patterns section
 ## Tasks
 
 ### Task 1: Rewrite write_review() in workflow_checks_core.py
-**Files:** `scripts/workflow_checks_core.py`
+**Files:** `.cnogo/scripts/workflow_checks_core.py`
 **Action:**
 Rewrite the write_review() function: (1) Remove the principles parameter. (2) Replace the 'principles' key in REVIEW.json contract with three new arrays: 'securityFindings': [], 'performanceFindings': [], 'patternCompliance': [], and optional 'principleNotes': []. These are placeholder arrays populated by the manual review pass, not by automation. (3) In the REVIEW.md generation, replace '## Karpathy Checklist' table with three new sections: '## Security' (checklist: auth, input validation, secrets, injection, sensitive logging), '## Performance' (checklist: N+1 queries, unbounded loops, memory, timeouts), '## Design Patterns' (checklist: codebase pattern alignment, API consistency, abstractions). Each with a markdown table showing Area | Status | Notes. (4) Remove the _review_principles() helper function (no longer needed). (5) Update the call site in the main review flow to not pass principles.
 

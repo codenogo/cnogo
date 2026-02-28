@@ -8,7 +8,7 @@
 |------|--------|
 | `.claude/commands/team.md` | Rewrote implement action to use worktree lifecycle: create_session → spawn agents with worktree paths → merge_session → resolver on conflict → cleanup_session. Removed "no resumption" note. |
 | `.claude/commands/implement.md` | Updated Step 1c — removed file-overlap blocking requirement, all parallel execution uses worktree isolation, file conflicts are advisory only |
-| `scripts/memory/bridge.py` | Updated `detect_file_conflicts()` docstring to "advisory", added `"severity": "advisory"` key to conflict dicts |
+| `.cnogo/scripts/memory/bridge.py` | Updated `detect_file_conflicts()` docstring to "advisory", added `"severity": "advisory"` key to conflict dicts |
 | `.claude/commands/resume.md` | Added Worktree Session Recovery section — detects interrupted sessions, shows phase/progress, suggests recovery actions per phase |
 | `.claude/agents/implementer.md` | Added commit step (step 5) to worktree branch, added worktree awareness rules |
 

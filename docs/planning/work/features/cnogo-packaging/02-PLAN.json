@@ -22,7 +22,7 @@
         "Create .cnogo/hooks/ directory",
         "git mv 5 shell hook scripts from scripts/ to .cnogo/hooks/",
         "git mv 2 Python hook scripts from scripts/ to .cnogo/hooks/",
-        "git mv scripts/install-githooks.sh to .cnogo/hooks/",
+        "git mv .cnogo/hooks/install-githooks.sh to .cnogo/hooks/",
         "Create .cnogo/hooks/_bootstrap.py (same as .cnogo/scripts/_bootstrap.py — adds .cnogo/ to sys.path)",
         "Add 'import _bootstrap  # noqa: F401' to both Python hook files",
         "git mv docs/templates/ to .cnogo/templates/",
@@ -39,7 +39,7 @@
         "test -f .cnogo/hooks/install-githooks.sh",
         "test -f .cnogo/hooks/_bootstrap.py",
         "test -f .cnogo/templates/CLAUDE-generic.md",
-        "test ! -f scripts/hook-dangerous-cmd.sh",
+        "test ! -f .cnogo/hooks/hook-dangerous-cmd.sh",
         "test ! -d docs/templates"
       ]
     },
@@ -59,7 +59,7 @@
         "required": false,
         "reason": "Configuration update — verified by JSON parse and grep checks"
       },
-      "action": "Update all hook command paths in .claude/settings.json to reference new locations. Replace 'scripts/hook-' with '.cnogo/hooks/hook-' in shell hook commands. Replace 'scripts/workflow_hooks.py' with '.cnogo/scripts/workflow_hooks.py' in workflow hook commands. Replace 'scripts/hook-subagent-stop.py' with '.cnogo/hooks/hook-subagent-stop.py' and 'scripts/hook-pre-compact.py' with '.cnogo/hooks/hook-pre-compact.py'. Add '_cnogo': true to each hook entry for future update/uninstall identification. Update permission allowlist entries.",
+      "action": "Update all hook command paths in .claude/settings.json to reference new locations. Replace 'scripts/hook-' with '.cnogo/hooks/hook-' in shell hook commands. Replace 'scripts/workflow_hooks.py' with '.cnogo/scripts/workflow_hooks.py' in workflow hook commands. Replace '.cnogo/hooks/hook-subagent-stop.py' with '.cnogo/hooks/hook-subagent-stop.py' and '.cnogo/hooks/hook-pre-compact.py' with '.cnogo/hooks/hook-pre-compact.py'. Add '_cnogo': true to each hook entry for future update/uninstall identification. Update permission allowlist entries.",
       "verify": [
         "python3 -c \"import json; json.load(open('.claude/settings.json')); print('valid JSON')\"",
         "grep -c '_cnogo' .claude/settings.json",
@@ -101,9 +101,9 @@
         "CLAUDE.md"
       ],
       "microSteps": [
-        "In all 20 command files: replace 'python3 scripts/workflow_' with 'python3 .cnogo/scripts/workflow_'",
-        "In all 20 command files: replace 'scripts/install-githooks' with '.cnogo/hooks/install-githooks'",
-        "In all 6 skill files: replace 'python3 scripts/workflow_' with 'python3 .cnogo/scripts/workflow_'",
+        "In all 20 command files: replace 'python3 .cnogo/scripts/workflow_' with 'python3 .cnogo/scripts/workflow_'",
+        "In all 20 command files: replace '.cnogo/hooks/install-githooks' with '.cnogo/hooks/install-githooks'",
+        "In all 6 skill files: replace 'python3 .cnogo/scripts/workflow_' with 'python3 .cnogo/scripts/workflow_'",
         "In .claude/CLAUDE.md: update all script paths, Python import examples, and file path references",
         "In root CLAUDE.md: update all script paths and file path references",
         "In both CLAUDE.md files: update 'scripts/memory/' references to '.cnogo/scripts/memory/'",
@@ -114,11 +114,11 @@
         "required": false,
         "reason": "Mechanical text replacement — verified by grep for absence of old patterns"
       },
-      "action": "Bulk find-and-replace across 28 files (20 commands + 6 skills + 2 CLAUDE.md files). Primary replacements: 'python3 scripts/workflow_' → 'python3 .cnogo/scripts/workflow_', 'scripts/memory/' → '.cnogo/scripts/memory/', 'scripts/hook-' → '.cnogo/hooks/hook-', 'scripts/install-githooks' → '.cnogo/hooks/install-githooks', 'from scripts.memory' import examples updated to show sys.path.insert(0, '.cnogo') prefix. Total: ~89 references across 28 files.",
+      "action": "Bulk find-and-replace across 28 files (20 commands + 6 skills + 2 CLAUDE.md files). Primary replacements: 'python3 .cnogo/scripts/workflow_' → 'python3 .cnogo/scripts/workflow_', 'scripts/memory/' → '.cnogo/scripts/memory/', 'scripts/hook-' → '.cnogo/hooks/hook-', '.cnogo/hooks/install-githooks' → '.cnogo/hooks/install-githooks', 'from scripts.memory' import examples updated to show sys.path.insert(0, '.cnogo') prefix. Total: ~89 references across 28 files.",
       "verify": [
-        "! grep -r 'python3 scripts/workflow_' .claude/commands/ .claude/skills/ .claude/CLAUDE.md CLAUDE.md 2>/dev/null",
+        "! grep -r 'python3 .cnogo/scripts/workflow_' .claude/commands/ .claude/skills/ .claude/CLAUDE.md CLAUDE.md 2>/dev/null",
         "! grep -r 'scripts/hook-' .claude/commands/ .claude/skills/ .claude/CLAUDE.md CLAUDE.md 2>/dev/null",
-        "! grep -r 'scripts/install-githooks' .claude/commands/ .claude/skills/ .claude/CLAUDE.md CLAUDE.md 2>/dev/null",
+        "! grep -r '.cnogo/hooks/install-githooks' .claude/commands/ .claude/skills/ .claude/CLAUDE.md CLAUDE.md 2>/dev/null",
         "grep -r '.cnogo/scripts/workflow_' .claude/commands/ | head -3"
       ],
       "blockedBy": [0]
@@ -130,7 +130,7 @@
     "test -d .cnogo/hooks",
     "test -d .cnogo/templates",
     "python3 -c \"import json; json.load(open('.claude/settings.json')); print('valid JSON')\"",
-    "! grep -r 'python3 scripts/workflow_' .claude/ CLAUDE.md 2>/dev/null",
+    "! grep -r 'python3 .cnogo/scripts/workflow_' .claude/ CLAUDE.md 2>/dev/null",
     "! grep -r 'scripts/hook-' .claude/ CLAUDE.md 2>/dev/null",
     "python3 .cnogo/scripts/workflow_memory.py prime --limit 1",
     "python3 -m pytest tests/ -x -q --tb=short 2>&1 | tail -5"

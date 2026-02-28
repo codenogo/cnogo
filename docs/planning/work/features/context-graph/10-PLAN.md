@@ -62,7 +62,7 @@ python3 -m pytest tests/test_context_graph.py tests/test_context_flows.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: Add graph-flows CLI subcommand
-**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `tests/test_context_cli.py`
 **Action:**
 Add graph-flows CLI subcommand to workflow_memory.py. Human-readable output: list each flow with entry point and step count. JSON output: list of {process_id, entry_point: {name, file_path, label}, steps: [{name, file_path, label, depth}]}. Add --max-depth flag (default 10). Register in _graph_cmds and dispatch.
 

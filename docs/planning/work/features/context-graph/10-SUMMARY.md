@@ -11,7 +11,7 @@ complete
 | `tests/test_context_flows.py` |  |
 | `scripts/context/__init__.py` |  |
 | `tests/test_context_graph.py` |  |
-| `scripts/workflow_memory.py` |  |
+| `.cnogo/scripts/workflow_memory.py` |  |
 | `tests/test_context_cli.py` |  |
 
 ## Verification Results

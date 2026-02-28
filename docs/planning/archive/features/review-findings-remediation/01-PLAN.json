@@ -6,9 +6,9 @@
   "tasks": [
     {
       "name": "Create hook scripts",
-      "files": ["scripts/hook-dangerous-cmd.sh", "scripts/hook-sensitive-file.sh", "scripts/hook-pre-commit-secrets.sh"],
+      "files": [".cnogo/hooks/hook-dangerous-cmd.sh", ".cnogo/hooks/hook-sensitive-file.sh", ".cnogo/hooks/hook-pre-commit-secrets.sh"],
       "action": "Extract 3 PreToolUse hooks from settings.json into standalone scripts with printf-based safe input handling, expanded patterns, and combined grep alternation",
-      "verify": ["bash -n scripts/hook-dangerous-cmd.sh", "bash -n scripts/hook-sensitive-file.sh", "bash -n scripts/hook-pre-commit-secrets.sh"]
+      "verify": ["bash -n .cnogo/hooks/hook-dangerous-cmd.sh", "bash -n .cnogo/hooks/hook-sensitive-file.sh", "bash -n .cnogo/hooks/hook-pre-commit-secrets.sh"]
     },
     {
       "name": "Update settings.json hooks",
@@ -19,11 +19,11 @@
     {
       "name": "Deduplicate review.md secret scanning",
       "files": [".claude/commands/review.md"],
-      "action": "Replace inline secret scanning bash with call to scripts/hook-pre-commit-secrets.sh",
+      "action": "Replace inline secret scanning bash with call to .cnogo/hooks/hook-pre-commit-secrets.sh",
       "verify": ["grep 'hook-pre-commit-secrets.sh' .claude/commands/review.md"]
     }
   ],
-  "planVerify": ["bash -n scripts/hook-dangerous-cmd.sh", "python3 -c \"import json; json.load(open('.claude/settings.json'))\"", "python3 scripts/workflow_validate.py"],
+  "planVerify": ["bash -n .cnogo/hooks/hook-dangerous-cmd.sh", "python3 -c \"import json; json.load(open('.claude/settings.json'))\"", "python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "fix(review-findings-remediation): extract hooks to scripts, fix critical path",
   "timestamp": "2026-02-10T00:00:00Z"
 }

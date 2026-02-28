@@ -5,7 +5,7 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": "scripts/workflow_validate_core.py",
+      "file": ".cnogo/scripts/workflow_validate_core.py",
       "description": "Added baseline infrastructure: _finding_to_warning() with stable sha256 signatures, save_baseline/load_baseline for .cnogo/validate-baseline.json, diff_baselines() for comparing warnings, _save_latest() for .cnogo/validate-latest.json snapshots. Added --save-baseline and --diff-baseline CLI flags."
     },
     {
@@ -15,9 +15,9 @@
   ],
   "verification": [
     {"command": "python3 -m py_compile scripts/workflow_validate.py", "result": "pass"},
-    {"command": "python3 scripts/workflow_validate.py --save-baseline", "result": "pass"},
-    {"command": "python3 scripts/workflow_validate.py --diff-baseline", "result": "pass"},
-    {"command": "python3 scripts/workflow_validate.py", "result": "pass"}
+    {"command": "python3 .cnogo/scripts/workflow_validate.py --save-baseline", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py --diff-baseline", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"}
   ],
   "commit": "fd88272",
   "timestamp": "2026-02-21T15:00:00Z"

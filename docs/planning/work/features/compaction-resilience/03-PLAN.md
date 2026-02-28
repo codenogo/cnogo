@@ -6,15 +6,15 @@ Wire reconcile into CLI, export public API, and update recovery commands
 ## Tasks
 
 ### Task 1: Add session-reconcile subcommand and public API export
-**Files:** `scripts/workflow_memory.py`, `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `.cnogo/scripts/memory/__init__.py`
 **Action:**
-In `scripts/memory/__init__.py`: (1) Add import: `from .reconcile import reconcile_session`. (2) Add `reconcile_session` to the `__all__` list under a new comment group `# Reconcile (compaction recovery)`. In `scripts/workflow_memory.py`: (1) Add `reconcile_session` to the import block from `scripts.memory`. (2) Add a `cmd_session_reconcile(args)` function that calls `reconcile_session(_root())`, prints summary in human-readable format (or JSON if `--json`), and returns 0. (3) Add `session-reconcile` subparser with `--json` flag after the `session-cleanup` subparser. (4) Add `'session-reconcile': cmd_session_reconcile` to the dispatch dict. (5) Update the module docstring to include `session-reconcile` in the commands list.
+In `.cnogo/scripts/memory/__init__.py`: (1) Add import: `from .reconcile import reconcile_session`. (2) Add `reconcile_session` to the `__all__` list under a new comment group `# Reconcile (compaction recovery)`. In `.cnogo/scripts/workflow_memory.py`: (1) Add `reconcile_session` to the import block from `scripts.memory`. (2) Add a `cmd_session_reconcile(args)` function that calls `reconcile_session(_root())`, prints summary in human-readable format (or JSON if `--json`), and returns 0. (3) Add `session-reconcile` subparser with `--json` flag after the `session-cleanup` subparser. (4) Add `'session-reconcile': cmd_session_reconcile` to the dispatch dict. (5) Update the module docstring to include `session-reconcile` in the commands list.
 
 **Verify:**
 ```bash
 python3 -m py_compile scripts/workflow_memory.py
 python3 -m py_compile scripts/memory/__init__.py
-python3 scripts/workflow_memory.py session-reconcile --json 2>/dev/null; echo "exit: $?"
+python3 .cnogo/scripts/workflow_memory.py session-reconcile --json 2>/dev/null; echo "exit: $?"
 ```
 
 **Done when:** [Observable outcome]
@@ -22,7 +22,7 @@ python3 scripts/workflow_memory.py session-reconcile --json 2>/dev/null; echo "e
 ### Task 2: Update resume command with reconcile step
 **Files:** `.claude/commands/resume.md`
 **Action:**
-In `.claude/commands/resume.md`, update Step 4 (Team/Worktree Recovery Check) to add reconciliation. After the existing `session-status` command, add: `python3 scripts/workflow_memory.py session-reconcile`. Add a note: 'This auto-closes any memory issues whose worktrees were already merged/cleaned, fixing orphaned state from context compaction.' Update the conditional text to mention: 'If reconcile found orphaned issues, they are now closed. Check memory status with `python3 scripts/workflow_memory.py prime`.'
+In `.claude/commands/resume.md`, update Step 4 (Team/Worktree Recovery Check) to add reconciliation. After the existing `session-status` command, add: `python3 .cnogo/scripts/workflow_memory.py session-reconcile`. Add a note: 'This auto-closes any memory issues whose worktrees were already merged/cleaned, fixing orphaned state from context compaction.' Update the conditional text to mention: 'If reconcile found orphaned issues, they are now closed. Check memory status with `python3 .cnogo/scripts/workflow_memory.py prime`.'
 
 **Verify:**
 ```bash
@@ -34,7 +34,7 @@ python3 -c "text=open('.claude/commands/resume.md').read(); assert 'session-reco
 ### Task 3: Update CLAUDE.md with session-reconcile documentation
 **Files:** `.claude/CLAUDE.md`
 **Action:**
-In `.claude/CLAUDE.md`, under the Memory Engine section's CLI access code block, add one new line after the `show` command: `python3 scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction`. Keep it concise — one line only.
+In `.claude/CLAUDE.md`, under the Memory Engine section's CLI access code block, add one new line after the `show` command: `python3 .cnogo/scripts/workflow_memory.py session-reconcile  # Fix orphaned issues after compaction`. Keep it concise — one line only.
 
 **Verify:**
 ```bash
@@ -49,7 +49,7 @@ After all tasks:
 ```bash
 python3 -m py_compile scripts/workflow_memory.py
 python3 -m py_compile scripts/memory/__init__.py
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

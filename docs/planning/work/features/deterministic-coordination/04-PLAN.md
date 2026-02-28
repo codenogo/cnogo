@@ -6,7 +6,7 @@ Add leader reconciliation algorithm and .cnogo/run.json coordination ledger with
 ## Tasks
 
 ### Task 1: Create run ledger module
-**Files:** `scripts/memory/ledger.py`
+**Files:** `.cnogo/scripts/memory/ledger.py`
 **Action:**
 Create new module scripts/memory/ledger.py (stdlib only). Implements read/write for .cnogo/run.json. Data shape: {run_id: str, feature: str, phase: str (setup|running|reconciling|done|failed), team_id: str, epic_id: str, plan_ids: [str], issue_states: {issue_id: state_str}, outputs_hash: str, created_at: str, updated_at: str}. Functions: (1) load_ledger(root: Path) -> dict | None — reads .cnogo/run.json, returns None if missing. (2) save_ledger(root: Path, data: dict) -> None — atomic write (write to .tmp, rename). (3) update_ledger(root: Path, **fields) -> dict — load, merge fields, set updated_at, save, return. (4) create_ledger(root: Path, *, run_id: str, feature: str, team_id: str, epic_id: str) -> dict — create new ledger with phase='setup'. (5) generate_run_id() -> str — returns f'{feature}-{YYYYMMDD}-{HHMMSS}' format using UTC time. All timestamps UTC ISO-8601. Add to __init__.py __all__: load_ledger, save_ledger, create_ledger.
 
@@ -19,7 +19,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory.ledger impor
 **Done when:** [Observable outcome]
 
 ### Task 2: Create leader reconciliation module
-**Files:** `scripts/memory/reconcile_leader.py`
+**Files:** `.cnogo/scripts/memory/reconcile_leader.py`
 **Action:**
 Create new module scripts/memory/reconcile_leader.py (stdlib only). Implements the deterministic leader-only closure algorithm from Contract 08. Main function: reconcile(epic_id: str, *, actor: str = 'leader', root: Path | None = None) -> dict. Algorithm: (1) Load epic issue. (2) Find all PLANs under epic (parent-child deps where parent=epic_id, issue_type='plan'). (3) For each PLAN, find all TASKs under it (parent-child deps where parent=plan_id, issue_type='task'). (4) For each TASK: if state='done_by_worker', call verify_and_close(task_id, actor=actor). Track results. (5) For each PLAN: if ALL child TASKs have state='closed', set plan.state='ready_to_close' then close plan via close(plan_id, actor_role='leader'). (6) For EPIC: if ALL PLANs have state='closed', set epic.state='ready_to_close' then close epic via close(epic_id, actor_role='leader'). Return summary dict: {tasks_verified: int, tasks_closed: int, plans_closed: int, epic_closed: bool, errors: [str]}. Handle errors per-item (don't abort on single failure). Import from scripts.memory: show, close, verify_and_close, list_issues. Add reconcile to __init__.py __all__.
 
@@ -49,7 +49,7 @@ After all tasks:
 ```bash
 python3 -m py_compile scripts/memory/ledger.py
 python3 -m py_compile scripts/memory/reconcile_leader.py
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

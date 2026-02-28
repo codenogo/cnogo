@@ -27,8 +27,8 @@
   "relatedCode": [
     "scripts/memory/context.py",
     "scripts/memory/__init__.py",
-    "scripts/workflow_checks.py",
-    "scripts/workflow_validate.py",
+    ".cnogo/scripts/workflow_checks.py",
+    ".cnogo/scripts/workflow_validate.py",
     "install.sh",
     ".claude/commands/resume.md",
     ".claude/commands/pause.md",

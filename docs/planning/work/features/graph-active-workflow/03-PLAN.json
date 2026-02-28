@@ -34,7 +34,7 @@
     {
       "name": "Add graph-enrich CLI subcommand",
       "files": [
-        "scripts/workflow_memory.py"
+        ".cnogo/scripts/workflow_memory.py"
       ],
       "microSteps": [
         "Add 'graph-enrich' to _graph_cmds exclusion set",
@@ -50,7 +50,7 @@
       "action": "Add graph-enrich subcommand to workflow_memory.py. Register argparse with: --keywords (comma-separated, required), --repo, --limit (default 20), --json. Handler function cmd_graph_enrich(): parse args, call enrich_context() from scripts.context.workflow, output JSON or human-readable table of related code grouped by relationship type. Add to _graph_cmds and dispatch.",
       "verify": [
         "python3 -m py_compile scripts/workflow_memory.py",
-        "python3 scripts/workflow_memory.py graph-enrich --keywords test --json"
+        "python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords test --json"
       ],
       "blockedBy": [0]
     },
@@ -69,9 +69,9 @@
         "required": false,
         "reason": "Markdown template — no testable code"
       },
-      "action": "Add a context enrichment step to discuss.md in Step 2 (Read Lightweight Context), after the rg search. Add a bash call: `python3 scripts/workflow_memory.py graph-enrich --keywords \"<feature keywords>\" --json`. Instruct Claude to use the enriched results to auto-populate relatedCode[] in CONTEXT.json and to surface architectural constraints (callers, callees, heritage) during the decision conversation. Keep the addition under 40 words.",
+      "action": "Add a context enrichment step to discuss.md in Step 2 (Read Lightweight Context), after the rg search. Add a bash call: `python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords \"<feature keywords>\" --json`. Instruct Claude to use the enriched results to auto-populate relatedCode[] in CONTEXT.json and to surface architectural constraints (callers, callees, heritage) during the decision conversation. Keep the addition under 40 words.",
       "verify": [
-        "python3 scripts/workflow_validate.py --feature graph-active-workflow"
+        "python3 .cnogo/scripts/workflow_validate.py --feature graph-active-workflow"
       ],
       "blockedBy": [1]
     }
@@ -81,7 +81,7 @@
     "python3 -m pytest tests/test_context_graph.py -x -q",
     "python3 -m py_compile scripts/context/workflow.py",
     "python3 -m py_compile scripts/workflow_memory.py",
-    "python3 scripts/workflow_memory.py graph-enrich --keywords test --json"
+    "python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords test --json"
   ],
   "commitMessage": "feat(graph-active-workflow): add enrich_context() and graph-enrich CLI for /discuss context enrichment",
   "timestamp": "2026-02-28T19:30:00Z"

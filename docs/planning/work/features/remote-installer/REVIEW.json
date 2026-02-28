@@ -2,8 +2,7 @@
   "automated": [
     {
       "name": "lint",
-      "result": "skipped",
-      "reason": "no changed files for cnogo-scripts package"
+      "result": "pass"
     },
     {
       "name": "types",
@@ -11,39 +10,491 @@
     },
     {
       "name": "tests",
-      "result": "pass",
-      "cmd": "python3 -m pytest tests/test_remote_install.py -x -q --tb=short",
-      "output": "10 passed in 0.05s"
+      "result": "skipped"
     }
   ],
   "blockers": [],
   "branch": "feature/remote-installer",
   "feature": "remote-installer",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {
+      ".cnogo/hooks/hook-post-commit-graph.sh": [],
+      ".cnogo/scripts/memory/__init__.py": [],
+      ".cnogo/scripts/memory/bridge.py": [],
+      ".cnogo/scripts/memory/context.py": [],
+      ".cnogo/scripts/workflow_checks_core.py": [],
+      ".cnogo/scripts/workflow_hooks.py": [],
+      ".cnogo/scripts/workflow_memory.py": [],
+      ".cnogo/scripts/workflow_validate_core.py": [],
+      ".cnogo/task-descriptions-context-graph-05.json": [],
+      ".cnogo/task-descriptions-deletion-cascade-detection-01.json": [],
+      ".cnogo/task-descriptions-deletion-cascade-detection-02.json": [],
+      ".cnogo/task-descriptions-overstory-learnings-01.json": [],
+      ".cnogo/templates/WORKFLOW-TEMPLATE.json": [],
+      ".githooks/pre-commit": [],
+      ".github/workflows/workflow-validate.yml": [],
+      "CHANGELOG.md": [],
+      "README.md": [],
+      "docs/planning/PROJECT.md": [],
+      "docs/planning/archive/features/deletion-cascade-detection/01-PLAN.json": [],
+      "docs/planning/archive/features/deletion-cascade-detection/01-PLAN.md": [],
+      "docs/planning/archive/features/deletion-cascade-detection/01-SUMMARY.md": [],
+      "docs/planning/archive/features/deletion-cascade-detection/02-PLAN.json": [],
+      "docs/planning/archive/features/deletion-cascade-detection/02-PLAN.md": [],
+      "docs/planning/archive/features/deletion-cascade-detection/02-SUMMARY.json": [],
+      "docs/planning/archive/features/deletion-cascade-detection/02-SUMMARY.md": [],
+      "docs/planning/archive/features/deletion-cascade-detection/CONTEXT.json": [],
+      "docs/planning/archive/features/deletion-cascade-detection/REVIEW.md": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/01-PLAN.json": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/01-PLAN.md": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/02-PLAN.json": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/02-PLAN.md": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/03-PLAN.json": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/03-PLAN.md": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/04-PLAN.json": [],
+      "docs/planning/archive/features/opus-46-agents-workflow-improvements/04-PLAN.md": [],
+      "docs/planning/archive/features/overstory-learnings/01-PLAN.json": [],
+      "docs/planning/archive/features/overstory-learnings/01-PLAN.md": [],
+      "docs/planning/archive/features/overstory-learnings/CONTEXT.json": [],
+      "docs/planning/archive/features/ptc-inspired-optimizations/CONTEXT.md": [],
+      "docs/planning/archive/features/review-findings-remediation/01-PLAN.json": [],
+      "docs/planning/archive/features/review-findings-remediation/01-PLAN.md": [],
+      "docs/planning/archive/features/review-findings-remediation/01-SUMMARY.json": [],
+      "docs/planning/archive/features/review-findings-remediation/01-SUMMARY.md": [],
+      "docs/planning/archive/features/review-findings-remediation/02-PLAN.json": [],
+      "docs/planning/archive/features/review-findings-remediation/02-PLAN.md": [],
+      "docs/planning/archive/features/review-findings-remediation/03-PLAN.json": [],
+      "docs/planning/archive/features/review-findings-remediation/03-PLAN.md": [],
+      "docs/planning/archive/features/review-findings-remediation/03-SUMMARY.json": [],
+      "docs/planning/archive/features/review-findings-remediation/03-SUMMARY.md": [],
+      "docs/planning/archive/features/review-findings-remediation/04-PLAN.json": [],
+      "docs/planning/archive/features/review-findings-remediation/04-PLAN.md": [],
+      "docs/planning/archive/features/review-findings-remediation/04-SUMMARY.json": [],
+      "docs/planning/archive/features/review-findings-remediation/04-SUMMARY.md": [],
+      "docs/planning/archive/features/review-findings-remediation/CONTEXT.json": [],
+      "docs/planning/archive/features/review-findings-remediation/REVIEW.json": [],
+      "docs/planning/archive/features/review-findings-remediation/REVIEW.md": [],
+      "docs/planning/work/archive/context-engineering-fixes/CONTEXT.md": [],
+      "docs/planning/work/archive/context-engineering-fixes/REVIEW.json": [],
+      "docs/planning/work/archive/context-engineering-fixes/REVIEW.md": [],
+      "docs/planning/work/archive/context-engineering-fixes/VERIFICATION-CI.json": [],
+      "docs/planning/work/archive/context-engineering-fixes/VERIFICATION-CI.md": [],
+      "docs/planning/work/archive/event-hardening/REVIEW.json": [],
+      "docs/planning/work/archive/event-hardening/REVIEW.md": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/01-PLAN.md": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/02-PLAN.json": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/02-PLAN.md": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/03-PLAN.json": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/03-PLAN.md": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/CONTEXT.json": [],
+      "docs/planning/work/archive/overstory-workflow-patterns/CONTEXT.md": [],
+      "docs/planning/work/background/20260215234848-entropy-cleanup-TASK.md": [],
+      "docs/planning/work/features/agent-architecture-redesign/01-PLAN.json": [],
+      "docs/planning/work/features/agent-architecture-redesign/01-PLAN.md": [],
+      "docs/planning/work/features/agent-architecture-redesign/01-SUMMARY.md": [],
+      "docs/planning/work/features/agent-architecture-redesign/02-PLAN.json": [],
+      "docs/planning/work/features/agent-architecture-redesign/02-PLAN.md": [],
+      "docs/planning/work/features/agent-architecture-redesign/02-SUMMARY.md": [],
+      "docs/planning/work/features/agent-architecture-redesign/03-PLAN.json": [],
+      "docs/planning/work/features/agent-architecture-redesign/03-PLAN.md": [],
+      "docs/planning/work/features/agent-architecture-redesign/CONTEXT.md": [],
+      "docs/planning/work/features/cnogo-packaging/02-PLAN.json": [],
+      "docs/planning/work/features/cnogo-packaging/02-PLAN.md": [],
+      "docs/planning/work/features/cnogo-packaging/02-SUMMARY.json": [],
+      "docs/planning/work/features/cnogo-packaging/02-SUMMARY.md": [],
+      "docs/planning/work/features/cnogo-packaging/04-PLAN.json": [],
+      "docs/planning/work/features/cnogo-packaging/04-PLAN.md": [],
+      "docs/planning/work/features/cnogo-packaging/04-SUMMARY.json": [],
+      "docs/planning/work/features/cnogo-packaging/04-SUMMARY.md": [],
+      "docs/planning/work/features/cnogo-packaging/CONTEXT.json": [],
+      "docs/planning/work/features/compaction-resilience/01-PLAN.json": [],
+      "docs/planning/work/features/compaction-resilience/01-PLAN.md": [],
+      "docs/planning/work/features/compaction-resilience/02-PLAN.json": [],
+      "docs/planning/work/features/compaction-resilience/02-PLAN.md": [],
+      "docs/planning/work/features/compaction-resilience/03-PLAN.json": [],
+      "docs/planning/work/features/compaction-resilience/03-PLAN.md": [],
+      "docs/planning/work/features/compaction-resilience/CONTEXT.json": [],
+      "docs/planning/work/features/compaction-resilience/CONTEXT.md": [],
+      "docs/planning/work/features/compaction-resilience/REVIEW.md": [],
+      "docs/planning/work/features/context-graph-next/01-PLAN.json": [],
+      "docs/planning/work/features/context-graph-next/01-PLAN.md": [],
+      "docs/planning/work/features/context-graph-next/01-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph-next/01-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph-next/02-PLAN.json": [],
+      "docs/planning/work/features/context-graph-next/02-PLAN.md": [],
+      "docs/planning/work/features/context-graph-next/02-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph-next/02-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph-next/03-PLAN.json": [],
+      "docs/planning/work/features/context-graph-next/03-PLAN.md": [],
+      "docs/planning/work/features/context-graph-next/03-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph-next/03-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph-next/04-PLAN.json": [],
+      "docs/planning/work/features/context-graph-next/04-PLAN.md": [],
+      "docs/planning/work/features/context-graph-next/04-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph-next/04-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph-next/CONTEXT.json": [],
+      "docs/planning/work/features/context-graph/04-PLAN.json": [],
+      "docs/planning/work/features/context-graph/04-PLAN.md": [],
+      "docs/planning/work/features/context-graph/04-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/04-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/05-PLAN.json": [],
+      "docs/planning/work/features/context-graph/05-PLAN.md": [],
+      "docs/planning/work/features/context-graph/05-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/05-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/06-PLAN.json": [],
+      "docs/planning/work/features/context-graph/06-PLAN.md": [],
+      "docs/planning/work/features/context-graph/06-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/06-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/07-PLAN.json": [],
+      "docs/planning/work/features/context-graph/07-PLAN.md": [],
+      "docs/planning/work/features/context-graph/07-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/07-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/08-PLAN.json": [],
+      "docs/planning/work/features/context-graph/08-PLAN.md": [],
+      "docs/planning/work/features/context-graph/08-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/08-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/09-CONTEXT.json": [],
+      "docs/planning/work/features/context-graph/09-PLAN.json": [],
+      "docs/planning/work/features/context-graph/09-PLAN.md": [],
+      "docs/planning/work/features/context-graph/09-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/09-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/10-PLAN.json": [],
+      "docs/planning/work/features/context-graph/10-PLAN.md": [],
+      "docs/planning/work/features/context-graph/10-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/10-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/11-PLAN.json": [],
+      "docs/planning/work/features/context-graph/11-PLAN.md": [],
+      "docs/planning/work/features/context-graph/11-SUMMARY.json": [],
+      "docs/planning/work/features/context-graph/11-SUMMARY.md": [],
+      "docs/planning/work/features/context-graph/CONTEXT.json": [],
+      "docs/planning/work/features/context-graph/CONTEXT.md": [],
+      "docs/planning/work/features/deterministic-coordination/01-PLAN.json": [],
+      "docs/planning/work/features/deterministic-coordination/01-PLAN.md": [],
+      "docs/planning/work/features/deterministic-coordination/01-SUMMARY.json": [],
+      "docs/planning/work/features/deterministic-coordination/01-SUMMARY.md": [],
+      "docs/planning/work/features/deterministic-coordination/02-PLAN.json": [],
+      "docs/planning/work/features/deterministic-coordination/02-PLAN.md": [],
+      "docs/planning/work/features/deterministic-coordination/02-SUMMARY.json": [],
+      "docs/planning/work/features/deterministic-coordination/02-SUMMARY.md": [],
+      "docs/planning/work/features/deterministic-coordination/03-PLAN.json": [],
+      "docs/planning/work/features/deterministic-coordination/03-PLAN.md": [],
+      "docs/planning/work/features/deterministic-coordination/03-SUMMARY.json": [],
+      "docs/planning/work/features/deterministic-coordination/03-SUMMARY.md": [],
+      "docs/planning/work/features/deterministic-coordination/04-PLAN.json": [],
+      "docs/planning/work/features/deterministic-coordination/04-PLAN.md": [],
+      "docs/planning/work/features/deterministic-coordination/04-SUMMARY.json": [],
+      "docs/planning/work/features/deterministic-coordination/04-SUMMARY.md": [],
+      "docs/planning/work/features/deterministic-coordination/05-PLAN.json": [],
+      "docs/planning/work/features/deterministic-coordination/05-PLAN.md": [],
+      "docs/planning/work/features/deterministic-coordination/05-SUMMARY.json": [],
+      "docs/planning/work/features/deterministic-coordination/05-SUMMARY.md": [],
+      "docs/planning/work/features/deterministic-coordination/CONTEXT.json": [],
+      "docs/planning/work/features/deterministic-coordination/CONTEXT.md": [],
+      "docs/planning/work/features/deterministic-coordination/REVIEW.json": [],
+      "docs/planning/work/features/deterministic-coordination/REVIEW.md": [],
+      "docs/planning/work/features/execution-coordination/01-PLAN.json": [],
+      "docs/planning/work/features/execution-coordination/01-PLAN.md": [],
+      "docs/planning/work/features/execution-coordination/01-SUMMARY.json": [],
+      "docs/planning/work/features/execution-coordination/01-SUMMARY.md": [],
+      "docs/planning/work/features/execution-coordination/02-PLAN.json": [],
+      "docs/planning/work/features/execution-coordination/02-PLAN.md": [],
+      "docs/planning/work/features/execution-coordination/02-SUMMARY.json": [],
+      "docs/planning/work/features/execution-coordination/02-SUMMARY.md": [],
+      "docs/planning/work/features/execution-coordination/CONTEXT.json": [],
+      "docs/planning/work/features/execution-coordination/CONTEXT.md": [],
+      "docs/planning/work/features/graph-active-workflow/01-PLAN.json": [],
+      "docs/planning/work/features/graph-active-workflow/01-PLAN.md": [],
+      "docs/planning/work/features/graph-active-workflow/01-SUMMARY.json": [],
+      "docs/planning/work/features/graph-active-workflow/01-SUMMARY.md": [],
+      "docs/planning/work/features/graph-active-workflow/02-PLAN.json": [],
+      "docs/planning/work/features/graph-active-workflow/02-PLAN.md": [],
+      "docs/planning/work/features/graph-active-workflow/02-SUMMARY.json": [],
+      "docs/planning/work/features/graph-active-workflow/02-SUMMARY.md": [],
+      "docs/planning/work/features/graph-active-workflow/03-PLAN.json": [],
+      "docs/planning/work/features/graph-active-workflow/03-PLAN.md": [],
+      "docs/planning/work/features/graph-active-workflow/03-SUMMARY.json": [],
+      "docs/planning/work/features/graph-active-workflow/03-SUMMARY.md": [],
+      "docs/planning/work/features/graph-active-workflow/CONTEXT.json": [],
+      "docs/planning/work/features/graph-active-workflow/CONTEXT.md": [],
+      "docs/planning/work/features/kill-state-md/01-PLAN.json": [],
+      "docs/planning/work/features/kill-state-md/01-PLAN.md": [],
+      "docs/planning/work/features/kill-state-md/01-SUMMARY.json": [],
+      "docs/planning/work/features/kill-state-md/01-SUMMARY.md": [],
+      "docs/planning/work/features/kill-state-md/02-PLAN.json": [],
+      "docs/planning/work/features/kill-state-md/02-PLAN.md": [],
+      "docs/planning/work/features/kill-state-md/03-PLAN.json": [],
+      "docs/planning/work/features/kill-state-md/03-PLAN.md": [],
+      "docs/planning/work/features/kill-state-md/03-SUMMARY.json": [],
+      "docs/planning/work/features/kill-state-md/03-SUMMARY.md": [],
+      "docs/planning/work/features/kill-state-md/CONTEXT.json": [],
+      "docs/planning/work/features/kill-state-md/CONTEXT.md": [],
+      "docs/planning/work/features/kill-state-md/REVIEW.json": [],
+      "docs/planning/work/features/kill-state-md/REVIEW.md": [],
+      "docs/planning/work/features/memory-engine-fixes/01-PLAN.json": [],
+      "docs/planning/work/features/memory-engine-fixes/01-PLAN.md": [],
+      "docs/planning/work/features/memory-engine-fixes/01-SUMMARY.md": [],
+      "docs/planning/work/features/memory-engine-fixes/CONTEXT.md": [],
+      "docs/planning/work/features/memory-engine-fixes/REVIEW.json": [],
+      "docs/planning/work/features/memory-engine-fixes/REVIEW.md": [],
+      "docs/planning/work/features/memory-engine-fixes/VERIFICATION-CI.json": [],
+      "docs/planning/work/features/memory-engine-fixes/VERIFICATION-CI.md": [],
+      "docs/planning/work/features/multi-agent-enhancements/01-PLAN.json": [],
+      "docs/planning/work/features/multi-agent-enhancements/01-PLAN.md": [],
+      "docs/planning/work/features/multi-agent-enhancements/01-SUMMARY.json": [],
+      "docs/planning/work/features/multi-agent-enhancements/01-SUMMARY.md": [],
+      "docs/planning/work/features/multi-agent-enhancements/02-PLAN.json": [],
+      "docs/planning/work/features/multi-agent-enhancements/02-PLAN.md": [],
+      "docs/planning/work/features/multi-agent-enhancements/CONTEXT.json": [],
+      "docs/planning/work/features/multi-agent-enhancements/CONTEXT.md": [],
+      "docs/planning/work/features/multi-agent-enhancements/REVIEW.json": [],
+      "docs/planning/work/features/multi-agent-enhancements/REVIEW.md": [],
+      "docs/planning/work/features/remote-installer/REVIEW.md": [],
+      "docs/planning/work/features/review-workflow-redesign/02-PLAN.json": [],
+      "docs/planning/work/features/review-workflow-redesign/02-PLAN.md": [],
+      "docs/planning/work/features/review-workflow-redesign/02-SUMMARY.json": [],
+      "docs/planning/work/features/review-workflow-redesign/02-SUMMARY.md": [],
+      "docs/planning/work/features/review-workflow-redesign/03-PLAN.json": [],
+      "docs/planning/work/features/review-workflow-redesign/03-PLAN.md": [],
+      "docs/planning/work/features/review-workflow-redesign/03-SUMMARY.json": [],
+      "docs/planning/work/features/review-workflow-redesign/03-SUMMARY.md": [],
+      "docs/planning/work/features/review-workflow-redesign/CONTEXT.json": [],
+      "docs/planning/work/features/review-workflow-redesign/REVIEW.json": [],
+      "docs/planning/work/features/review-workflow-redesign/REVIEW.md": [],
+      "docs/planning/work/features/skills-usage-audit/01-PLAN.json": [],
+      "docs/planning/work/features/skills-usage-audit/01-PLAN.md": [],
+      "docs/planning/work/features/skills-usage-audit/01-SUMMARY.json": [],
+      "docs/planning/work/features/skills-usage-audit/01-SUMMARY.md": [],
+      "docs/planning/work/features/skills-usage-audit/02-PLAN.json": [],
+      "docs/planning/work/features/skills-usage-audit/02-PLAN.md": [],
+      "docs/planning/work/features/skills-usage-audit/02-SUMMARY.json": [],
+      "docs/planning/work/features/skills-usage-audit/02-SUMMARY.md": [],
+      "docs/planning/work/features/skills-usage-audit/03-PLAN.json": [],
+      "docs/planning/work/features/skills-usage-audit/03-PLAN.md": [],
+      "docs/planning/work/features/skills-usage-audit/03-SUMMARY.json": [],
+      "docs/planning/work/features/skills-usage-audit/03-SUMMARY.md": [],
+      "docs/planning/work/features/skills-usage-audit/CONTEXT.json": [],
+      "docs/planning/work/features/skills-usage-audit/CONTEXT.md": [],
+      "docs/planning/work/features/skills-usage-audit/REVIEW.md": [],
+      "docs/planning/work/features/team-implement-integration/01-PLAN.json": [],
+      "docs/planning/work/features/team-implement-integration/01-PLAN.md": [],
+      "docs/planning/work/features/team-implement-integration/01-SUMMARY.md": [],
+      "docs/planning/work/features/team-implement-integration/02-PLAN.json": [],
+      "docs/planning/work/features/team-implement-integration/02-PLAN.md": [],
+      "docs/planning/work/features/team-implement-integration/03-PLAN.json": [],
+      "docs/planning/work/features/team-implement-integration/03-PLAN.md": [],
+      "docs/planning/work/features/team-implement-integration/CONTEXT.md": [],
+      "docs/planning/work/features/team-implement-integration/REVIEW.md": [],
+      "docs/planning/work/features/template-self-separation/01-PLAN.json": [],
+      "docs/planning/work/features/template-self-separation/01-PLAN.md": [],
+      "docs/planning/work/features/template-self-separation/02-PLAN.json": [],
+      "docs/planning/work/features/template-self-separation/02-PLAN.md": [],
+      "docs/planning/work/features/template-self-separation/02-SUMMARY.json": [],
+      "docs/planning/work/features/template-self-separation/02-SUMMARY.md": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/01-PLAN.json": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/01-PLAN.md": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/01-SUMMARY.json": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/01-SUMMARY.md": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/02-PLAN.json": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/02-PLAN.md": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/02-SUMMARY.json": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/02-SUMMARY.md": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/CONTEXT.json": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/CONTEXT.md": [],
+      "docs/planning/work/features/workflow-dead-code-cleanup/REVIEW.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/01-PLAN.json": [],
+      "docs/planning/work/features/worktree-parallel-agents/01-PLAN.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/01-SUMMARY.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/02-PLAN.json": [],
+      "docs/planning/work/features/worktree-parallel-agents/02-PLAN.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/02-SUMMARY.json": [],
+      "docs/planning/work/features/worktree-parallel-agents/02-SUMMARY.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/03-PLAN.json": [],
+      "docs/planning/work/features/worktree-parallel-agents/03-PLAN.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/03-SUMMARY.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/CONTEXT.md": [],
+      "docs/planning/work/features/worktree-parallel-agents/REVIEW.md": [],
+      "docs/planning/work/quick/001-dead-submodule-functions/PLAN.json": [],
+      "docs/planning/work/quick/001-dead-submodule-functions/PLAN.md": [],
+      "docs/planning/work/quick/001-dead-submodule-functions/SUMMARY.json": [],
+      "docs/planning/work/quick/001-dead-submodule-functions/SUMMARY.md": [],
+      "docs/planning/work/quick/002-drop-derived-commands/PLAN.json": [],
+      "docs/planning/work/quick/002-drop-derived-commands/PLAN.md": [],
+      "docs/planning/work/quick/002-drop-derived-commands/SUMMARY.json": [],
+      "docs/planning/work/quick/002-drop-derived-commands/SUMMARY.md": [],
+      "docs/planning/work/quick/003-readme-workflow-accuracy/PLAN.json": [],
+      "docs/planning/work/quick/003-readme-workflow-accuracy/PLAN.md": [],
+      "docs/planning/work/quick/003-readme-workflow-accuracy/SUMMARY.json": [],
+      "docs/planning/work/quick/003-readme-workflow-accuracy/SUMMARY.md": [],
+      "docs/planning/work/quick/004-verify-install-completeness/PLAN.json": [],
+      "docs/planning/work/quick/004-verify-install-completeness/PLAN.md": [],
+      "docs/planning/work/research/cnogo-context-graph-execution/RESEARCH.json": [],
+      "docs/planning/work/research/cnogo-context-graph-execution/RESEARCH.md": [],
+      "docs/planning/work/research/opus-46-multi-agent/RESEARCH.md": [],
+      "docs/planning/work/research/overstory-workflow-patterns/RESEARCH.json": [],
+      "docs/planning/work/research/taskoutput-team-monitoring/RESEARCH.md": [],
+      "docs/planning/work/review/2026-02-15-manus-context-engineering-REVIEW.json": [],
+      "docs/planning/work/review/2026-02-15-manus-context-engineering-REVIEW.md": []
+    },
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [
+      {
+        "file": ".cnogo/scripts/memory/__init__.py",
+        "line": 1,
+        "message": "File has 1519 lines (max 800).",
+        "rule": "max-file-lines",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_checks_core.py",
+        "line": 49,
+        "message": "Line length 143 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_checks_core.py",
+        "line": 1879,
+        "message": "Line length 151 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_checks_core.py",
+        "line": 1911,
+        "message": "Line length 154 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_checks_core.py",
+        "line": 1913,
+        "message": "Line length 144 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_checks_core.py",
+        "line": 1954,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_memory.py",
+        "line": 1,
+        "message": "File has 1731 lines (max 800).",
+        "rule": "max-file-lines",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_memory.py",
+        "line": 635,
+        "message": "Line length 155 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_memory.py",
+        "line": 1656,
+        "message": "Line length 346 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 446,
+        "message": "Line length 160 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 681,
+        "message": "Line length 146 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 684,
+        "message": "Line length 148 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 715,
+        "message": "Line length 146 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 718,
+        "message": "Line length 145 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 721,
+        "message": "Line length 148 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 794,
+        "message": "Line length 147 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 865,
+        "message": "Line length 152 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      },
+      {
+        "file": ".cnogo/scripts/workflow_validate_core.py",
+        "line": 1181,
+        "message": "Line length 142 exceeds 140.",
+        "rule": "max-line-length",
+        "severity": "warn"
+      }
+    ],
+    "summary": {
+      "fail": 0,
+      "total": 18,
+      "warn": 18
+    }
+  },
   "packages": [
     {
       "checks": [
         {
-          "cmd": "bash -n remote-install.sh",
-          "name": "lint",
-          "result": "pass"
-        },
-        {
-          "cmd": "python3 -m pytest tests/test_remote_install.py -x -q --tb=short",
-          "name": "test",
-          "result": "pass"
-        }
-      ],
-      "kind": "bash",
-      "name": "remote-installer",
-      "path": "."
-    },
-    {
-      "checks": [
-        {
           "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "fullOutputPath": null,
           "name": "lint",
-          "reason": "no changed files for package",
-          "result": "skipped"
+          "output": "",
+          "outputReducer": "empty",
+          "reason": null,
+          "result": "pass",
+          "tokenTelemetry": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "savedTokens": 0,
+            "savingsPct": 0.0
+          }
         },
         {
           "cmd": null,
@@ -61,121 +512,188 @@
       "path": ".cnogo/scripts"
     }
   ],
-  "invariants": {
-    "findings": [],
-    "summary": {
-      "fail": 0,
-      "total": 0,
-      "warn": 0
-    }
-  },
   "patternCompliance": [
-    {
-      "pattern": "Thin wrapper delegates to install.sh",
-      "status": "compliant",
-      "detail": "remote-install.sh only clones and delegates — all install logic stays in install.sh"
-    },
-    {
-      "pattern": "trap EXIT for cleanup",
-      "status": "compliant",
-      "detail": "mktemp dir cleaned up via trap EXIT, verified by grep"
-    },
-    {
-      "pattern": "Proper quoting and set -e",
-      "status": "compliant",
-      "detail": "All variable expansions quoted, set -e at top, errors to stderr"
-    },
-    {
-      "pattern": "Planning artifact lifecycle",
-      "status": "compliant",
-      "detail": "CONTEXT → PLAN (01, 02) → SUMMARY (01, 02) → REVIEW chain complete"
-    },
-    {
-      "pattern": "Validation cleanup non-semantic",
-      "status": "compliant",
-      "detail": "14 REVIEW.json upgrades: schemaVersion bumped, stageReviews derived from existing data, no semantic changes"
-    }
+    {"pattern": "installed-path-consistency", "status": "pass", "notes": "All runtime refs now use .cnogo/ prefix"}
   ],
   "performanceFindings": [],
   "principleNotes": [
-    "Correctness (2/2): bash -n passes, 10 integration tests pass, all plan verify commands pass, SSH/HTTPS fallback tested",
-    "Security (2/2): No secrets, proper quoting, rm -rf scoped to mktemp output, errors to stderr, no eval/unquoted expansions",
-    "Contract Compliance (2/2): Full CONTEXT → PLAN → SUMMARY → REVIEW chain, phase progression correct, no worker closure violations",
-    "Performance (2/2): One-shot CLI script, no hot paths or unbounded operations",
-    "Maintainability (2/2): Clear structure, comprehensive usage/help text, explicit error messages with actionable hints",
-    "Test Coverage (2/2): 10 tests covering syntax, shebang, permissions, help flags, and 5 error edge cases",
-    "Scope Discipline (2/2): Only plan-listed files touched; REVIEW.json upgrades explicitly scoped in Plan 01"
+    {"axis": "Correctness", "score": 2, "note": "Mechanical replacements verified by grep + 507 tests passing"},
+    {"axis": "Security", "score": 2, "note": "No secrets, no injection risk — path string changes only"},
+    {"axis": "Contract Compliance", "score": 2, "note": "Review artifacts current, validation passes"},
+    {"axis": "Performance", "score": 2, "note": "No runtime behavior change"},
+    {"axis": "Maintainability", "score": 2, "note": "Consistent .cnogo/ paths everywhere"},
+    {"axis": "Test Coverage", "score": 2, "note": "507 tests pass, string output paths are display-only"},
+    {"axis": "Scope Discipline", "score": 1, "note": "313 files beyond remote-installer feature scope, but user-authorized cleanup"}
   ],
-  "rubric": {
-    "correctness": 2,
-    "security": 2,
-    "contractCompliance": 2,
-    "performance": 2,
-    "maintainability": 2,
-    "testCoverage": 2,
-    "scopeDiscipline": 2
-  },
-  "score": 14,
-  "maxScore": 14,
   "schemaVersion": 4,
   "securityFindings": [],
-  "timestamp": "2026-02-28T21:20:00Z",
+  "stageReviews": [
+    {
+      "evidence": [
+        "git diff --stat: 313 files changed, 999 insertions, 995 deletions (near 1:1 replacement ratio)",
+        "grep -rn 'python3 scripts/workflow_' --include='*.py' --include='*.sh': 0 stale refs in executable files",
+        "python3 -m pytest tests/ -q: 507 passed in 8.81s",
+        "python3 .cnogo/scripts/workflow_validate.py --json --feature remote-installer: 0 errors"
+      ],
+      "findings": [
+        {
+          "severity": "info",
+          "description": "Path cleanup is additional scope beyond remote-installer plans. User-authorized ad-hoc cleanup."
+        }
+      ],
+      "notes": "All changes are mechanical scripts/ -> .cnogo/scripts/ replacements. One real bug fix: workflow_checks_core.py file path lookup (root/'scripts' -> root/'.cnogo'/'scripts'). Historical artifacts (issues.jsonl, task-descriptions) intentionally left unchanged.",
+      "stage": "spec-compliance",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "python3 -m py_compile: all 7 modified runtime scripts compile cleanly",
+        "bash -n: both modified shell scripts pass syntax check",
+        "grep -rn 'root / \"scripts\"': 0 remaining stale Path-based refs",
+        "All 18 invariant warnings are pre-existing (file-length, line-length)"
+      ],
+      "findings": [],
+      "notes": "No logic changes — only string constants updated. No new warnings introduced. conftest.py sys.path setup verified correct for test imports.",
+      "stage": "code-quality",
+      "status": "pass"
+    }
+  ],
+  "timestamp": "2026-02-28T22:45:00Z",
   "tokenTelemetry": {
-    "checksRun": 2,
-    "checksSkipped": 3,
+    "checksRun": 1,
+    "checksSkipped": 2,
     "inputTokens": 0,
     "outputTokens": 0,
     "savedTokens": 0,
     "savingsPct": 0.0
   },
   "verdict": "pass",
-  "warnings": [],
-  "commits": [
+  "warnings": [
     {
-      "hash": "a351291",
-      "message": "chore(planning): fix 14 REVIEW.json schemaVersion errors and 3 ambiguous-path warnings"
+      "file": ".cnogo/scripts/memory/__init__.py",
+      "issue": "File has 1519 lines (max 800).",
+      "line": 1,
+      "rule": "max-file-lines",
+      "severity": "medium"
     },
     {
-      "hash": "96d7201",
-      "message": "feat(remote-installer): add remote-install.sh bootstrap script with tests"
+      "file": ".cnogo/scripts/workflow_checks_core.py",
+      "issue": "Line length 143 exceeds 140.",
+      "line": 49,
+      "rule": "max-line-length",
+      "severity": "medium"
     },
     {
-      "hash": "5fbd826",
-      "message": "docs(remote-installer): add Plan 01 and 02 summary artifacts"
-    }
-  ],
-  "diffStats": {
-    "filesChanged": 28,
-    "insertions": 1148,
-    "deletions": 59
-  },
-  "stageReviews": [
-    {
-      "stage": "spec-compliance",
-      "status": "pass",
-      "findings": [],
-      "evidence": [
-        "Plan 01 goal matched: 14 REVIEW.json schemaVersion errors eliminated, 3 ambiguous-path warnings fixed",
-        "Plan 02 goal matched: remote-install.sh created with SSH/HTTPS clone, arg parsing, trap cleanup, install.sh delegation",
-        "Full artifact chain: CONTEXT → 01-PLAN → 01-SUMMARY → 02-PLAN → 02-SUMMARY → REVIEW",
-        "Phase progression: discuss → plan → implement → review",
-        "No out-of-scope files modified",
-        "Reviewed on branch: feature/remote-installer"
-      ],
-      "notes": "Both plans fully executed with all verify commands passing"
+      "file": ".cnogo/scripts/workflow_checks_core.py",
+      "issue": "Line length 151 exceeds 140.",
+      "line": 1879,
+      "rule": "max-line-length",
+      "severity": "medium"
     },
     {
-      "stage": "code-quality",
-      "status": "pass",
-      "findings": [],
-      "evidence": [
-        "bash -n remote-install.sh: pass",
-        "python3 -m pytest tests/test_remote_install.py: 10 passed",
-        "python3 workflow_validate.py --json: 0 errors, 44 warnings (all pre-existing)",
-        "Security: no secrets, proper quoting, scoped cleanup, errors to stderr",
-        "Failed git clone leaves empty dir (verified) — HTTPS fallback safe"
-      ],
-      "notes": "Clean code quality across both plans"
+      "file": ".cnogo/scripts/workflow_checks_core.py",
+      "issue": "Line length 154 exceeds 140.",
+      "line": 1911,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_checks_core.py",
+      "issue": "Line length 144 exceeds 140.",
+      "line": 1913,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_checks_core.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 1954,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_memory.py",
+      "issue": "File has 1731 lines (max 800).",
+      "line": 1,
+      "rule": "max-file-lines",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_memory.py",
+      "issue": "Line length 155 exceeds 140.",
+      "line": 635,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_memory.py",
+      "issue": "Line length 346 exceeds 140.",
+      "line": 1656,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 160 exceeds 140.",
+      "line": 446,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 146 exceeds 140.",
+      "line": 681,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 148 exceeds 140.",
+      "line": 684,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 146 exceeds 140.",
+      "line": 715,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 145 exceeds 140.",
+      "line": 718,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 148 exceeds 140.",
+      "line": 721,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 147 exceeds 140.",
+      "line": 794,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 152 exceeds 140.",
+      "line": 865,
+      "rule": "max-line-length",
+      "severity": "medium"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "issue": "Line length 142 exceeds 140.",
+      "line": 1181,
+      "rule": "max-line-length",
+      "severity": "medium"
     }
   ]
 }

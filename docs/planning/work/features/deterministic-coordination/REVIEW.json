@@ -48,7 +48,7 @@
     {
       "severity": "note",
       "status": "accepted",
-      "file": "scripts/workflow_validate_core.py",
+      "file": ".cnogo/scripts/workflow_validate_core.py",
       "description": "save_baseline() uses direct write instead of atomic temp+rename. Acceptable for single-threaded CLI."
     }
   ],

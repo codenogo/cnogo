@@ -6,7 +6,7 @@ Remove dead code, stale artifacts, and outdated comments identified through a co
 
 ## Audit Findings
 
-### Dead Functions (11 in `scripts/memory/__init__.py`)
+### Dead Functions (11 in `.cnogo/scripts/memory/__init__.py`)
 
 Exported in `__all__` but never called externally:
 
@@ -38,7 +38,7 @@ Exported in `__all__` but never called externally:
 
 ## Decisions
 
-1. **Remove 11 dead function wrappers** from `scripts/memory/__init__.py` and their `__all__` entries
+1. **Remove 11 dead function wrappers** from `.cnogo/scripts/memory/__init__.py` and their `__all__` entries
 2. **Archive 3 stale feature directories** to `docs/planning/work/archive/`
 3. **Remove outdated Phase 3 comments** in memory package
 4. **Keep** wrapper script pattern (`workflow_checks.py` / `workflow_validate.py`) — intentional design

@@ -81,7 +81,7 @@ After all tasks:
 grep -q 'parallelizable' .claude/commands/implement.md
 grep -q 'staleIndicatorMinutes' .claude/commands/status.md
 grep -q 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' docs/planning/PROJECT.md
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

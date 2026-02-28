@@ -26,7 +26,7 @@
     {"command": "python3 -m py_compile scripts/memory/storage.py", "result": "pass"},
     {"command": "python3 -m py_compile scripts/memory/__init__.py", "result": "pass"},
     {"command": "python3 -m py_compile scripts/memory/sync.py", "result": "pass"},
-    {"command": "python3 scripts/workflow_validate.py", "result": "pass"}
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"}
   ],
   "commit": "42accd0",
   "timestamp": "2026-02-21T13:00:00Z"

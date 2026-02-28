@@ -13,7 +13,7 @@
       "change": "Added 6 worktree exports to __all__ + lazy-import wrapper functions"
     },
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "change": "Added worktreeMode validation + _validate_worktree_session() function"
     },
     {

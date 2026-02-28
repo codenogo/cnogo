@@ -47,11 +47,11 @@
       "result": "pass"
     },
     {
-      "command": "python3 scripts/workflow_memory.py show cn-12vmyu0 — confirmed closed",
+      "command": "python3 .cnogo/scripts/workflow_memory.py show cn-12vmyu0 — confirmed closed",
       "result": "pass"
     },
     {
-      "command": "python3 scripts/workflow_validate.py — no errors",
+      "command": "python3 .cnogo/scripts/workflow_validate.py — no errors",
       "result": "pass"
     }
   ],

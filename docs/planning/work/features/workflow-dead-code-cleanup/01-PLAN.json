@@ -20,7 +20,7 @@
       "action": "Update line 838 comment 'Blocked Cache & Cycle Detection (inline — Phase 2 adds graph.py)' to 'Blocked Cache & Cycle Detection' (graph.py exists). Update line 876 comment 'Sync (stubs — Phase 3 adds sync.py / context.py)' to 'Sync & Context' (both modules exist).",
       "verify": [
         "python3 -c \"import scripts.memory; print('module loads OK')\"",
-        "python3 scripts/workflow_validate.py"
+        "python3 .cnogo/scripts/workflow_validate.py"
       ],
       "blockedBy": [0]
     }
@@ -28,7 +28,7 @@
   "planVerify": [
     "python3 -c \"from scripts.memory import *; print('wildcard import OK')\"",
     "python3 -c \"from scripts.memory import init, create, ready, claim, close, prime; print('core API OK')\"",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "refactor(memory): remove 11 dead function wrappers and outdated comments",
   "timestamp": "2026-02-21T13:10:00Z"

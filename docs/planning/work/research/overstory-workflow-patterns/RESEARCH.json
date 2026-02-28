@@ -47,7 +47,7 @@
     },
     {
       "type": "repo",
-      "path": "scripts/workflow_hooks.py",
+      "path": ".cnogo/scripts/workflow_hooks.py",
       "description": "cnogo hooks - token telemetry, secret scanning, post-edit format"
     },
     {

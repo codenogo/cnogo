@@ -53,7 +53,7 @@
     "scripts/context/python_parser.py",
     "scripts/context/phases/calls.py",
     "scripts/context/phases/impact.py",
-    "scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_memory.py",
     "tests/test_context_graph.py",
     ".claude/commands/plan.md",
     ".claude/commands/implement.md",

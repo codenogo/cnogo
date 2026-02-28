@@ -41,7 +41,7 @@
     "python3 -c \"from scripts.memory import plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id, create_session, save_session, get_conflict_context; print('all re-exports OK')\"",
     "python3 -c \"from scripts.memory.bridge import TASK_DESC_SCHEMA_VERSION; assert TASK_DESC_SCHEMA_VERSION == 2\"",
     "python3 -c \"from scripts.memory.worktree import WorktreeSession; s = WorktreeSession(run_id='x'); assert 'runId' in s.to_dict()\"",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(execution-coordination): restore bridge.py with TaskDesc V2, add re-exports, update worktree for V2",
   "timestamp": "2026-02-21T17:00:00Z"

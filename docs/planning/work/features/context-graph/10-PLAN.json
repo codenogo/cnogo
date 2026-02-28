@@ -54,7 +54,7 @@
     {
       "name": "Add graph-flows CLI subcommand",
       "files": [
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "tests/test_context_cli.py"
       ],
       "microSteps": [

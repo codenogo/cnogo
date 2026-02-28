@@ -84,7 +84,7 @@ grep "TEMPLATE" install.sh
 TMPDIR=$(mktemp -d) && bash install.sh -y "$TMPDIR" && diff "$TMPDIR/docs/planning/PROJECT.md" docs/templates/PROJECT-TEMPLATE.md && diff "$TMPDIR/docs/planning/ROADMAP.md" docs/templates/ROADMAP-TEMPLATE.md && diff "$TMPDIR/docs/planning/WORKFLOW.json" docs/templates/WORKFLOW-TEMPLATE.json && rm -rf "$TMPDIR"
 
 # Workflow validation
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

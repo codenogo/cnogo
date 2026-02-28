@@ -29,11 +29,11 @@
     },
     {
       "name": "Update workflow_validate.py for new fields",
-      "files": ["scripts/workflow_validate.py"],
+      "files": [".cnogo/scripts/workflow_validate.py"],
       "action": "Add validation for agentTeams.staleIndicatorMinutes (integer > 0) and optional parallelizable boolean in plan JSON.",
       "verify": [
         "python3 -m py_compile scripts/workflow_validate.py && echo 'PASS' || echo 'FAIL'",
-        "python3 scripts/workflow_validate.py && echo 'PASS' || echo 'FAIL'"
+        "python3 .cnogo/scripts/workflow_validate.py && echo 'PASS' || echo 'FAIL'"
       ],
       "blockedBy": [],
       "memoryId": "cn-1cg9p77.3"
@@ -41,7 +41,7 @@
   ],
   "planVerify": [
     "python3 -m py_compile scripts/workflow_validate.py",
-    "python3 scripts/workflow_validate.py",
+    "python3 .cnogo/scripts/workflow_validate.py",
     "grep -q 'model: opus' .claude/agents/debugger.md",
     "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert 'staleIndicatorMinutes' in cfg['agentTeams']\""
   ],

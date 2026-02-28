@@ -57,7 +57,7 @@ python3 -m pytest tests/test_context_graph.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: Add graph-communities CLI subcommand
-**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `tests/test_context_cli.py`
 **Action:**
 Add graph-communities subcommand to workflow_memory.py following graph-coupling pattern. Argparse: --repo (path), --min-size (int, default 2), --json (flag). Handler cmd_graph_communities: (1) open graph via _graph_open(repo), (2) call graph.communities(min_size=args.min_size), (3) human format: header with community count + total nodes, then per-community listing with member names/files, (4) JSON format: serialize CommunityDetectionResult. Add 'graph-communities' to _graph_cmds set and dispatch dict. Write 5 tests in tests/test_context_cli.py.
 
@@ -88,7 +88,7 @@ python3 -m pytest tests/test_context_cli.py -x
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_*.py -x
-python3 scripts/workflow_memory.py graph-communities --help
+python3 .cnogo/scripts/workflow_memory.py graph-communities --help
 ```
 
 ## Commit Message

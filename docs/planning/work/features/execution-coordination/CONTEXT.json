@@ -82,7 +82,7 @@
     "scripts/memory/__init__.py",
     "scripts/memory/worktree.py",
     "scripts/memory/reconcile_leader.py",
-    "scripts/hook-subagent-stop.py",
+    ".cnogo/hooks/hook-subagent-stop.py",
     ".claude/commands/team.md",
     ".claude/commands/implement.md"
   ],

@@ -49,5 +49,5 @@ This is more precise than "TaskOutput is for background shells" because it expla
 | `.claude/commands/team.md` | repo | Spawning rules, monitoring steps, cleanup |
 | `docs/planning/work/research/opus-46-multi-agent/RESEARCH.md` | repo | Agent Teams architecture, message auto-delivery |
 | Claude Code TaskOutput tool description | system | "background shell, agent, or remote session" |
-| `scripts/memory/worktree.py:668` | repo | `cleanup_session()` already uses `--force` |
-| `scripts/memory/bridge.py:117-190` | repo | `generate_implement_prompt()` — no TaskOutput references |
+| `.cnogo/scripts/memory/worktree.py:668` | repo | `cleanup_session()` already uses `--force` |
+| `.cnogo/scripts/memory/bridge.py:117-190` | repo | `generate_implement_prompt()` — no TaskOutput references |

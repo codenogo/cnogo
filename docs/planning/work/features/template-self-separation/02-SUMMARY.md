@@ -10,7 +10,7 @@
 | `docs/planning/ROADMAP.md` | Replaced all template placeholders with actual milestones: v1.0 (complete), v1.1 phases 2-3 (complete), completed features table, v2.0 future, parking lot |
 | `docs/planning/WORKFLOW.json` | Populated `packages[]` with cnogo-scripts (python, lint via py_compile) |
 | `CLAUDE.md` | Added Architecture Rules (Do/Don't), Testing, Troubleshooting, Planning Docs, Memory Engine, Karpathy Principles sections |
-| `scripts/workflow_validate.py` | Fixed `dict - set` TypeError in `_detect_repo_shape()` line 207 — was dormant while packages[] was empty |
+| `.cnogo/scripts/workflow_validate.py` | Fixed `dict - set` TypeError in `_detect_repo_shape()` line 207 — was dormant while packages[] was empty |
 
 ## Verification Results
 - Task 1: ✅ PROJECT.md filled, `workflow_validate.py` passed

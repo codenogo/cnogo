@@ -14,8 +14,8 @@ Replace always-loaded placeholder content with real project instructions, dissol
 **Action:**
 Replace the entire CLAUDE.md with real content for cnogo:
 - **Project Overview**: cnogo is a universal development workflow pack for Claude Code providing 28+ slash commands, a SQLite-backed memory engine, and Agent Teams support for enterprise-grade SDLC workflows.
-- **Quick Reference**: `python3 scripts/workflow_validate.py` (validate), `python3 scripts/workflow_memory.py stats` (memory stats), `python3 scripts/workflow_memory.py prime` (context summary)
-- **Code Organisation**: `scripts/memory/` (Python package, stdlib only), `.claude/commands/` (slash commands), `.claude/agents/` (team teammates only — implementer + debugger), `.claude/skills/` (lazy-loaded domain expertise), `docs/planning/` (planning docs)
+- **Quick Reference**: `python3 .cnogo/scripts/workflow_validate.py` (validate), `python3 .cnogo/scripts/workflow_memory.py stats` (memory stats), `python3 .cnogo/scripts/workflow_memory.py prime` (context summary)
+- **Code Organisation**: `.cnogo/scripts/memory/` (Python package, stdlib only), `.claude/commands/` (slash commands), `.claude/agents/` (team teammates only — implementer + debugger), `.claude/skills/` (lazy-loaded domain expertise), `docs/planning/` (planning docs)
 - **Conventions**: Python stdlib only, kebab-case slugs for features, `type(scope): description` commits
 - **Karpathy Principles**: Inline the 4 principles as bullet points directly (NOT a reference to skills.md)
 - **Memory Engine section**: Keep the existing CLI/Python reference (it's useful)
@@ -25,7 +25,7 @@ Replace the entire CLAUDE.md with real content for cnogo:
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** CLAUDE.md has zero placeholder brackets `[...]` and is under 120 lines.
@@ -86,7 +86,7 @@ Expected output: `60`
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 grep -c '\[' CLAUDE.md  # Should be 0 placeholder brackets
 ls .claude/skills/*.md | wc -l  # Should be 8
 python3 -c "import json; json.load(open('.claude/settings.json'))"  # Valid JSON

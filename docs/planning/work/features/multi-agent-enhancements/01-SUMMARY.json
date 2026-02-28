@@ -7,7 +7,7 @@
     { "file": ".claude/agents/debugger.md", "change": "Changed model from inherit to opus, added rationale comment" },
     { "file": ".claude/agents/implementer.md", "change": "Added model rationale comment" },
     { "file": "docs/planning/WORKFLOW.json", "change": "Added agentTeams.staleIndicatorMinutes: 10" },
-    { "file": "scripts/workflow_validate.py", "change": "Added validation for staleIndicatorMinutes and parallelizable fields" }
+    { "file": ".cnogo/scripts/workflow_validate.py", "change": "Added validation for staleIndicatorMinutes and parallelizable fields" }
   ],
   "verification": [
     { "task": 1, "result": "pass", "details": "debugger model is opus, implementer model is sonnet" },

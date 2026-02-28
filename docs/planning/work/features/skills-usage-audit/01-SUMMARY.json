@@ -5,11 +5,11 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": "scripts/workflow_utils.py",
+      "file": ".cnogo/scripts/workflow_utils.py",
       "description": "Added parse_skill_frontmatter() and discover_skills() functions — stdlib-only regex-based YAML frontmatter parser for .md skill files"
     },
     {
-      "file": "scripts/workflow_validate_core.py",
+      "file": ".cnogo/scripts/workflow_validate_core.py",
       "description": "Added _validate_skills() — checks skill files for frontmatter name field (WARN) and validates command skill path references resolve to existing files (WARN). Imported parse_skill_frontmatter from workflow_utils."
     },
     {
@@ -23,7 +23,7 @@
       "result": "pass"
     },
     {
-      "command": "python3 scripts/workflow_validate.py",
+      "command": "python3 .cnogo/scripts/workflow_validate.py",
       "result": "pass (pre-existing warnings + 15 expected skill frontmatter warnings)"
     },
     {

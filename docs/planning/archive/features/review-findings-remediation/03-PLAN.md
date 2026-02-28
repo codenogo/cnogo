@@ -10,7 +10,7 @@ Optimize the PostToolUse formatting hook for speed, create shared workflow_utils
 ## Tasks
 
 ### Task 1: Optimize PostToolUse formatting hook
-**Files:** `scripts/workflow_hooks.py`
+**Files:** `.cnogo/scripts/workflow_hooks.py`
 **Action:**
 Optimize the post-edit formatting hook to reduce the 100-500ms overhead (finding #11):
 
@@ -28,7 +28,7 @@ Optimize the post-edit formatting hook to reduce the 100-500ms overhead (finding
 
 **Verify:**
 ```bash
-python3 -c "import scripts.workflow_hooks" 2>/dev/null || python3 scripts/workflow_hooks.py post_edit 2>/dev/null; echo "exit: $?"
+python3 -c "import scripts.workflow_hooks" 2>/dev/null || python3 .cnogo/scripts/workflow_hooks.py post_edit 2>/dev/null; echo "exit: $?"
 grep 'shutil.which' scripts/workflow_hooks.py
 grep -c 'subprocess.*which' scripts/workflow_hooks.py  # 0
 ```
@@ -36,7 +36,7 @@ grep -c 'subprocess.*which' scripts/workflow_hooks.py  # 0
 **Done when:** workflow_hooks.py uses shutil.which(), has early-exit, no subprocess for which.
 
 ### Task 2: Create workflow_utils.py
-**Files:** `scripts/workflow_utils.py`
+**Files:** `.cnogo/scripts/workflow_utils.py`
 **Action:**
 Create a shared utility module with functions duplicated across 4-5 scripts (finding #15):
 
@@ -56,7 +56,7 @@ python3 -c "from scripts.workflow_utils import repo_root; print(repo_root())"
 **Done when:** workflow_utils.py exists with all 4 functions, importable.
 
 ### Task 3: Refactor Python scripts to use workflow_utils.py
-**Files:** `scripts/workflow_validate.py`, `scripts/workflow_detect.py`, `scripts/workflow_checks.py`, `scripts/workflow_render.py`, `scripts/workflow_hooks.py`
+**Files:** `.cnogo/scripts/workflow_validate.py`, `.cnogo/scripts/workflow_detect.py`, `.cnogo/scripts/workflow_checks.py`, `.cnogo/scripts/workflow_render.py`, `.cnogo/scripts/workflow_hooks.py`
 **Action:**
 Replace duplicated functions in all 5 scripts with imports from workflow_utils.py (finding #15):
 
@@ -68,8 +68,8 @@ Replace duplicated functions in all 5 scripts with imports from workflow_utils.p
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
-python3 scripts/workflow_detect.py --help 2>/dev/null; echo "exit: $?"
+python3 .cnogo/scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_detect.py --help 2>/dev/null; echo "exit: $?"
 python3 -c "import json; json.load(open('scripts/workflow_utils.py'.replace('.py','') + '.py' if False else open('scripts/workflow_utils.py')); print('exists')" 2>/dev/null || python3 -c "from scripts.workflow_utils import repo_root; print('OK')"
 grep 'from scripts.workflow_utils import\|from .workflow_utils import' scripts/workflow_validate.py scripts/workflow_detect.py scripts/workflow_checks.py scripts/workflow_render.py scripts/workflow_hooks.py
 ```
@@ -80,7 +80,7 @@ grep 'from scripts.workflow_utils import\|from .workflow_utils import' scripts/w
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 grep 'shutil.which' scripts/workflow_hooks.py
 python3 -c "from scripts.workflow_utils import repo_root, load_json; print('OK')"
 ```

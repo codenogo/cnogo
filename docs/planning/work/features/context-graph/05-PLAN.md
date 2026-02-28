@@ -61,7 +61,7 @@ python3 -m pytest tests/test_context_graph.py -x -k dead
 **Done when:** [Observable outcome]
 
 ### Task 3: CLI graph-dead subcommand
-**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `tests/test_context_cli.py`
 **Action:**
 Add graph-dead subcommand to workflow_memory.py. Handler indexes the repo, runs dead_code(), prints each dead symbol as 'DEAD  label:name  file:line'. Add to _graph_cmds set. Register argparse subparser with --repo flag.
 
@@ -92,7 +92,7 @@ python3 -m pytest tests/test_context_cli.py -x -k dead
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_*.py -x
-python3 scripts/workflow_memory.py graph-dead --help
+python3 .cnogo/scripts/workflow_memory.py graph-dead --help
 ```
 
 ## Commit Message

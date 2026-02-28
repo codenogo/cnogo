@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "topic": "How cnogo execution works with the integrated context graph",
+  "slug": "cnogo-context-graph-execution",
+  "timestamp": "2026-02-28T18:30:00Z",
+  "mode": "local",
+  "sources": [
+    {"type": "code", "path": "scripts/context/__init__.py", "description": "ContextGraph class: index(), query(), impact(), review_impact(), search(), and 7 other public methods"},
+    {"type": "code", "path": "scripts/context/phases/", "description": "12 phase modules: structure, symbols, imports, calls, heritage, types, exports, flows, impact, dead_code, coupling, community"},
+    {"type": "code", "path": "scripts/context/storage.py", "description": "GraphStorage with SQLite backend, FTS5 virtual table, file hash tracking"},
+    {"type": "code", "path": ".cnogo/scripts/workflow_checks_core.py", "description": "_graph_impact_section() auto-populates REVIEW.json impactAnalysis during /review"},
+    {"type": "code", "path": ".cnogo/scripts/workflow_memory.py", "description": "11 graph-* CLI subcommands exposing all graph queries"},
+    {"type": "code", "path": ".cnogo/scripts/workflow_hooks.py", "description": "post_commit_graph() hook triggers incremental reindex after git commit"},
+    {"type": "code", "path": ".cnogo/hooks/hook-post-commit-graph.sh", "description": "Shell wrapper for PostToolUse hook"},
+    {"type": "code", "path": ".claude/settings.json", "description": "Hook registration for PostToolUse Bash matcher"}
+  ],
+  "summary": [
+    "The context graph is a separate SQLite database (.cnogo/graph.db) that models code structure — files, functions, classes, methods, imports, calls, heritage, types, exports — as a directed graph with 10 node types and 11 relationship types.",
+    "Integration occurs at 3 points: (1) automatic impact analysis during /review, (2) PostCommit hook for incremental reindexing, (3) 11 CLI subcommands for ad-hoc queries.",
+    "The indexing pipeline has 10 sequential phases: structure → symbols → imports → calls → heritage → types → exports → flows → FTS rebuild → hash update. Incremental reindexing compares SHA256 file hashes to skip unchanged files.",
+    "The graph and memory engines are deliberately decoupled — separate databases, no bidirectional data flow. The memory engine tracks issues/tasks; the graph tracks code dependencies.",
+    "During /review, _graph_impact_section() auto-indexes the graph then runs BFS-based impact analysis on changed files, populating REVIEW.json with affected files, symbols, and per-file breakdowns.",
+    "Graph queries (dead code, coupling, communities, flows, search) are available as standalone CLI commands that don't require memory engine initialization."
+  ],
+  "recommendation": {
+    "summary": "The context graph is well-integrated for passive analysis (/review blast radius, PostCommit freshness) but underutilized for active workflow assistance (/plan, /implement, /discuss). The next high-value integration would be using graph queries during /plan to auto-suggest affected files and during /implement to validate scope discipline.",
+    "options": [
+      {
+        "name": "Deepen /plan integration",
+        "description": "Use graph-impact and graph-context during /plan to auto-suggest file scope for tasks, identify coupling risks, and detect dead code candidates for cleanup.",
+        "fit": "high",
+        "risk": "Increases plan generation time; graph must be indexed before planning"
+      },
+      {
+        "name": "Add /implement scope validation",
+        "description": "After each task, use graph-impact to verify that changes don't affect files outside the declared task scope. Flag unintended blast radius.",
+        "fit": "high",
+        "risk": "False positives from fuzzy call resolution (0.5 confidence edges)"
+      },
+      {
+        "name": "Enrich /discuss with graph context",
+        "description": "During /discuss, auto-query the graph for related code (callers, callees, heritage) to surface architectural constraints before decisions are made.",
+        "fit": "medium",
+        "risk": "May add noise for greenfield features with no existing code"
+      },
+      {
+        "name": "Graph-powered test suggestion",
+        "description": "Use impact analysis to suggest which test files should be run based on changed files, rather than running the full suite.",
+        "fit": "medium",
+        "risk": "Requires reliable CALLS edges to test functions; current confidence model may miss indirect test dependencies"
+      }
+    ],
+    "openQuestions": [
+      "Should graph queries during /plan be opt-in or automatic?",
+      "How should fuzzy (0.5 confidence) CALLS edges be treated in scope validation — include or exclude?",
+      "Should the graph support cross-language analysis (e.g., Python calling shell scripts) in a future milestone?"
+    ]
+  }
+}

@@ -7,8 +7,8 @@
 | File | Change |
 |------|--------|
 | `.claude/agents/resolver.md` | New agent — opus model, conflict resolution cycle (read conflicts → understand intent → resolve → verify both sides → stage → commit → report) |
-| `scripts/memory/__init__.py` | Added 6 worktree exports to `__all__` + lazy-import wrapper functions: `create_session`, `merge_session`, `cleanup_session`, `get_conflict_context`, `load_session`, `save_session` |
-| `scripts/workflow_validate.py` | Added `worktreeMode` validation in `_validate_workflow_config()`, added `_validate_worktree_session()` for `.cnogo/worktree-session.json` schema validation |
+| `.cnogo/scripts/memory/__init__.py` | Added 6 worktree exports to `__all__` + lazy-import wrapper functions: `create_session`, `merge_session`, `cleanup_session`, `get_conflict_context`, `load_session`, `save_session` |
+| `.cnogo/scripts/workflow_validate.py` | Added `worktreeMode` validation in `_validate_workflow_config()`, added `_validate_worktree_session()` for `.cnogo/worktree-session.json` schema validation |
 | `docs/planning/WORKFLOW.json` | Added `"worktreeMode": "always"` to `agentTeams` config |
 
 ## Verification Results

@@ -40,9 +40,9 @@ Both modes get: validated blockedBy, memory issue bootstrapping, skip-already-cl
     },
     "commands": {
         "verify": ["python3 -c ..."],
-        "claim": "python3 scripts/workflow_memory.py claim cn-xxx.1 --actor implementer",
-        "report_done": "python3 scripts/workflow_memory.py report-done cn-xxx.1 --actor implementer",
-        "context": "python3 scripts/workflow_memory.py show cn-xxx.1"
+        "claim": "python3 .cnogo/scripts/workflow_memory.py claim cn-xxx.1 --actor implementer",
+        "report_done": "python3 .cnogo/scripts/workflow_memory.py report-done cn-xxx.1 --actor implementer",
+        "context": "python3 .cnogo/scripts/workflow_memory.py show cn-xxx.1"
     },
     "completion_footer": "TASK_DONE: [cn-xxx.1]",
     "blockedBy": [],
@@ -112,17 +112,17 @@ Audit confirmed `hook-subagent-stop.py` is already correct:
 
 | File | Action |
 |------|--------|
-| `scripts/memory/bridge.py` | Restore from git + upgrade to V2 output + add `generate_run_id()` |
-| `scripts/memory/__init__.py` | Add bridge + worktree re-exports |
-| `scripts/memory/worktree.py` | Add `run_id` to WorktreeSession, update `create_session()` for V2 |
+| `.cnogo/scripts/memory/bridge.py` | Restore from git + upgrade to V2 output + add `generate_run_id()` |
+| `.cnogo/scripts/memory/__init__.py` | Add bridge + worktree re-exports |
+| `.cnogo/scripts/memory/worktree.py` | Add `run_id` to WorktreeSession, update `create_session()` for V2 |
 | `.claude/commands/team.md` | Remove ledger imports, load V2 wrapper, render prompts at spawn-time |
 | `.claude/commands/implement.md` | Call `plan_to_task_descriptions()` at step 3, use V2 structured fields |
 
 ## What stays unchanged
 
-- `scripts/hook-subagent-stop.py` — already correct
-- `scripts/hook-pre-compact.py` — already correct
-- `scripts/memory/reconcile_leader.py` — already correct
+- `.cnogo/hooks/hook-subagent-stop.py` — already correct
+- `.cnogo/hooks/hook-pre-compact.py` — already correct
+- `.cnogo/scripts/memory/reconcile_leader.py` — already correct
 - `.claude/agents/implementer.md` — already correct
 
 ## Migration

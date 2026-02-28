@@ -20,12 +20,12 @@
     {
       "name": "Add doctor subcommand to workflow_checks",
       "files": [
-        "scripts/workflow_checks_core.py"
+        ".cnogo/scripts/workflow_checks_core.py"
       ],
       "action": "Add 'doctor' subcommand to workflow_checks_core.py. In main(): add parser for 'doctor' with optional --json flag. Implement _cmd_doctor(root, wf, json_output=False) -> int that runs 5 checks sequentially: (1) Workflow validation: subprocess.run(['python3', 'scripts/workflow_validate.py'], capture_output) — pass/fail based on exit code. (2) Memory DB integrity: open .cnogo/memory.db, run 'PRAGMA integrity_check', pass if result is 'ok'. Skip if DB doesn't exist. (3) Orphaned worktrees: run 'git worktree list --porcelain', compare against worktree-session.json — warn on worktrees not tracked by any session. (4) Stale issues: import watchdog.check_stale_issues(), warn if any found. (5) Hook config sanity: check .claude/settings.json exists, verify hook script paths in settings point to existing files. Print pass/warn/fail per check. Return 0 if all pass/warn, 1 if any fail. JSON mode outputs {checks: [{name, status, details}]}.",
       "verify": [
         "python3 -m py_compile scripts/workflow_checks_core.py",
-        "python3 scripts/workflow_checks.py doctor --help"
+        "python3 .cnogo/scripts/workflow_checks.py doctor --help"
       ],
       "blockedBy": [0]
     },
@@ -34,7 +34,7 @@
       "files": [
         ".claude/commands/doctor.md"
       ],
-      "action": "Create .claude/commands/doctor.md slash command. Content: run `python3 scripts/workflow_checks.py doctor` and report results. Include guidance on interpreting pass/warn/fail. Mention that --json flag is available for programmatic consumption. Reference the 5 checks (workflow validation, DB integrity, orphaned worktrees, stale issues, hook config) so users know what's being checked.",
+      "action": "Create .claude/commands/doctor.md slash command. Content: run `python3 .cnogo/scripts/workflow_checks.py doctor` and report results. Include guidance on interpreting pass/warn/fail. Mention that --json flag is available for programmatic consumption. Reference the 5 checks (workflow validation, DB integrity, orphaned worktrees, stale issues, hook config) so users know what's being checked.",
       "verify": [
         "test -f .claude/commands/doctor.md"
       ],
@@ -44,7 +44,7 @@
   "planVerify": [
     "python3 -m py_compile scripts/memory/watchdog.py",
     "python3 -m py_compile scripts/workflow_checks_core.py",
-    "python3 scripts/workflow_checks.py doctor --help"
+    "python3 .cnogo/scripts/workflow_checks.py doctor --help"
   ],
   "commitMessage": "feat(doctor): add unified diagnostics and agent health monitoring",
   "timestamp": "2026-02-21T00:00:00Z"

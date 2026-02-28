@@ -5,7 +5,7 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": "scripts/workflow_checks_core.py",
+      "file": ".cnogo/scripts/workflow_checks_core.py",
       "description": "Fixed sys.path bug in _graph_impact_section() — added sys.path.insert(0, str(root)) before importing ContextGraph so blast-radius works in automated review"
     },
     {
@@ -13,7 +13,7 @@
       "description": "Added test_graph_impact_section_resolves_import_without_repo_on_syspath test"
     },
     {
-      "file": "scripts/workflow_hooks.py",
+      "file": ".cnogo/scripts/workflow_hooks.py",
       "description": "Added _is_git_commit_command() and post_commit_graph() for PostCommit synchronous graph reindex"
     },
     {
@@ -21,7 +21,7 @@
       "description": "New test file with 5 tests for PostCommit graph reindex hook"
     },
     {
-      "file": "scripts/hook-post-commit-graph.sh",
+      "file": ".cnogo/hooks/hook-post-commit-graph.sh",
       "description": "Shell wrapper for PostToolUse hook — delegates to workflow_hooks.py post_commit_graph"
     },
     {
@@ -29,7 +29,7 @@
       "description": "Registered hook-post-commit-graph.sh in PostToolUse Bash hooks with 10s timeout"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "description": "Added graph-status CLI subcommand — reports existence, node/relationship/file counts, and staleness"
     },
     {
@@ -43,7 +43,7 @@
       "result": "52 passed"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-status --help",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-status --help",
       "result": "Shows usage with --repo and --json flags"
     }
   ],

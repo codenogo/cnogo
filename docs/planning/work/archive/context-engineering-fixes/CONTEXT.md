@@ -30,12 +30,12 @@ Apply all 6 improvements identified in the Manus context engineering review to i
 
 ## Related Code
 
-- `scripts/memory/context.py` — `prime()` lives here; `checkpoint()` and `history()` will be added here
-- `scripts/memory/storage.py` — Schema, `migrate()`, `SCHEMA_VERSION`, `json.dumps()` calls
-- `scripts/memory/bridge.py` — `generate_implement_prompt()` retry instructions, `json.dumps()` calls
-- `scripts/memory/sync.py` — `export_jsonl()` uses `json.dumps(separators=...)` without sort_keys
-- `scripts/memory/models.py` — `to_dict()` methods used by sync export
-- `scripts/memory/__init__.py` — Public API surface; needs `checkpoint`, `history` exports
+- `.cnogo/scripts/memory/context.py` — `prime()` lives here; `checkpoint()` and `history()` will be added here
+- `.cnogo/scripts/memory/storage.py` — Schema, `migrate()`, `SCHEMA_VERSION`, `json.dumps()` calls
+- `.cnogo/scripts/memory/bridge.py` — `generate_implement_prompt()` retry instructions, `json.dumps()` calls
+- `.cnogo/scripts/memory/sync.py` — `export_jsonl()` uses `json.dumps(separators=...)` without sort_keys
+- `.cnogo/scripts/memory/models.py` — `to_dict()` methods used by sync export
+- `.cnogo/scripts/memory/__init__.py` — Public API surface; needs `checkpoint`, `history` exports
 - `.claude/commands/implement.md` — Needs recitation step after each task completion
 - `.claude/agents/implementer.md` — Needs retry-with-error-review instruction
 - `.claude/commands/` (22 files with JSON examples) — Need "illustrative only" disclaimer

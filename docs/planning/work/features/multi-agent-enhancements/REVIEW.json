@@ -71,7 +71,7 @@
   "verdict": "pass",
   "warnings": [
     {
-      "file": "scripts/workflow_validate.py",
+      "file": ".cnogo/scripts/workflow_validate.py",
       "issue": "Bool subclass of int accepted by staleIndicatorMinutes validation \u2014 fixed",
       "line": 339,
       "severity": "medium"

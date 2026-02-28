@@ -20,7 +20,7 @@ Add cascade scanning to bridge.py that detects uncovered callers of deleted file
 
 ## Verification
 - `python3 -m py_compile scripts/memory/bridge.py` — passed
-- `python3 scripts/workflow_validate.py` — passed (warnings pre-existing)
+- `python3 .cnogo/scripts/workflow_validate.py` — passed (warnings pre-existing)
 
 ## Leader Fixups
 None required. All 3 tasks completed cleanly by implementer agents.

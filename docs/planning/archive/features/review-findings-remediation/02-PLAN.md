@@ -105,7 +105,7 @@ After all tasks:
 bash -n install.sh
 python3 -c "import json; json.load(open('.claude/settings.json')); print('OK')"
 grep -c 'Bash' .claude/agents/code-reviewer.md .claude/agents/security-scanner.md .claude/agents/perf-analyzer.md .claude/agents/api-reviewer.md  # all 0
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

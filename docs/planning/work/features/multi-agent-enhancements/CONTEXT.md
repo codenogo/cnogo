@@ -34,15 +34,15 @@
 
 ## Related Code
 
-- `scripts/memory/storage.py` — `claim()` already sets `updated_at`; `_row_to_issue()` returns timestamps
-- `scripts/memory/__init__.py` — public API for `claim()`, `list_issues()`, `show()`
+- `.cnogo/scripts/memory/storage.py` — `claim()` already sets `updated_at`; `_row_to_issue()` returns timestamps
+- `.cnogo/scripts/memory/__init__.py` — public API for `claim()`, `list_issues()`, `show()`
 - `.claude/agents/implementer.md` — currently `model: sonnet`
 - `.claude/agents/debugger.md` — currently `model: inherit`, will change to `opus`
 - `.claude/commands/implement.md` — Step 1c has the team-mode auto-detection logic
 - `.claude/commands/status.md` — will surface claim age display
-- `scripts/memory/bridge.py` — `plan_to_task_descriptions()` reads plan JSON
+- `.cnogo/scripts/memory/bridge.py` — `plan_to_task_descriptions()` reads plan JSON
 - `docs/planning/WORKFLOW.json` — will add `staleIndicatorMinutes`
-- `scripts/workflow_validate.py` — must accept new WORKFLOW.json and plan JSON fields
+- `.cnogo/scripts/workflow_validate.py` — must accept new WORKFLOW.json and plan JSON fields
 
 ## Research
 

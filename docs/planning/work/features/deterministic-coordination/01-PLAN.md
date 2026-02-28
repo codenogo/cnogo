@@ -6,7 +6,7 @@ Add state machine fields, owner_actor, and plan type to the memory engine data l
 ## Tasks
 
 ### Task 1: Add enums and new fields to Issue model
-**Files:** `scripts/memory/models.py`
+**Files:** `.cnogo/scripts/memory/models.py`
 **Action:**
 Add module-level constants for the deterministic coordination type system. Add: OBJECT_TYPES = frozenset({'epic', 'plan', 'task'}) for coordination objects. Add ACTOR_ROLES = frozenset({'leader', 'worker', 'hook'}). Add TASK_STATES = ('open', 'in_progress', 'done_by_worker', 'verified', 'closed') as a tuple (ordered). Add PLAN_EPIC_STATES = ('open', 'ready_to_close', 'closed'). Add CLOSE_REASONS = frozenset({'completed', 'rejected', 'superseded', 'blocked', 'failed'}). Add two new fields to the Issue dataclass: `state: str = 'open'` (after status) and `owner_actor: str = ''` (after assignee). Update to_dict() to include state and owner_actor when non-default (state != 'open', owner_actor != ''). Add a method `valid_states(self) -> tuple[str, ...]` that returns TASK_STATES if issue_type == 'task', PLAN_EPIC_STATES if issue_type in ('plan', 'epic'), else TASK_STATES as fallback.
 
@@ -19,7 +19,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory.models impor
 **Done when:** [Observable outcome]
 
 ### Task 2: Schema v3 migration and storage CRUD updates
-**Files:** `scripts/memory/storage.py`
+**Files:** `.cnogo/scripts/memory/storage.py`
 **Action:**
 Bump SCHEMA_VERSION to 3. Add `state` and `owner_actor` columns to SCHEMA_SQL (state TEXT DEFAULT 'open', owner_actor TEXT DEFAULT ''). Add 'plan' to the issue_type CHECK constraint (keep existing types for backward compat). Add CHECK constraint for state: CHECK(state IN ('open','in_progress','done_by_worker','verified','closed','ready_to_close')). Add index: idx_issues_state on issues(state), idx_issues_owner on issues(owner_actor). Add _migrate_to_v3() function: (1) ALTER TABLE ADD COLUMN state if not exists, (2) ALTER TABLE ADD COLUMN owner_actor if not exists, (3) Backfill state from status: closed->closed, in_progress->in_progress, open->open. Call _migrate_to_v3 from migrate() when current < 3. Update _row_to_issue() to read state and owner_actor. Update insert_issue() and upsert_issue() to write state and owner_actor. Add 'state' and 'owner_actor' to _ALLOWED_FIELDS.
 
@@ -32,7 +32,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory.storage impo
 **Done when:** [Observable outcome]
 
 ### Task 3: Wire new fields through public API and JSONL sync
-**Files:** `scripts/memory/__init__.py`, `scripts/memory/sync.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`, `.cnogo/scripts/memory/sync.py`
 **Action:**
 In __init__.py: (1) Update create() to accept owner_actor param (default ''), pass it through to Issue constructor. (2) Update claim() to also set state='in_progress' via update_issue_fields after the claim_issue call. (3) Update close() to set state='closed' via update_issue_fields after close_issue. In sync.py: (4) Update export logic to include 'state' and 'owner_actor' in JSONL output. (5) Update import logic to read 'state' and 'owner_actor' from JSONL, defaulting to 'open' and '' respectively for old entries. Add 'state' and 'owner_actor' to the Issue constructor call in the import path.
 
@@ -53,7 +53,7 @@ python3 -m py_compile scripts/memory/models.py
 python3 -m py_compile scripts/memory/storage.py
 python3 -m py_compile scripts/memory/__init__.py
 python3 -m py_compile scripts/memory/sync.py
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

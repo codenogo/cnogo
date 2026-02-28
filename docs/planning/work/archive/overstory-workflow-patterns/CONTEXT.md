@@ -6,10 +6,10 @@ Adopt 4 patterns from the [Overstory](https://github.com/jayminwest/overstory) s
 
 | Feature | Files | Effort |
 |---------|-------|--------|
-| Tiered merge resolution | `scripts/memory/worktree.py` | LOW |
-| Unified /doctor command | `scripts/workflow_checks.py`, `scripts/workflow_checks_core.py` | LOW |
-| Transcript cost tracking | `scripts/memory/costs.py` (new), memory events table | LOW |
-| Agent health monitoring | `scripts/memory/watchdog.py` (new) | MEDIUM |
+| Tiered merge resolution | `.cnogo/scripts/memory/worktree.py` | LOW |
+| Unified /doctor command | `.cnogo/scripts/workflow_checks.py`, `.cnogo/scripts/workflow_checks_core.py` | LOW |
+| Transcript cost tracking | `.cnogo/scripts/memory/costs.py` (new), memory events table | LOW |
+| Agent health monitoring | `.cnogo/scripts/memory/watchdog.py` (new) | MEDIUM |
 
 ## Key Decisions
 

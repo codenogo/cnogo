@@ -61,8 +61,8 @@
   "relatedCode": [
     "docs/planning/WORKFLOW.json",
     "docs/templates/WORKFLOW-TEMPLATE.json",
-    "scripts/workflow_checks_core.py",
-    "scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_checks_core.py",
+    ".cnogo/scripts/workflow_validate_core.py",
     ".claude/CLAUDE.md",
     "CLAUDE.md",
     ".claude/commands/review.md",

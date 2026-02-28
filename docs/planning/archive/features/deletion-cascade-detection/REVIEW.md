@@ -30,7 +30,7 @@ None.
 ### Evidence
 - `python3 -m py_compile scripts/memory/bridge.py` — pass
 - `python3 -m py_compile scripts/workflow_validate_core.py` — pass
-- `python3 scripts/workflow_validate.py` — pass (0 errors, 10 pre-existing warnings)
+- `python3 .cnogo/scripts/workflow_validate.py` — pass (0 errors, 10 pre-existing warnings)
 - `git diff --stat main..HEAD` — 4 code files, +158 insertions
 
 ### Improvements (non-blocking)

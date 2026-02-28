@@ -2,7 +2,7 @@
 """CLI wrapper for the cnogo memory engine.
 
 Usage:
-    python3 scripts/workflow_memory.py <command> [options]
+    python3 .cnogo/scripts/workflow_memory.py <command> [options]
 
 Commands:
     init                Initialize memory engine in .cnogo/
@@ -1659,7 +1659,7 @@ def main() -> int:
     if args.command != "init" and _needs_db and not is_initialized(_root()):
         print(
             "Memory engine not initialized. Run: "
-            "python3 scripts/workflow_memory.py init",
+            "python3 .cnogo/scripts/workflow_memory.py init",
             file=sys.stderr,
         )
         return 1

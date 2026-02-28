@@ -23,7 +23,7 @@
       "verify": ["ls -la .claude/agents/test-writer.md .claude/agents/debugger.md .claude/agents/refactorer.md .claude/agents/migrate.md", "grep 'model: inherit' .claude/agents/test-writer.md .claude/agents/debugger.md"]
     }
   ],
-  "planVerify": ["ls .claude/agents/*.md | wc -l", "python3 scripts/workflow_validate.py"],
+  "planVerify": ["ls .claude/agents/*.md | wc -l", "python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "feat(opus-46-agents-workflow-improvements): add 10 custom subagent definitions",
   "timestamp": "2026-02-10T00:00:00Z"
 }

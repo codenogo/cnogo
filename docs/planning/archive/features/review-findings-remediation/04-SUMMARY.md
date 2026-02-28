@@ -8,7 +8,7 @@ All 3 tasks completed successfully.
 
 | File | Change |
 |------|--------|
-| `scripts/workflow_validate.py` | Split validate_repo() into 5 focused sub-functions (_validate_features, _validate_ci_verification, _validate_quick_tasks, _validate_research, _validate_brainstorm); optimized _detect_repo_shape to use WORKFLOW.json packages[] first; fixed PEP 8 spacing |
+| `.cnogo/scripts/workflow_validate.py` | Split validate_repo() into 5 focused sub-functions (_validate_features, _validate_ci_verification, _validate_quick_tasks, _validate_research, _validate_brainstorm); optimized _detect_repo_shape to use WORKFLOW.json packages[] first; fixed PEP 8 spacing |
 | `docs/planning/WORKFLOW.schema.json` | Added agentTeams section (enabled, delegateMode, defaultCompositions) |
 | `.gitignore` | Added sensitive file patterns (*.pem, *.key, *.p12, *.pfx, id_rsa, id_ed25519, credentials.json, service-account*.json) |
 

@@ -19,8 +19,8 @@
 | `.claude/CLAUDE.md` | Changed "Optional" to "Structured" for memory, replaced STATE.md ref with memory prime() |
 | `CLAUDE.md` | Removed STATE.md from directory structure |
 | `README.md` | Updated 8 STATE.md references to memory engine equivalents |
-| `scripts/memory/context.py` | Removed transitional comment referencing STATE.md |
-| `scripts/workflow_checks.py` | Updated docstring and CLI help to reference memory instead of STATE.md |
+| `.cnogo/scripts/memory/context.py` | Removed transitional comment referencing STATE.md |
+| `.cnogo/scripts/workflow_checks.py` | Updated docstring and CLI help to reference memory instead of STATE.md |
 | `docs/planning/STATE.md` | Deleted |
 
 ## Verification Results

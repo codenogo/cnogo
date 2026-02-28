@@ -26,7 +26,7 @@
       "verify": ["grep -q 'Team Implementation' .claude/commands/status.md && echo OK"]
     }
   ],
-  "planVerify": ["grep -q 'implement' .claude/commands/team.md && grep -q 'Team Mode' .claude/commands/implement.md && python3 scripts/workflow_validate.py"],
+  "planVerify": ["grep -q 'implement' .claude/commands/team.md && grep -q 'Team Mode' .claude/commands/implement.md && python3 .cnogo/scripts/workflow_validate.py"],
   "memoryEpicId": "cn-9xdhpc",
   "commitMessage": "feat(team-implement-integration): wire bridge into team/implement/status commands",
   "timestamp": "2026-02-14T02:00:00Z"

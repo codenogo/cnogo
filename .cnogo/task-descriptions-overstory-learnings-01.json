@@ -19,7 +19,7 @@
       },
       "commands": {
         "verify": [
-          "python3 scripts/workflow_validate.py --json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)\""
+          "python3 .cnogo/scripts/workflow_validate.py --json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)\""
         ]
       },
       "completion_footer": "",
@@ -33,14 +33,14 @@
       "action": "Add Check 6 'git_state' to _cmd_doctor() in workflow_checks_core.py, inserted after Check 5 (hook config). The check should:\n\n1. Run `git status --porcelain` \u2014 warn if dirty working tree (uncommitted changes)\n2. Run `git symbolic-ref HEAD` \u2014 warn if detached HEAD\n3. Run `git branch --merged main` and count branches (excluding main) \u2014 warn if >3 stale merged branches exist\n\nReturn status: 'pass' if all clean, 'warn' if any issues found (never 'fail' since these are advisory). Keep the check fast (<2s). Update the doctor output label count from '5 diagnostic checks' to '6 diagnostic checks' in the docstring.",
       "file_scope": {
         "paths": [
-          "scripts/workflow_checks_core.py"
+          ".cnogo/scripts/workflow_checks_core.py"
         ],
         "forbidden": []
       },
       "commands": {
         "verify": [
           "python3 -c \"from scripts.workflow_checks_core import _cmd_doctor; print('import ok')\"",
-          "python3 scripts/workflow_checks.py doctor --json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); checks=[c['name'] for c in d['checks']]; assert 'git_state' in checks, f'missing git_state check in {checks}'\""
+          "python3 .cnogo/scripts/workflow_checks.py doctor --json 2>&1 | python3 -c \"import sys,json; d=json.load(sys.stdin); checks=[c['name'] for c in d['checks']]; assert 'git_state' in checks, f'missing git_state check in {checks}'\""
         ]
       },
       "completion_footer": "",
@@ -54,7 +54,7 @@
       "action": "Enhance cmd_session_merge() to include per-task resolved_tier information in the JSON output. After line 505 (`'error': ''`), add a 'tiers' key that maps each merged task index to its resolved_tier from the session worktree info:\n\n```python\ntiers = {}\nfor wt in session.worktrees:\n    if wt.task_index in result.merged_indices:\n        tiers[str(wt.task_index)] = wt.resolved_tier or \"unknown\"\npayload[\"tiers\"] = tiers\n```\n\nAlso update the text output (else branch) to include tier summary:\n```python\ntier_counts = {}\nfor t in tiers.values():\n    tier_counts[t] = tier_counts.get(t, 0) + 1\nif tier_counts:\n    print(f\"Resolution tiers: {tier_counts}\")\n```\n\nThis is backward compatible \u2014 existing consumers that don't read 'tiers' are unaffected.",
       "file_scope": {
         "paths": [
-          "scripts/workflow_memory.py"
+          ".cnogo/scripts/workflow_memory.py"
         ],
         "forbidden": []
       },

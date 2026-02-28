@@ -27,7 +27,7 @@
     {
       "name": "Integrate impact analysis into write_review() in workflow_checks_core.py",
       "files": [
-        "scripts/workflow_checks_core.py",
+        ".cnogo/scripts/workflow_checks_core.py",
         "tests/test_workflow_checks.py"
       ],
       "microSteps": [
@@ -49,7 +49,7 @@
     {
       "name": "CLI graph-blast-radius subcommand",
       "files": [
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "tests/test_context_cli.py"
       ],
       "microSteps": [
@@ -72,7 +72,7 @@
   ],
   "planVerify": [
     "python3 -m pytest tests/test_context_*.py tests/test_workflow_checks.py -x",
-    "python3 scripts/workflow_memory.py graph-blast-radius --help"
+    "python3 .cnogo/scripts/workflow_memory.py graph-blast-radius --help"
   ],
   "commitMessage": "feat(context-graph): integrate blast-radius impact analysis into review workflow and CLI",
   "timestamp": "2026-02-28T09:00:00Z"

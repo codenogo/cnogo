@@ -107,7 +107,7 @@ grep -c "STATE.md" .claude/CLAUDE.md CLAUDE.md 2>/dev/null || echo "Clean: 0 ref
 test ! -f docs/planning/STATE.md && echo "STATE.md deleted" || echo "STATE.md still exists"
 
 # Full validation
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 
 # Comprehensive check: zero STATE.md refs in all commands
 grep -rl "STATE.md" .claude/commands/ 2>/dev/null || echo "All commands clean"
@@ -123,7 +123,7 @@ After all tasks:
 grep -rl "STATE.md" --include="*.md" --include="*.py" --include="*.sh" --include="*.json" . 2>/dev/null | grep -v "kill-state-md/" | grep -v ".git/" || echo "Project is STATE.md-free"
 
 # Validation
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 
 # Memory still works
 python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"

@@ -57,7 +57,7 @@
       "name": "Add search() API method and graph-search CLI subcommand",
       "files": [
         "scripts/context/__init__.py",
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "tests/test_context_graph.py",
         "tests/test_context_cli.py"
       ],

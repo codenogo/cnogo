@@ -12,5 +12,5 @@ Verify install.sh copies all required files and gitignore entries; fix missing .
 ## Verify
 ```bash
 bash install.sh --help 2>&1 || true
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```

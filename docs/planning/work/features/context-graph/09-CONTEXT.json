@@ -33,8 +33,8 @@
   ],
   "openQuestions": [],
   "relatedCode": [
-    "scripts/workflow_checks_core.py",
-    "scripts/workflow_hooks.py",
+    ".cnogo/scripts/workflow_checks_core.py",
+    ".cnogo/scripts/workflow_hooks.py",
     ".claude/settings.json",
     "scripts/context/__init__.py"
   ],

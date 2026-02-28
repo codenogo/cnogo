@@ -80,7 +80,7 @@ After all tasks:
 python3 -c "import json; d=json.load(open('.claude/settings.json')); print('Agent Teams:', d['env']['CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS'])"
 grep "claude/agents" .claude/commands/spawn.md | head -3
 grep -l "effort:" .claude/commands/*.md | wc -l
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

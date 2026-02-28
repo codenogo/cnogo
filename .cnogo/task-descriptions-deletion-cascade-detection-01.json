@@ -60,7 +60,7 @@
       "commands": {
         "verify": [
           "python3 -m py_compile scripts/memory/bridge.py",
-          "python3 scripts/workflow_validate.py"
+          "python3 .cnogo/scripts/workflow_validate.py"
         ]
       },
       "completion_footer": "TASK_DONE: [cn-11c1zmy.3]",

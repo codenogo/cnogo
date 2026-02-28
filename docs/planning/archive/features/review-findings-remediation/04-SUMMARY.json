@@ -6,7 +6,7 @@
   "tasksCompleted": 3,
   "tasksTotal": 3,
   "filesChanged": [
-    "scripts/workflow_validate.py",
+    ".cnogo/scripts/workflow_validate.py",
     "docs/planning/WORKFLOW.schema.json",
     ".gitignore"
   ],

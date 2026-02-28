@@ -20,12 +20,12 @@
 
 ## Invariant Findings
 
-- [warn] `scripts/workflow_checks.py:1` File has 991 lines (max 800). (max-file-lines)
-- [warn] `scripts/workflow_validate.py:1` File has 1464 lines (max 800). (max-file-lines)
-- [warn] `scripts/workflow_validate.py:503` Line length 150 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate.py:537` Line length 147 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate.py:862` Line length 142 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate.py:922` Line length 142 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_checks.py:1` File has 991 lines (max 800). (max-file-lines)
+- [warn] `.cnogo/scripts/workflow_validate.py:1` File has 1464 lines (max 800). (max-file-lines)
+- [warn] `.cnogo/scripts/workflow_validate.py:503` Line length 150 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate.py:537` Line length 147 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate.py:862` Line length 142 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate.py:922` Line length 142 exceeds 140. (max-line-length)
 
 ## Verdict
 

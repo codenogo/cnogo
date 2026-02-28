@@ -8,7 +8,7 @@
   "tasks": [
     {
       "name": "Add deletion-last-task validation warning",
-      "files": ["scripts/workflow_validate_core.py"],
+      "files": [".cnogo/scripts/workflow_validate_core.py"],
       "status": "complete",
       "commit": "605fa75"
     },
@@ -27,7 +27,7 @@
   ],
   "planVerifyPassed": true,
   "filesChanged": [
-    "scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_validate_core.py",
     "scripts/memory/bridge.py",
     ".claude/commands/plan.md"
   ],

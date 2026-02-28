@@ -27,7 +27,7 @@
     },
     {
       "name": "Kill auto-close-parent and add CLI commands",
-      "files": ["scripts/memory/__init__.py", "scripts/workflow_memory.py"],
+      "files": ["scripts/memory/__init__.py", ".cnogo/scripts/workflow_memory.py"],
       "action": "In __init__.py: (1) Remove the _try_auto_close_parent() function entirely. (2) Remove the call to _try_auto_close_parent from close(). The close() function should still close the issue, emit the event, and rebuild blocked cache — just without the parent cascade. In workflow_memory.py: (3) Add 'report-done' subcommand: takes issue_id as positional arg, --actor required, --outputs optional JSON string. Calls memory.report_done(). (4) Add 'verify-close' subcommand: takes issue_id as positional arg, --reason optional (default 'completed'), --actor optional. Calls memory.verify_and_close(). Register both in the argparse subparsers.",
       "verify": [
         "python3 -m py_compile scripts/memory/__init__.py",
@@ -40,7 +40,7 @@
   "planVerify": [
     "python3 -m py_compile scripts/memory/__init__.py",
     "python3 -m py_compile scripts/workflow_memory.py",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(deterministic-coordination): add two-phase completion API and kill auto-close-parent cascade",
   "timestamp": "2026-02-21T12:30:00Z"

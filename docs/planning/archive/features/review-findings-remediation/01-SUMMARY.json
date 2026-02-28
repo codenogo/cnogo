@@ -6,9 +6,9 @@
   "tasksCompleted": 3,
   "tasksTotal": 3,
   "filesChanged": [
-    "scripts/hook-dangerous-cmd.sh",
-    "scripts/hook-sensitive-file.sh",
-    "scripts/hook-pre-commit-secrets.sh",
+    ".cnogo/hooks/hook-dangerous-cmd.sh",
+    ".cnogo/hooks/hook-sensitive-file.sh",
+    ".cnogo/hooks/hook-pre-commit-secrets.sh",
     ".claude/settings.json",
     ".claude/commands/review.md"
   ],

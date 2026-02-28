@@ -20,8 +20,8 @@ complete
 - {'command': 'test ! -d docs/planning/work/features/event-hardening', 'result': 'pass'}
 - {'command': 'test ! -d docs/planning/work/features/context-engineering-fixes', 'result': 'pass'}
 - {'command': 'test ! -d docs/planning/work/features/overstory-workflow-patterns', 'result': 'pass'}
-- {'command': 'python3 scripts/workflow_memory.py show cn-12vmyu0 — confirmed closed', 'result': 'pass'}
-- {'command': 'python3 scripts/workflow_validate.py — no errors', 'result': 'pass'}
+- {'command': 'python3 .cnogo/scripts/workflow_memory.py show cn-12vmyu0 — confirmed closed', 'result': 'pass'}
+- {'command': 'python3 .cnogo/scripts/workflow_validate.py — no errors', 'result': 'pass'}
 
 ## Commit
 `abc123f` - [commit message]

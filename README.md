@@ -83,15 +83,15 @@ Routes to `/quick`, `/debug`, or `/discuss` based on complexity.
 SQLite-backed task tracking with JSONL git-sync. Persists across context compaction.
 
 ```bash
-python3 scripts/workflow_memory.py prime           # Token-efficient context summary
-python3 scripts/workflow_memory.py ready           # Show unblocked tasks
-python3 scripts/workflow_memory.py stats           # Aggregate statistics
-python3 scripts/workflow_memory.py create "title"  # Create an issue
-python3 scripts/workflow_memory.py show <id>       # Show issue details
-python3 scripts/workflow_memory.py checkpoint      # Snapshot current state
-python3 scripts/workflow_memory.py stalled --feature <slug> --json
-python3 scripts/workflow_memory.py takeover <id> --to <actor> --reason "stalled" --actor leader
-python3 scripts/workflow_memory.py release <id> --actor leader
+python3 .cnogo/scripts/workflow_memory.py prime           # Token-efficient context summary
+python3 .cnogo/scripts/workflow_memory.py ready           # Show unblocked tasks
+python3 .cnogo/scripts/workflow_memory.py stats           # Aggregate statistics
+python3 .cnogo/scripts/workflow_memory.py create "title"  # Create an issue
+python3 .cnogo/scripts/workflow_memory.py show <id>       # Show issue details
+python3 .cnogo/scripts/workflow_memory.py checkpoint      # Snapshot current state
+python3 .cnogo/scripts/workflow_memory.py stalled --feature <slug> --json
+python3 .cnogo/scripts/workflow_memory.py takeover <id> --to <actor> --reason "stalled" --actor leader
+python3 .cnogo/scripts/workflow_memory.py release <id> --actor leader
 ```
 
 `SubagentStop` hook is observer-only: it validates `TASK_EVIDENCE`/`TASK_DONE` format and never mutates memory state.
@@ -247,7 +247,7 @@ Configured in `.claude/settings.json`:
 ### Token Optimization Discovery
 
 ```bash
-python3 scripts/workflow_checks.py discover --since-days 30
+python3 .cnogo/scripts/workflow_checks.py discover --since-days 30
 ```
 
 Reads `.cnogo/command-usage.jsonl` and reports missed compact-command opportunities and estimated saveable tokens.
@@ -297,7 +297,7 @@ Runtime policy knobs:
 ### Monorepo / Polyglot Setup
 
 ```bash
-python3 scripts/workflow_detect.py --write-workflow
+python3 .cnogo/scripts/workflow_detect.py --write-workflow
 ```
 
 Auto-detects packages and populates `WORKFLOW.json`. Then plan verify commands scope to the right package.
@@ -329,10 +329,14 @@ your-project/
 │   │   ├── adr/                # Architecture Decision Records
 │   │   └── work/               # Feature, quick, research, review artifacts
 │   └── templates/              # Stack-specific CLAUDE.md templates
-├── scripts/
-│   ├── memory/                 # Memory engine (13 modules, stdlib only)
-│   ├── workflow_*.py           # Automation scripts (9 files)
-│   └── hook-*.sh/py            # Hook scripts (6 files)
+├── .cnogo/
+│   ├── scripts/                # Workflow Python scripts (stdlib only)
+│   │   ├── memory/             # Memory engine (13 modules)
+│   │   ├── context/            # Context graph engine
+│   │   └── workflow_*.py       # Automation scripts (9 files)
+│   ├── hooks/                  # Hook scripts (8 files)
+│   ├── memory.db               # SQLite runtime (gitignored)
+│   └── issues.jsonl            # Git-tracked sync format
 ├── tests/
 │   └── test_bridge.py          # Memory bridge unit tests
 ├── CLAUDE.md                   # Project instructions
@@ -366,7 +370,7 @@ workflowy /path/to/your/project
 ### Git Hooks (optional, for commits outside Claude)
 
 ```bash
-./scripts/install-githooks.sh
+./.cnogo/hooks/install-githooks.sh
 ```
 
 Configures `core.hooksPath=.githooks` for workflow validation + secret scanning on commit.
