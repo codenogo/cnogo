@@ -113,9 +113,9 @@ Performance Review scoring integrates with existing REVIEW.json schema v3:
 - `.claude/skills/security-scan.md` → Performance Review Step D
 - `.claude/skills/perf-analysis.md` → Performance Review Step B (performance axis)
 - `.claude/skills/release-readiness.md` → Performance Review Step E
-- `scripts/workflow_utils.py` (new frontmatter parser)
-- `scripts/workflow_validate_core.py` (new validation rules)
-- `scripts/workflow_checks_core.py` (REVIEW.md dedup + scoring integration)
+- `.cnogo/scripts/workflow_utils.py` (new frontmatter parser)
+- `.cnogo/scripts/workflow_validate_core.py` (new validation rules)
+- `.cnogo/scripts/workflow_checks_core.py` (REVIEW.md dedup + scoring integration)
 - `.claude/commands/review.md` (Performance Review as final gate)
 - `.claude/commands/` (11 commands reference skills)
 - `docs/planning/WORKFLOW.schema.json` (schema cleanup)

@@ -20,12 +20,12 @@
     },
     {
       "name": "Update documentation and delete STATE.md",
-      "files": [".claude/CLAUDE.md", "CLAUDE.md", "README.md", "scripts/memory/context.py", "scripts/workflow_checks.py", "docs/planning/STATE.md"],
+      "files": [".claude/CLAUDE.md", "CLAUDE.md", "README.md", "scripts/memory/context.py", ".cnogo/scripts/workflow_checks.py", "docs/planning/STATE.md"],
       "action": "Remove all STATE.md references across primary documentation and workflow support files (.claude/CLAUDE.md, CLAUDE.md, README.md, scripts/memory/context.py, scripts/workflow_checks.py). Update memory engine description from 'Optional' to 'Required'. Delete docs/planning/STATE.md.",
       "verify": [
         "grep -c 'STATE.md' .claude/CLAUDE.md CLAUDE.md 2>/dev/null; test $? -ne 0 && echo 'Clean' || echo 'References remain'",
         "test ! -f docs/planning/STATE.md && echo 'STATE.md deleted' || echo 'STATE.md still exists'",
-        "python3 scripts/workflow_validate.py"
+        "python3 .cnogo/scripts/workflow_validate.py"
       ],
       "blockedBy": [0, 1],
       "memoryId": "cn-145b2y1.9"
@@ -33,7 +33,7 @@
   ],
   "planVerify": [
     "grep -rl 'STATE.md' --include='*.md' --include='*.py' --include='*.sh' . 2>/dev/null | grep -v 'kill-state-md/' | grep -v '.git/' | wc -l | xargs test 0 -eq && echo 'Project is STATE.md-free' || echo 'References remain'",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "memoryEpicId": "cn-145b2y1",
   "commitMessage": "feat(kill-state-md): remove STATE.md entirely — memory is single source of truth",

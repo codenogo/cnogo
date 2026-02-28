@@ -10,7 +10,7 @@
     }
   ],
   "verification": [
-    {"command": "python3 scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"}
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"}
   ],
   "commit": "",
   "timestamp": "2026-02-21T17:15:00Z"

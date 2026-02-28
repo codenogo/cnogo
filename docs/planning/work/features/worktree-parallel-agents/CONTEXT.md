@@ -12,7 +12,7 @@ Replace the current shared-directory parallel execution model with git worktree 
 | Conflict resolution | Agent-assisted (opus resolver) | Resolver agent has MORE context than a human — it reads both task descriptions (intent) + conflict markers. Opus model for reasoning about three-way merges. Falls back to user on failure. |
 | Escalation on failure | Abort conflicting merge + user decides | `git merge --abort` on the failing branch only. Preserve all successfully merged branches. User can: resolve manually, re-run task against new base, or skip. No wasted work. |
 | Recovery model | State file + /resume | `.cnogo/worktree-session.json` checkpoints every phase transition. `/resume` detects interrupted worktree sessions and offers: retry, clean up, or continue from last checkpoint. |
-| Module location | New `scripts/memory/worktree.py` | Bridge stays a pure translator (zero side effects). Worktree module owns all git operations, filesystem management, and state file. Clean separation of concerns. |
+| Module location | New `.cnogo/scripts/memory/worktree.py` | Bridge stays a pure translator (zero side effects). Worktree module owns all git operations, filesystem management, and state file. Clean separation of concerns. |
 | Memory coordination | Symlink `.cnogo/` | Each worktree gets `ln -s <main>/.cnogo <worktree>/.cnogo`. All agents share one SQLite file. WAL mode handles concurrent reads. Single writer (claim/close) with retry. |
 | Resolver model | opus | Conflict resolution requires understanding both sides' intent and producing correct merges. Conflicts are rare but high-stakes — worth the cost. |
 | Branch naming | `agent/<feature>-<plan>-task-<N>` | e.g., `agent/ws-notif-01-task-0`. Readable, namespaced, includes enough context to identify purpose. |
@@ -110,19 +110,19 @@ Phase 4: POST-MERGE
 
 | File | Purpose |
 |------|---------|
-| `scripts/memory/worktree.py` | Worktree lifecycle primitives: create, merge, cleanup, load_session |
+| `.cnogo/scripts/memory/worktree.py` | Worktree lifecycle primitives: create, merge, cleanup, load_session |
 | `.claude/agents/resolver.md` | Resolver agent definition (opus, conflict resolution specialist) |
 
 ### Modified Files
 
 | File | Change |
 |------|--------|
-| `scripts/memory/__init__.py` | Export worktree functions |
-| `scripts/memory/bridge.py` | `detect_file_conflicts()` returns advisory severity level; `generate_implement_prompt()` adds worktree-aware instructions |
+| `.cnogo/scripts/memory/__init__.py` | Export worktree functions |
+| `.cnogo/scripts/memory/bridge.py` | `detect_file_conflicts()` returns advisory severity level; `generate_implement_prompt()` adds worktree-aware instructions |
 | `.claude/commands/team.md` | `implement` action uses worktrees instead of shared-dir |
 | `.claude/commands/implement.md` | Step 1c updated — worktrees replace shared-dir parallel mode |
 | `.claude/commands/resume.md` | Step 3b detects interrupted worktree sessions |
-| `scripts/workflow_validate.py` | Validate worktree-session.json schema |
+| `.cnogo/scripts/workflow_validate.py` | Validate worktree-session.json schema |
 | `docs/planning/WORKFLOW.json` | Add worktree config under `agentTeams` |
 
 ## Constraints
@@ -142,12 +142,12 @@ Phase 4: POST-MERGE
 
 ## Related Code
 
-- `scripts/memory/bridge.py` — current plan→task translator, detect_file_conflicts()
+- `.cnogo/scripts/memory/bridge.py` — current plan→task translator, detect_file_conflicts()
 - `.claude/commands/team.md` — current team orchestration (Steps 4-11 change)
 - `.claude/commands/implement.md` — Step 1c team mode detection
 - `.claude/commands/resume.md` — Step 3b recovery (needs worktree session awareness)
 - `.claude/agents/implementer.md` — agent definition (largely unchanged, runs in worktree)
-- `scripts/memory/storage.py` — SQLite operations (WAL mode for concurrent access)
+- `.cnogo/scripts/memory/storage.py` — SQLite operations (WAL mode for concurrent access)
 
 ## Research
 

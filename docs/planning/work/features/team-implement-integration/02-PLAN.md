@@ -108,7 +108,7 @@ grep -q 'Team Implementation' .claude/commands/status.md && echo "status team di
 
 After all tasks:
 ```bash
-grep -q 'Action: implement' .claude/commands/team.md && grep -q 'Team Mode' .claude/commands/implement.md && grep -q 'Team Implementation' .claude/commands/status.md && python3 scripts/workflow_validate.py
+grep -q 'Action: implement' .claude/commands/team.md && grep -q 'Team Mode' .claude/commands/implement.md && grep -q 'Team Implementation' .claude/commands/status.md && python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

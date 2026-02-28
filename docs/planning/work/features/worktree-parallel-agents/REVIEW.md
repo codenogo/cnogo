@@ -43,12 +43,12 @@
 
 | # | File | Line | Issue | Severity |
 |---|------|------|-------|----------|
-| W-1 | `scripts/memory/worktree.py` | 276-278 | No input validation for feature/plan_number in branch names/paths | Medium |
-| W-2 | `scripts/memory/worktree.py` | 278 | Worktree path has no boundary assertion (mitigated by `.resolve()`) | Medium |
-| W-3 | `scripts/memory/worktree.py` | 287-289 | Symlink created without checking if target already exists | Low |
-| W-4 | `scripts/memory/worktree.py` | 233-329 | `create_session` is 97 lines — could extract helper | Low |
-| W-5 | `scripts/memory/worktree.py` | 314 | `except Exception` catches too broadly | Low |
-| W-6 | `scripts/memory/bridge.py` | 66 | Skipped tasks still carry `blockedBy` from plan JSON | Low |
+| W-1 | `.cnogo/scripts/memory/worktree.py` | 276-278 | No input validation for feature/plan_number in branch names/paths | Medium |
+| W-2 | `.cnogo/scripts/memory/worktree.py` | 278 | Worktree path has no boundary assertion (mitigated by `.resolve()`) | Medium |
+| W-3 | `.cnogo/scripts/memory/worktree.py` | 287-289 | Symlink created without checking if target already exists | Low |
+| W-4 | `.cnogo/scripts/memory/worktree.py` | 233-329 | `create_session` is 97 lines — could extract helper | Low |
+| W-5 | `.cnogo/scripts/memory/worktree.py` | 314 | `except Exception` catches too broadly | Low |
+| W-6 | `.cnogo/scripts/memory/bridge.py` | 66 | Skipped tasks still carry `blockedBy` from plan JSON | Low |
 
 ## Manual Review Notes
 

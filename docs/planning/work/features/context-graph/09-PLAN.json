@@ -7,7 +7,7 @@
     {
       "name": "Fix _graph_impact_section() sys.path for review blast-radius",
       "files": [
-        "scripts/workflow_checks_core.py",
+        ".cnogo/scripts/workflow_checks_core.py",
         "tests/test_workflow_checks.py"
       ],
       "microSteps": [
@@ -27,8 +27,8 @@
     {
       "name": "Add PostCommit hook for synchronous graph reindex",
       "files": [
-        "scripts/workflow_hooks.py",
-        "scripts/hook-post-commit-graph.sh",
+        ".cnogo/scripts/workflow_hooks.py",
+        ".cnogo/hooks/hook-post-commit-graph.sh",
         ".claude/settings.json",
         "tests/test_workflow_hooks_graph.py"
       ],
@@ -55,7 +55,7 @@
     {
       "name": "Add graph-status CLI command for plan workflow integration",
       "files": [
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "tests/test_context_cli.py"
       ],
       "microSteps": [
@@ -80,7 +80,7 @@
   ],
   "planVerify": [
     "python3 -m pytest tests/test_workflow_checks.py tests/test_workflow_hooks_graph.py tests/test_context_cli.py -x",
-    "python3 scripts/workflow_memory.py graph-status --help"
+    "python3 .cnogo/scripts/workflow_memory.py graph-status --help"
   ],
   "commitMessage": "feat(context-graph): wire graph into workflow — fix review blast-radius, add PostCommit hook, add graph-status CLI",
   "timestamp": "2026-02-28T12:30:00Z"

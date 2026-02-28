@@ -5,8 +5,8 @@
   "outcome": "complete",
   "changes": [
     { "file": "scripts/memory/context.py", "change": "Added Active Epics section to prime() with feature slug, plan number, completion ratio, handoff snippet" },
-    { "file": "scripts/workflow_checks.py", "change": "Replaced infer_feature_from_state() with memory query + branch fallback" },
-    { "file": "scripts/workflow_validate.py", "change": "Changed _require(STATE.md) to _require(.cnogo/memory.db)" }
+    { "file": ".cnogo/scripts/workflow_checks.py", "change": "Replaced infer_feature_from_state() with memory query + branch fallback" },
+    { "file": ".cnogo/scripts/workflow_validate.py", "change": "Changed _require(STATE.md) to _require(.cnogo/memory.db)" }
   ],
   "verification": [
     { "task": 1, "result": "pass", "details": "prime() shows Active Epics with completion ratios" },

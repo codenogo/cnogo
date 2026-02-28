@@ -23,7 +23,7 @@
       "verify": ["grep -l 'effort:' .claude/commands/*.md | wc -l"]
     }
   ],
-  "planVerify": ["python3 scripts/workflow_validate.py"],
+  "planVerify": ["python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "feat(opus-46-agents-workflow-improvements): settings, spawn wrapper, effort hints",
   "timestamp": "2026-02-10T00:00:00Z"
 }

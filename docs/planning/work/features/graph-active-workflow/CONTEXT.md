@@ -47,7 +47,7 @@ Markdown commands updated to call these at the right steps.
 
 After loading CONTEXT.json, before authoring tasks:
 ```bash
-python3 scripts/workflow_memory.py graph-suggest-scope --keywords "feature keywords" --files "known/files" --json
+python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords "feature keywords" --files "known/files" --json
 ```
 
 Returns suggested files with reasons and confidence levels. Feeds into task `files[]` authoring.
@@ -56,7 +56,7 @@ Returns suggested files with reasons and confidence levels. Feeds into task `fil
 
 After each task execution, before claiming success:
 ```bash
-python3 scripts/workflow_memory.py graph-validate-scope --declared "f1.py,f2.py" --changed "f1.py,f2.py,f3.py" --json
+python3 .cnogo/scripts/workflow_memory.py graph-validate-scope --declared "f1.py,f2.py" --changed "f1.py,f2.py,f3.py" --json
 ```
 
 Returns scope violations, blast-radius analysis, and warnings about unintended side effects.
@@ -65,7 +65,7 @@ Returns scope violations, blast-radius analysis, and warnings about unintended s
 
 During context discovery, after grep search:
 ```bash
-python3 scripts/workflow_memory.py graph-enrich --keywords "feature topic" --json
+python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords "feature topic" --json
 ```
 
 Returns related code with callers/callees/heritage, auto-populates `relatedCode[]` in CONTEXT.json.

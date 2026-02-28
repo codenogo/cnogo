@@ -10,7 +10,7 @@ Make the memory engine capable of fully replacing STATE.md by enhancing `prime()
 ## Tasks
 
 ### Task 1: Enhance prime() with Active Epic Details + Plan Progress
-**Files:** `scripts/memory/context.py`
+**Files:** `.cnogo/scripts/memory/context.py`
 **Action:**
 Add a new section to `prime()` output between the header and "In Progress" that shows active epics with:
 - Feature slug
@@ -44,7 +44,7 @@ print('OK')
 **Done when:** `prime()` output includes active epic details with plan progress and optional handoff snippet.
 
 ### Task 2: Replace infer_feature_from_state() with Memory Query
-**Files:** `scripts/workflow_checks.py`
+**Files:** `.cnogo/scripts/workflow_checks.py`
 **Action:**
 Replace the `infer_feature_from_state()` function (lines 50-65) with a new implementation that:
 1. First tries memory: `list_issues(issue_type='epic', status='in_progress')` — return `feature_slug` of first match
@@ -72,7 +72,7 @@ print('OK')
 **Done when:** `infer_feature_from_state()` queries memory instead of parsing STATE.md, with branch-name fallback.
 
 ### Task 3: Update workflow_validate.py — Remove STATE.md Check, Add memory.db Check
-**Files:** `scripts/workflow_validate.py`
+**Files:** `.cnogo/scripts/workflow_validate.py`
 **Action:**
 At line 649, change:
 ```python
@@ -80,14 +80,14 @@ _require(root / "docs" / "planning" / "STATE.md", findings, "Missing planning do
 ```
 to:
 ```python
-_require(root / ".cnogo" / "memory.db", findings, "Memory engine not initialized (run install.sh or python3 scripts/workflow_memory.py init)")
+_require(root / ".cnogo" / "memory.db", findings, "Memory engine not initialized (run install.sh or python3 .cnogo/scripts/workflow_memory.py init)")
 ```
 
 This enforces CONTEXT.md decision #7: memory.db is required, STATE.md is not.
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** Validation passes without STATE.md, requires memory.db instead.
@@ -103,7 +103,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime
 python3 -c "import sys; sys.path.insert(0,'.'); sys.path.insert(0,'scripts'); from workflow_checks import infer_feature_from_state; from pathlib import Path; r = infer_feature_from_state(Path('.')); print(f'Feature: {r}'); assert r"
 
 # Validation passes
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

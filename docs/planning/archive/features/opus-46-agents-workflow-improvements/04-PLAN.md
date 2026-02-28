@@ -80,7 +80,7 @@ grep "/team" README.md
 **Files:** `docs/planning/STATE.md`, `docs/planning/work/features/opus-46-agents-workflow-improvements/CONTEXT.md`
 **Action:**
 
-1. Run `python3 scripts/workflow_validate.py` and fix any issues
+1. Run `python3 .cnogo/scripts/workflow_validate.py` and fix any issues
 2. Verify all 10 agent files exist and have valid frontmatter
 3. Verify settings.json is valid JSON with all expected keys
 4. Verify WORKFLOW.json is valid JSON with agentTeams section
@@ -92,7 +92,7 @@ grep "/team" README.md
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ls .claude/agents/*.md | wc -l  # 10
 python3 -c "import json; json.load(open('.claude/settings.json')); print('settings OK')"
 python3 -c "import json; json.load(open('docs/planning/WORKFLOW.json')); print('workflow OK')"
@@ -106,7 +106,7 @@ grep "Ready for review" docs/planning/STATE.md
 After all tasks:
 ```bash
 # Full validation
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 
 # Agent count
 ls .claude/agents/*.md | wc -l  # 10

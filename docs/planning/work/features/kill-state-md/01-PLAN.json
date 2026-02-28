@@ -13,7 +13,7 @@
     },
     {
       "name": "Replace infer_feature_from_state() with memory query",
-      "files": ["scripts/workflow_checks.py"],
+      "files": [".cnogo/scripts/workflow_checks.py"],
       "action": "Replace infer_feature_from_state() (lines 50-65) to query memory for in-progress/open epics, fallback to branch name parsing. Import memory at function level.",
       "verify": ["python3 -c \"import sys; sys.path.insert(0,'.'); sys.path.insert(0,'scripts'); from workflow_checks import infer_feature_from_state; from pathlib import Path; r = infer_feature_from_state(Path('.')); print(f'Feature: {r}'); assert r; print('OK')\""],
       "blockedBy": [0],
@@ -21,16 +21,16 @@
     },
     {
       "name": "Update workflow_validate.py — require memory.db instead of STATE.md",
-      "files": ["scripts/workflow_validate.py"],
+      "files": [".cnogo/scripts/workflow_validate.py"],
       "action": "At line 649, replace _require(STATE.md) with _require(.cnogo/memory.db).",
-      "verify": ["python3 scripts/workflow_validate.py"],
+      "verify": ["python3 .cnogo/scripts/workflow_validate.py"],
       "memoryId": "cn-145b2y1.3"
     }
   ],
   "planVerify": [
     "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))\"",
     "python3 -c \"import sys; sys.path.insert(0,'.'); sys.path.insert(0,'scripts'); from workflow_checks import infer_feature_from_state; r = infer_feature_from_state(__import__('pathlib').Path('.')); print(f'Feature: {r}'); assert r\"",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "memoryEpicId": "cn-145b2y1",
   "commitMessage": "feat(kill-state-md): enhance memory engine to replace STATE.md",

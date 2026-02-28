@@ -101,7 +101,7 @@ test -f .cnogo/manifest.json
 test -f .cnogo/version.json
 python3 .cnogo/scripts/workflow_memory.py prime --limit 1
 python3 -m pytest tests/ -x -q --tb=short 2>&1 | tail -5
-! grep -rn 'python3 scripts/workflow_' .claude/ CLAUDE.md 2>/dev/null
+! grep -rn 'python3 .cnogo/scripts/workflow_' .claude/ CLAUDE.md 2>/dev/null
 python3 .cnogo/scripts/workflow_validate.py --json 2>&1 | tail -3
 ```
 

@@ -9,7 +9,7 @@
       "files": ["docs/planning/PROJECT.md"],
       "action": "Replace all placeholder text with cnogo's real content: vision, constraints, architecture, tech stack, patterns, non-goals",
       "verify": [
-        "python3 scripts/workflow_validate.py"
+        "python3 .cnogo/scripts/workflow_validate.py"
       ],
       "blockedBy": [],
       "memoryId": "cn-ngp191.4"
@@ -19,17 +19,17 @@
       "files": ["docs/planning/ROADMAP.md"],
       "action": "Replace all placeholder text with cnogo's actual milestones: v1.0, v1.1 complete, v2.0 future",
       "verify": [
-        "python3 scripts/workflow_validate.py"
+        "python3 .cnogo/scripts/workflow_validate.py"
       ],
       "blockedBy": [],
       "memoryId": "cn-ngp191.5"
     },
     {
       "name": "Fill in WORKFLOW.json and CLAUDE.md",
-      "files": ["docs/planning/WORKFLOW.json", "CLAUDE.md", "scripts/workflow_validate.py"],
+      "files": ["docs/planning/WORKFLOW.json", "CLAUDE.md", ".cnogo/scripts/workflow_validate.py"],
       "action": "Populate WORKFLOW.json packages[] with cnogo-scripts, fill in CLAUDE.md unfilled sections, and fix validator bug discovered during verification",
       "verify": [
-        "python3 scripts/workflow_validate.py",
+        "python3 .cnogo/scripts/workflow_validate.py",
         "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert len(cfg.get('packages',[])) > 0; print('PASS: packages populated')\""
       ],
       "blockedBy": [],
@@ -37,7 +37,7 @@
     }
   ],
   "planVerify": [
-    "python3 scripts/workflow_validate.py",
+    "python3 .cnogo/scripts/workflow_validate.py",
     "python3 -c \"import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert len(cfg.get('packages',[])) > 0; print('PASS: packages populated')\"",
     "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))\""
   ],

@@ -24,8 +24,8 @@
 
 | # | File | Line | Issue | Severity | Fix |
 |---|------|------|-------|----------|-----|
-| 1 | `scripts/memory/bridge.py` | 136-180 | Command injection: `memory_id` embedded unvalidated in bash snippets | Critical | Added regex validation (`^cn-[a-z0-9]+(\.\d+)*$`), raises ValueError on invalid format |
-| 2 | `scripts/memory/bridge.py` | 190 | Unused `feature` parameter in `_load_context_snippet()` | Low | Removed parameter |
+| 1 | `.cnogo/scripts/memory/bridge.py` | 136-180 | Command injection: `memory_id` embedded unvalidated in bash snippets | Critical | Added regex validation (`^cn-[a-z0-9]+(\.\d+)*$`), raises ValueError on invalid format |
+| 2 | `.cnogo/scripts/memory/bridge.py` | 190 | Unused `feature` parameter in `_load_context_snippet()` | Low | Removed parameter |
 | 3 | `.claude/commands/team.md` | 90 | Step 1 action list missing `implement` | Medium | Added `implement` to action list |
 | 4 | `.claude/commands/implement.md` | 8 | `--team` flag undocumented in arguments | Medium | Added flag to usage and examples |
 
@@ -33,8 +33,8 @@
 
 | # | File | Line | Issue | Severity |
 |---|------|------|-------|----------|
-| W1 | `scripts/memory/bridge.py` | 83-184 | `generate_implement_prompt()` is 101 lines (target: ≤50) | Low |
-| W2 | `scripts/memory/bridge.py` | 197 | Magic number 30 for context snippet lines | Low |
+| W1 | `.cnogo/scripts/memory/bridge.py` | 83-184 | `generate_implement_prompt()` is 101 lines (target: ≤50) | Low |
+| W2 | `.cnogo/scripts/memory/bridge.py` | 197 | Magic number 30 for context snippet lines | Low |
 | W3 | `.claude/commands/team.md` | 118 | `agent_tasks` undefined in example Python snippet | Low |
 
 **W1 rationale**: The function is long but entirely linear (sequential markdown section assembly). Extracting helpers would add indirection without improving readability for this template-like code. Acceptable for now.

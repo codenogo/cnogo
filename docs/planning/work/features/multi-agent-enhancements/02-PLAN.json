@@ -43,7 +43,7 @@
     "grep -q 'parallelizable' .claude/commands/implement.md",
     "grep -q 'staleIndicatorMinutes' .claude/commands/status.md",
     "grep -q 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' docs/planning/PROJECT.md",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(multi-agent-enhancements): command logic and version pinning docs\n\n- Update /implement to use parallelizable hint from plan JSON\n- Update /status to display claim age with stale indicator\n- Document Agent Teams version pinning in PROJECT.md and CLAUDE.md",
   "timestamp": "2026-02-14T00:00:00Z"

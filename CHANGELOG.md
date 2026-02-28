@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `/validate` command to enforce workflow rules (slugs, contracts, plan size)
 - `/verify-ci` command for non-interactive (CI-friendly) verification artifacts
 - Machine-checkable workflow contracts (`*.json`) for feature context, plans, summaries, and reviews
-- `scripts/workflow_validate.py` validator (no dependencies) and optional `.githooks/pre-commit` enforcement
+- `.cnogo/scripts/workflow_validate.py` validator (no dependencies) and optional `.githooks/pre-commit` enforcement
 - `/rollback` command for quick reverts (supports `last`, `<commit-hash>`, and `branch` modes)
 - `/init` command to auto-populate templates based on stack detection
 - `/mcp` command for Model Context Protocol integrations (GitHub, Jira, Sentry, Figma, etc.)

@@ -62,7 +62,7 @@ python3 -m pytest tests/test_context_graph.py -x -q
 **Done when:** [Observable outcome]
 
 ### Task 3: Add search() API method and graph-search CLI subcommand
-**Files:** `scripts/context/__init__.py`, `scripts/workflow_memory.py`, `tests/test_context_graph.py`, `tests/test_context_cli.py`
+**Files:** `scripts/context/__init__.py`, `.cnogo/scripts/workflow_memory.py`, `tests/test_context_graph.py`, `tests/test_context_cli.py`
 **Action:**
 Add search() method to ContextGraph class that auto-indexes then delegates to storage.search(). Add cmd_graph_search() CLI handler with human-readable table output (name, file, label, score) and --json mode. Register graph-search subparser with --repo, --query (required positional), --limit (default 20), --json flags.
 

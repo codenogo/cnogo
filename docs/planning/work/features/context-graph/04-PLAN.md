@@ -58,7 +58,7 @@ python3 -m pytest tests/test_context_query.py tests/test_context_graph.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: CLI exposure via workflow_memory.py
-**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `tests/test_context_cli.py`
 **Action:**
 Add 4 subcommands to workflow_memory.py: (1) graph-index — runs ContextGraph.index(), prints node/relationship/file counts. (2) graph-query <name> — runs query(), prints results as name | file | line | label table. (3) graph-impact <file_path> [--depth N] — runs impact(), prints results grouped by depth. (4) graph-context <node_id> — runs context(), prints neighborhood. All subcommands instantiate ContextGraph(repo_path='.') and close() after use. Use argparse subparsers consistent with existing CLI pattern.
 
@@ -90,7 +90,7 @@ python3 -m pytest tests/test_context_cli.py -x
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_*.py -x
-python3 scripts/workflow_memory.py graph-index --help
+python3 .cnogo/scripts/workflow_memory.py graph-index --help
 ```
 
 ## Commit Message

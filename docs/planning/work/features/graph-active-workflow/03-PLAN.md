@@ -36,7 +36,7 @@ python3 -m py_compile scripts/context/workflow.py
 **Done when:** [Observable outcome]
 
 ### Task 2: Add graph-enrich CLI subcommand
-**Files:** `scripts/workflow_memory.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`
 **Action:**
 Add graph-enrich subcommand to workflow_memory.py. Register argparse with: --keywords (comma-separated, required), --repo, --limit (default 20), --json. Handler function cmd_graph_enrich(): parse args, call enrich_context() from scripts.context.workflow, output JSON or human-readable table of related code grouped by relationship type. Add to _graph_cmds and dispatch.
 
@@ -54,7 +54,7 @@ Add graph-enrich subcommand to workflow_memory.py. Register argparse with: --key
 **Verify:**
 ```bash
 python3 -m py_compile scripts/workflow_memory.py
-python3 scripts/workflow_memory.py graph-enrich --keywords test --json
+python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords test --json
 ```
 
 **Done when:** [Observable outcome]
@@ -62,7 +62,7 @@ python3 scripts/workflow_memory.py graph-enrich --keywords test --json
 ### Task 3: Update /discuss command to call graph-enrich
 **Files:** `.claude/commands/discuss.md`
 **Action:**
-Add a context enrichment step to discuss.md in Step 2 (Read Lightweight Context), after the rg search. Add a bash call: `python3 scripts/workflow_memory.py graph-enrich --keywords "<feature keywords>" --json`. Instruct Claude to use the enriched results to auto-populate relatedCode[] in CONTEXT.json and to surface architectural constraints (callers, callees, heritage) during the decision conversation. Keep the addition under 40 words.
+Add a context enrichment step to discuss.md in Step 2 (Read Lightweight Context), after the rg search. Add a bash call: `python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords "<feature keywords>" --json`. Instruct Claude to use the enriched results to auto-populate relatedCode[] in CONTEXT.json and to surface architectural constraints (callers, callees, heritage) during the decision conversation. Keep the addition under 40 words.
 
 **Micro-steps:**
 - Read current discuss.md Step 2 content
@@ -76,7 +76,7 @@ Add a context enrichment step to discuss.md in Step 2 (Read Lightweight Context)
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py --feature graph-active-workflow
+python3 .cnogo/scripts/workflow_validate.py --feature graph-active-workflow
 ```
 
 **Done when:** [Observable outcome]
@@ -89,7 +89,7 @@ python3 -m pytest tests/test_context_workflow.py -x -q
 python3 -m pytest tests/test_context_graph.py -x -q
 python3 -m py_compile scripts/context/workflow.py
 python3 -m py_compile scripts/workflow_memory.py
-python3 scripts/workflow_memory.py graph-enrich --keywords test --json
+python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords test --json
 ```
 
 ## Commit Message

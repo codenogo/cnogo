@@ -6,9 +6,9 @@
 ## Changes Made
 | File | Change |
 |------|--------|
-| `scripts/memory/context.py` | Added Active Epics section to `prime()` — shows feature slug, plan number, child task completion ratio, and handoff metadata snippet |
-| `scripts/workflow_checks.py` | Replaced `infer_feature_from_state()` — queries memory for in-progress/open epics with branch name fallback |
-| `scripts/workflow_validate.py` | Changed `_require(STATE.md)` to `_require(.cnogo/memory.db)` |
+| `.cnogo/scripts/memory/context.py` | Added Active Epics section to `prime()` — shows feature slug, plan number, child task completion ratio, and handoff metadata snippet |
+| `.cnogo/scripts/workflow_checks.py` | Replaced `infer_feature_from_state()` — queries memory for in-progress/open epics with branch name fallback |
+| `.cnogo/scripts/workflow_validate.py` | Changed `_require(STATE.md)` to `_require(.cnogo/memory.db)` |
 
 ## Verification Results
 - Task 1: ✅ `prime()` shows Active Epics with `kill-state-md (0/9 tasks done)` and `team-implement-integration (9/9 tasks done)`

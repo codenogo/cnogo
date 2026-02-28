@@ -58,7 +58,7 @@
     {
       "name": "CLI graph-coupling subcommand",
       "files": [
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "tests/test_context_cli.py"
       ],
       "microSteps": [
@@ -81,7 +81,7 @@
   ],
   "planVerify": [
     "python3 -m pytest tests/test_context_*.py -x",
-    "python3 scripts/workflow_memory.py graph-coupling --help"
+    "python3 .cnogo/scripts/workflow_memory.py graph-coupling --help"
   ],
   "commitMessage": "feat(context-graph): add coupling analysis with Jaccard similarity and CLI graph-coupling command",
   "timestamp": "2026-02-28T05:00:00Z"

@@ -6,12 +6,12 @@
   "tasksCompleted": 3,
   "tasksTotal": 3,
   "filesChanged": [
-    "scripts/workflow_hooks.py",
-    "scripts/workflow_utils.py",
-    "scripts/workflow_validate.py",
-    "scripts/workflow_detect.py",
-    "scripts/workflow_checks.py",
-    "scripts/workflow_render.py"
+    ".cnogo/scripts/workflow_hooks.py",
+    ".cnogo/scripts/workflow_utils.py",
+    ".cnogo/scripts/workflow_validate.py",
+    ".cnogo/scripts/workflow_detect.py",
+    ".cnogo/scripts/workflow_checks.py",
+    ".cnogo/scripts/workflow_render.py"
   ],
   "findingsAddressed": [11, 15, 16],
   "timestamp": "2026-02-10T00:00:00Z"

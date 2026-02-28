@@ -11,14 +11,14 @@
       "action": "In `_validate_plan_contract()`, after the existing task validation loop, add a check: if any task has a non-empty `deletions` array and it is the last task in the plan (no subsequent task exists), emit a WARN finding: 'Task N has `deletions` but is the last task in the plan \u2014 no subsequent task to receive auto-expanded caller cleanup scope.' Also validate that `deletions` is a list of strings when present.",
       "file_scope": {
         "paths": [
-          "scripts/workflow_validate_core.py"
+          ".cnogo/scripts/workflow_validate_core.py"
         ],
         "forbidden": []
       },
       "commands": {
         "verify": [
           "python3 -m py_compile scripts/workflow_validate_core.py",
-          "python3 scripts/workflow_validate.py"
+          "python3 .cnogo/scripts/workflow_validate.py"
         ]
       },
       "completion_footer": "TASK_DONE: [cn-11c1zmy.4]",
@@ -60,7 +60,7 @@
       },
       "commands": {
         "verify": [
-          "python3 scripts/workflow_validate.py"
+          "python3 .cnogo/scripts/workflow_validate.py"
         ]
       },
       "completion_footer": "TASK_DONE: [cn-11c1zmy.6]",

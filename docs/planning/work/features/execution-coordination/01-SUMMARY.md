@@ -7,9 +7,9 @@ complete
 
 | File | Change |
 |------|--------|
-| `scripts/memory/bridge.py` | Restored from git history (ea99a65^) and upgraded: plan_to_task_descriptions() emits TaskDesc V2 (structured, no markdown description), generate_implement_prompt() is a pure renderer, detect_file_conflicts() reads file_scope, added generate_run_id() and TASK_DESC_SCHEMA_VERSION=2 |
-| `scripts/memory/__init__.py` | Added 7 re-exports: bridge (plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id) and worktree (create_session, save_session, get_conflict_context) with thin wrapper functions |
-| `scripts/memory/worktree.py` | Added run_id field to WorktreeSession (to_dict/from_dict), updated create_session() to read V2 fields (title, task_id) with V1 fallback (name, memoryId), added run_id keyword parameter |
+| `.cnogo/scripts/memory/bridge.py` | Restored from git history (ea99a65^) and upgraded: plan_to_task_descriptions() emits TaskDesc V2 (structured, no markdown description), generate_implement_prompt() is a pure renderer, detect_file_conflicts() reads file_scope, added generate_run_id() and TASK_DESC_SCHEMA_VERSION=2 |
+| `.cnogo/scripts/memory/__init__.py` | Added 7 re-exports: bridge (plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id) and worktree (create_session, save_session, get_conflict_context) with thin wrapper functions |
+| `.cnogo/scripts/memory/worktree.py` | Added run_id field to WorktreeSession (to_dict/from_dict), updated create_session() to read V2 fields (title, task_id) with V1 fallback (name, memoryId), added run_id keyword parameter |
 
 ## Verification Results
 
@@ -22,7 +22,7 @@ complete
 - {'command': 'from scripts.memory import init, create, ready, claim, close, prime', 'result': 'pass'}
 - {'command': "WorktreeSession(run_id='test-123').to_dict()['runId'] == 'test-123'", 'result': 'pass'}
 - {'command': "WorktreeSession.from_dict({'runId': 'abc'}).run_id == 'abc'", 'result': 'pass'}
-- {'command': 'python3 scripts/workflow_validate.py', 'result': 'pass (warnings only, pre-existing)'}
+- {'command': 'python3 .cnogo/scripts/workflow_validate.py', 'result': 'pass (warnings only, pre-existing)'}
 
 ## Commit
 `abc123f` - [commit message]

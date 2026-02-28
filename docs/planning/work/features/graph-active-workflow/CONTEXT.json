@@ -55,8 +55,8 @@
     "scripts/context/__init__.py",
     "scripts/context/phases/impact.py",
     "scripts/context/storage.py",
-    "scripts/workflow_memory.py",
-    "scripts/workflow_checks_core.py",
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_checks_core.py",
     ".claude/commands/plan.md",
     ".claude/commands/implement.md",
     ".claude/commands/discuss.md"

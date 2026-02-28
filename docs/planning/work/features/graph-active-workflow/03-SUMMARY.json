@@ -15,7 +15,7 @@
       "description": "Added 5 tests: enabled structure, keywords with callers/callees, heritage, graceful degradation, deduplication"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "action": "modified",
       "description": "Added graph-enrich CLI subcommand with --keywords, --repo, --limit, --json args"
     },
@@ -30,7 +30,7 @@
     {"command": "python3 -m pytest tests/test_context_graph.py -x -q", "result": "41 passed"},
     {"command": "python3 -m py_compile scripts/context/workflow.py", "result": "pass"},
     {"command": "python3 -m py_compile scripts/workflow_memory.py", "result": "pass"},
-    {"command": "python3 scripts/workflow_memory.py graph-enrich --keywords test --json", "result": "pass"}
+    {"command": "python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords test --json", "result": "pass"}
   ],
   "commit": "fe88779",
   "timestamp": "2026-02-28T20:30:00Z"

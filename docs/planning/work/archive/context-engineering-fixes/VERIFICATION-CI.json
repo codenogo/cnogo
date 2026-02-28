@@ -17,77 +17,77 @@
   "invariants": {
     "findings": [
       {
-        "file": "scripts/workflow_checks_core.py",
+        "file": ".cnogo/scripts/workflow_checks_core.py",
         "line": 43,
         "message": "Line length 143 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 550,
         "message": "Line length 146 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 553,
         "message": "Line length 148 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 584,
         "message": "Line length 146 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 587,
         "message": "Line length 145 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 590,
         "message": "Line length 148 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 625,
         "message": "Line length 150 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 659,
         "message": "Line length 147 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 720,
         "message": "Line length 152 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 998,
         "message": "Line length 142 exceeds 140.",
         "rule": "max-line-length",
         "severity": "warn"
       },
       {
-        "file": "scripts/workflow_validate_core.py",
+        "file": ".cnogo/scripts/workflow_validate_core.py",
         "line": 1058,
         "message": "Line length 142 exceeds 140.",
         "rule": "max-line-length",

@@ -34,10 +34,10 @@ Remove `docs/planning/STATE.md` entirely. Make the memory engine the single sour
 
 ## Related Code
 
-- `scripts/memory/context.py` — `prime()` function that needs enhancement
-- `scripts/memory/__init__.py` — public API, needs `update()` for handoff metadata
-- `scripts/workflow_checks.py:50-65` — `infer_feature_from_state()` to replace
-- `scripts/workflow_validate.py:649` — `_require(STATE.md)` to remove
+- `.cnogo/scripts/memory/context.py` — `prime()` function that needs enhancement
+- `.cnogo/scripts/memory/__init__.py` — public API, needs `update()` for handoff metadata
+- `.cnogo/scripts/workflow_checks.py:50-65` — `infer_feature_from_state()` to replace
+- `.cnogo/scripts/workflow_validate.py:649` — `_require(STATE.md)` to remove
 - `install.sh:177` — STATE.md in template copy loop
 - `.claude/commands/resume.md` — reads STATE.md for handoff (most complex migration)
 - `.claude/commands/pause.md` — writes handoff to STATE.md

@@ -52,7 +52,7 @@ python3 -c "import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); v=c
 **Done when:** WORKFLOW.json has `agentTeams.staleIndicatorMinutes: 10`.
 
 ### Task 3: Update workflow_validate.py for new fields
-**Files:** `scripts/workflow_validate.py`
+**Files:** `.cnogo/scripts/workflow_validate.py`
 **Action:**
 Two changes:
 
@@ -65,7 +65,7 @@ Both changes are additive — they validate new optional fields, not reject old 
 **Verify:**
 ```bash
 python3 -m py_compile scripts/workflow_validate.py && echo "PASS: compiles" || echo "FAIL"
-python3 scripts/workflow_validate.py && echo "PASS: validates" || echo "FAIL"
+python3 .cnogo/scripts/workflow_validate.py && echo "PASS: validates" || echo "FAIL"
 ```
 
 **Done when:** `workflow_validate.py` compiles, validates the repo without new errors, and would warn on invalid `staleIndicatorMinutes` or `parallelizable` types.
@@ -75,7 +75,7 @@ python3 scripts/workflow_validate.py && echo "PASS: validates" || echo "FAIL"
 After all tasks:
 ```bash
 python3 -m py_compile scripts/workflow_validate.py
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 grep -q 'model: opus' .claude/agents/debugger.md
 python3 -c "import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert 'staleIndicatorMinutes' in cfg['agentTeams']"
 ```

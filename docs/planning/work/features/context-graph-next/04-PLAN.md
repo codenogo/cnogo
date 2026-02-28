@@ -33,7 +33,7 @@ python3 -m pytest tests/test_context_proximity.py -v
 **Done when:** [Observable outcome]
 
 ### Task 2: Add prioritize_context() workflow function and graph-prioritize CLI command
-**Files:** `scripts/context/workflow.py`, `scripts/workflow_memory.py`, `tests/test_context_proximity.py`
+**Files:** `scripts/context/workflow.py`, `.cnogo/scripts/workflow_memory.py`, `tests/test_context_proximity.py`
 **Action:**
 Add prioritize_context(repo_path, focal_symbols, max_files=20) to workflow.py as the 4th workflow function. Returns {enabled, ranked_files: [{path, distance, reason}], focal_symbols_resolved}. Follows graceful degradation pattern. Add graph-prioritize CLI: --symbols (comma-separated names), --max-files N (default 20), --json flag. This enables graph-informed context selection instead of blind file inclusion.
 
@@ -55,7 +55,7 @@ Add prioritize_context(repo_path, focal_symbols, max_files=20) to workflow.py as
 **Verify:**
 ```bash
 python3 -m pytest tests/test_context_proximity.py -v
-python3 scripts/workflow_memory.py graph-prioritize --help 2>&1 | grep -q prioritize
+python3 .cnogo/scripts/workflow_memory.py graph-prioritize --help 2>&1 | grep -q prioritize
 ```
 
 **Done when:** [Observable outcome]
@@ -65,7 +65,7 @@ python3 scripts/workflow_memory.py graph-prioritize --help 2>&1 | grep -q priori
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_proximity.py -v
-python3 scripts/workflow_memory.py graph-prioritize --help 2>&1 | grep -q prioritize
+python3 .cnogo/scripts/workflow_memory.py graph-prioritize --help 2>&1 | grep -q prioritize
 ```
 
 ## Commit Message

@@ -24,7 +24,7 @@
   "verification": [
     {"command": "python3 -m py_compile scripts/memory/ledger.py", "result": "pass"},
     {"command": "python3 -m py_compile scripts/memory/reconcile_leader.py", "result": "pass"},
-    {"command": "python3 scripts/workflow_validate.py", "result": "pass"}
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"}
   ],
   "commit": "19b0099",
   "timestamp": "2026-02-21T14:30:00Z"

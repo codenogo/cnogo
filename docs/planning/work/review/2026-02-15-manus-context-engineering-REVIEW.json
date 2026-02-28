@@ -49,7 +49,7 @@
       "manus_lesson": "1-kv-cache-optimization",
       "effort": "low",
       "impact": "medium",
-      "files": ["scripts/memory/sync.py", "scripts/memory/bridge.py", "scripts/workflow_validate.py"],
+      "files": ["scripts/memory/sync.py", "scripts/memory/bridge.py", ".cnogo/scripts/workflow_validate.py"],
       "severity": "improvement"
     },
     {

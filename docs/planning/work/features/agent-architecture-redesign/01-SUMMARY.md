@@ -23,7 +23,7 @@
 - Task 1 (CLAUDE.md): ✅ No placeholders found, workflow validation passed
 - Task 2 (.claude/skills/): ✅ 8 skill files created, all under 35 lines
 - Task 3 (auto-compaction): ✅ Setting verified in settings.json
-- Plan verification: ✅ `python3 scripts/workflow_validate.py` passed
+- Plan verification: ✅ `python3 .cnogo/scripts/workflow_validate.py` passed
 
 ## Issues Encountered
 

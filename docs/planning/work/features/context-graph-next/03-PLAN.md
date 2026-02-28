@@ -32,7 +32,7 @@ python3 -m pytest tests/test_context_contracts.py -v -k test_signature
 **Done when:** [Observable outcome]
 
 ### Task 2: Add contract_check() method and graph-contract-check CLI
-**Files:** `scripts/context/__init__.py`, `scripts/context/phases/contracts.py`, `scripts/workflow_memory.py`, `tests/test_context_contracts.py`
+**Files:** `scripts/context/__init__.py`, `scripts/context/phases/contracts.py`, `.cnogo/scripts/workflow_memory.py`, `tests/test_context_contracts.py`
 **Action:**
 Add ContextGraph.contract_check(changed_files) that: (1) extracts current signatures from changed files via AST, (2) compares against stored graph node signatures, (3) for each changed signature, finds all callers via callers_with_confidence(), (4) returns {breaks: [{symbol, old_signature, new_signature, change_type, callers: [{name, file, confidence}]}], summary: {total_breaks, total_affected_callers}}. Add graph-contract-check CLI with --json flag.
 
@@ -54,7 +54,7 @@ Add ContextGraph.contract_check(changed_files) that: (1) extracts current signat
 **Verify:**
 ```bash
 python3 -m pytest tests/test_context_contracts.py -v
-python3 scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract
+python3 .cnogo/scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract
 ```
 
 **Done when:** [Observable outcome]
@@ -90,7 +90,7 @@ python3 -m pytest tests/test_context_contracts.py -v
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_contracts.py -v
-python3 scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract
+python3 .cnogo/scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract
 ```
 
 ## Commit Message

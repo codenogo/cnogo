@@ -63,7 +63,7 @@
     {
       "name": "Add graph-test-coverage CLI command and workflow integration",
       "files": [
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "scripts/context/workflow.py",
         "tests/test_context_core.py"
       ],
@@ -83,7 +83,7 @@
       "action": "Add graph-test-coverage CLI command outputting coverage report (JSON with --json flag, human-readable by default). Add test_coverage_report(repo_path) to workflow.py following the graceful degradation pattern (returns {enabled: false, error: ...} on failure). This surfaces untested symbols during /review as warnings.",
       "verify": [
         "python3 -m pytest tests/test_context_core.py -v -k coverage",
-        "python3 scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage"
+        "python3 .cnogo/scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage"
       ],
       "blockedBy": [1]
     }
@@ -91,7 +91,7 @@
   "planVerify": [
     "python3 -m pytest tests/test_context_core.py tests/test_context_analysis.py tests/test_context_types_exports.py -v",
     "python3 -c \"import pathlib; files = list(pathlib.Path('tests').glob('test_context_*.py')); assert all(sum(1 for _ in open(f)) <= 800 for f in files)\"",
-    "python3 scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage"
+    "python3 .cnogo/scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage"
   ],
   "commitMessage": "feat(context-graph-next): split test file into modules and add test coverage mapping",
   "timestamp": "2026-02-28T22:00:00Z"

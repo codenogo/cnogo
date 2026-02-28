@@ -20,10 +20,10 @@
       "name": "Full end-to-end validation and STATE.md update",
       "files": ["docs/planning/STATE.md"],
       "action": "Run workflow_validate.py, verify all files exist and are valid, update STATE.md to ready for review",
-      "verify": ["python3 scripts/workflow_validate.py", "grep 'Ready for review' docs/planning/STATE.md"]
+      "verify": ["python3 .cnogo/scripts/workflow_validate.py", "grep 'Ready for review' docs/planning/STATE.md"]
     }
   ],
-  "planVerify": ["python3 scripts/workflow_validate.py", "ls .claude/agents/*.md | wc -l"],
+  "planVerify": ["python3 .cnogo/scripts/workflow_validate.py", "ls .claude/agents/*.md | wc -l"],
   "commitMessage": "feat(opus-46-agents-workflow-improvements): installer, README, final integration",
   "timestamp": "2026-02-10T00:00:00Z"
 }

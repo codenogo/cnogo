@@ -81,11 +81,11 @@ The cnogo memory engine has all the primitives for multi-agent coordination (rea
 
 ## Related Code
 
-- `scripts/memory/__init__.py` — Public API (create, ready, claim, close)
-- `scripts/memory/storage.py` — SQLite operations, atomic claiming
-- `scripts/memory/graph.py` — Dependency resolution, blocked cache
-- `scripts/memory/sync.py` — JSONL export/import
-- `scripts/memory/context.py` — Prime/context generation
+- `.cnogo/scripts/memory/__init__.py` — Public API (create, ready, claim, close)
+- `.cnogo/scripts/memory/storage.py` — SQLite operations, atomic claiming
+- `.cnogo/scripts/memory/graph.py` — Dependency resolution, blocked cache
+- `.cnogo/scripts/memory/sync.py` — JSONL export/import
+- `.cnogo/scripts/memory/context.py` — Prime/context generation
 - `.claude/commands/team.md` — Team command definition
 - `.claude/commands/implement.md` — Implement command definition
 - `.claude/commands/plan.md` — Plan command with memory integration

@@ -18,13 +18,13 @@ For each agent .md file, add to the existing Rules section: (1) 3-5 inline 'Do N
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py --json 2>&1 | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)"
+python3 .cnogo/scripts/workflow_validate.py --json 2>&1 | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)"
 ```
 
 **Done when:** [Observable outcome]
 
 ### Task 2: Doctor git state health check
-**Files:** `scripts/workflow_checks_core.py`
+**Files:** `.cnogo/scripts/workflow_checks_core.py`
 **Action:**
 Add Check 6 'git_state' to _cmd_doctor() in workflow_checks_core.py, inserted after Check 5 (hook config). The check should:
 
@@ -37,13 +37,13 @@ Return status: 'pass' if all clean, 'warn' if any issues found (never 'fail' sin
 **Verify:**
 ```bash
 python3 -c "from scripts.workflow_checks_core import _cmd_doctor; print('import ok')"
-python3 scripts/workflow_checks.py doctor --json 2>&1 | python3 -c "import sys,json; d=json.load(sys.stdin); checks=[c['name'] for c in d['checks']]; assert 'git_state' in checks, f'missing git_state check in {checks}'"
+python3 .cnogo/scripts/workflow_checks.py doctor --json 2>&1 | python3 -c "import sys,json; d=json.load(sys.stdin); checks=[c['name'] for c in d['checks']]; assert 'git_state' in checks, f'missing git_state check in {checks}'"
 ```
 
 **Done when:** [Observable outcome]
 
 ### Task 3: Merge tier logging in session-merge output
-**Files:** `scripts/workflow_memory.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`
 **Action:**
 Enhance cmd_session_merge() to include per-task resolved_tier information in the JSON output. After line 505 (`'error': ''`), add a 'tiers' key that maps each merged task index to its resolved_tier from the session worktree info:
 
@@ -78,7 +78,7 @@ python3 -c "import ast; tree=ast.parse(open('scripts/workflow_memory.py').read()
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py --json 2>&1 | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)"
+python3 .cnogo/scripts/workflow_validate.py --json 2>&1 | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(1 if any(f['level']=='ERROR' for f in d) else 0)"
 python3 -m py_compile scripts/workflow_checks_core.py
 python3 -m py_compile scripts/workflow_memory.py
 ```

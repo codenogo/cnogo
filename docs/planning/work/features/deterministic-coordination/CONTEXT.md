@@ -94,12 +94,12 @@ The current workflow has fundamental flaws:
 
 | File | Role |
 |------|------|
-| `scripts/memory/__init__.py` | Core memory API (`close()`, `create()`, `claim()`) |
-| `scripts/memory/models.py` | `Issue` data model (needs `type`, `state`, `owner_actor`) |
-| `scripts/memory/bridge.py` | Plan-to-task bridge (generates worker prompts with close instructions) |
-| `scripts/hook-subagent-stop.py` | SubagentStop hook (currently closes everything) |
-| `scripts/workflow_memory.py` | CLI wrapper for memory engine |
-| `scripts/workflow_validate.py` | Validation runner (needs baseline support) |
+| `.cnogo/scripts/memory/__init__.py` | Core memory API (`close()`, `create()`, `claim()`) |
+| `.cnogo/scripts/memory/models.py` | `Issue` data model (needs `type`, `state`, `owner_actor`) |
+| `.cnogo/scripts/memory/bridge.py` | Plan-to-task bridge (generates worker prompts with close instructions) |
+| `.cnogo/hooks/hook-subagent-stop.py` | SubagentStop hook (currently closes everything) |
+| `.cnogo/scripts/workflow_memory.py` | CLI wrapper for memory engine |
+| `.cnogo/scripts/workflow_validate.py` | Validation runner (needs baseline support) |
 | `.claude/agents/implementer.md` | Worker agent definition (tells workers to close) |
 | `.claude/commands/implement.md` | Serial implementation flow (no try/finally) |
 | `.claude/commands/team.md` | Team coordination flow (best-effort cleanup) |

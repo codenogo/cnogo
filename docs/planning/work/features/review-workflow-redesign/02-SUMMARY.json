@@ -5,7 +5,7 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": "scripts/workflow_checks_core.py",
+      "file": ".cnogo/scripts/workflow_checks_core.py",
       "action": "Removed DEFAULT_REVIEW_PRINCIPLES, _review_principles(), principles param from write_review(). Replaced principles[] in REVIEW.json with securityFindings[], performanceFindings[], patternCompliance[], principleNotes[]. Replaced Karpathy Checklist in REVIEW.md with Security/Performance/Design Patterns tables. Bumped REVIEW_SCHEMA_VERSION to 3."
     },
     {

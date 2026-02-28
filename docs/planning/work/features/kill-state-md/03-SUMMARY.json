@@ -18,7 +18,7 @@
     { "file": "CLAUDE.md", "change": "Removed STATE.md from directory structure" },
     { "file": "README.md", "change": "Updated 8 STATE.md references to memory engine" },
     { "file": "scripts/memory/context.py", "change": "Removed transitional STATE.md comment" },
-    { "file": "scripts/workflow_checks.py", "change": "Updated docstring and CLI help" },
+    { "file": ".cnogo/scripts/workflow_checks.py", "change": "Updated docstring and CLI help" },
     { "file": "docs/planning/STATE.md", "change": "Deleted" }
   ],
   "verification": [

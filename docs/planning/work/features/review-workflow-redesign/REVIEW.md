@@ -22,14 +22,14 @@
 
 ## Invariant Findings
 
-- [warn] `scripts/workflow_validate_core.py:540` Line length 146 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:543` Line length 148 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:574` Line length 146 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:577` Line length 145 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:580` Line length 148 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:635` Line length 147 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:696` Line length 152 exceeds 140. (max-line-length)
-- [warn] `scripts/workflow_validate_core.py:956` Line length 142 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:540` Line length 146 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:543` Line length 148 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:574` Line length 146 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:577` Line length 145 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:580` Line length 148 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:635` Line length 147 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:696` Line length 152 exceeds 140. (max-line-length)
+- [warn] `.cnogo/scripts/workflow_validate_core.py:956` Line length 142 exceeds 140. (max-line-length)
 
 ## Verdict
 

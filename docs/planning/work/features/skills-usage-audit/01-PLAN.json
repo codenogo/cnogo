@@ -6,7 +6,7 @@
   "tasks": [
     {
       "name": "Add parse_skill_frontmatter() to workflow_utils.py",
-      "files": ["scripts/workflow_utils.py"],
+      "files": [".cnogo/scripts/workflow_utils.py"],
       "action": "Add a parse_skill_frontmatter(path: Path) function that reads a .md file, extracts YAML frontmatter between --- delimiters, and returns a dict with keys: name (str|None), tags (list[str]), appliesTo (list[str]), raw (str|None for the raw frontmatter block). Use regex only (no pyyaml). Handle missing/malformed frontmatter gracefully — return empty defaults, never raise. Also add discover_skills(skills_dir: Path) that scans a directory for .md files and returns list of parsed skill dicts.",
       "verify": [
         "python3 -c \"from scripts.workflow_utils import parse_skill_frontmatter; print('import ok')\"",
@@ -16,10 +16,10 @@
     },
     {
       "name": "Add _validate_skills() to workflow_validate_core.py",
-      "files": ["scripts/workflow_validate_core.py"],
+      "files": [".cnogo/scripts/workflow_validate_core.py"],
       "action": "Add _validate_skills(root, findings, touched) that: (1) scans .claude/skills/*.md for valid frontmatter (WARN if missing name field), (2) scans .claude/commands/*.md for skill path references matching '.claude/skills/*.md' pattern and checks each resolves to an existing file (WARN if broken reference). Call _validate_skills() from validate_repo() after _validate_bootstrap_context(). Import parse_skill_frontmatter and discover_skills from workflow_utils.",
       "verify": [
-        "python3 scripts/workflow_validate.py",
+        "python3 .cnogo/scripts/workflow_validate.py",
         "python3 -c \"from scripts.workflow_validate_core import validate_repo; print('import ok')\""
       ],
       "blockedBy": [0]
@@ -34,7 +34,7 @@
     }
   ],
   "planVerify": [
-    "python3 scripts/workflow_validate.py",
+    "python3 .cnogo/scripts/workflow_validate.py",
     "python3 -c \"from scripts.workflow_utils import parse_skill_frontmatter, discover_skills; print('utils ok')\"",
     "python3 -c \"import json; d=json.load(open('docs/planning/WORKFLOW.schema.json')); assert 'karpathyChecklist' not in d['properties']['enforcement']['properties']; print('schema clean')\""
   ],

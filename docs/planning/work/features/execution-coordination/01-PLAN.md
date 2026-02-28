@@ -6,7 +6,7 @@ Restore bridge.py with TaskDesc V2 output, add re-exports to __init__.py, and up
 ## Tasks
 
 ### Task 1: Restore bridge.py with V2 upgrade
-**Files:** `scripts/memory/bridge.py`
+**Files:** `.cnogo/scripts/memory/bridge.py`
 **Action:**
 Restore bridge.py from git history (ea99a65^) and upgrade:
 
@@ -32,7 +32,7 @@ python3 -c "from scripts.memory.bridge import generate_run_id; rid = generate_ru
 **Done when:** [Observable outcome]
 
 ### Task 2: Add bridge + worktree re-exports to __init__.py
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 Add re-exports to __init__.py __all__ list and implement thin wrapper functions:
 
@@ -53,7 +53,7 @@ python3 -c "from scripts.memory import init, create, ready, claim, close, prime;
 **Done when:** [Observable outcome]
 
 ### Task 3: Update worktree.py for V2 compatibility
-**Files:** `scripts/memory/worktree.py`
+**Files:** `.cnogo/scripts/memory/worktree.py`
 **Action:**
 Update worktree.py to work with TaskDesc V2:
 
@@ -81,7 +81,7 @@ After all tasks:
 python3 -c "from scripts.memory import plan_to_task_descriptions, generate_implement_prompt, detect_file_conflicts, generate_run_id, create_session, save_session, get_conflict_context; print('all re-exports OK')"
 python3 -c "from scripts.memory.bridge import TASK_DESC_SCHEMA_VERSION; assert TASK_DESC_SCHEMA_VERSION == 2"
 python3 -c "from scripts.memory.worktree import WorktreeSession; s = WorktreeSession(run_id='x'); assert 'runId' in s.to_dict()"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

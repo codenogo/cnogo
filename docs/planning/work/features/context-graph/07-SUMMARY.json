@@ -9,11 +9,11 @@
       "description": "Added review_impact() method to ContextGraph: auto-indexes, runs impact analysis on changed files, deduplicates, returns structured dict"
     },
     {
-      "file": "scripts/workflow_checks_core.py",
+      "file": ".cnogo/scripts/workflow_checks_core.py",
       "description": "Added _graph_impact_section() helper and wired impactAnalysis key into write_review() contract dict"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "description": "Added graph-blast-radius CLI subcommand with --repo, --files, --json flags"
     },
     {
@@ -35,7 +35,7 @@
       "result": "249 passed"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-blast-radius --help",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-blast-radius --help",
       "result": "Shows usage with --repo, --files, --json options"
     }
   ],

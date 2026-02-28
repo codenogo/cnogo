@@ -20,7 +20,7 @@ Add validation warning for deletion-last-task, render auto_expanded_paths in age
 ## Verification
 - `python3 -m py_compile scripts/memory/bridge.py` — passed
 - `python3 -m py_compile scripts/workflow_validate_core.py` — passed
-- `python3 scripts/workflow_validate.py` — passed (warnings pre-existing)
+- `python3 .cnogo/scripts/workflow_validate.py` — passed (warnings pre-existing)
 
 ## Leader Fixups
 None required. All 3 tasks completed cleanly by parallel implementer agents.

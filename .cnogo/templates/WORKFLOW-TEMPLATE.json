@@ -72,8 +72,8 @@
     "scanScope": "changed",
     "maxFileLines": 800,
     "maxFileLinesExceptions": [
-      "scripts/workflow_checks_core.py",
-      "scripts/workflow_validate_core.py"
+      ".cnogo/scripts/workflow_checks_core.py",
+      ".cnogo/scripts/workflow_validate_core.py"
     ],
     "maxLineLength": 140,
     "todoRequiresTicket": true,

@@ -33,7 +33,7 @@
       "files": [
         "scripts/context/__init__.py",
         "scripts/context/phases/contracts.py",
-        "scripts/workflow_memory.py",
+        ".cnogo/scripts/workflow_memory.py",
         "tests/test_context_contracts.py"
       ],
       "microSteps": [
@@ -52,7 +52,7 @@
       "action": "Add ContextGraph.contract_check(changed_files) that: (1) extracts current signatures from changed files via AST, (2) compares against stored graph node signatures, (3) for each changed signature, finds all callers via callers_with_confidence(), (4) returns {breaks: [{symbol, old_signature, new_signature, change_type, callers: [{name, file, confidence}]}], summary: {total_breaks, total_affected_callers}}. Add graph-contract-check CLI with --json flag.",
       "verify": [
         "python3 -m pytest tests/test_context_contracts.py -v",
-        "python3 scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract"
+        "python3 .cnogo/scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract"
       ],
       "blockedBy": [0]
     },
@@ -83,7 +83,7 @@
   ],
   "planVerify": [
     "python3 -m pytest tests/test_context_contracts.py -v",
-    "python3 scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract"
+    "python3 .cnogo/scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract"
   ],
   "commitMessage": "feat(context-graph-next): add API contract break detection and auto-populate plan files",
   "timestamp": "2026-02-28T22:00:00Z"

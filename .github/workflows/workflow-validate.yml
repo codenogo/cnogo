@@ -15,5 +15,5 @@ jobs:
         with:
           python-version: "3.x"
       - name: Validate workflow artifacts
-        run: python3 scripts/workflow_validate.py
+        run: python3 .cnogo/scripts/workflow_validate.py
 

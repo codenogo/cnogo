@@ -58,8 +58,8 @@
     "scripts/memory/worktree.py",
     "scripts/memory/watchdog.py",
     "scripts/memory/__init__.py",
-    "scripts/workflow_memory.py",
-    "scripts/workflow_hooks.py",
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_hooks.py",
     ".claude/settings.json"
   ],
   "memoryEpicId": "cn-h5po21",

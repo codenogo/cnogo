@@ -93,7 +93,7 @@
       "action": "Add graph-dead subcommand to workflow_memory.py. Handler indexes the repo, runs dead_code(), prints each dead symbol as 'DEAD  label:name  file:line'. Add to _graph_cmds set. Register argparse subparser with --repo flag.",
       "file_scope": {
         "paths": [
-          "scripts/workflow_memory.py",
+          ".cnogo/scripts/workflow_memory.py",
           "tests/test_context_cli.py"
         ],
         "forbidden": []

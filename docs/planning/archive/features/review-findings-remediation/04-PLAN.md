@@ -9,7 +9,7 @@ Split the 233-line validate_repo() function, optimize rglob usage, and update WO
 ## Tasks
 
 ### Task 1: Split validate_repo() into focused functions
-**Files:** `scripts/workflow_validate.py`
+**Files:** `.cnogo/scripts/workflow_validate.py`
 **Action:**
 Refactor the 233-line `validate_repo()` function (finding #19) into smaller, focused functions:
 
@@ -23,14 +23,14 @@ Keep `validate_repo()` as the orchestrator that calls these functions.
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 grep -c 'def _validate_' scripts/workflow_validate.py  # ≥5
 ```
 
 **Done when:** validate_repo() is an orchestrator calling focused sub-functions, validator still passes.
 
 ### Task 2: Optimize rglob with WORKFLOW.json packages
-**Files:** `scripts/workflow_validate.py`
+**Files:** `.cnogo/scripts/workflow_validate.py`
 **Action:**
 Optimize `_detect_repo_shape()` to avoid full-tree rglob on every run (finding #18):
 
@@ -40,7 +40,7 @@ Optimize `_detect_repo_shape()` to avoid full-tree rglob on every run (finding #
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 python3 -c "
 import scripts.workflow_validate as v
 # Should not error
@@ -77,7 +77,7 @@ print('OK')
 python3 -c "import json; json.load(open('docs/planning/WORKFLOW.schema.json')); print('schema OK')"
 grep 'agentTeams' docs/planning/WORKFLOW.schema.json
 grep '*.pem' .gitignore
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** Schema includes agentTeams, .gitignore covers sensitive files, PEP 8 spacing fixed, validator passes.
@@ -86,7 +86,7 @@ python3 scripts/workflow_validate.py
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 python3 -c "import json; json.load(open('docs/planning/WORKFLOW.schema.json')); print('OK')"
 grep -c 'def _validate_' scripts/workflow_validate.py  # ≥5
 ```

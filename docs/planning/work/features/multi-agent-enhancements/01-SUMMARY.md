@@ -9,7 +9,7 @@
 | `.claude/agents/debugger.md` | Changed `model: inherit` to `model: opus`, added model rationale comment |
 | `.claude/agents/implementer.md` | Added model rationale comment (model stays `sonnet`) |
 | `docs/planning/WORKFLOW.json` | Added `agentTeams.staleIndicatorMinutes: 10` |
-| `scripts/workflow_validate.py` | Added validation for `staleIndicatorMinutes` (int > 0) and optional `parallelizable` boolean in plan contracts |
+| `.cnogo/scripts/workflow_validate.py` | Added validation for `staleIndicatorMinutes` (int > 0) and optional `parallelizable` boolean in plan contracts |
 
 ## Verification Results
 - Task 1: ✅ `grep -q 'model: opus' debugger.md` — PASS

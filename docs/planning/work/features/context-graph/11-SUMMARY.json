@@ -21,7 +21,7 @@
       "description": "Added search() API method to ContextGraph and rebuild_fts() call in index pipeline"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "description": "Added graph-search CLI subcommand with human-readable and --json output, --limit flag"
     },
     {

@@ -50,7 +50,7 @@
       "description": "Added test_coverage_report() workflow function with graceful degradation"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "action": "modified",
       "description": "Added graph-test-coverage CLI command"
     }
@@ -67,7 +67,7 @@
       "details": "All test files under 800 lines"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage",
       "result": "pass",
       "details": "CLI command available"
     }

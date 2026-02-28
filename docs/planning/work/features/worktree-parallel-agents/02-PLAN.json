@@ -29,11 +29,11 @@
     {
       "name": "Validation + WORKFLOW.json Config",
       "memoryId": "cn-1g3d0b0.6",
-      "files": ["scripts/workflow_validate.py", "docs/planning/WORKFLOW.json"],
+      "files": [".cnogo/scripts/workflow_validate.py", "docs/planning/WORKFLOW.json"],
       "action": "Add worktreeMode validation in workflow_validate.py, add _validate_worktree_session() for .cnogo/worktree-session.json schema, add worktreeMode: always to WORKFLOW.json.",
       "verify": [
         "python3 -c \"compile(open('scripts/workflow_validate.py').read(), 'w.py', 'exec'); print('PASS')\"",
-        "python3 scripts/workflow_validate.py",
+        "python3 .cnogo/scripts/workflow_validate.py",
         "python3 -c \"import json; wf=json.loads(open('docs/planning/WORKFLOW.json').read()); assert wf['agentTeams']['worktreeMode'] == 'always'; print('PASS')\""
       ],
       "blockedBy": []
@@ -42,7 +42,7 @@
   "planVerify": [
     "python3 -c \"import sys; sys.path.insert(0,'.'); from scripts.memory import create_session, merge_session, cleanup_session; print('PASS')\"",
     "grep 'model: opus' .claude/agents/resolver.md",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(worktree-parallel-agents): resolver agent, API exports, and validation\n\n- Add .claude/agents/resolver.md (opus model for conflict resolution)\n- Export worktree functions from scripts/memory/__init__.py\n- Add worktree session schema validation to workflow_validate.py\n- Add worktreeMode config to WORKFLOW.json",
   "timestamp": "2026-02-14T00:00:00Z"

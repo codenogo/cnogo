@@ -49,7 +49,7 @@ None.
 - `from scripts.memory import merge_session, cleanup_session, load_session, check_stale_issues` — pass
 - `plan_to_task_descriptions`, `create_session`, `load_ledger` absent from `__all__` — pass
 - Archive directories exist, source directories removed — pass
-- `python3 scripts/workflow_validate.py` — no errors
+- `python3 .cnogo/scripts/workflow_validate.py` — no errors
 
 ### Commits
 - `8eed963` — refactor(memory): remove 11 dead function wrappers and outdated comments

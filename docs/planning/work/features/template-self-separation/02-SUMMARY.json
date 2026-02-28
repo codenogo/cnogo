@@ -8,7 +8,7 @@
     { "file": "docs/planning/ROADMAP.md", "change": "Replaced template placeholders with actual milestones and features" },
     { "file": "docs/planning/WORKFLOW.json", "change": "Populated packages[] with cnogo-scripts package" },
     { "file": "CLAUDE.md", "change": "Added Architecture Rules, Testing, Troubleshooting, and reference sections" },
-    { "file": "scripts/workflow_validate.py", "change": "Fixed dict-set subtraction bug in _detect_repo_shape()" }
+    { "file": ".cnogo/scripts/workflow_validate.py", "change": "Fixed dict-set subtraction bug in _detect_repo_shape()" }
   ],
   "verification": [
     { "task": 1, "result": "pass", "details": "PROJECT.md filled, workflow_validate.py passed" },

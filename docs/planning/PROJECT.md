@@ -26,7 +26,7 @@ install.sh
     ├── .claude/skills/         Lazy-loaded domain expertise playbooks
     ├── .claude/settings.json   Hooks + permissions
     │
-    ├── scripts/                Workflow Python scripts (stdlib only)
+    ├── .cnogo/scripts/          Workflow Python scripts (stdlib only)
     │   └── memory/             SQLite memory engine package
     │
     ├── docs/planning/          Planning docs (PROJECT, ROADMAP, WORKFLOW.json)
@@ -48,8 +48,8 @@ install.sh
 ## Patterns
 
 ### Code Organisation
-- Scripts in `scripts/` — flat structure, `workflow_` prefix for top-level scripts
-- Memory engine in `scripts/memory/` — Python package with `__init__.py` public API
+- Scripts in `.cnogo/scripts/` — flat structure, `workflow_` prefix for top-level scripts
+- Memory engine in `.cnogo/scripts/memory/` — Python package with `__init__.py` public API
 - Commands in `.claude/commands/` — one Markdown file per command
 - Feature work in `docs/planning/work/features/<slug>/` — CONTEXT, PLANs, SUMMARYs, REVIEWs
 
@@ -58,7 +58,7 @@ install.sh
 - Contracts have `schemaVersion`, `feature` (slug), `timestamp` at minimum
 - For `schemaVersion >= 2` plans, tasks require `microSteps[]` + `tdd` contract (no minute-based time boxes)
 - Review contracts use staged review structure (spec-compliance then code-quality) before ship
-- Validated by `python3 scripts/workflow_validate.py`
+- Validated by `python3 .cnogo/scripts/workflow_validate.py`
 
 ### Naming
 - Feature slugs: `kebab-case` (e.g., `template-self-separation`)

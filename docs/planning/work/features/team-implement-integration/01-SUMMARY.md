@@ -7,9 +7,9 @@
 
 | File | Change |
 |------|--------|
-| `scripts/memory/bridge.py` | NEW — Bridge module with `plan_to_task_descriptions()` and `generate_implement_prompt()` functions. Reads NN-PLAN.json, ensures memory issues exist, generates rich agent prompts with context/files/verify/memory instructions. |
+| `.cnogo/scripts/memory/bridge.py` | NEW — Bridge module with `plan_to_task_descriptions()` and `generate_implement_prompt()` functions. Reads NN-PLAN.json, ensures memory issues exist, generates rich agent prompts with context/files/verify/memory instructions. |
 | `.claude/agents/implementer.md` | NEW — Implementer agent with claim-execute-verify-close cycle, failure protocol, and memory integration. |
-| `scripts/memory/__init__.py` | MODIFIED — Added `plan_to_task_descriptions` and `generate_implement_prompt` to `__all__` and public API with lazy imports from bridge module. |
+| `.cnogo/scripts/memory/__init__.py` | MODIFIED — Added `plan_to_task_descriptions` and `generate_implement_prompt` to `__all__` and public API with lazy imports from bridge module. |
 
 ## Verification Results
 

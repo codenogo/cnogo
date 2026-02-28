@@ -7,9 +7,9 @@
   "tasks": [
     {
       "name": "Add deletion-last-task validation warning",
-      "files": ["scripts/workflow_validate_core.py"],
+      "files": [".cnogo/scripts/workflow_validate_core.py"],
       "action": "In `_validate_plan_contract()`, after the existing task validation loop, add a check: if any task has a non-empty `deletions` array and it is the last task in the plan (no subsequent task exists), emit a WARN finding: 'Task N has `deletions` but is the last task in the plan — no subsequent task to receive auto-expanded caller cleanup scope.' Also validate that `deletions` is a list of strings when present.",
-      "verify": ["python3 -m py_compile scripts/workflow_validate_core.py", "python3 scripts/workflow_validate.py"]
+      "verify": ["python3 -m py_compile scripts/workflow_validate_core.py", "python3 .cnogo/scripts/workflow_validate.py"]
     },
     {
       "name": "Render auto_expanded_paths in generate_implement_prompt()",
@@ -21,10 +21,10 @@
       "name": "Document deletions field in plan.md schema",
       "files": [".claude/commands/plan.md"],
       "action": "In the Step 4 section of plan.md, add `deletions` to the task schema documentation. Add a line after `files[]` explaining: `\"deletions\": [\"path/to/file.py\"]` — optional list of files being deleted by this task. When present, the bridge auto-scans the repo for callers and expands the next task's file scope. Keep the addition concise (2-3 lines max) to stay within token budget.",
-      "verify": ["python3 scripts/workflow_validate.py"]
+      "verify": ["python3 .cnogo/scripts/workflow_validate.py"]
     }
   ],
-  "planVerify": ["python3 -m py_compile scripts/memory/bridge.py", "python3 -m py_compile scripts/workflow_validate_core.py", "python3 scripts/workflow_validate.py"],
+  "planVerify": ["python3 -m py_compile scripts/memory/bridge.py", "python3 -m py_compile scripts/workflow_validate_core.py", "python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "feat(deletion-cascade): add validation, prompt rendering, and plan docs for deletions field",
   "timestamp": "2026-02-22T00:00:00Z"
 }

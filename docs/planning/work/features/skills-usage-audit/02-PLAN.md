@@ -13,20 +13,20 @@ Prepend YAML frontmatter (--- delimited) to each skill file with: name (kebab-ca
 **Verify:**
 ```bash
 python3 -c "from pathlib import Path; from scripts.workflow_utils import discover_skills; skills = discover_skills(Path('.claude/skills')); missing = [s['path'] for s in skills if s.get('name') is None]; assert len(missing) == 0, f'Missing frontmatter: {missing}'; print(f'{len(skills)} skills all have frontmatter')"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** [Observable outcome]
 
 ### Task 2: Replace hardcoded review tables with skill references in workflow_checks_core.py
-**Files:** `scripts/workflow_checks_core.py`
+**Files:** `.cnogo/scripts/workflow_checks_core.py`
 **Action:**
 In the write_review() function (around lines 1447-1475), replace the three hardcoded sections (Security, Performance, Design Patterns) with a single 'Manual Review' section that references the authoritative skill file: '> Review criteria: see `.claude/skills/code-review.md`\n> Fill securityFindings[], performanceFindings[], patternCompliance[] in REVIEW.json'. This removes the duplicated checklist structure while keeping the REVIEW.json fields as the structured data target.
 
 **Verify:**
 ```bash
 python3 -c "import scripts.workflow_checks_core; print('import ok')"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** [Observable outcome]
@@ -36,7 +36,7 @@ python3 scripts/workflow_validate.py
 After all tasks:
 ```bash
 python3 -c "from pathlib import Path; from scripts.workflow_utils import discover_skills; skills = discover_skills(Path('.claude/skills')); assert all(s.get('name') for s in skills); print(f'All {len(skills)} skills have valid frontmatter')"
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

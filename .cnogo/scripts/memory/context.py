@@ -172,10 +172,10 @@ def prime(
             lines.append("")
 
         lines.append("### Restore")
-        lines.append("Details: `python3 scripts/workflow_memory.py show <id>`")
+        lines.append("Details: `python3 .cnogo/scripts/workflow_memory.py show <id>`")
         if verbose:
-            lines.append("History: `python3 scripts/workflow_memory.py history <id>`")
-            lines.append("Checkpoint: `python3 scripts/workflow_memory.py checkpoint`")
+            lines.append("History: `python3 .cnogo/scripts/workflow_memory.py history <id>`")
+            lines.append("Checkpoint: `python3 .cnogo/scripts/workflow_memory.py checkpoint`")
         lines.append("")
 
         return "\n".join(lines)
@@ -196,7 +196,7 @@ def checkpoint(
         if not feature:
             return (
                 "Checkpoint: no active feature in memory. "
-                "Run `python3 scripts/workflow_memory.py prime --verbose`."
+                "Run `python3 .cnogo/scripts/workflow_memory.py prime --verbose`."
             )
 
         issues = _st.list_issues_query(conn, feature_slug=feature, limit=300)
@@ -237,7 +237,7 @@ def checkpoint(
             lines.append(
                 "Verify: " + "; ".join(_truncate(v, 80) for v in verify_cmds[:2])
             )
-        lines.append("Refresh: `python3 scripts/workflow_memory.py prime --limit 5 --verbose`")
+        lines.append("Refresh: `python3 .cnogo/scripts/workflow_memory.py prime --limit 5 --verbose`")
         return "\n".join(lines)
     finally:
         conn.close()

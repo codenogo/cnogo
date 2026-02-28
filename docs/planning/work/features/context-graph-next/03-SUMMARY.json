@@ -20,7 +20,7 @@
       "description": "Added contract_check(changed_files) method to ContextGraph"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "action": "modified",
       "description": "Added graph-contract-check CLI command with --json flag"
     },
@@ -37,7 +37,7 @@
       "details": "25 tests passed"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-contract-check --help 2>&1 | grep -q contract",
       "result": "pass",
       "details": "CLI command available"
     }

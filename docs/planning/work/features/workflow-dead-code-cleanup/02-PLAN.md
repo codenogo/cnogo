@@ -29,8 +29,8 @@ Close the overstory-workflow-patterns epic (cn-12vmyu0) and its 3 child tasks (c
 
 **Verify:**
 ```bash
-python3 scripts/workflow_memory.py show cn-12vmyu0 2>&1 | grep -q closed
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_memory.py show cn-12vmyu0 2>&1 | grep -q closed
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** [Observable outcome]
@@ -40,7 +40,7 @@ python3 scripts/workflow_validate.py
 After all tasks:
 ```bash
 ls docs/planning/work/archive/
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

@@ -6,7 +6,7 @@ Add transcript-based cost tracking with model-specific pricing and memory event 
 ## Tasks
 
 ### Task 1: Create costs.py transcript parser
-**Files:** `scripts/memory/costs.py`
+**Files:** `.cnogo/scripts/memory/costs.py`
 **Action:**
 Create new module scripts/memory/costs.py (stdlib only). Implement: (1) PRICING dict with per-million-token rates for opus/sonnet/haiku — input, output, cache_read, cache_creation. (2) TranscriptUsage dataclass: input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model (str). (3) parse_transcript(path: Path) -> TranscriptUsage: read JSONL line-by-line, find entries with '"type": "assistant"', extract usage.input_tokens/output_tokens/cache fields, detect model from first response. Defensive: skip malformed lines, default missing fields to 0. (4) estimate_cost(usage: TranscriptUsage) -> float: multiply token counts by PRICING rates, sum. (5) find_session_transcripts(project_slug: str) -> list[Path]: glob ~/.claude/projects/{slug}/*.jsonl. (6) summarize_project_costs(project_slug: str) -> dict: parse all transcripts, aggregate total tokens/cost, per-session breakdown.
 
@@ -19,7 +19,7 @@ python3 -c "from scripts.memory.costs import PRICING, estimate_cost; assert 'opu
 **Done when:** [Observable outcome]
 
 ### Task 2: Wire cost events into memory and CLI
-**Files:** `scripts/memory/__init__.py`, `scripts/workflow_memory.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`, `.cnogo/scripts/workflow_memory.py`
 **Action:**
 In __init__.py: (1) Add to __all__: 'record_cost_event', 'get_cost_summary'. (2) Add record_cost_event(issue_id, usage_dict, actor, root) that calls _emit with event_type='cost_report' and data containing inputTokens, outputTokens, cacheTokens, model, estimatedCostUsd. (3) Add get_cost_summary(feature_slug, root) that queries events table for cost_report events linked to issues in the feature, aggregates totals. In workflow_memory.py: (4) Add 'costs' subcommand that takes optional --feature flag. Calls costs.py to find/parse transcripts and prints summary (total tokens, cost by model, per-session). (5) Add 'cost-record' subcommand that takes issue_id and session path, parses transcript, records cost_report event.
 
@@ -27,13 +27,13 @@ In __init__.py: (1) Add to __all__: 'record_cost_event', 'get_cost_summary'. (2)
 ```bash
 python3 -m py_compile scripts/memory/__init__.py
 python3 -m py_compile scripts/workflow_memory.py
-python3 scripts/workflow_memory.py costs --help
+python3 .cnogo/scripts/workflow_memory.py costs --help
 ```
 
 **Done when:** [Observable outcome]
 
 ### Task 3: Add cost exports to memory public API
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 Ensure the lazy-import pattern is used for costs module (matching existing pattern for sync, context, bridge, worktree). Add: (1) cost_summary() function that wraps costs.summarize_project_costs with auto-detected project slug. (2) parse_transcript() re-export from costs module. Keep imports lazy to avoid import-time failures if ~/.claude doesn't exist.
 

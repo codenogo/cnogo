@@ -171,8 +171,8 @@ def _classify_command(command: str) -> dict[str, Any]:
     lower = normalized.lower()
 
     # Already using compact cnogo-first paths.
-    if lower.startswith("python3 scripts/workflow_checks.py review") or lower.startswith(
-        "python3 scripts/workflow_checks.py verify-ci"
+    if lower.startswith("python3 .cnogo/scripts/workflow_checks.py review") or lower.startswith(
+        "python3 .cnogo/scripts/workflow_checks.py verify-ci"
     ):
         return {
             "status": "optimized",
@@ -183,8 +183,8 @@ def _classify_command(command: str) -> dict[str, Any]:
             "estimatedSaveableTokens": 0,
         }
 
-    if lower.startswith("python3 scripts/workflow_memory.py prime") or lower.startswith(
-        "python3 scripts/workflow_memory.py checkpoint"
+    if lower.startswith("python3 .cnogo/scripts/workflow_memory.py prime") or lower.startswith(
+        "python3 .cnogo/scripts/workflow_memory.py checkpoint"
     ):
         return {
             "status": "optimized",
@@ -233,7 +233,7 @@ def _classify_command(command: str) -> dict[str, Any]:
         return {
             "status": "missed",
             "category": "tests",
-            "suggestion": "python3 scripts/workflow_checks.py verify-ci <feature>",
+            "suggestion": "python3 .cnogo/scripts/workflow_checks.py verify-ci <feature>",
             "estimatedSavingsPct": pct,
             "estimatedRawTokens": raw_tokens,
             "estimatedSaveableTokens": saveable,

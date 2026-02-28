@@ -263,16 +263,16 @@ def generate_implement_prompt(
         lines.append(f"**Memory:** `{task_id}`")
         # Derive claim/report_done/context from task_id (not persisted)
         lines.append(
-            f"- Claim: `python3 scripts/workflow_memory.py claim {task_id} --actor {actor}`"
+            f"- Claim: `python3 .cnogo/scripts/workflow_memory.py claim {task_id} --actor {actor}`"
         )
         lines.append(
-            f"- Report done: `python3 scripts/workflow_memory.py report-done {task_id} --actor {actor}`"
+            f"- Report done: `python3 .cnogo/scripts/workflow_memory.py report-done {task_id} --actor {actor}`"
         )
         lines.append(
-            f"- Context: `python3 scripts/workflow_memory.py show {task_id}`"
+            f"- Context: `python3 .cnogo/scripts/workflow_memory.py show {task_id}`"
         )
-        lines.append(f"- History: `python3 scripts/workflow_memory.py history {task_id}`")
-        lines.append("- Checkpoint: `python3 scripts/workflow_memory.py checkpoint`")
+        lines.append(f"- History: `python3 .cnogo/scripts/workflow_memory.py history {task_id}`")
+        lines.append("- Checkpoint: `python3 .cnogo/scripts/workflow_memory.py checkpoint`")
         lines.append("")
 
     lines.append("**On failure:** read history, summarize the last error, fix, and retry.")

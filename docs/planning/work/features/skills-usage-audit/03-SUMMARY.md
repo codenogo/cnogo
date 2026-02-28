@@ -14,7 +14,7 @@ complete
 
 - {'command': "parse_skill_frontmatter('performance-review.md') — name and appliesTo correct", 'result': 'pass'}
 - {'command': 'discover_skills() — 16 skills including performance-review', 'result': 'pass'}
-- {'command': 'python3 scripts/workflow_validate.py — no new warnings', 'result': 'pass'}
+- {'command': 'python3 .cnogo/scripts/workflow_validate.py — no new warnings', 'result': 'pass'}
 
 ## Commit
 `abc123f` - [commit message]

@@ -22,7 +22,7 @@ Replace all placeholder text with cnogo's real content:
 
 **Verify:**
 ```bash
-! grep -c '\[.*\]' docs/planning/PROJECT.md | grep -v '^0$' || echo "WARN: check for remaining placeholders" && python3 scripts/workflow_validate.py
+! grep -c '\[.*\]' docs/planning/PROJECT.md | grep -v '^0$' || echo "WARN: check for remaining placeholders" && python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** PROJECT.md has zero `[placeholder]` text and accurately describes cnogo.
@@ -39,7 +39,7 @@ Replace all placeholder text with cnogo's actual milestones:
 
 **Verify:**
 ```bash
-! grep -c '\[.*\]' docs/planning/ROADMAP.md | grep -v '^0$' || echo "WARN: check for remaining placeholders" && python3 scripts/workflow_validate.py
+! grep -c '\[.*\]' docs/planning/ROADMAP.md | grep -v '^0$' || echo "WARN: check for remaining placeholders" && python3 .cnogo/scripts/workflow_validate.py
 ```
 
 **Done when:** ROADMAP.md reflects cnogo's actual release history and future plans.
@@ -70,12 +70,12 @@ Note: lint uses `py_compile` since cnogo has no external linter. Test/typecheck 
 - **Conventions:** Python stdlib only, no external deps; kebab-case feature slugs; workflow contracts (JSON + MD pairs)
 - **Architecture Rules Do:** Follow the command template pattern, use memory API for state, verify with workflow_validate.py
 - **Architecture Rules Don't:** Don't add external Python dependencies, don't hardcode file paths (use repo_root()), don't bypass workflow contracts
-- **Testing:** No test suite yet (tracked as future work); verify with `python3 scripts/workflow_validate.py` and `python3 -c "from scripts.memory import prime; print(prime())"`
+- **Testing:** No test suite yet (tracked as future work); verify with `python3 .cnogo/scripts/workflow_validate.py` and `python3 -c "from scripts.memory import prime; print(prime())"`
 - **Troubleshooting:** Common issues (memory not initialized, workflow validation fails, install.sh target already exists)
 
 **Verify:**
 ```bash
-python3 scripts/workflow_validate.py && python3 -c "
+python3 .cnogo/scripts/workflow_validate.py && python3 -c "
 import json
 with open('docs/planning/WORKFLOW.json') as f:
     cfg = json.load(f)
@@ -100,7 +100,7 @@ done
 python3 -c "import json; cfg=json.load(open('docs/planning/WORKFLOW.json')); assert len(cfg.get('packages',[])) > 0; print('PASS: packages populated')"
 
 # Workflow validation
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 
 # Memory prime still works
 python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import prime; print(prime(root=__import__('pathlib').Path('.')))"

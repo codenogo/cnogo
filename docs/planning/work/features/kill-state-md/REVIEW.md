@@ -32,7 +32,7 @@ Files changed: 23 (15 commands, 4 scripts, 3 docs, 1 deleted)
 | # | File | Line | Issue | Severity |
 |---|------|------|-------|----------|
 | 1 | `CHANGELOG.md` | 14 | `/close` description still references STATE.md: "update `STATE.md` and optionally archive" | Medium |
-| 2 | `scripts/workflow_checks.py` | 66 | Bare `except Exception: pass` in `infer_feature_from_state()` — swallows all errors silently | Low |
+| 2 | `.cnogo/scripts/workflow_checks.py` | 66 | Bare `except Exception: pass` in `infer_feature_from_state()` — swallows all errors silently | Low |
 | 3 | `install.sh` | 187-189 | STATE.md migration deletes without backup; existing installs could lose handoff notes | Low |
 | 4 | `install.sh` | 195 | Memory auto-init uses `2>/dev/null` suppressing init errors | Low |
 
@@ -40,8 +40,8 @@ Files changed: 23 (15 commands, 4 scripts, 3 docs, 1 deleted)
 
 | # | File | Suggestion |
 |---|------|------------|
-| 1 | `scripts/memory/context.py` | `prime()` could catch `sqlite3.DatabaseError` for corrupted `.cnogo/memory.db` and return a fallback message |
-| 2 | `scripts/workflow_validate.py` | Hard-requiring `memory.db` may break fresh installs before `/init` runs — consider WARN instead of ERROR |
+| 1 | `.cnogo/scripts/memory/context.py` | `prime()` could catch `sqlite3.DatabaseError` for corrupted `.cnogo/memory.db` and return a fallback message |
+| 2 | `.cnogo/scripts/workflow_validate.py` | Hard-requiring `memory.db` may break fresh installs before `/init` runs — consider WARN instead of ERROR |
 | 3 | General | Add unit tests for `infer_feature_from_state()` and `prime()` functions |
 | 4 | General | Add test verifying zero STATE.md references in commands (regression guard) |
 

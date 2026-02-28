@@ -20,7 +20,7 @@
       "description": "Added get_related_nodes(node_id, rel_type, direction) for generic edge traversal"
     },
     {
-      "file": "scripts/workflow_memory.py",
+      "file": ".cnogo/scripts/workflow_memory.py",
       "action": "modified",
       "description": "Added 4 CLI subcommands: graph-index, graph-query, graph-impact, graph-context with --repo flag"
     },
@@ -51,7 +51,7 @@
       "result": "168 passed"
     },
     {
-      "command": "python3 scripts/workflow_memory.py graph-index --help",
+      "command": "python3 .cnogo/scripts/workflow_memory.py graph-index --help",
       "result": "Help output displayed correctly"
     }
   ],

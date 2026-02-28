@@ -35,7 +35,7 @@
     ".claude/agents/implementer.md",
     ".claude/agents/debugger.md",
     ".claude/agents/resolver.md",
-    "scripts/workflow_checks_core.py",
+    ".cnogo/scripts/workflow_checks_core.py",
     "scripts/memory/worktree.py"
   ],
   "research": [

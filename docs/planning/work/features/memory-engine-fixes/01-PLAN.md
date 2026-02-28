@@ -19,7 +19,7 @@ During planning, code audit revealed that 7 of 8 review issues were already fixe
 ## Tasks
 
 ### Task 1: Consolidate `rebuild_blocked_cache` and fix W-2
-**Files:** `scripts/memory/graph.py`, `scripts/memory/__init__.py`, `scripts/memory/sync.py`
+**Files:** `.cnogo/scripts/memory/graph.py`, `.cnogo/scripts/memory/__init__.py`, `.cnogo/scripts/memory/sync.py`
 **Action:**
 1. Update `graph.py:rebuild_blocked_cache()` to match the improved `__init__.py` version:
    - Step 1: Add `JOIN issues blocked ON d.issue_id = blocked.id` and `AND blocked.status NOT IN ('closed')` to filter closed issues from being marked as blocked
@@ -39,7 +39,7 @@ python3 -m py_compile scripts/memory/__init__.py
 **Done when:** Single source of truth for `rebuild_blocked_cache` in `graph.py`; closed issues excluded from blocked cache in both steps.
 
 ### Task 2: Add retry-on-SQLITE_BUSY helper to storage.py
-**Files:** `scripts/memory/storage.py`
+**Files:** `.cnogo/scripts/memory/storage.py`
 **Action:**
 1. Add a `retry_on_busy()` context manager or decorator to `storage.py` that:
    - Catches `sqlite3.OperationalError` where the message contains "database is locked"
@@ -61,7 +61,7 @@ python3 -c "from scripts.memory.storage import with_retry; print('with_retry imp
 **Done when:** `with_retry` is importable from `storage.py` and handles `OperationalError` with backoff.
 
 ### Task 3: Wire retry logic into write operations
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 1. Import `with_retry` from `.storage`
 2. Wrap the following write operations with retry:
@@ -83,7 +83,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import creat
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 python3 -m py_compile scripts/memory/__init__.py
 python3 -m py_compile scripts/memory/storage.py
 python3 -m py_compile scripts/memory/graph.py

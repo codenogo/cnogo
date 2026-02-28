@@ -98,9 +98,9 @@
   "relatedCode": [
     "scripts/memory/__init__.py",
     "scripts/memory/bridge.py",
-    "scripts/workflow_memory.py",
-    "scripts/workflow_checks_core.py",
-    "scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_checks_core.py",
+    ".cnogo/scripts/workflow_validate_core.py",
     "docs/planning/work/ideas/context-graph/BRAINSTORM.md"
   ],
   "research": [

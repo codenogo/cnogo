@@ -31,7 +31,7 @@ Before compaction wipes context, hook dumps ephemeral state to `.cnogo/compactio
 - Timestamp and trigger type (auto/manual)
 
 ### Layer 4: Session Reconcile (recovery)
-`python3 scripts/workflow_memory.py session-reconcile` reads persistent state:
+`python3 .cnogo/scripts/workflow_memory.py session-reconcile` reads persistent state:
 1. Worktree session file -> which tasks are merged/cleaned
 2. Git log -> which branches were merged
 3. Memory DB -> which issues are still open
@@ -52,7 +52,7 @@ Closes any orphaned open issues whose work is confirmed complete.
 
 ## Related Code
 
-- `scripts/memory/bridge.py` — one-way bridge (memory -> Tasks)
-- `scripts/memory/worktree.py` — session lifecycle
-- `scripts/workflow_hooks.py` — existing hook handlers
+- `.cnogo/scripts/memory/bridge.py` — one-way bridge (memory -> Tasks)
+- `.cnogo/scripts/memory/worktree.py` — session lifecycle
+- `.cnogo/scripts/workflow_hooks.py` — existing hook handlers
 - `.claude/settings.json` — hook configuration

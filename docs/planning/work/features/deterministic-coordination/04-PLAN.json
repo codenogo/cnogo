@@ -38,7 +38,7 @@
   "planVerify": [
     "python3 -m py_compile scripts/memory/ledger.py",
     "python3 -m py_compile scripts/memory/reconcile_leader.py",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(deterministic-coordination): add leader reconciliation, run ledger, and guaranteed team lifecycle",
   "timestamp": "2026-02-21T12:30:00Z"

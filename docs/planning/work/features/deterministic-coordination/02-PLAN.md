@@ -6,7 +6,7 @@ Add two-phase completion API (report_done + verify_and_close) with role enforcem
 ## Tasks
 
 ### Task 1: Add report_done() and transition() to memory API
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 Add a private _validate_transition(issue, from_state, to_state, actor_role) helper that checks: (1) to_state is in issue.valid_states(), (2) from_state matches issue.state, (3) actor_role is valid per ACTOR_ROLES. Raises ValueError with clear message on violation. Add public report_done(issue_id, *, outputs=None, actor, actor_role='worker', root=None) function: (1) Validates actor_role in ('worker', 'hook'). (2) Loads issue, checks issue_type == 'task' (raise if not). (3) Validates transition from current state to 'done_by_worker'. (4) If actor_role == 'hook', checks issue.owner_actor == actor (raise 'Hook can only report_done for owned tasks'). (5) Sets state='done_by_worker' via update_issue_fields. (6) If outputs dict provided, stores in metadata under 'outputs' key via update(). (7) Emits 'report_done' event. (8) Returns updated Issue. Add report_done to __all__.
 
@@ -19,7 +19,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import repor
 **Done when:** [Observable outcome]
 
 ### Task 2: Add verify_and_close() with leader-only enforcement
-**Files:** `scripts/memory/__init__.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`
 **Action:**
 Add public verify_and_close(issue_id, *, reason='completed', comment=None, actor='claude', root=None) function: (1) Actor role is implicitly 'leader' — this function is leader-only by design. (2) Loads issue, checks issue_type == 'task'. (3) If issue.state == 'done_by_worker': transition to 'verified', emit 'verified' event, then transition to 'closed', set status='closed' via close_issue, emit 'closed' event. (4) If issue.state == 'verified': transition to 'closed' only. (5) Else: raise ValueError('Cannot verify task in state {state}'). (6) Rebuilds blocked cache. (7) Returns updated Issue. Also refactor close() to add role enforcement: add actor_role='leader' param. If actor_role != 'leader' and issue_type in ('plan', 'epic'), raise ValueError('Only leader can close {issue_type}'). If actor_role != 'leader' and issue_type == 'task', raise ValueError('Use report_done() for worker task completion'). Add verify_and_close to __all__.
 
@@ -32,7 +32,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import verif
 **Done when:** [Observable outcome]
 
 ### Task 3: Kill auto-close-parent and add CLI commands
-**Files:** `scripts/memory/__init__.py`, `scripts/workflow_memory.py`
+**Files:** `.cnogo/scripts/memory/__init__.py`, `.cnogo/scripts/workflow_memory.py`
 **Action:**
 In __init__.py: (1) Remove the _try_auto_close_parent() function entirely. (2) Remove the call to _try_auto_close_parent from close(). The close() function should still close the issue, emit the event, and rebuild blocked cache — just without the parent cascade. In workflow_memory.py: (3) Add 'report-done' subcommand: takes issue_id as positional arg, --actor required, --outputs optional JSON string. Calls memory.report_done(). (4) Add 'verify-close' subcommand: takes issue_id as positional arg, --reason optional (default 'completed'), --actor optional. Calls memory.verify_and_close(). Register both in the argparse subparsers.
 
@@ -51,7 +51,7 @@ After all tasks:
 ```bash
 python3 -m py_compile scripts/memory/__init__.py
 python3 -m py_compile scripts/workflow_memory.py
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

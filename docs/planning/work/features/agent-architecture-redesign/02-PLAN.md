@@ -105,7 +105,7 @@ test ! -f docs/skills.md && echo "skills.md deleted" || echo "ERROR: skills.md s
 **Done when:** `.claude/agents/` has exactly 2 files; `docs/skills.md` is deleted.
 
 ### Task 3: Update bridge.py for ID-based context passing
-**Files:** `scripts/memory/bridge.py`
+**Files:** `.cnogo/scripts/memory/bridge.py`
 **Action:**
 Modify `generate_implement_prompt()` to produce a minimal, ID-based task description:
 1. **Remove `context_snippet` parameter** and the `_load_context_snippet()` / `_extract_sections()` helper functions. Agents should NOT load CONTEXT.md content into their prompt.
@@ -153,7 +153,7 @@ print('OK')
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ls .claude/agents/*.md  # Should show only implementer.md and debugger.md
 wc -l .claude/agents/*.md  # Each under 40 lines
 python3 -c "from scripts.memory.bridge import generate_implement_prompt; print('bridge imports OK')"

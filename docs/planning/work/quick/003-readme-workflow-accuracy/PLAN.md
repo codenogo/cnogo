@@ -11,5 +11,5 @@ Rewrite README to accurately represent workflow capabilities, remove all fabrica
 
 ## Verify
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```

@@ -49,7 +49,7 @@
     }
   ],
   "planVerify": [
-    "python3 scripts/workflow_validate.py",
+    "python3 .cnogo/scripts/workflow_validate.py",
     "python3 -m py_compile scripts/memory/__init__.py",
     "python3 -m py_compile scripts/memory/storage.py",
     "python3 -m py_compile scripts/memory/graph.py",

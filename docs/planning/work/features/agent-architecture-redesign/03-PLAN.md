@@ -102,7 +102,7 @@ Expected: under 100 lines, 0 references to `.claude/agents/` (except possibly im
 
 After all tasks:
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 wc -l .claude/commands/team.md .claude/commands/implement.md .claude/commands/spawn.md
 grep -r 'skills.md' .claude/commands/ | grep -v '.json'  # Should be 0
 ```

@@ -1,7 +1,7 @@
 # Plan 01: Core Worktree Module
 
 ## Goal
-Create `scripts/memory/worktree.py` with all worktree lifecycle primitives — session state, setup, merge, and cleanup.
+Create `.cnogo/scripts/memory/worktree.py` with all worktree lifecycle primitives — session state, setup, merge, and cleanup.
 
 ## Prerequisites
 - [x] CONTEXT.md complete with all decisions
@@ -9,7 +9,7 @@ Create `scripts/memory/worktree.py` with all worktree lifecycle primitives — s
 ## Tasks
 
 ### Task 1: State Dataclasses + Git Helpers + State File I/O
-**Files:** `scripts/memory/worktree.py`
+**Files:** `.cnogo/scripts/memory/worktree.py`
 **Action:**
 Create the new module with:
 
@@ -41,7 +41,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory.worktree imp
 **Done when:** Module imports cleanly, dataclasses and I/O functions are available.
 
 ### Task 2: create_session() — Setup Primitives
-**Files:** `scripts/memory/worktree.py`
+**Files:** `.cnogo/scripts/memory/worktree.py`
 **Action:**
 Add `create_session(plan_json_path, root, task_descriptions)` → `WorktreeSession`:
 
@@ -70,7 +70,7 @@ python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory.worktree imp
 **Done when:** `create_session` creates worktrees with symlinked `.cnogo/` and writes session state file.
 
 ### Task 3: merge_session() + cleanup_session()
-**Files:** `scripts/memory/worktree.py`
+**Files:** `.cnogo/scripts/memory/worktree.py`
 **Action:**
 Add two functions:
 
@@ -119,7 +119,7 @@ python3 -c "compile(open('scripts/memory/worktree.py').read(), 'worktree.py', 'e
 python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory.worktree import WorktreeSession, WorktreeInfo, MergeResult, create_session, merge_session, cleanup_session, get_conflict_context, save_session, load_session; print('ALL IMPORTS PASS')"
 ```
 ```bash
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

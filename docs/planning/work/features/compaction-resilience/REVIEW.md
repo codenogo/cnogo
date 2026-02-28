@@ -10,9 +10,9 @@
 
 | Plan | Layer | Files |
 |------|-------|-------|
-| 01 — Prompt enforcement + SubagentStop hook | L1+L2 | `scripts/memory/bridge.py`, `scripts/hook-subagent-stop.py`, `.claude/settings.json` |
-| 02 — PreCompact checkpoint + session reconcile | L3+L4 | `scripts/hook-pre-compact.py`, `scripts/memory/reconcile.py`, `.claude/settings.json` |
-| 03 — CLI integration | CLI | `scripts/workflow_memory.py`, `scripts/memory/__init__.py`, `.claude/commands/resume.md`, `.claude/CLAUDE.md` |
+| 01 — Prompt enforcement + SubagentStop hook | L1+L2 | `.cnogo/scripts/memory/bridge.py`, `.cnogo/hooks/hook-subagent-stop.py`, `.claude/settings.json` |
+| 02 — PreCompact checkpoint + session reconcile | L3+L4 | `.cnogo/hooks/hook-pre-compact.py`, `.cnogo/scripts/memory/reconcile.py`, `.claude/settings.json` |
+| 03 — CLI integration | CLI | `.cnogo/scripts/workflow_memory.py`, `.cnogo/scripts/memory/__init__.py`, `.claude/commands/resume.md`, `.claude/CLAUDE.md` |
 
 ## Automated Checks (Package-Aware)
 

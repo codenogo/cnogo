@@ -6,7 +6,7 @@
 ## Changes Made
 | File | Change |
 |------|--------|
-| `scripts/memory/worktree.py` | New module — dataclasses (WorktreeSession, WorktreeInfo, MergeResult), git helpers (_run_git, _current_commit, _current_branch), state file I/O (save_session, load_session, delete_session_file), create_session(), merge_session(), get_conflict_context(), cleanup_session() |
+| `.cnogo/scripts/memory/worktree.py` | New module — dataclasses (WorktreeSession, WorktreeInfo, MergeResult), git helpers (_run_git, _current_commit, _current_branch), state file I/O (save_session, load_session, delete_session_file), create_session(), merge_session(), get_conflict_context(), cleanup_session() |
 
 ## Verification Results
 - Task 1 (Dataclasses + Git Helpers + I/O): ✅ Module compiles, all types importable

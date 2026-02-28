@@ -65,7 +65,7 @@ python3 -m pytest tests/test_context_graph.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: CLI graph-coupling subcommand
-**Files:** `scripts/workflow_memory.py`, `tests/test_context_cli.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `tests/test_context_cli.py`
 **Action:**
 Add graph-coupling subcommand to workflow_memory.py. Argparse: --repo (path), --strength (float, default 0.5), --json (flag). Handler cmd_graph_coupling: open graph via _graph_open, call graph.index(), call graph.coupling(threshold=args.strength), output results. Human format: 'A <-> B  strength=0.85 (3 shared)'. JSON format: list of {source_name, target_name, source_id, target_id, strength, shared_count}. Add 'graph-coupling' to _graph_cmds set. Write 5 tests: help, empty repo, repo with coupling, --json output, --strength filter.
 
@@ -96,7 +96,7 @@ python3 -m pytest tests/test_context_cli.py -x
 After all tasks:
 ```bash
 python3 -m pytest tests/test_context_*.py -x
-python3 scripts/workflow_memory.py graph-coupling --help
+python3 .cnogo/scripts/workflow_memory.py graph-coupling --help
 ```
 
 ## Commit Message

@@ -10,7 +10,7 @@
       "memoryId": "cn-ca31b0.1",
       "files": ["CLAUDE.md"],
       "action": "Replace all placeholder content with real cnogo project instructions. Inline Karpathy principles as 4 bullet points. Remove skills.md reference. Target ~100 lines.",
-      "verify": ["python3 scripts/workflow_validate.py", "python3 -c \"content=open('CLAUDE.md').read(); assert '[' not in content or 'forrestchang' in content, f'Found placeholder brackets'; print('OK: no placeholders')\""]
+      "verify": ["python3 .cnogo/scripts/workflow_validate.py", "python3 -c \"content=open('CLAUDE.md').read(); assert '[' not in content or 'forrestchang' in content, f'Found placeholder brackets'; print('OK: no placeholders')\""]
     },
     {
       "name": "Create .claude/skills/ from docs/skills.md",
@@ -27,7 +27,7 @@
       "verify": ["python3 -c \"import json; d=json.load(open('.claude/settings.json')); assert d['env']['CLAUDE_AUTOCOMPACT_PCT_OVERRIDE'] == '60'; print('OK')\""]
     }
   ],
-  "planVerify": ["python3 scripts/workflow_validate.py"],
+  "planVerify": ["python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "refactor(agent-architecture): context foundation — CLAUDE.md, skills, auto-compaction",
   "timestamp": "2026-02-14T00:00:00Z"
 }

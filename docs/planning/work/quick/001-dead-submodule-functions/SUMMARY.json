@@ -23,7 +23,7 @@
       "result": "pass"
     },
     {
-      "command": "python3 scripts/workflow_validate.py — no errors",
+      "command": "python3 .cnogo/scripts/workflow_validate.py — no errors",
       "result": "pass"
     },
     {

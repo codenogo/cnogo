@@ -27,7 +27,7 @@
       "verify": ["wc -l .claude/commands/spawn.md"]
     }
   ],
-  "planVerify": ["python3 scripts/workflow_validate.py"],
+  "planVerify": ["python3 .cnogo/scripts/workflow_validate.py"],
   "commitMessage": "refactor(agent-architecture): command restructuring — lean team.md, skills-based spawn",
   "timestamp": "2026-02-14T00:00:00Z"
 }

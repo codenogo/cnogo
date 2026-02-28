@@ -44,7 +44,7 @@
     "grep -c 'ledger' .claude/commands/team.md | grep -q '^0$'",
     "grep -q 'plan_to_task_descriptions' .claude/commands/implement.md",
     "test $(find .cnogo/ -name 'task-descriptions-*.json' 2>/dev/null | wc -l) -eq 0",
-    "python3 scripts/workflow_validate.py"
+    "python3 .cnogo/scripts/workflow_validate.py"
   ],
   "commitMessage": "feat(execution-coordination): update commands for V2 bridge contract, remove ledger, delete V1 artifacts",
   "timestamp": "2026-02-21T17:00:00Z"

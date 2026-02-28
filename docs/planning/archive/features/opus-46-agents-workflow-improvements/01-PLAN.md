@@ -70,7 +70,7 @@ After all tasks:
 ```bash
 ls .claude/agents/*.md | wc -l  # Should be 10
 for f in .claude/agents/*.md; do echo "=== $f ==="; head -1 "$f"; done  # All start with ---
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

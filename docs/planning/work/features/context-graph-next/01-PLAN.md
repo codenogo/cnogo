@@ -59,7 +59,7 @@ python3 -m pytest tests/test_context_core.py -v -k test_coverage
 **Done when:** [Observable outcome]
 
 ### Task 3: Add graph-test-coverage CLI command and workflow integration
-**Files:** `scripts/workflow_memory.py`, `scripts/context/workflow.py`, `tests/test_context_core.py`
+**Files:** `.cnogo/scripts/workflow_memory.py`, `scripts/context/workflow.py`, `tests/test_context_core.py`
 **Action:**
 Add graph-test-coverage CLI command outputting coverage report (JSON with --json flag, human-readable by default). Add test_coverage_report(repo_path) to workflow.py following the graceful degradation pattern (returns {enabled: false, error: ...} on failure). This surfaces untested symbols during /review as warnings.
 
@@ -81,7 +81,7 @@ Add graph-test-coverage CLI command outputting coverage report (JSON with --json
 **Verify:**
 ```bash
 python3 -m pytest tests/test_context_core.py -v -k coverage
-python3 scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage
+python3 .cnogo/scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage
 ```
 
 **Done when:** [Observable outcome]
@@ -92,7 +92,7 @@ After all tasks:
 ```bash
 python3 -m pytest tests/test_context_core.py tests/test_context_analysis.py tests/test_context_types_exports.py -v
 python3 -c "import pathlib; files = list(pathlib.Path('tests').glob('test_context_*.py')); assert all(sum(1 for _ in open(f)) <= 800 for f in files)"
-python3 scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage
+python3 .cnogo/scripts/workflow_memory.py graph-test-coverage --help 2>&1 | grep -q coverage
 ```
 
 ## Commit Message

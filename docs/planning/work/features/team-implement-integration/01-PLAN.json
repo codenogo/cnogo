@@ -26,7 +26,7 @@
       "verify": ["python3 -c \"import sys; sys.path.insert(0, '.'); from scripts.memory import plan_to_task_descriptions, generate_implement_prompt; print('OK')\""]
     }
   ],
-  "planVerify": ["python3 -c \"import sys; sys.path.insert(0, '.'); from scripts.memory import plan_to_task_descriptions; print('OK')\" && test -f .claude/agents/implementer.md && python3 scripts/workflow_validate.py"],
+  "planVerify": ["python3 -c \"import sys; sys.path.insert(0, '.'); from scripts.memory import plan_to_task_descriptions; print('OK')\" && test -f .claude/agents/implementer.md && python3 .cnogo/scripts/workflow_validate.py"],
   "memoryEpicId": "cn-9xdhpc",
   "commitMessage": "feat(team-implement-integration): add bridge module and implementer agent",
   "timestamp": "2026-02-14T02:00:00Z"

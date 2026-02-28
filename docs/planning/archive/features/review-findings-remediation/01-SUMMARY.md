@@ -7,9 +7,9 @@ All 3 tasks completed successfully.
 ## What Changed
 
 ### Task 1: Created 3 hook scripts
-- `scripts/hook-dangerous-cmd.sh` — Dangerous command blocker using `printf '%s'` (no shell injection)
-- `scripts/hook-sensitive-file.sh` — Sensitive file reader blocker using `printf '%s'`
-- `scripts/hook-pre-commit-secrets.sh` — Pre-commit secret scanner with combined grep pattern
+- `.cnogo/hooks/hook-dangerous-cmd.sh` — Dangerous command blocker using `printf '%s'` (no shell injection)
+- `.cnogo/hooks/hook-sensitive-file.sh` — Sensitive file reader blocker using `printf '%s'`
+- `.cnogo/hooks/hook-pre-commit-secrets.sh` — Pre-commit secret scanner with combined grep pattern
   - Added: Stripe, Twilio, SendGrid, Firebase, DB connection string patterns
   - Removed `.md|.txt|.example|.sample` skip list — scans all files
   - Single combined `grep -nE` per file instead of 8 separate calls
@@ -20,7 +20,7 @@ All 3 tasks completed successfully.
 - Fixed PostToolUse path: `$HOME/.claude/scripts/` → `scripts/` (project-relative)
 
 ### Task 3: Updated review.md
-- Replaced ~80-line inline secret scanning with `bash scripts/hook-pre-commit-secrets.sh`
+- Replaced ~80-line inline secret scanning with `bash .cnogo/hooks/hook-pre-commit-secrets.sh`
 - Single source of truth for secret patterns
 
 ## Findings Addressed
@@ -42,7 +42,7 @@ All 3 tasks completed successfully.
 - settings.json is valid JSON
 - No old `$HOME/.claude/scripts/` path in hooks
 - No inline secret patterns in review.md
-- `python3 scripts/workflow_validate.py` passes
+- `python3 .cnogo/scripts/workflow_validate.py` passes
 
 ---
 *Completed: 2026-02-10*

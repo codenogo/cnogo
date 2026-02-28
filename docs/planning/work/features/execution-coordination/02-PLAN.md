@@ -94,7 +94,7 @@ After all tasks:
 grep -c 'ledger' .claude/commands/team.md | grep -q '^0$'
 grep -q 'plan_to_task_descriptions' .claude/commands/implement.md
 test $(find .cnogo/ -name 'task-descriptions-*.json' 2>/dev/null | wc -l) -eq 0
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

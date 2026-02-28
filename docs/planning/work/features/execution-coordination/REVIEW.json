@@ -50,23 +50,66 @@
     }
   ],
   "patternCompliance": [
-    {"pattern": "lazy-import wrappers in __init__.py", "status": "compliant"},
-    {"pattern": "dataclass + to_dict/from_dict roundtrip", "status": "compliant"},
-    {"pattern": "stdlib-only constraint", "status": "compliant"},
-    {"pattern": "workers report_done, leader closes", "status": "compliant"},
-    {"pattern": "planning artifacts JSON source of truth", "status": "compliant"}
+    {
+      "pattern": "lazy-import wrappers in __init__.py",
+      "status": "compliant"
+    },
+    {
+      "pattern": "dataclass + to_dict/from_dict roundtrip",
+      "status": "compliant"
+    },
+    {
+      "pattern": "stdlib-only constraint",
+      "status": "compliant"
+    },
+    {
+      "pattern": "workers report_done, leader closes",
+      "status": "compliant"
+    },
+    {
+      "pattern": "planning artifacts JSON source of truth",
+      "status": "compliant"
+    }
   ],
   "performanceFindings": [],
   "principleNotes": [
-    {"axis": "Correctness", "score": 2, "note": "All verify pass, imports work, V2 shape correct, roundtrip OK"},
-    {"axis": "Security", "score": 2, "note": "No web surface, stdlib only, regex ID validation"},
-    {"axis": "Contract Compliance", "score": 2, "note": "Plans match changes, multi-agent rules enforced, phase coherent"},
-    {"axis": "Performance", "score": 2, "note": "O(n) on small bounded sets, no unbounded ops"},
-    {"axis": "Maintainability", "score": 2, "note": "Clear naming, docstrings, consistent wrapper pattern"},
-    {"axis": "Test Coverage", "score": 1, "note": "Verify commands cover happy path; no formal unit test files (project-wide norm)"},
-    {"axis": "Scope Discipline", "score": 2, "note": "Surgical — only plan-listed files touched, no drive-by refactors"}
+    {
+      "axis": "Correctness",
+      "score": 2,
+      "note": "All verify pass, imports work, V2 shape correct, roundtrip OK"
+    },
+    {
+      "axis": "Security",
+      "score": 2,
+      "note": "No web surface, stdlib only, regex ID validation"
+    },
+    {
+      "axis": "Contract Compliance",
+      "score": 2,
+      "note": "Plans match changes, multi-agent rules enforced, phase coherent"
+    },
+    {
+      "axis": "Performance",
+      "score": 2,
+      "note": "O(n) on small bounded sets, no unbounded ops"
+    },
+    {
+      "axis": "Maintainability",
+      "score": 2,
+      "note": "Clear naming, docstrings, consistent wrapper pattern"
+    },
+    {
+      "axis": "Test Coverage",
+      "score": 1,
+      "note": "Verify commands cover happy path; no formal unit test files (project-wide norm)"
+    },
+    {
+      "axis": "Scope Discipline",
+      "score": 2,
+      "note": "Surgical \u2014 only plan-listed files touched, no drive-by refactors"
+    }
   ],
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "securityFindings": [],
   "timestamp": "2026-02-21T15:03:11Z",
   "tokenTelemetry": {
@@ -79,5 +122,26 @@
   },
   "verdict": "pass",
   "score": "13/14",
-  "warnings": []
+  "warnings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Reviewed on branch: feature/execution-coordination"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Automated checks: lint: skipped, types: skipped, tests: skipped",
+        "No warnings"
+      ],
+      "notes": "Retroactively added for schemaVersion 4 compliance"
+    }
+  ]
 }

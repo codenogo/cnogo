@@ -13,11 +13,11 @@
 
 | Severity | Status | File | Description |
 |----------|--------|------|-------------|
-| blocker | **fixed** | `scripts/memory/__init__.py` | Hook ownership validation incomplete in `report_done()` |
-| warning | **fixed** | `scripts/memory/reconcile_leader.py` | Plan/epic closure lacked retry wrapper for SQLITE_BUSY |
-| note | accepted | `scripts/memory/storage.py` | v3 migration backfill conditional on `state='open'` |
-| note | accepted | `scripts/memory/__init__.py` | `verify_and_close()` not idempotent (by design) |
-| note | accepted | `scripts/workflow_validate_core.py` | `save_baseline()` uses direct write (OK for single-threaded CLI) |
+| blocker | **fixed** | `.cnogo/scripts/memory/__init__.py` | Hook ownership validation incomplete in `report_done()` |
+| warning | **fixed** | `.cnogo/scripts/memory/reconcile_leader.py` | Plan/epic closure lacked retry wrapper for SQLITE_BUSY |
+| note | accepted | `.cnogo/scripts/memory/storage.py` | v3 migration backfill conditional on `state='open'` |
+| note | accepted | `.cnogo/scripts/memory/__init__.py` | `verify_and_close()` not idempotent (by design) |
+| note | accepted | `.cnogo/scripts/workflow_validate_core.py` | `save_baseline()` uses direct write (OK for single-threaded CLI) |
 
 ## Security
 

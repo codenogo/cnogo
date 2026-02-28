@@ -41,7 +41,7 @@ Code audit during planning revealed that **7 of 8 review issues were already fix
 - SQLite WAL mode must be preserved
 - Existing public API signatures must not change (backwards compatible)
 - Max 3 tasks per plan
-- All changes must pass `python3 scripts/workflow_validate.py`
+- All changes must pass `python3 .cnogo/scripts/workflow_validate.py`
 
 ## Open Questions
 
@@ -49,12 +49,12 @@ Code audit during planning revealed that **7 of 8 review issues were already fix
 
 ## Related Code
 
-- `scripts/memory/__init__.py` — Public API (touched by all 3 plans)
-- `scripts/memory/storage.py` — SQLite storage layer (touched by plans 1-3)
-- `scripts/memory/sync.py` — JSONL sync (plan 1)
-- `scripts/memory/graph.py` — Blocked cache and cycle detection (plan 3)
-- `scripts/memory/context.py` — Context generation (read-only, unaffected)
-- `scripts/memory/identity.py` — ID generation (read-only, unaffected)
+- `.cnogo/scripts/memory/__init__.py` — Public API (touched by all 3 plans)
+- `.cnogo/scripts/memory/storage.py` — SQLite storage layer (touched by plans 1-3)
+- `.cnogo/scripts/memory/sync.py` — JSONL sync (plan 1)
+- `.cnogo/scripts/memory/graph.py` — Blocked cache and cycle detection (plan 3)
+- `.cnogo/scripts/memory/context.py` — Context generation (read-only, unaffected)
+- `.cnogo/scripts/memory/identity.py` — ID generation (read-only, unaffected)
 
 ## Review Reference
 

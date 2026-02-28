@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "feature": "remote-installer",
+  "displayName": "Remote Git-Based Installer",
+  "decisions": [
+    {
+      "area": "distribution",
+      "decision": "Thin bootstrap script (remote-install.sh) that clones repo to temp dir, runs install.sh, cleans up",
+      "rationale": "Single file to host/curl. Delegates all logic to install.sh. No duplication."
+    },
+    {
+      "area": "access",
+      "decision": "Support both private (git clone via SSH/gh) and public (curl from raw.githubusercontent.com) access",
+      "rationale": "Repo is private now but will be public. Script auto-detects availability."
+    },
+    {
+      "area": "cli",
+      "decision": "remote-install.sh accepts: target dir (positional), --ref <tag/branch>, --update, --uninstall, --force (passthrough to install.sh)",
+      "rationale": "Supports version pinning and all lifecycle operations via passthrough."
+    },
+    {
+      "area": "cleanup",
+      "decision": "Clone to mktemp -d, trap cleanup on EXIT to ensure temp dir is always removed",
+      "rationale": "No leftover state on the user's machine after install."
+    },
+    {
+      "area": "location",
+      "decision": "remote-install.sh lives at repo root alongside install.sh",
+      "rationale": "Accessible via raw.githubusercontent.com/codenogo/workflowy/main/remote-install.sh when public."
+    },
+    {
+      "area": "validation-cleanup",
+      "decision": "Batch-fix all pre-existing validation errors and warnings before adding new artifacts",
+      "rationale": "Clean baseline prevents noise in future reviews. 14 REVIEW.json schemaVersion errors and assorted warnings accumulated across old features."
+    }
+  ],
+  "constraints": [
+    "Bash only — no Python/Node dependencies in the bootstrap script",
+    "Must work on macOS and Linux",
+    "Must handle git clone failure gracefully (private repo without access)",
+    "install.sh is the single source of truth for installation logic — remote-install.sh is only a wrapper",
+    "Temp dir must be cleaned up even on failure (trap EXIT)",
+    "Validation cleanup must not change semantics of old artifacts — only fix schema compliance and path ambiguity"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    "install.sh",
+    "docs/planning/PROJECT.md",
+    ".cnogo/scripts/workflow_validate.py"
+  ],
+  "timestamp": "2026-02-28T21:30:00Z"
+}

@@ -31,7 +31,7 @@
     ".claude/commands/status.md",
     "scripts/memory/bridge.py",
     "docs/planning/WORKFLOW.json",
-    "scripts/workflow_validate.py"
+    ".cnogo/scripts/workflow_validate.py"
   ],
   "timestamp": "2026-02-14T00:00:00Z"
 }

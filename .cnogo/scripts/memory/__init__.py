@@ -10,8 +10,8 @@ Usage from commands:
     from scripts.memory import init, create, ready, claim, close
 
 Usage from CLI:
-    python3 scripts/workflow_memory.py ready
-    python3 scripts/workflow_memory.py create --title "My task"
+    python3 .cnogo/scripts/workflow_memory.py ready
+    python3 .cnogo/scripts/workflow_memory.py create --title "My task"
 """
 
 from __future__ import annotations

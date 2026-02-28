@@ -8,12 +8,12 @@ All 3 tasks completed successfully.
 
 | File | Change |
 |------|--------|
-| `scripts/workflow_hooks.py` | Replaced subprocess `which` with `shutil.which()`, added early-exit for empty CLAUDE_TOOL_INPUT, replaced local repo_root/load_workflow_cfg with imports |
-| `scripts/workflow_utils.py` | Created shared module with `repo_root()`, `load_json()`, `write_json()`, `load_workflow()` |
-| `scripts/workflow_validate.py` | Replaced `_repo_root()` and `_load_json()` with imports from workflow_utils |
-| `scripts/workflow_detect.py` | Replaced `repo_root()`, `load_json()`, `write_json()` with imports |
-| `scripts/workflow_checks.py` | Replaced `load_json()`, `write_json()`, `load_workflow()` with imports, added trusted-file comment for shell=True |
-| `scripts/workflow_render.py` | Replaced `load()` with `load_json` import |
+| `.cnogo/scripts/workflow_hooks.py` | Replaced subprocess `which` with `shutil.which()`, added early-exit for empty CLAUDE_TOOL_INPUT, replaced local repo_root/load_workflow_cfg with imports |
+| `.cnogo/scripts/workflow_utils.py` | Created shared module with `repo_root()`, `load_json()`, `write_json()`, `load_workflow()` |
+| `.cnogo/scripts/workflow_validate.py` | Replaced `_repo_root()` and `_load_json()` with imports from workflow_utils |
+| `.cnogo/scripts/workflow_detect.py` | Replaced `repo_root()`, `load_json()`, `write_json()` with imports |
+| `.cnogo/scripts/workflow_checks.py` | Replaced `load_json()`, `write_json()`, `load_workflow()` with imports, added trusted-file comment for shell=True |
+| `.cnogo/scripts/workflow_render.py` | Replaced `load()` with `load_json` import |
 
 ## Verification Results
 

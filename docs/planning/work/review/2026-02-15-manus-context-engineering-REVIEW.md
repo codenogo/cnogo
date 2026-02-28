@@ -94,7 +94,7 @@ Commands span planning, execution, quality, and release phases but lack prefixes
 **Recommendation:**
 - `prime()` already emits issue IDs (`cn-a3f8`) which can be resolved via `show(id)` — this is good
 - Add a `prime(verbose=True)` mode that includes file paths for each issue's metadata (e.g., `files: storage.py, graph.py`)
-- Add a "restore hint" line at the bottom: `Details: python3 scripts/workflow_memory.py show <id>`
+- Add a "restore hint" line at the bottom: `Details: python3 .cnogo/scripts/workflow_memory.py show <id>`
 - This preserves the path back to full context without bloating the summary
 
 **Effort:** Low | **Impact:** High (agents can self-recover detailed context)

@@ -40,7 +40,7 @@ Replace Steps 4-11 with:
     ```bash
     python3 -c "import sys; sys.path.insert(0,'.'); from scripts.memory import load_session, cleanup_session; from pathlib import Path; root=Path('.'); session=load_session(root); cleanup_session(session, root); print('Worktrees cleaned')"
     ```
-16. Dismiss team, then `python3 scripts/workflow_validate.py`
+16. Dismiss team, then `python3 .cnogo/scripts/workflow_validate.py`
 
 Also remove the `Notes` section line about "one team per session, no resumption" — worktree state file enables resumption.
 
@@ -55,7 +55,7 @@ grep 'create_session' .claude/commands/team.md && grep 'merge_session' .claude/c
 **Done when:** team.md implement action uses full worktree lifecycle: create → execute → merge → resolve → cleanup.
 
 ### Task 2: Update implement.md + bridge.py Advisory Mode
-**Files:** `.claude/commands/implement.md`, `scripts/memory/bridge.py`
+**Files:** `.claude/commands/implement.md`, `.cnogo/scripts/memory/bridge.py`
 **Action:**
 
 **implement.md Step 1c** — Replace the detection logic to reflect worktrees-only:
@@ -170,7 +170,7 @@ grep -c 'worktree' .claude/commands/team.md | xargs -I{} test {} -ge 5 && echo '
 grep 'advisory' scripts/memory/bridge.py && echo 'bridge.py PASS'
 grep 'load_session' .claude/commands/resume.md && echo 'resume.md PASS'
 grep 'Commit' .claude/agents/implementer.md && echo 'implementer.md PASS'
-python3 scripts/workflow_validate.py
+python3 .cnogo/scripts/workflow_validate.py
 ```
 
 ## Commit Message

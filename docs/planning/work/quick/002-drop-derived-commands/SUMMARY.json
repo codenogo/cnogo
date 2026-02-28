@@ -22,7 +22,7 @@
     {"command": "python3 -c \"from scripts.memory.bridge import plan_to_task_descriptions, generate_implement_prompt\"", "result": "pass"},
     {"command": "python3 -c \"from scripts.memory.bridge import TASK_DESC_SCHEMA_VERSION; assert TASK_DESC_SCHEMA_VERSION == 2\"", "result": "pass"},
     {"command": "python3 -m pytest tests/test_bridge.py -v", "result": "pass (26/26)"},
-    {"command": "python3 scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"}
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"}
   ],
   "commit": "",
   "timestamp": "2026-02-21T16:05:00Z"

@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # Repo-local pre-commit hook to enforce workflow outside of Claude.
-# Install via: ./scripts/install-githooks.sh
+# Install via: ./.cnogo/hooks/install-githooks.sh
 
 ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$ROOT"
 
 echo "🔎 Pre-commit: workflow validation"
-python3 scripts/workflow_validate.py --staged
+python3 .cnogo/scripts/workflow_validate.py --staged
 
 echo "🔎 Pre-commit: secret scan (staged)"
 STAGED_FILES="$(git diff --cached --name-only --diff-filter=ACMR)"
