@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "12",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/types.py",
+      "description": "New types phase module: builds type index from CLASS/INTERFACE/TYPE_ALIAS/ENUM nodes, resolves source symbols by line range, creates USES_TYPE edges from source → target"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "description": "Wired process_types() into index pipeline after process_heritage()"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "description": "Added 5 tests for USES_TYPE edges: parameter annotations, return annotations, same-file resolution, unresolvable type names"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_graph.py -x -q",
+      "result": "36 passed"
+    }
+  ],
+  "commit": "db3f106",
+  "timestamp": "2026-02-28T18:00:00Z"
+}

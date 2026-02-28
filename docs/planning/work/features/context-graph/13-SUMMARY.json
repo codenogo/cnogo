@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "feature": "context-graph",
+  "planNumber": "13",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "scripts/context/phases/exports.py",
+      "description": "New exports phase module: builds symbol and file-node indices, creates EXPORTS edges from FILE → symbol for __all__ names, bulk-sets is_exported=True on exported nodes"
+    },
+    {
+      "file": "scripts/context/__init__.py",
+      "description": "Wired process_exports() into index pipeline after process_types()"
+    },
+    {
+      "file": "tests/test_context_graph.py",
+      "description": "Added 8 tests for EXPORTS edges: __all__ edge creation, is_exported flag, unknown names skipped, multiple exports, pipeline integration"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_graph.py -x -q",
+      "result": "41 passed"
+    }
+  ],
+  "commit": "da3b924",
+  "timestamp": "2026-02-28T18:00:00Z"
+}
