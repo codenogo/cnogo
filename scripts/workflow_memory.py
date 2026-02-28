@@ -1254,6 +1254,44 @@ def cmd_graph_viz(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph_test_coverage(args: argparse.Namespace) -> int:
+    """Report test coverage by walking CALLS edges from test file symbols."""
+    from scripts.context.workflow import test_coverage_report
+
+    repo = getattr(args, "repo", None) or "."
+    result = test_coverage_report(repo)
+
+    if getattr(args, "json", False):
+        print(json.dumps(result))
+        return 0
+
+    if not result.get("enabled"):
+        print(f"Graph unavailable: {result.get('error', 'unknown')}", file=sys.stderr)
+        return 1
+
+    summary = result.get("summary", {})
+    total = summary.get("total_symbols", 0)
+    covered = summary.get("covered", 0)
+    uncovered = summary.get("uncovered", 0)
+    pct = summary.get("coverage_pct", 0.0)
+
+    print(f"Test coverage: {covered}/{total} symbols ({pct:.1f}%)")
+    print(f"  Covered:   {covered}")
+    print(f"  Uncovered: {uncovered}")
+
+    by_file = result.get("coverage_by_file", {})
+    if by_file:
+        print("\nPer file:")
+        for fpath, counts in sorted(by_file.items()):
+            fc = len(counts.get("covered", []))
+            fu = len(counts.get("uncovered", []))
+            ftotal = fc + fu
+            file_pct = (fc / ftotal * 100.0) if ftotal > 0 else 0.0
+            print(f"  {fpath:<50} {fc}/{ftotal} ({file_pct:.0f}%)")
+
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="cnogo Memory Engine CLI",
@@ -1545,6 +1583,11 @@ def main() -> int:
     p.add_argument("--files", help="Comma-separated file paths (default: auto-detect via git diff)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # graph-test-coverage
+    p = sub.add_parser("graph-test-coverage", help="Report test coverage by walking CALLS edges from test file symbols")
+    p.add_argument("--repo", help="Repository root path (default: cwd)")
+    p.add_argument("--json", action="store_true", help="Output as JSON")
+
     # graph-viz
     p = sub.add_parser("graph-viz", help="Generate graph visualization in Mermaid or DOT format")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
@@ -1566,7 +1609,7 @@ def main() -> int:
     # Check initialization for non-init commands
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
-    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope", "graph-enrich", "graph-contract-check", "graph-viz"}
+    _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope", "graph-enrich", "graph-contract-check", "graph-test-coverage", "graph-viz"}
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):
@@ -1627,6 +1670,7 @@ def main() -> int:
         "graph-validate-scope": cmd_graph_validate_scope,
         "graph-enrich": cmd_graph_enrich,
         "graph-contract-check": cmd_graph_contract_check,
+        "graph-test-coverage": cmd_graph_test_coverage,
         "graph-viz": cmd_graph_viz,
     }
 

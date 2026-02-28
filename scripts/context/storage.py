@@ -312,6 +312,34 @@ class GraphStorage:
 
     # --- Dead code helpers ---
 
+    def get_test_file_nodes(self) -> list[GraphNode]:
+        """Return all nodes whose file_path looks like a test file.
+
+        Matches: test_*.py, *_test.py, or files under tests/ directories.
+        """
+        assert self._conn is not None
+        labels = (
+            NodeLabel.FUNCTION.value,
+            NodeLabel.CLASS.value,
+            NodeLabel.METHOD.value,
+            NodeLabel.ENUM.value,
+        )
+        placeholders = ",".join("?" * len(labels))
+        cur = self._conn.execute(
+            f"""SELECT * FROM nodes
+                WHERE label IN ({placeholders})
+                AND (
+                    file_path LIKE 'test_%'
+                    OR file_path LIKE '%_test.py'
+                    OR file_path LIKE 'tests/%'
+                    OR file_path LIKE 'test/%'
+                    OR file_path LIKE '%/tests/%'
+                    OR file_path LIKE '%/test/%'
+                )""",
+            labels,
+        )
+        return [self._row_to_node(row) for row in cur.fetchall()]
+
     def get_all_symbol_nodes(self) -> list[GraphNode]:
         """Return all nodes with label FUNCTION, CLASS, METHOD, or ENUM."""
         assert self._conn is not None
