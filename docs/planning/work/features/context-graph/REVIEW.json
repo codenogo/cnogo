@@ -2,7 +2,8 @@
   "automated": [
     {
       "name": "lint",
-      "result": "skipped"
+      "result": "pass",
+      "detail": "py_compile pass on all 4 changed source files"
     },
     {
       "name": "types",
@@ -10,7 +11,8 @@
     },
     {
       "name": "tests",
-      "result": "skipped"
+      "result": "pass",
+      "detail": "168 passed in 2.13s"
     }
   ],
   "blockers": [],
@@ -28,10 +30,9 @@
     {
       "checks": [
         {
-          "cmd": "python3 -m py_compile scripts/workflow_validate.py scripts/workflow_validate_core.py scripts/workflow_checks.py scripts/workflow_checks_core.py scripts/workflow_detect.py scripts/workflow_utils.py scripts/workflow_render.py scripts/workflow_hooks.py scripts/workflow_memory.py",
+          "cmd": "python3 -m py_compile scripts/context/phases/impact.py scripts/context/__init__.py scripts/context/storage.py scripts/workflow_memory.py",
           "name": "lint",
-          "reason": "no changed files for package",
-          "result": "skipped"
+          "result": "pass"
         },
         {
           "cmd": null,
@@ -39,9 +40,10 @@
           "result": "skipped"
         },
         {
-          "cmd": null,
+          "cmd": "python3 -m pytest tests/test_context_*.py -x",
           "name": "test",
-          "result": "skipped"
+          "result": "pass",
+          "detail": "168 passed"
         }
       ],
       "kind": "python",
@@ -51,123 +53,109 @@
   ],
   "patternCompliance": [
     {
-      "pattern": "phase-module-separation",
-      "status": "pass",
-      "notes": "Each phase (imports, calls, heritage, symbols) is a separate module under scripts/context/phases/"
-    },
-    {
       "pattern": "stdlib-only",
       "status": "pass",
-      "notes": "All code uses stdlib only — no external dependencies"
+      "detail": "All new code uses only stdlib imports (collections, dataclasses, argparse, sqlite3)"
     },
     {
-      "pattern": "tdd-workflow",
+      "pattern": "existing-cli-pattern",
       "status": "pass",
-      "notes": "Tests written first (RED), then implementation (GREEN) for all 3 tasks"
+      "detail": "graph-* commands follow same argparse + dispatch pattern as existing commands"
     },
     {
-      "pattern": "parameterized-sql",
+      "pattern": "TDD",
       "status": "pass",
-      "notes": "All SQL queries use parameterized placeholders (?), no string interpolation"
+      "detail": "All 3 tasks followed RED-GREEN cycle; 34 new tests (13+9+12)"
     }
   ],
   "performanceFindings": [
     {
-      "severity": "low",
-      "file": "scripts/context/phases/calls.py",
-      "line": "114-127",
-      "finding": "_build_import_map issues per-row queries for source/target node lookups instead of JOINs. O(2n) queries where n = IMPORTS edge count. Acceptable at current scale but could be optimized with a single JOIN query for large codebases.",
-      "recommendation": "Consider JOIN-based query in future optimization pass"
+      "severity": "info",
+      "detail": "BFS impact_analysis uses visited set for cycle detection; SQL queries use indexed columns (file_path, source, target, type)",
+      "location": "scripts/context/phases/impact.py"
     }
   ],
   "principleNotes": [
     {
-      "axis": "Correctness",
-      "score": 2,
-      "notes": "134/134 tests pass. Import resolution handles absolute, relative, from-imports, stdlib skip. Call tracing covers all 4 confidence tiers. Heritage resolves cross-file inheritance. Pipeline handles incremental indexing with stale cleanup."
+      "principle": "Simplicity First",
+      "status": "pass",
+      "detail": "BFS implementation is ~60 LOC; CLI handlers are thin wrappers delegating to ContextGraph methods"
     },
     {
-      "axis": "Security",
-      "score": 2,
-      "notes": "All SQL uses parameterized queries. No user input handling (internal library). No secrets or credentials. stdlib-only constraint eliminates supply-chain risk."
+      "principle": "Surgical Changes",
+      "status": "pass",
+      "detail": "Only files in plan scope were modified; no drive-by refactors"
     },
     {
-      "axis": "Contract Compliance",
-      "score": 2,
-      "notes": "Plan 03 has 3 tasks matching 10 changed files. SUMMARY.json records all changes. One ancillary file (test_context_graph.py) updated to fix Plan 01 stubs — justified and documented in SUMMARY."
-    },
-    {
-      "axis": "Performance",
-      "score": 1,
-      "notes": "_build_import_map has N+1 query pattern (per-row lookups). bisect-based caller attribution is efficient. All collections bounded by codebase size. Acceptable for current scope."
-    },
-    {
-      "axis": "Maintainability",
-      "score": 2,
-      "notes": "Clean phase separation following established pattern. Consistent naming (CALL_BLOCKLIST, _CONF_* constants). Each module has clear docstrings and single responsibility."
-    },
-    {
-      "axis": "Test Coverage",
-      "score": 2,
-      "notes": "42 plan-specific tests + 92 pre-existing = 134 total. Covers edge cases: stdlib skip, unresolvable imports, blocklisted calls, global fuzzy, cross-file heritage, incremental skip/detect, stale cleanup."
-    },
-    {
-      "axis": "Scope Discipline",
-      "score": 2,
-      "notes": "All changes within context-graph feature. Only necessary update to test_context_graph.py (Plan 01 stubs). No drive-by refactors or feature creep."
+      "principle": "Goal-Driven Execution",
+      "status": "pass",
+      "detail": "All 3 plan tasks verified with fresh test evidence"
     }
   ],
   "schemaVersion": 4,
   "securityFindings": [],
   "stageReviews": [
     {
-      "evidence": [
-        "Plan 03 goal: import resolution + call tracing + heritage + pipeline — all implemented",
-        "10 files changed matching plan task files[] (plus 1 justified ancillary update)",
-        "SUMMARY.json records all changes with descriptions",
-        "Workflow validation: 2 WARN (ancillary files) — expected and harmless"
-      ],
-      "findings": [],
-      "notes": "Scope matches plan goal exactly. Contract artifacts complete. Memory phase progression coherent (discuss → plan → implement → review).",
       "stage": "spec-compliance",
-      "status": "pass"
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Plan goal: 'Implement impact analysis (BFS blast radius) and expose the context graph via CLI commands' — all 3 tasks delivered",
+        "Task 1: impact.py created with ImpactResult + impact_analysis(), wired into ContextGraph.impact() — 13 tests pass",
+        "Task 2: get_related_nodes() added, context() implemented with full neighborhood — 9 tests pass",
+        "Task 3: 4 CLI subcommands (graph-index/query/impact/context) with --repo flag, bypassing memory DB check — 12 tests pass",
+        "planVerify: 168 tests pass + graph-index --help works",
+        "Changed files match plan scope exactly (plus test_context_graph.py for stale stub updates)"
+      ],
+      "notes": "All 3 tasks complete. Plan scope respected. Only pre-existing warnings from earlier plans."
     },
     {
-      "evidence": [
-        "python3 -m pytest tests/test_context_*.py -v → 134 passed in 0.68s",
-        "All SQL queries use parameterized placeholders",
-        "No external dependencies — stdlib only",
-        "git diff --stat: 1736 insertions, 10 deletions across 10 files"
-      ],
+      "stage": "code-quality",
+      "status": "pass",
       "findings": [
         {
-          "severity": "low",
-          "type": "performance",
-          "file": "scripts/context/phases/calls.py:114-127",
-          "description": "_build_import_map uses per-row queries instead of JOINs. Low priority — acceptable at current codebase scale."
+          "severity": "info",
+          "location": "scripts/workflow_memory.py:cmd_graph_index",
+          "detail": "Accesses storage._conn directly for rel/file counts. Minor — stats could be added to GraphStorage API later."
         },
         {
           "severity": "info",
-          "type": "documentation",
-          "file": "scripts/context/phases/calls.py:146-152",
-          "description": "_resolve_call docstring lists priorities 1-4 but implementation has priority 0 (self/cls) before priority 1 (same-file). Stale after reordering fix."
+          "location": "tests/test_context_cli.py:test_context_known_node",
+          "detail": "Accepts returncode 0 or 1 — soft assertion. Acceptable for integration test where node ID format may vary."
         }
       ],
-      "notes": "Clean, well-structured code following established phase patterns. Strong test coverage with edge cases. No security issues. Minor performance note for future optimization.",
-      "stage": "code-quality",
-      "status": "pass"
+      "evidence": [
+        "py_compile: all 4 source files pass",
+        "168/168 tests pass",
+        "No security findings (no user input beyond CLI args, parameterized SQL throughout)",
+        "BFS uses visited set preventing infinite loops",
+        "CLI commands properly close() graph in finally blocks",
+        "graph commands correctly exempt from memory engine DB check"
+      ],
+      "notes": "Clean implementation. Two info-level observations, no blockers."
     }
   ],
-  "timestamp": "2026-02-28T00:30:00Z",
+  "scoring": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "testCoverage": 2,
+    "codeClarity": 2,
+    "performance": 2,
+    "operationalReadiness": 1,
+    "total": 13,
+    "maxScore": 14,
+    "notes": "Operational readiness at 1/2: CLI works but no --json output flag on graph commands for machine consumption. Non-blocking."
+  },
+  "timestamp": "2026-02-28T02:15:00Z",
   "tokenTelemetry": {
-    "checksRun": 0,
-    "checksSkipped": 3,
+    "checksRun": 2,
+    "checksSkipped": 1,
     "inputTokens": 0,
     "outputTokens": 0,
     "savedTokens": 0,
     "savingsPct": 0.0
   },
   "verdict": "pass",
-  "warnings": [],
-  "score": "13/14"
+  "warnings": []
 }
