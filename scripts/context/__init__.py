@@ -26,6 +26,7 @@ from scripts.context.phases.flows import FlowResult, trace_flows
 from scripts.context.phases.heritage import process_heritage
 from scripts.context.phases.impact import ImpactResult, impact_analysis
 from scripts.context.phases.imports import process_imports
+from scripts.context.phases.proximity import rank_by_proximity
 from scripts.context.phases.test_coverage import analyze_test_coverage
 from scripts.context.phases.types import process_types
 from scripts.context.phases.structure import process_structure
@@ -351,6 +352,44 @@ class ContextGraph:
                 "total_affected_callers": total_affected,
             },
         }
+
+    def prioritize_files(
+        self, focal_symbols: list[str], max_files: int = 20
+    ) -> list[dict]:
+        """Rank files by graph proximity from focal symbols.
+
+        Resolves focal_symbols (names) to node IDs via query(), then
+        runs BFS proximity ranking to return files sorted by minimum
+        graph distance from those symbols.
+
+        Args:
+            focal_symbols: List of symbol names to use as BFS seeds.
+            max_files: Maximum number of files to return (default 20).
+
+        Returns:
+            List of dicts sorted by min_distance ascending:
+                {
+                    "file_path": str,
+                    "min_distance": int,
+                    "connected_symbols": [list of symbol names],
+                }
+            Returns empty list if focal_symbols is empty or no matches found.
+        """
+        if not focal_symbols:
+            return []
+
+        # Resolve symbol names to node IDs
+        focal_ids: list[str] = []
+        for name in focal_symbols:
+            nodes = self.query(name)
+            for node in nodes:
+                focal_ids.append(node.id)
+
+        if not focal_ids:
+            return []
+
+        ranked = rank_by_proximity(self._storage, focal_ids, max_depth=5)
+        return ranked[:max_files]
 
     def visualize(
         self,

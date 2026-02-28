@@ -314,6 +314,49 @@ def contract_warnings(
         return {"enabled": False, "error": str(e)}
 
 
+def prioritize_context(
+    repo_path: Path | str,
+    focal_symbols: list[str] | None = None,
+    max_files: int = 20,
+) -> dict[str, Any]:
+    """Rank files by graph proximity from focal symbols.
+
+    Args:
+        repo_path: Path to the repository root.
+        focal_symbols: Symbol names to use as BFS seeds.
+        max_files: Maximum number of files to return (default 20).
+
+    Returns:
+        Dict with keys:
+            enabled: True if graph was available and indexed.
+            ranked_files: List of {path, distance, reason} dicts.
+            focal_symbols_resolved: The focal_symbols list used.
+        On failure:
+            enabled: False, error: str.
+    """
+    try:
+        graph = ContextGraph(repo_path)
+        if not graph.is_indexed():
+            graph.close()
+            return {"enabled": False, "error": "Graph not indexed"}
+        ranked = graph.prioritize_files(focal_symbols or [], max_files)
+        graph.close()
+        return {
+            "enabled": True,
+            "ranked_files": [
+                {
+                    "path": r["file_path"],
+                    "distance": r["min_distance"],
+                    "reason": f"graph distance {r['min_distance']}",
+                }
+                for r in ranked
+            ],
+            "focal_symbols_resolved": focal_symbols or [],
+        }
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
 def _get_affected_confidence(
     graph: Any, affected_path: str, changed_files: list[str]
 ) -> float:
