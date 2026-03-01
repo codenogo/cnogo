@@ -321,6 +321,25 @@ class GraphStorage:
         """Return nodes that node_id calls (outgoing CALLS edges)."""
         return self.get_related_nodes(node_id, RelType.CALLS, "outgoing")
 
+    def get_all_relationships_by_types(
+        self, rel_types: list[str]
+    ) -> list[tuple[str, str, str]]:
+        """Return all (source_id, target_id, rel_type) for the given rel_type strings."""
+        if not rel_types:
+            return []
+        conn = self._require_conn()
+        types_list = ", ".join(f"'{t}'" for t in rel_types)
+        result = conn.execute(
+            f"MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) "
+            f"WHERE r.rel_type IN [{types_list}] "
+            f"RETURN a.id, b.id, r.rel_type"
+        )
+        rows: list[tuple[str, str, str]] = []
+        while result.has_next():
+            row = result.get_next()
+            rows.append((row[0], row[1], row[2]))
+        return rows
+
     # ------------------------------------------------------------------
     # File hash tracking (incremental indexing)
     # ------------------------------------------------------------------
