@@ -15,6 +15,10 @@ from scripts.context.parser_registry import get_parser
 from scripts.context.phases.structure import process_structure
 from scripts.context.phases.symbols import process_symbols
 from scripts.context.phases.imports import process_imports
+from scripts.context.phases.calls import process_calls
+from scripts.context.phases.heritage import process_heritage
+from scripts.context.phases.types import process_types
+from scripts.context.phases.exports import process_exports
 
 __all__ = ["NodeLabel", "RelType", "GraphNode", "GraphRelationship", "generate_id", "ContextGraph"]
 
@@ -45,7 +49,7 @@ class ContextGraph:
     def index(self) -> dict[str, Any]:
         """Run the full indexing pipeline.
 
-        Pipeline: walk → hash check → remove stale → structure → parse → symbols → imports
+        Pipeline: walk → hash check → remove stale → structure → parse → symbols → imports → calls → heritage → types → exports
 
         Returns dict with stats: {"files_indexed": int, "files_skipped": int, "files_removed": int}
         """
@@ -109,7 +113,19 @@ class ContextGraph:
         # 7. Imports phase
         process_imports(parse_results, self._storage)
 
-        # 8. Update file hashes
+        # 8. Calls phase
+        process_calls(parse_results, self._storage)
+
+        # 9. Heritage phase
+        process_heritage(parse_results, self._storage)
+
+        # 10. Types phase
+        process_types(parse_results, self._storage)
+
+        # 11. Exports phase
+        process_exports(parse_results, self._storage)
+
+        # 12. Update file hashes
         for entry in new_or_changed:
             self._storage.update_file_hash(str(entry.path), entry.content_hash)
 

@@ -62,6 +62,7 @@ class ParseResult:
     type_refs: list[TypeRef] = field(default_factory=list)
     heritage: list[tuple[str, str, str]] = field(default_factory=list)
     # heritage: (child_class_name, parent_name, "extends"|"implements")
+    exports: list[str] = field(default_factory=list)  # exported symbol names
 
 
 class LanguageParser(ABC):

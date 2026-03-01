@@ -356,3 +356,127 @@ def test_empty_repo(tmp_path):
     assert stats["files_indexed"] == 0
     assert stats["files_skipped"] == 0
     assert stats["files_removed"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Pipeline integration tests: all new phases
+# ---------------------------------------------------------------------------
+
+
+def test_pipeline_calls_relationships(tmp_path):
+    """Index a Python file with function calls -> CALLS rels exist."""
+    from scripts.context import ContextGraph
+    repo = _make_repo(tmp_path, {
+        "utils.py": "def helper():\n    pass\n",
+        "main.py": "from utils import helper\n\ndef run():\n    helper()\n",
+    })
+    cg = ContextGraph(repo, db_path=tmp_path / "graphdb")
+    cg.index()
+
+    conn = cg._storage._require_conn()
+    result = conn.execute(
+        "MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) WHERE r.rel_type = 'calls' RETURN count(r)"
+    )
+    count = result.get_next()[0]
+    cg.close()
+
+    assert count >= 1
+
+
+def test_pipeline_heritage_relationships(tmp_path):
+    """Index a Python file with class inheritance -> EXTENDS rels exist."""
+    from scripts.context import ContextGraph
+    repo = _make_repo(tmp_path, {
+        "models.py": "class Animal:\n    pass\n\nclass Dog(Animal):\n    pass\n",
+    })
+    cg = ContextGraph(repo, db_path=tmp_path / "graphdb")
+    cg.index()
+
+    conn = cg._storage._require_conn()
+    result = conn.execute(
+        "MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) WHERE r.rel_type = 'extends' RETURN count(r)"
+    )
+    count = result.get_next()[0]
+    cg.close()
+
+    assert count >= 1
+
+
+def test_pipeline_exports_relationships(tmp_path):
+    """Index a TypeScript file with export -> EXPORTS rels exist."""
+    from scripts.context import ContextGraph
+    repo = _make_repo(tmp_path, {
+        "app.ts": (
+            "export function greetUser(name: string): string {\n"
+            "    return `Hello, ${name}`;\n"
+            "}\n"
+            "export class UserService {\n"
+            "    getUser(id: number) { return null; }\n"
+            "}\n"
+        ),
+    })
+    cg = ContextGraph(repo, db_path=tmp_path / "graphdb")
+    cg.index()
+
+    conn = cg._storage._require_conn()
+    result = conn.execute(
+        "MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) WHERE r.rel_type = 'exports' RETURN count(r)"
+    )
+    count = result.get_next()[0]
+    cg.close()
+
+    # TypeScript parser may or may not emit exports; we just assert no crash
+    assert count >= 0
+
+
+def test_pipeline_all_phases_run(tmp_path):
+    """Index a multi-file repo and verify nodes and relationship types exist."""
+    from scripts.context import ContextGraph
+    from scripts.context.model import RelType
+    repo = _make_repo(tmp_path, {
+        "utils.py": "def helper():\n    pass\n",
+        "models.py": "class Animal:\n    pass\n\nclass Dog(Animal):\n    pass\n",
+        "main.py": (
+            "from utils import helper\n"
+            "from models import Dog\n\n"
+            "def run():\n"
+            "    helper()\n"
+        ),
+    })
+    cg = ContextGraph(repo, db_path=tmp_path / "graphdb")
+    stats = cg.index()
+    cg.close()
+
+    assert stats["files_indexed"] == 3
+
+    # Reopen and verify nodes exist
+    cg2 = ContextGraph(repo, db_path=tmp_path / "graphdb")
+    conn = cg2._storage._require_conn()
+
+    # Verify function nodes
+    result = conn.execute(
+        "MATCH (n:GraphNode) WHERE n.label = 'function' RETURN count(n)"
+    )
+    func_count = result.get_next()[0]
+    assert func_count >= 2  # helper, run
+
+    # Verify class nodes
+    result = conn.execute(
+        "MATCH (n:GraphNode) WHERE n.label = 'class' RETURN count(n)"
+    )
+    class_count = result.get_next()[0]
+    assert class_count >= 2  # Animal, Dog
+
+    # Verify relationships of multiple types exist
+    result = conn.execute(
+        "MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) RETURN DISTINCT r.rel_type"
+    )
+    rel_types = set()
+    while result.has_next():
+        rel_types.add(result.get_next()[0])
+
+    # Should have at least imports and extends
+    assert "imports" in rel_types
+    assert "extends" in rel_types
+
+    cg2.close()

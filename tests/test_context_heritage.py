@@ -1,273 +1,304 @@
-"""Tests for heritage extraction phase."""
+"""Tests for the heritage phase: EXTENDS and IMPLEMENTS relationships."""
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
-from scripts.context.model import (
-    GraphNode,
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-    generate_id,
-)
-from scripts.context.python_parser import ParseResult, SymbolInfo
+import sys
+sys.path.insert(0, ".cnogo")
+
+from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id
+from scripts.context.storage import GraphStorage
+from scripts.context.parser_base import ParseResult, SymbolInfo, TypeRef, ImportInfo, CallInfo
+from scripts.context.phases.structure import process_structure
+from scripts.context.phases.symbols import process_symbols
+from scripts.context.walker import FileEntry
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_file_entry(path_str: str, content: str = "") -> FileEntry:
+    return FileEntry(
+        path=Path(path_str),
+        language="python",
+        content=content,
+        content_hash=hashlib.sha256(content.encode()).hexdigest(),
+    )
+
+
+def _setup_graph(tmp_path, files: list[FileEntry], parse_results: dict[str, ParseResult]) -> GraphStorage:
+    """Create graph with structure + symbol nodes."""
+    storage = GraphStorage(tmp_path / "db")
+    storage.initialize()
+    process_structure(files, storage)
+    process_symbols(parse_results, storage)
+    return storage
 
 
 @pytest.fixture
 def storage(tmp_path):
-    from scripts.context.storage import GraphStorage
     s = GraphStorage(tmp_path / "test.db")
     s.initialize()
     yield s
     s.close()
 
 
-def _add_file_node(storage, file_path):
-    node_id = generate_id(NodeLabel.FILE, file_path, "")
-    storage.add_nodes([GraphNode(
-        id=node_id,
-        label=NodeLabel.FILE,
-        name=Path(file_path).name,
-        file_path=file_path,
-    )])
-    return node_id
+# ---------------------------------------------------------------------------
+# Heritage tests
+# ---------------------------------------------------------------------------
 
-
-def _add_class_node(storage, file_path, name, start_line=1, end_line=10):
-    node_id = generate_id(NodeLabel.CLASS, file_path, name)
-    storage.add_nodes([GraphNode(
-        id=node_id,
-        label=NodeLabel.CLASS,
-        name=name,
-        file_path=file_path,
-        start_line=start_line,
-        end_line=end_line,
-    )])
-    return node_id
-
-
-# --- process_heritage: EXTENDS ---
-
-
-def test_heritage_creates_extends_edge(storage):
+def test_heritage_extends_same_file(tmp_path):
+    """class Dog(Animal) in same file -> EXTENDS relationship."""
     from scripts.context.phases.heritage import process_heritage
 
-    _add_file_node(storage, "models.py")
-    _add_class_node(storage, "models.py", "Animal", 1, 10)
-    _add_class_node(storage, "models.py", "Dog", 12, 20)
-
+    content = "class Animal:\n    pass\n\nclass Dog(Animal):\n    pass\n"
+    files = [_make_file_entry("models.py", content)]
     parse_results = {
         "models.py": ParseResult(
-            file_path="models.py",
             symbols=[
-                SymbolInfo(name="Animal", kind="class", start_line=1, end_line=10),
-                SymbolInfo(name="Dog", kind="class", start_line=12, end_line=20),
+                SymbolInfo(name="Animal", kind="class", start_line=1, end_line=2),
+                SymbolInfo(name="Dog", kind="class", start_line=4, end_line=5),
             ],
-            heritage=[("Dog", "extends", "Animal")],
-        ),
+            heritage=[("Dog", "Animal", "extends")],
+        )
     }
+    storage = _setup_graph(tmp_path, files, parse_results)
+
     process_heritage(parse_results, storage)
 
-    cur = storage._conn.execute(
-        "SELECT source, target FROM relationships WHERE type = ?",
-        (RelType.EXTENDS.value,),
-    )
-    row = cur.fetchone()
-    assert row is not None
     dog_id = generate_id(NodeLabel.CLASS, "models.py", "Dog")
-    animal_id = generate_id(NodeLabel.CLASS, "models.py", "Animal")
-    assert row[0] == dog_id
-    assert row[1] == animal_id
+    related = storage.get_related_nodes(dog_id, RelType.EXTENDS, direction="outgoing")
+    assert len(related) == 1
+    assert related[0].name == "Animal"
+    storage.close()
 
 
-def test_heritage_skips_unresolvable_parent(storage):
+def test_heritage_extends_cross_file(tmp_path):
+    """Child in file A, parent in file B -> EXTENDS."""
     from scripts.context.phases.heritage import process_heritage
 
-    _add_file_node(storage, "models.py")
-    _add_class_node(storage, "models.py", "Dog", 1, 10)
+    files = [
+        _make_file_entry("base.py", "class Animal:\n    pass\n"),
+        _make_file_entry("child.py", "class Dog(Animal):\n    pass\n"),
+    ]
+    parse_results = {
+        "base.py": ParseResult(
+            symbols=[SymbolInfo(name="Animal", kind="class", start_line=1, end_line=2)],
+        ),
+        "child.py": ParseResult(
+            symbols=[SymbolInfo(name="Dog", kind="class", start_line=1, end_line=2)],
+            heritage=[("Dog", "Animal", "extends")],
+        ),
+    }
+    storage = _setup_graph(tmp_path, files, parse_results)
 
+    process_heritage(parse_results, storage)
+
+    dog_id = generate_id(NodeLabel.CLASS, "child.py", "Dog")
+    related = storage.get_related_nodes(dog_id, RelType.EXTENDS, direction="outgoing")
+    assert len(related) == 1
+    assert related[0].name == "Animal"
+    storage.close()
+
+
+def test_heritage_implements(tmp_path):
+    """class User implements ISerializable -> IMPLEMENTS."""
+    from scripts.context.phases.heritage import process_heritage
+
+    files = [_make_file_entry("svc.py")]
+    parse_results = {
+        "svc.py": ParseResult(
+            symbols=[
+                SymbolInfo(name="ISerializable", kind="interface", start_line=1, end_line=3),
+                SymbolInfo(name="User", kind="class", start_line=5, end_line=15),
+            ],
+            heritage=[("User", "ISerializable", "implements")],
+        )
+    }
+    storage = _setup_graph(tmp_path, files, parse_results)
+
+    process_heritage(parse_results, storage)
+
+    user_id = generate_id(NodeLabel.CLASS, "svc.py", "User")
+    related = storage.get_related_nodes(user_id, RelType.IMPLEMENTS, direction="outgoing")
+    assert len(related) == 1
+    assert related[0].name == "ISerializable"
+    storage.close()
+
+
+def test_heritage_multiple_parents(tmp_path):
+    """class Dog(Animal, Pet) -> two EXTENDS relationships."""
+    from scripts.context.phases.heritage import process_heritage
+
+    files = [_make_file_entry("models.py")]
     parse_results = {
         "models.py": ParseResult(
-            file_path="models.py",
             symbols=[
-                SymbolInfo(name="Dog", kind="class", start_line=1, end_line=10),
+                SymbolInfo(name="Animal", kind="class", start_line=1, end_line=2),
+                SymbolInfo(name="Pet", kind="class", start_line=4, end_line=5),
+                SymbolInfo(name="Dog", kind="class", start_line=7, end_line=10),
             ],
-            heritage=[("Dog", "extends", "UnknownBase")],
-        ),
+            heritage=[
+                ("Dog", "Animal", "extends"),
+                ("Dog", "Pet", "extends"),
+            ],
+        )
     }
+    storage = _setup_graph(tmp_path, files, parse_results)
+
     process_heritage(parse_results, storage)
 
-    cur = storage._conn.execute(
-        "SELECT * FROM relationships WHERE type = ?",
-        (RelType.EXTENDS.value,),
-    )
-    rows = cur.fetchall()
-    assert len(rows) == 0
+    dog_id = generate_id(NodeLabel.CLASS, "models.py", "Dog")
+    related = storage.get_related_nodes(dog_id, RelType.EXTENDS, direction="outgoing")
+    assert len(related) == 2
+    names = {n.name for n in related}
+    assert names == {"Animal", "Pet"}
+    storage.close()
 
 
-def test_heritage_cross_file_extends(storage):
+def test_heritage_extends_and_implements(tmp_path):
+    """class Foo extends Bar implements IBaz -> EXTENDS + IMPLEMENTS."""
     from scripts.context.phases.heritage import process_heritage
 
-    _add_file_node(storage, "base.py")
-    _add_file_node(storage, "child.py")
-    _add_class_node(storage, "base.py", "Base", 1, 10)
-    _add_class_node(storage, "child.py", "Child", 1, 10)
-
+    files = [_make_file_entry("code.py")]
     parse_results = {
-        "child.py": ParseResult(
-            file_path="child.py",
+        "code.py": ParseResult(
             symbols=[
-                SymbolInfo(name="Child", kind="class", start_line=1, end_line=10),
+                SymbolInfo(name="Bar", kind="class", start_line=1, end_line=2),
+                SymbolInfo(name="IBaz", kind="interface", start_line=4, end_line=5),
+                SymbolInfo(name="Foo", kind="class", start_line=7, end_line=15),
             ],
-            heritage=[("Child", "extends", "Base")],
-        ),
+            heritage=[
+                ("Foo", "Bar", "extends"),
+                ("Foo", "IBaz", "implements"),
+            ],
+        )
     }
+    storage = _setup_graph(tmp_path, files, parse_results)
+
     process_heritage(parse_results, storage)
 
-    cur = storage._conn.execute(
-        "SELECT source, target FROM relationships WHERE type = ?",
-        (RelType.EXTENDS.value,),
-    )
-    row = cur.fetchone()
-    assert row is not None
-    child_id = generate_id(NodeLabel.CLASS, "child.py", "Child")
-    base_id = generate_id(NodeLabel.CLASS, "base.py", "Base")
-    assert row[0] == child_id
-    assert row[1] == base_id
+    foo_id = generate_id(NodeLabel.CLASS, "code.py", "Foo")
+    extends_rels = storage.get_related_nodes(foo_id, RelType.EXTENDS, direction="outgoing")
+    implements_rels = storage.get_related_nodes(foo_id, RelType.IMPLEMENTS, direction="outgoing")
+    assert len(extends_rels) == 1
+    assert extends_rels[0].name == "Bar"
+    assert len(implements_rels) == 1
+    assert implements_rels[0].name == "IBaz"
+    storage.close()
 
 
-def test_heritage_implements_edge(storage):
+def test_heritage_parent_not_in_graph(tmp_path):
+    """Parent class not indexed -> no crash, no relationship."""
     from scripts.context.phases.heritage import process_heritage
 
-    _add_file_node(storage, "svc.py")
-    iface_id = generate_id(NodeLabel.INTERFACE, "svc.py", "Serializable")
-    storage.add_nodes([GraphNode(
-        id=iface_id,
-        label=NodeLabel.INTERFACE,
-        name="Serializable",
-        file_path="svc.py",
-        start_line=1,
-        end_line=5,
-    )])
-    _add_class_node(storage, "svc.py", "User", 7, 20)
-
+    files = [_make_file_entry("models.py")]
     parse_results = {
-        "svc.py": ParseResult(
-            file_path="svc.py",
-            symbols=[
-                SymbolInfo(name="User", kind="class", start_line=7, end_line=20),
-            ],
-            heritage=[("User", "implements", "Serializable")],
-        ),
+        "models.py": ParseResult(
+            symbols=[SymbolInfo(name="Dog", kind="class", start_line=1, end_line=5)],
+            heritage=[("Dog", "MissingParent", "extends")],
+        )
     }
+    storage = _setup_graph(tmp_path, files, parse_results)
+
+    # Should not crash
     process_heritage(parse_results, storage)
 
-    cur = storage._conn.execute(
-        "SELECT source, target FROM relationships WHERE type = ?",
-        (RelType.IMPLEMENTS.value,),
-    )
-    row = cur.fetchone()
-    assert row is not None
+    dog_id = generate_id(NodeLabel.CLASS, "models.py", "Dog")
+    related = storage.get_related_nodes(dog_id, RelType.EXTENDS, direction="outgoing")
+    assert len(related) == 0
+    storage.close()
 
 
-# --- process_symbols ---
+def test_heritage_child_not_in_graph(tmp_path):
+    """Child class not indexed -> no crash, no relationship."""
+    from scripts.context.phases.heritage import process_heritage
 
-
-def test_symbols_creates_function_node(storage):
-    from scripts.context.phases.symbols import process_symbols
-
-    _add_file_node(storage, "utils.py")
-
+    files = [_make_file_entry("models.py")]
     parse_results = {
-        "utils.py": ParseResult(
-            file_path="utils.py",
-            symbols=[
-                SymbolInfo(name="helper", kind="function", start_line=1, end_line=5, signature="(x, y)"),
-            ],
-        ),
+        "models.py": ParseResult(
+            symbols=[SymbolInfo(name="Animal", kind="class", start_line=1, end_line=5)],
+            # MissingChild is in heritage but NOT in symbols
+            heritage=[("MissingChild", "Animal", "extends")],
+        )
     }
-    process_symbols(parse_results, storage)
+    storage = _setup_graph(tmp_path, files, parse_results)
 
-    node_id = generate_id(NodeLabel.FUNCTION, "utils.py", "helper")
-    node = storage.get_node(node_id)
-    assert node is not None
-    assert node.name == "helper"
-    assert node.signature == "(x, y)"
-    assert node.start_line == 1
-    assert node.end_line == 5
+    # Should not crash
+    process_heritage(parse_results, storage)
+
+    animal_id = generate_id(NodeLabel.CLASS, "models.py", "Animal")
+    # No incoming EXTENDS edges to Animal
+    related = storage.get_related_nodes(animal_id, RelType.EXTENDS, direction="incoming")
+    assert len(related) == 0
+    storage.close()
 
 
-def test_symbols_creates_class_and_method_nodes(storage):
-    from scripts.context.phases.symbols import process_symbols
+def test_heritage_empty_results(tmp_path):
+    """Empty parse_results -> no crash."""
+    from scripts.context.phases.heritage import process_heritage
 
-    _add_file_node(storage, "svc.py")
+    storage = GraphStorage(tmp_path / "db")
+    storage.initialize()
 
+    # Should not crash
+    process_heritage({}, storage)
+
+    storage.close()
+
+
+def test_heritage_dedup(tmp_path):
+    """Same heritage tuple appearing twice -> only one relationship created."""
+    from scripts.context.phases.heritage import process_heritage
+
+    files = [_make_file_entry("models.py")]
     parse_results = {
-        "svc.py": ParseResult(
-            file_path="svc.py",
+        "models.py": ParseResult(
             symbols=[
-                SymbolInfo(name="Service", kind="class", start_line=1, end_line=20),
-                SymbolInfo(name="run", kind="method", start_line=3, end_line=10, class_name="Service"),
+                SymbolInfo(name="Animal", kind="class", start_line=1, end_line=2),
+                SymbolInfo(name="Dog", kind="class", start_line=4, end_line=8),
             ],
-        ),
+            heritage=[
+                ("Dog", "Animal", "extends"),
+                ("Dog", "Animal", "extends"),  # duplicate
+            ],
+        )
     }
-    process_symbols(parse_results, storage)
+    storage = _setup_graph(tmp_path, files, parse_results)
 
-    cls_id = generate_id(NodeLabel.CLASS, "svc.py", "Service")
-    method_id = generate_id(NodeLabel.METHOD, "svc.py", "run")
-    assert storage.get_node(cls_id) is not None
-    assert storage.get_node(method_id) is not None
-    method = storage.get_node(method_id)
-    assert method.class_name == "Service"
+    process_heritage(parse_results, storage)
+
+    dog_id = generate_id(NodeLabel.CLASS, "models.py", "Dog")
+    related = storage.get_related_nodes(dog_id, RelType.EXTENDS, direction="outgoing")
+    assert len(related) == 1
+    storage.close()
 
 
-def test_symbols_creates_defines_edge(storage):
-    from scripts.context.phases.symbols import process_symbols
+def test_heritage_interface_extends(tmp_path):
+    """Interface IB extends IA -> EXTENDS relationship."""
+    from scripts.context.phases.heritage import process_heritage
 
-    _add_file_node(storage, "utils.py")
-
+    files = [_make_file_entry("types.py")]
     parse_results = {
-        "utils.py": ParseResult(
-            file_path="utils.py",
+        "types.py": ParseResult(
             symbols=[
-                SymbolInfo(name="helper", kind="function", start_line=1, end_line=5),
+                SymbolInfo(name="IA", kind="interface", start_line=1, end_line=3),
+                SymbolInfo(name="IB", kind="class", start_line=5, end_line=7),
             ],
-        ),
+            heritage=[("IB", "IA", "extends")],
+        )
     }
-    process_symbols(parse_results, storage)
+    storage = _setup_graph(tmp_path, files, parse_results)
 
-    cur = storage._conn.execute(
-        "SELECT source, target FROM relationships WHERE type = ?",
-        (RelType.DEFINES.value,),
-    )
-    row = cur.fetchone()
-    assert row is not None
-    file_id = generate_id(NodeLabel.FILE, "utils.py", "")
-    func_id = generate_id(NodeLabel.FUNCTION, "utils.py", "helper")
-    assert row[0] == file_id
-    assert row[1] == func_id
+    process_heritage(parse_results, storage)
 
-
-def test_symbols_stores_decorators(storage):
-    from scripts.context.phases.symbols import process_symbols
-
-    _add_file_node(storage, "app.py")
-
-    parse_results = {
-        "app.py": ParseResult(
-            file_path="app.py",
-            symbols=[
-                SymbolInfo(name="index", kind="function", start_line=1, end_line=5,
-                           decorators=["route", "login_required"]),
-            ],
-        ),
-    }
-    process_symbols(parse_results, storage)
-
-    node_id = generate_id(NodeLabel.FUNCTION, "app.py", "index")
-    node = storage.get_node(node_id)
-    assert node is not None
-    assert node.properties.get("decorators") == ["route", "login_required"]
+    ib_id = generate_id(NodeLabel.CLASS, "types.py", "IB")
+    related = storage.get_related_nodes(ib_id, RelType.EXTENDS, direction="outgoing")
+    assert len(related) == 1
+    assert related[0].name == "IA"
+    storage.close()
