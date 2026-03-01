@@ -62,6 +62,7 @@ service-account*.json
 
 # Context graph (rebuild from source)
 .cnogo/graph.db
+.cnogo/graph.kuzu/
 
 # Task description cache (generated, not source)
 .cnogo/task-descriptions-*.json

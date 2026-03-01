@@ -28,6 +28,7 @@ Options:
   --uninstall       Remove cnogo from a project (keeps seeded files)
   --force           Uninstall + fresh install
   --from <path>     Source cnogo repo (default: directory containing this script)
+  --skip-graph      Skip installation of graph module pip dependencies
   -h, --help        Show this help message
 EOF
 }
@@ -38,6 +39,7 @@ ACTION="install"
 SOURCE_OVERRIDE=""
 TARGET_DIR=""
 MANAGED_PATHS=()
+SKIP_GRAPH=false
 
 track_managed_path() {
     MANAGED_PATHS+=("$1")
@@ -64,6 +66,10 @@ while [[ $# -gt 0 ]]; do
         --from)
             SOURCE_OVERRIDE="$2"
             shift 2
+            ;;
+        --skip-graph)
+            SKIP_GRAPH=true
+            shift
             ;;
         -h|--help)
             usage
@@ -809,6 +815,29 @@ else:
 " 2>/dev/null) || echo -e "   ${YELLOW}⚠️  Memory init skipped (run manually: python3 .cnogo/scripts/workflow_memory.py init)${NC}"
 else
     echo -e "   ${YELLOW}⚠️  python3 not found — run manually: python3 .cnogo/scripts/workflow_memory.py init${NC}"
+fi
+
+# =============================================================================
+# Graph module dependencies (optional)
+# =============================================================================
+echo ""
+echo "📦 Graph module dependencies"
+if [ "$SKIP_GRAPH" = true ]; then
+    echo "   Skipped (--skip-graph flag set)"
+elif command -v pip &>/dev/null || command -v pip3 &>/dev/null; then
+    PIP_CMD="pip"
+    command -v pip3 &>/dev/null && PIP_CMD="pip3"
+    GRAPH_REQ="$TARGET_DIR/.cnogo/requirements-graph.txt"
+    if [ -f "$GRAPH_REQ" ]; then
+        echo "   Installing graph deps from requirements-graph.txt..."
+        $PIP_CMD install -r "$GRAPH_REQ" --quiet && \
+            echo -e "   ${GREEN}Graph deps installed${NC}" || \
+            echo -e "   ${YELLOW}Graph deps install failed — run manually: pip install -r .cnogo/requirements-graph.txt${NC}"
+    else
+        echo -e "   ${YELLOW}requirements-graph.txt not found — skipping${NC}"
+    fi
+else
+    echo -e "   ${YELLOW}pip not found — install graph deps manually: pip install -r .cnogo/requirements-graph.txt${NC}"
 fi
 
 # =============================================================================
