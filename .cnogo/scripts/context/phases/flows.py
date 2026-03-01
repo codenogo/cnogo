@@ -1,144 +1,139 @@
 """Execution flow tracing phase.
 
-BFS from entry points through forward CALLS edges, creating Process nodes
-with STEP_IN_PROCESS edges at each depth level.
-
-Entry point heuristics (reused from dead_code phase):
-- Functions named ``main`` -> entry point
-- Functions/classes with ``test_`` or ``Test`` prefix -> entry point
-- Any symbol in an ``__init__.py`` file -> entry point (exported)
-- Any symbol already flagged is_entry_point in storage -> entry point
-
-Zero external dependencies — stdlib only.
+BFS from entry points through forward CALLS edges to build process flows.
 """
 
 from __future__ import annotations
 
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from scripts.context.model import (
-    GraphNode,
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-)
+from scripts.context.model import GraphNode, GraphRelationship, NodeLabel, RelType, generate_id
 from scripts.context.storage import GraphStorage
 
 
 @dataclass
 class FlowStep:
-    """A single step in an execution flow."""
-
     node: GraphNode
     depth: int
 
 
 @dataclass
 class FlowResult:
-    """Result of tracing a single execution flow from an entry point."""
-
     process_id: str
     entry_point: GraphNode
-    steps: list[FlowStep]
+    steps: list[FlowStep] = field(default_factory=list)
 
 
 def _is_entry_point(node: GraphNode) -> bool:
-    """Return True if the node is an entry point by heuristic or flag."""
+    """Return True if node qualifies as an entry point."""
     if node.is_entry_point:
         return True
-    if node.file_path.endswith("__init__.py"):
+    if node.name == "main":
         return True
-    if node.name == "main" and node.label in (NodeLabel.FUNCTION, NodeLabel.METHOD):
+    if node.name.startswith("test_") or node.name.startswith("Test"):
         return True
-    if node.name.startswith("test_") and node.label in (
-        NodeLabel.FUNCTION,
-        NodeLabel.METHOD,
-    ):
-        return True
-    if node.name.startswith("Test") and node.label == NodeLabel.CLASS:
+    if "__init__.py" in node.file_path:
         return True
     return False
 
 
-def trace_flows(
-    storage: GraphStorage,
-    max_depth: int = 10,
-) -> list[FlowResult]:
-    """Trace execution flows from all entry points.
+def trace_flows(storage: GraphStorage, max_depth: int = 10) -> list[FlowResult]:
+    """BFS from entry points through forward CALLS edges.
 
-    Forward BFS through CALLS edges, creating Process nodes and
-    STEP_IN_PROCESS edges for each flow.
+    For each entry point:
+    1. BFS through outgoing CALLS edges up to max_depth
+    2. Create PROCESS node: generate_id(NodeLabel.PROCESS, file_path, entry_name)
+    3. Create STEP_IN_PROCESS edges from PROCESS node to each step node
+    4. Persist PROCESS nodes and STEP_IN_PROCESS edges to storage
 
-    Args:
-        storage: Initialized GraphStorage with indexed nodes/relationships.
-        max_depth: Maximum BFS depth (default 10).
-
-    Returns:
-        List of FlowResult, one per entry point found.
+    Returns list of FlowResult.
     """
+    all_rels = storage.get_all_relationships_by_types([RelType.CALLS.value])
+
+    # Build adjacency map: source_id -> list[target_id] for CALLS edges
+    calls_map: dict[str, list[str]] = {}
+    for src, tgt, _ in all_rels:
+        calls_map.setdefault(src, []).append(tgt)
+
+    # Gather all nodes to find entry points
+    # Use get_all_symbol_nodes to find functions, classes, methods, enums
     symbol_nodes = storage.get_all_symbol_nodes()
-    entry_points = [n for n in symbol_nodes if _is_entry_point(n)]
+
+    entry_points: list[GraphNode] = [n for n in symbol_nodes if _is_entry_point(n)]
 
     if not entry_points:
         return []
 
-    results: list[FlowResult] = []
-    new_nodes: list[GraphNode] = []
-    new_edges: list[GraphRelationship] = []
+    # Also need to look up nodes by id for BFS
+    node_cache: dict[str, GraphNode] = {n.id: n for n in symbol_nodes}
 
-    for ep in entry_points:
-        process_id = f"process:{ep.file_path}:{ep.name}"
-        steps: list[FlowStep] = []
-        visited: set[str] = {ep.id}
+    flow_results: list[FlowResult] = []
+    process_nodes: list[GraphNode] = []
+    step_edges: list[GraphRelationship] = []
 
-        # BFS from entry point through forward CALLS edges
+    for entry in entry_points:
+        process_id = generate_id(NodeLabel.PROCESS, entry.file_path, entry.name)
+
+        # BFS
+        visited: set[str] = {entry.id}
         queue: deque[tuple[str, int]] = deque()
-        for callee in storage.get_callees(ep.id):
-            if callee.id not in visited:
-                queue.append((callee.id, 1))
-                visited.add(callee.id)
+        # enqueue direct callees at depth 1
+        for callee_id in calls_map.get(entry.id, []):
+            if callee_id not in visited:
+                queue.append((callee_id, 1))
+                visited.add(callee_id)
+
+        steps: list[FlowStep] = []
 
         while queue:
             node_id, depth = queue.popleft()
             if depth > max_depth:
                 continue
-            node = storage.get_node(node_id)
+
+            # Fetch node (may not be a symbol node — try cache first, then storage)
+            node = node_cache.get(node_id) or storage.get_node(node_id)
             if node is None:
                 continue
 
             steps.append(FlowStep(node=node, depth=depth))
 
-            new_edges.append(GraphRelationship(
-                id=f"step:{process_id}->{node_id}",
-                type=RelType.STEP_IN_PROCESS,
-                source=process_id,
-                target=node_id,
-                properties={"depth": depth},
-            ))
-
             if depth < max_depth:
-                for callee in storage.get_callees(node_id):
-                    if callee.id not in visited:
-                        queue.append((callee.id, depth + 1))
-                        visited.add(callee.id)
+                for callee_id in calls_map.get(node_id, []):
+                    if callee_id not in visited:
+                        visited.add(callee_id)
+                        queue.append((callee_id, depth + 1))
 
-        new_nodes.append(GraphNode(
+        # Create PROCESS node
+        process_node = GraphNode(
             id=process_id,
             label=NodeLabel.PROCESS,
-            name=ep.name,
-            file_path=ep.file_path,
-        ))
+            name=entry.name,
+            file_path=entry.file_path,
+            is_entry_point=True,
+        )
+        process_nodes.append(process_node)
 
-        results.append(FlowResult(
+        # Create STEP_IN_PROCESS edges
+        for step in steps:
+            edge_id = f"step_in_process:{process_id}->{step.node.id}"
+            step_edges.append(GraphRelationship(
+                id=edge_id,
+                type=RelType.STEP_IN_PROCESS,
+                source=process_id,
+                target=step.node.id,
+            ))
+
+        flow_results.append(FlowResult(
             process_id=process_id,
-            entry_point=ep,
+            entry_point=entry,
             steps=steps,
         ))
 
-    if new_nodes:
-        storage.add_nodes(new_nodes)
-    if new_edges:
-        storage.add_relationships(new_edges)
+    # Persist process nodes and step edges
+    if process_nodes:
+        storage.add_nodes(process_nodes)
+    if step_edges:
+        storage.add_relationships(step_edges)
 
-    return results
+    return flow_results

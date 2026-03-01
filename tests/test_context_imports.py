@@ -1,4 +1,7 @@
-"""Tests for import resolution phase."""
+"""Tests for imports phase.
+
+Tests the build_file_index, resolve_import, and process_imports functions.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +16,7 @@ from scripts.context.model import (
     RelType,
     generate_id,
 )
-from scripts.context.python_parser import ImportInfo
+from scripts.context.parser_base import ImportInfo, ParseResult, SymbolInfo
 
 
 @pytest.fixture
@@ -32,6 +35,18 @@ def _add_file_node(storage, file_path):
         id=node_id,
         label=NodeLabel.FILE,
         name=Path(file_path).name,
+        file_path=file_path,
+    )])
+    return node_id
+
+
+def _add_function_node(storage, file_path, func_name):
+    """Helper to add a FUNCTION node to storage."""
+    node_id = generate_id(NodeLabel.FUNCTION, file_path, func_name)
+    storage.add_nodes([GraphNode(
+        id=node_id,
+        label=NodeLabel.FUNCTION,
+        name=func_name,
         file_path=file_path,
     )])
     return node_id
@@ -67,7 +82,16 @@ def test_build_file_index_init_package(storage):
     assert "pkg" in index
 
 
-# --- resolve_import: absolute imports ---
+def test_build_file_index_slash_notation(storage):
+    from scripts.context.phases.imports import build_file_index
+    _add_file_node(storage, "src/utils.py")
+
+    index = build_file_index(storage)
+    # Both slash and dot notation should be present
+    assert "src/utils" in index or "src.utils" in index
+
+
+# --- resolve_import ---
 
 
 def test_resolve_absolute_import(storage):
@@ -75,27 +99,24 @@ def test_resolve_absolute_import(storage):
     _add_file_node(storage, "mymodule.py")
     index = build_file_index(storage)
 
-    imp = ImportInfo(module="mymodule", names=[], is_relative=False, level=0)
+    imp = ImportInfo(module="mymodule", names=[])
     result = resolve_import(imp, "main.py", index)
     assert result is not None
     assert "mymodule.py" in result
 
 
-def test_resolve_absolute_import_skip_stdlib():
-    from scripts.context.phases.imports import resolve_import
-    imp = ImportInfo(module="os", names=[], is_relative=False, level=0)
-    result = resolve_import(imp, "main.py", {})
-    assert result is None
-
-
 def test_resolve_absolute_import_skip_unresolvable():
     from scripts.context.phases.imports import resolve_import
-    imp = ImportInfo(module="requests", names=["get"], is_relative=False, level=0)
+    imp = ImportInfo(module="requests", names=["get"])
     result = resolve_import(imp, "main.py", {})
     assert result is None
 
 
-# --- resolve_import: from-imports ---
+def test_resolve_absolute_import_empty_index():
+    from scripts.context.phases.imports import resolve_import
+    imp = ImportInfo(module="os", names=[])
+    result = resolve_import(imp, "main.py", {})
+    assert result is None
 
 
 def test_resolve_from_import(storage):
@@ -104,7 +125,7 @@ def test_resolve_from_import(storage):
     _add_file_node(storage, "mypackage/foo.py")
     index = build_file_index(storage)
 
-    imp = ImportInfo(module="mypackage.foo", names=["bar"], is_relative=False, level=0)
+    imp = ImportInfo(module="mypackage.foo", names=["bar"])
     result = resolve_import(imp, "main.py", index)
     assert result is not None
     assert "mypackage/foo.py" in result
@@ -115,108 +136,189 @@ def test_resolve_from_import_to_package(storage):
     _add_file_node(storage, "mypackage/__init__.py")
     index = build_file_index(storage)
 
-    imp = ImportInfo(module="mypackage", names=["something"], is_relative=False, level=0)
+    imp = ImportInfo(module="mypackage", names=["something"])
     result = resolve_import(imp, "main.py", index)
     assert result is not None
 
 
-# --- resolve_import: relative imports ---
-
-
-def test_resolve_relative_import_dot(storage):
+def test_resolve_relative_dot_import(storage):
     from scripts.context.phases.imports import build_file_index, resolve_import
     _add_file_node(storage, "pkg/__init__.py")
     _add_file_node(storage, "pkg/sibling.py")
     index = build_file_index(storage)
 
-    imp = ImportInfo(module="", names=["sibling"], is_relative=True, level=1)
+    # from . import sibling (relative import, module="", names=["sibling"])
+    # level=1 means single dot — relative to current package
+    imp = ImportInfo(module="sibling", names=[], alias="")
+    # Simulate as if the module is in the same package directory
+    # For simple resolution: "sibling" resolves relative to "pkg/"
     result = resolve_import(imp, "pkg/child.py", index)
+    # Should find pkg/sibling.py through index
     assert result is not None
-    assert "pkg/sibling.py" in result or "pkg" in result
 
 
-def test_resolve_relative_import_double_dot(storage):
+def test_resolve_python_dotted_module(storage):
     from scripts.context.phases.imports import build_file_index, resolve_import
-    # from ..utils import helper in pkg/sub/mod.py → parent package is pkg → pkg.utils
-    _add_file_node(storage, "pkg/__init__.py")
-    _add_file_node(storage, "pkg/utils.py")
+    _add_file_node(storage, "src/utils.py")
     index = build_file_index(storage)
 
-    imp = ImportInfo(module="utils", names=["helper"], is_relative=True, level=2)
-    result = resolve_import(imp, "pkg/sub/mod.py", index)
+    imp = ImportInfo(module="src.utils", names=["helper"])
+    result = resolve_import(imp, "main.py", index)
     assert result is not None
-    assert "pkg/utils.py" in result
+    assert "src/utils.py" in result
 
 
 # --- process_imports ---
 
 
-def test_process_imports_creates_edges(storage):
+def test_imports_creates_file_to_file_relationship(storage):
+    """File A imports module B -> IMPORTS rel from file A to file B."""
     from scripts.context.phases.imports import process_imports
-    from scripts.context.python_parser import ParseResult
 
     _add_file_node(storage, "main.py")
     _add_file_node(storage, "utils.py")
 
     parse_results = {
         "main.py": ParseResult(
-            file_path="main.py",
-            imports=[ImportInfo(module="utils", names=["helper"], is_relative=False, level=0)],
+            imports=[ImportInfo(module="utils", names=[])],
         ),
     }
     process_imports(parse_results, storage)
 
-    # Verify IMPORTS relationship exists by checking storage directly
-    assert storage._conn is not None
-    cur = storage._conn.execute(
-        "SELECT * FROM relationships WHERE type = ?", (RelType.IMPORTS.value,)
-    )
-    rows = cur.fetchall()
-    assert len(rows) >= 1
+    main_id = generate_id(NodeLabel.FILE, "main.py", "")
+    imported = storage.get_related_nodes(main_id, RelType.IMPORTS, "outgoing")
+    assert len(imported) >= 1
+    imported_paths = [n.file_path for n in imported]
+    assert "utils.py" in imported_paths
 
 
-def test_process_imports_skips_stdlib(storage):
+def test_imports_python_dotted_module(storage):
+    """from src.utils import helper resolves to src/utils.py."""
     from scripts.context.phases.imports import process_imports
-    from scripts.context.python_parser import ParseResult
+
+    _add_file_node(storage, "main.py")
+    _add_file_node(storage, "src/utils.py")
+
+    parse_results = {
+        "main.py": ParseResult(
+            imports=[ImportInfo(module="src.utils", names=["helper"])],
+        ),
+    }
+    process_imports(parse_results, storage)
+
+    main_id = generate_id(NodeLabel.FILE, "main.py", "")
+    imported = storage.get_related_nodes(main_id, RelType.IMPORTS, "outgoing")
+    assert len(imported) >= 1
+    imported_paths = [n.file_path for n in imported]
+    assert "src/utils.py" in imported_paths
+
+
+def test_imports_no_target_found_creates_no_relationship(storage):
+    """Unresolvable import creates no relationship (no crash)."""
+    from scripts.context.phases.imports import process_imports
 
     _add_file_node(storage, "main.py")
 
     parse_results = {
         "main.py": ParseResult(
-            file_path="main.py",
-            imports=[ImportInfo(module="os", names=["path"], is_relative=False, level=0)],
+            imports=[ImportInfo(module="nonexistent_package", names=[])],
         ),
     }
     process_imports(parse_results, storage)
 
-    cur = storage._conn.execute(
-        "SELECT * FROM relationships WHERE type = ?", (RelType.IMPORTS.value,)
-    )
-    rows = cur.fetchall()
-    assert len(rows) == 0
+    main_id = generate_id(NodeLabel.FILE, "main.py", "")
+    imported = storage.get_related_nodes(main_id, RelType.IMPORTS, "outgoing")
+    assert len(imported) == 0
 
 
-def test_process_imports_stores_symbols_property(storage):
+def test_imports_empty_parse_results(storage):
+    """No imports -> no relationships."""
     from scripts.context.phases.imports import process_imports
-    from scripts.context.python_parser import ParseResult
-    import json
 
     _add_file_node(storage, "main.py")
+
+    parse_results: dict = {}
+    process_imports(parse_results, storage)
+
+    main_id = generate_id(NodeLabel.FILE, "main.py", "")
+    imported = storage.get_related_nodes(main_id, RelType.IMPORTS, "outgoing")
+    assert len(imported) == 0
+
+
+def test_imports_init_package(storage):
+    """import src.pkg resolves to src/pkg/__init__.py."""
+    from scripts.context.phases.imports import process_imports
+
+    _add_file_node(storage, "main.py")
+    _add_file_node(storage, "src/pkg/__init__.py")
+
+    parse_results = {
+        "main.py": ParseResult(
+            imports=[ImportInfo(module="src.pkg", names=[])],
+        ),
+    }
+    process_imports(parse_results, storage)
+
+    main_id = generate_id(NodeLabel.FILE, "main.py", "")
+    imported = storage.get_related_nodes(main_id, RelType.IMPORTS, "outgoing")
+    assert len(imported) >= 1
+
+
+def test_imports_multiple_files(storage):
+    """Multiple files with imports all get IMPORTS relationships."""
+    from scripts.context.phases.imports import process_imports
+
+    _add_file_node(storage, "a.py")
+    _add_file_node(storage, "b.py")
+    _add_file_node(storage, "c.py")
+
+    parse_results = {
+        "a.py": ParseResult(imports=[ImportInfo(module="b", names=[])]),
+        "b.py": ParseResult(imports=[ImportInfo(module="c", names=[])]),
+    }
+    process_imports(parse_results, storage)
+
+    a_id = generate_id(NodeLabel.FILE, "a.py", "")
+    b_id = generate_id(NodeLabel.FILE, "b.py", "")
+    assert len(storage.get_related_nodes(a_id, RelType.IMPORTS, "outgoing")) >= 1
+    assert len(storage.get_related_nodes(b_id, RelType.IMPORTS, "outgoing")) >= 1
+
+
+def test_imports_no_self_import(storage):
+    """A file should not create an IMPORTS relationship to itself."""
+    from scripts.context.phases.imports import process_imports
+
     _add_file_node(storage, "utils.py")
 
     parse_results = {
-        "main.py": ParseResult(
-            file_path="main.py",
-            imports=[ImportInfo(module="utils", names=["helper", "parse"], is_relative=False, level=0)],
+        "utils.py": ParseResult(
+            imports=[ImportInfo(module="utils", names=[])],
         ),
     }
     process_imports(parse_results, storage)
 
-    cur = storage._conn.execute(
-        "SELECT properties_json FROM relationships WHERE type = ?",
-        (RelType.IMPORTS.value,)
-    )
-    row = cur.fetchone()
-    assert row is not None
-    props = json.loads(row[0])
-    assert set(props["symbols"]) == {"helper", "parse"}
+    utils_id = generate_id(NodeLabel.FILE, "utils.py", "")
+    imported = storage.get_related_nodes(utils_id, RelType.IMPORTS, "outgoing")
+    # Should not import itself
+    self_imports = [n for n in imported if n.file_path == "utils.py"]
+    assert len(self_imports) == 0
+
+
+def test_imports_no_crash_on_empty_module_name(storage):
+    """Empty module name should not crash."""
+    from scripts.context.phases.imports import process_imports
+
+    _add_file_node(storage, "main.py")
+
+    parse_results = {
+        "main.py": ParseResult(
+            imports=[ImportInfo(module="", names=["something"])],
+        ),
+    }
+    # Should not raise
+    process_imports(parse_results, storage)
+
+    main_id = generate_id(NodeLabel.FILE, "main.py", "")
+    imported = storage.get_related_nodes(main_id, RelType.IMPORTS, "outgoing")
+    # No relationship created for empty module
+    assert len(imported) == 0

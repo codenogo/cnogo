@@ -1,475 +1,504 @@
-"""Context graph SQLite storage backend.
+"""KuzuDB storage backend for the context graph.
 
-Provides persistent storage for the context graph using stdlib sqlite3.
-Follows memory engine's storage patterns (WAL mode, upsert).
-
-Zero external dependencies — stdlib only.
+Uses a single GraphNode node table (with a ``label`` field) to avoid
+the combinatorial explosion of per-label tables.  Relationships are
+stored in a CodeRelation rel table.  Properties dicts and embedding
+lists are JSON-serialised since KuzuDB does not natively support them.
 """
 
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 from typing import Any
 
+import kuzu
+
 from scripts.context.model import GraphNode, GraphRelationship, NodeLabel, RelType
+
+# ---------------------------------------------------------------------------
+# Schema DDL
+# ---------------------------------------------------------------------------
+
+_CREATE_NODE_TABLE = """
+CREATE NODE TABLE IF NOT EXISTS GraphNode(
+    id STRING,
+    label STRING,
+    name STRING,
+    file_path STRING,
+    start_line INT64,
+    end_line INT64,
+    content STRING,
+    signature STRING,
+    language STRING,
+    class_name STRING,
+    is_dead BOOLEAN,
+    is_entry_point BOOLEAN,
+    is_exported BOOLEAN,
+    properties STRING,
+    embedding STRING,
+    PRIMARY KEY(id)
+)
+"""
+
+_CREATE_REL_TABLE = """
+CREATE REL TABLE IF NOT EXISTS CodeRelation(
+    FROM GraphNode TO GraphNode,
+    rel_id STRING,
+    rel_type STRING,
+    confidence DOUBLE,
+    properties STRING
+)
+"""
+
+_CREATE_HASH_TABLE = """
+CREATE NODE TABLE IF NOT EXISTS FileHash(
+    file_path STRING,
+    content_hash STRING,
+    PRIMARY KEY(file_path)
+)
+"""
+
+# Column order returned by RETURN n.* on GraphNode (matches CREATE order)
+_NODE_COLS = [
+    "id", "label", "name", "file_path", "start_line", "end_line",
+    "content", "signature", "language", "class_name",
+    "is_dead", "is_entry_point", "is_exported", "properties", "embedding",
+]
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _row_to_node(row: list[Any]) -> GraphNode:
+    """Convert a raw KuzuDB row (n.*) into a GraphNode."""
+    (
+        nid, label, name, file_path, start_line, end_line,
+        content, signature, language, class_name,
+        is_dead, is_entry_point, is_exported, properties_str, embedding_str,
+    ) = row
+    return GraphNode(
+        id=nid,
+        label=NodeLabel(label),
+        name=name,
+        file_path=file_path or "",
+        start_line=start_line or 0,
+        end_line=end_line or 0,
+        content=content or "",
+        signature=signature or "",
+        language=language or "",
+        class_name=class_name or "",
+        is_dead=bool(is_dead),
+        is_entry_point=bool(is_entry_point),
+        is_exported=bool(is_exported),
+        properties=json.loads(properties_str) if properties_str else {},
+        embedding=json.loads(embedding_str) if embedding_str else [],
+    )
+
+
+def _node_params(node: GraphNode) -> dict[str, Any]:
+    """Build parameter dict for inserting/merging a GraphNode row."""
+    return {
+        "id": node.id,
+        "label": node.label.value,
+        "name": node.name,
+        "file_path": node.file_path,
+        "start_line": node.start_line,
+        "end_line": node.end_line,
+        "content": node.content,
+        "signature": node.signature,
+        "language": node.language,
+        "class_name": node.class_name,
+        "is_dead": node.is_dead,
+        "is_entry_point": node.is_entry_point,
+        "is_exported": node.is_exported,
+        "properties": json.dumps(node.properties),
+        "embedding": json.dumps(node.embedding),
+    }
+
+
+# ---------------------------------------------------------------------------
+# GraphStorage
+# ---------------------------------------------------------------------------
 
 
 class GraphStorage:
-    """SQLite-backed storage for context graph nodes and relationships."""
+    """KuzuDB-backed graph storage for the context graph."""
 
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = Path(db_path)
-        self._conn: sqlite3.Connection | None = None
+        self._db: kuzu.Database | None = None
+        self._conn: kuzu.Connection | None = None
+        self._initialized = False
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
 
     def initialize(self) -> None:
-        """Create tables and indexes. Idempotent."""
+        """Create database, schema tables, and mark storage ready."""
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(self._db_path))
-        self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA foreign_keys=ON")
-
-        self._conn.executescript("""
-            CREATE TABLE IF NOT EXISTS nodes (
-                id TEXT PRIMARY KEY,
-                label TEXT NOT NULL,
-                name TEXT NOT NULL,
-                file_path TEXT NOT NULL DEFAULT '',
-                start_line INTEGER NOT NULL DEFAULT 0,
-                end_line INTEGER NOT NULL DEFAULT 0,
-                content TEXT NOT NULL DEFAULT '',
-                signature TEXT NOT NULL DEFAULT '',
-                language TEXT NOT NULL DEFAULT '',
-                class_name TEXT NOT NULL DEFAULT '',
-                is_dead INTEGER NOT NULL DEFAULT 0,
-                is_entry_point INTEGER NOT NULL DEFAULT 0,
-                is_exported INTEGER NOT NULL DEFAULT 0,
-                properties_json TEXT NOT NULL DEFAULT '{}'
-            );
-
-            CREATE TABLE IF NOT EXISTS relationships (
-                id TEXT PRIMARY KEY,
-                type TEXT NOT NULL,
-                source TEXT NOT NULL,
-                target TEXT NOT NULL,
-                properties_json TEXT NOT NULL DEFAULT '{}'
-            );
-
-            CREATE TABLE IF NOT EXISTS file_hashes (
-                file_path TEXT PRIMARY KEY,
-                content_hash TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_nodes_label ON nodes(label);
-            CREATE INDEX IF NOT EXISTS idx_nodes_file_path ON nodes(file_path);
-            CREATE INDEX IF NOT EXISTS idx_rels_source ON relationships(source);
-            CREATE INDEX IF NOT EXISTS idx_rels_target ON relationships(target);
-            CREATE INDEX IF NOT EXISTS idx_rels_type ON relationships(type);
-
-            CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
-                name, signature, content,
-                tokenize='porter unicode61'
-            );
-        """)
-        self._conn.commit()
+        self._db = kuzu.Database(str(self._db_path))
+        self._conn = kuzu.Connection(self._db)
+        self._conn.execute(_CREATE_NODE_TABLE)
+        self._conn.execute(_CREATE_REL_TABLE)
+        self._conn.execute(_CREATE_HASH_TABLE)
+        self._initialized = True
 
     def is_initialized(self) -> bool:
-        """Check if the database has been initialized with tables."""
-        if self._conn is None:
-            return False
-        try:
-            cur = self._conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='nodes'"
-            )
-            return cur.fetchone() is not None
-        except sqlite3.Error:
-            return False
+        return self._initialized
 
     def close(self) -> None:
-        """Close the database connection."""
+        """Shut down the database connection."""
         if self._conn is not None:
-            self._conn.close()
             self._conn = None
+        if self._db is not None:
+            self._db = None
+        self._initialized = False
 
-    # --- Node CRUD ---
+    # ------------------------------------------------------------------
+    # Node operations
+    # ------------------------------------------------------------------
 
     def add_nodes(self, nodes: list[GraphNode]) -> None:
-        """Insert or replace nodes (upsert)."""
-        assert self._conn is not None
-        self._conn.executemany(
-            """INSERT OR REPLACE INTO nodes
-               (id, label, name, file_path, start_line, end_line,
-                content, signature, language, class_name,
-                is_dead, is_entry_point, is_exported, properties_json)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            [
-                (
-                    n.id,
-                    n.label.value,
-                    n.name,
-                    n.file_path,
-                    n.start_line,
-                    n.end_line,
-                    n.content,
-                    n.signature,
-                    n.language,
-                    n.class_name,
-                    int(n.is_dead),
-                    int(n.is_entry_point),
-                    int(n.is_exported),
-                    json.dumps(n.properties),
-                )
-                for n in nodes
-            ],
-        )
-        self._conn.commit()
+        """Upsert a list of GraphNode objects."""
+        if not nodes:
+            return
+        conn = self._require_conn()
+        for node in nodes:
+            p = _node_params(node)
+            # MERGE on primary key then SET all fields
+            conn.execute(
+                """
+                MERGE (n:GraphNode {id: $id})
+                SET n.label = $label,
+                    n.name = $name,
+                    n.file_path = $file_path,
+                    n.start_line = $start_line,
+                    n.end_line = $end_line,
+                    n.content = $content,
+                    n.signature = $signature,
+                    n.language = $language,
+                    n.class_name = $class_name,
+                    n.is_dead = $is_dead,
+                    n.is_entry_point = $is_entry_point,
+                    n.is_exported = $is_exported,
+                    n.properties = $properties,
+                    n.embedding = $embedding
+                """,
+                p,
+            )
 
     def get_node(self, node_id: str) -> GraphNode | None:
-        """Retrieve a node by ID, or None if not found."""
-        assert self._conn is not None
-        cur = self._conn.execute("SELECT * FROM nodes WHERE id = ?", (node_id,))
-        row = cur.fetchone()
-        if row is None:
-            return None
-        return self._row_to_node(row)
+        """Return a single node by ID, or None if not found."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.id = $id RETURN n.*",
+            {"id": node_id},
+        )
+        if result.has_next():
+            return _row_to_node(result.get_next())
+        return None
+
+    def get_nodes_by_file(self, file_path: str) -> list[GraphNode]:
+        """Return all nodes whose file_path matches."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.file_path = $fp RETURN n.*",
+            {"fp": file_path},
+        )
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
 
     def node_count(self) -> int:
-        """Return the total number of nodes."""
-        assert self._conn is not None
-        cur = self._conn.execute("SELECT COUNT(*) FROM nodes")
-        return cur.fetchone()[0]
+        """Return total number of nodes in the graph."""
+        conn = self._require_conn()
+        result = conn.execute("MATCH (n:GraphNode) RETURN count(n)")
+        if result.has_next():
+            return int(result.get_next()[0])
+        return 0
 
     def relationship_count(self) -> int:
-        """Return the total number of relationships."""
-        assert self._conn is not None
-        cur = self._conn.execute("SELECT COUNT(*) FROM relationships")
-        return cur.fetchone()[0]
+        """Return total number of relationships in the graph."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH ()-[r:CodeRelation]->() RETURN count(r)"
+        )
+        if result.has_next():
+            return int(result.get_next()[0])
+        return 0
 
     def file_count(self) -> int:
-        """Return the total number of indexed files."""
-        assert self._conn is not None
-        cur = self._conn.execute("SELECT COUNT(*) FROM file_hashes")
-        return cur.fetchone()[0]
+        """Return number of FILE-label nodes in the graph."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label = 'file' RETURN count(n)"
+        )
+        if result.has_next():
+            return int(result.get_next()[0])
+        return 0
 
-    # --- Relationship CRUD ---
+    def mark_dead_nodes(self, node_ids: list[str]) -> None:
+        """Set is_dead=True for the given node IDs."""
+        if not node_ids:
+            return
+        conn = self._require_conn()
+        for nid in node_ids:
+            conn.execute(
+                "MATCH (n:GraphNode) WHERE n.id = $id SET n.is_dead = true",
+                {"id": nid},
+            )
+
+    def get_all_symbol_nodes(self) -> list[GraphNode]:
+        """Return all FUNCTION, CLASS, METHOD, ENUM nodes."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label IN ['function', 'class', 'method', 'enum'] RETURN n.*"
+        )
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
+
+    def get_dead_nodes(self) -> list[GraphNode]:
+        """Return all nodes where is_dead=True."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.is_dead = true RETURN n.*"
+        )
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
+
+    # ------------------------------------------------------------------
+    # Relationship operations
+    # ------------------------------------------------------------------
 
     def add_relationships(self, rels: list[GraphRelationship]) -> None:
-        """Insert or replace relationships (upsert)."""
-        assert self._conn is not None
-        self._conn.executemany(
-            """INSERT OR REPLACE INTO relationships
-               (id, type, source, target, properties_json)
-               VALUES (?, ?, ?, ?, ?)""",
-            [
-                (
-                    r.id,
-                    r.type.value,
-                    r.source,
-                    r.target,
-                    json.dumps(r.properties),
-                )
-                for r in rels
-            ],
-        )
-        self._conn.commit()
+        """Insert relationships.  Duplicate rel_ids are silently skipped."""
+        if not rels:
+            return
+        conn = self._require_conn()
+        for rel in rels:
+            confidence = rel.properties.get("confidence", 1.0)
+            props_str = json.dumps(rel.properties)
+            conn.execute(
+                """
+                MATCH (a:GraphNode), (b:GraphNode)
+                WHERE a.id = $src AND b.id = $tgt
+                CREATE (a)-[:CodeRelation {
+                    rel_id: $rid,
+                    rel_type: $rtype,
+                    confidence: $conf,
+                    properties: $props
+                }]->(b)
+                """,
+                {
+                    "src": rel.source,
+                    "tgt": rel.target,
+                    "rid": rel.id,
+                    "rtype": rel.type.value,
+                    "conf": float(confidence),
+                    "props": props_str,
+                },
+            )
 
-    def get_callers(self, node_id: str) -> list[GraphNode]:
-        """Get nodes that call the given node (incoming CALLS edges)."""
-        assert self._conn is not None
-        cur = self._conn.execute(
-            """SELECT n.* FROM nodes n
-               JOIN relationships r ON n.id = r.source
-               WHERE r.target = ? AND r.type = ?""",
-            (node_id, RelType.CALLS.value),
-        )
-        return [self._row_to_node(row) for row in cur.fetchall()]
+    def get_related_nodes(
+        self, node_id: str, rel_type: RelType, direction: str
+    ) -> list[GraphNode]:
+        """Return nodes connected to node_id by rel_type.
 
-    def get_callees(self, node_id: str) -> list[GraphNode]:
-        """Get nodes called by the given node (outgoing CALLS edges)."""
-        assert self._conn is not None
-        cur = self._conn.execute(
-            """SELECT n.* FROM nodes n
-               JOIN relationships r ON n.id = r.target
-               WHERE r.source = ? AND r.type = ?""",
-            (node_id, RelType.CALLS.value),
-        )
-        return [self._row_to_node(row) for row in cur.fetchall()]
+        direction: ``"outgoing"`` (node_id -> other) or ``"incoming"`` (other -> node_id).
+        """
+        conn = self._require_conn()
+        if direction == "outgoing":
+            result = conn.execute(
+                """
+                MATCH (src:GraphNode)-[r:CodeRelation]->(tgt:GraphNode)
+                WHERE src.id = $id AND r.rel_type = $rtype
+                RETURN tgt.*
+                """,
+                {"id": node_id, "rtype": rel_type.value},
+            )
+        else:
+            result = conn.execute(
+                """
+                MATCH (src:GraphNode)-[r:CodeRelation]->(tgt:GraphNode)
+                WHERE tgt.id = $id AND r.rel_type = $rtype
+                RETURN src.*
+                """,
+                {"id": node_id, "rtype": rel_type.value},
+            )
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
 
     def get_callers_with_confidence(
         self, node_id: str
     ) -> list[tuple[GraphNode, float]]:
-        """Get callers with their confidence scores."""
-        assert self._conn is not None
-        cur = self._conn.execute(
-            """SELECT n.*, r.properties_json FROM nodes n
-               JOIN relationships r ON n.id = r.source
-               WHERE r.target = ? AND r.type = ?""",
-            (node_id, RelType.CALLS.value),
+        """Return (caller_node, confidence) for all CALLS incoming edges."""
+        conn = self._require_conn()
+        result = conn.execute(
+            """
+            MATCH (caller:GraphNode)-[r:CodeRelation]->(callee:GraphNode)
+            WHERE callee.id = $id AND r.rel_type = 'calls'
+            RETURN caller.*, r.confidence
+            """,
+            {"id": node_id},
         )
-        results = []
-        for row in cur.fetchall():
-            node = self._row_to_node(row[:14])
-            props = json.loads(row[14])
-            confidence = props.get("confidence", 1.0)
-            results.append((node, confidence))
-        return results
+        out: list[tuple[GraphNode, float]] = []
+        while result.has_next():
+            row = result.get_next()
+            node = _row_to_node(row[:-1])
+            conf = float(row[-1]) if row[-1] is not None else 1.0
+            out.append((node, conf))
+        return out
 
-    def get_related_nodes(
-        self,
-        node_id: str,
-        rel_type: RelType,
-        direction: str = "outgoing",
-    ) -> list[GraphNode]:
-        """Get nodes related to node_id via edges of rel_type.
-
-        Args:
-            node_id: The anchor node ID.
-            rel_type: Relationship type to traverse.
-            direction: "outgoing" (node_id is source) or "incoming" (node_id is target).
-
-        Returns:
-            List of related GraphNode instances.
-        """
-        assert self._conn is not None
-        if direction == "outgoing":
-            cur = self._conn.execute(
-                """SELECT n.* FROM nodes n
-                   JOIN relationships r ON n.id = r.target
-                   WHERE r.source = ? AND r.type = ?""",
-                (node_id, rel_type.value),
-            )
-        else:
-            cur = self._conn.execute(
-                """SELECT n.* FROM nodes n
-                   JOIN relationships r ON n.id = r.source
-                   WHERE r.target = ? AND r.type = ?""",
-                (node_id, rel_type.value),
-            )
-        return [self._row_to_node(row) for row in cur.fetchall()]
-
-    # --- File hash tracking ---
-
-    def get_indexed_files(self) -> dict[str, str]:
-        """Return mapping of file_path → content_hash for all indexed files."""
-        assert self._conn is not None
-        cur = self._conn.execute("SELECT file_path, content_hash FROM file_hashes")
-        return dict(cur.fetchall())
-
-    def update_file_hash(self, file_path: str, content_hash: str) -> None:
-        """Insert or update a file's content hash."""
-        assert self._conn is not None
-        self._conn.execute(
-            "INSERT OR REPLACE INTO file_hashes (file_path, content_hash) VALUES (?, ?)",
-            (file_path, content_hash),
-        )
-        self._conn.commit()
-
-    def remove_file_hash(self, file_path: str) -> None:
-        """Remove a file's content hash entry."""
-        assert self._conn is not None
-        self._conn.execute(
-            "DELETE FROM file_hashes WHERE file_path = ?", (file_path,)
-        )
-        self._conn.commit()
-
-    # --- Remove by file ---
-
-    def remove_nodes_by_file(self, file_path: str) -> int:
-        """Remove all nodes for a file and their associated relationships.
-
-        Returns the number of nodes removed.
-        """
-        assert self._conn is not None
-        # Get IDs of nodes to remove
-        cur = self._conn.execute(
-            "SELECT id FROM nodes WHERE file_path = ?", (file_path,)
-        )
-        node_ids = [row[0] for row in cur.fetchall()]
-        if not node_ids:
-            return 0
-
-        placeholders = ",".join("?" * len(node_ids))
-        # Remove relationships where source or target is being deleted
-        self._conn.execute(
-            f"DELETE FROM relationships WHERE source IN ({placeholders}) OR target IN ({placeholders})",
-            node_ids + node_ids,
-        )
-        # Remove the nodes
-        self._conn.execute(
-            f"DELETE FROM nodes WHERE id IN ({placeholders})", node_ids
-        )
-        self._conn.commit()
-        return len(node_ids)
-
-    def get_nodes_by_file(self, file_path: str) -> list[GraphNode]:
-        """Return all nodes in the given file."""
-        assert self._conn is not None
-        cur = self._conn.execute(
-            "SELECT * FROM nodes WHERE file_path = ?", (file_path,)
-        )
-        return [self._row_to_node(row) for row in cur.fetchall()]
-
-    # --- Dead code helpers ---
-
-    def get_test_file_nodes(self) -> list[GraphNode]:
-        """Return all nodes whose file_path looks like a test file.
-
-        Matches: test_*.py, *_test.py, or files under tests/ directories.
-        """
-        assert self._conn is not None
-        labels = (
-            NodeLabel.FUNCTION.value,
-            NodeLabel.CLASS.value,
-            NodeLabel.METHOD.value,
-            NodeLabel.ENUM.value,
-        )
-        placeholders = ",".join("?" * len(labels))
-        cur = self._conn.execute(
-            f"""SELECT * FROM nodes
-                WHERE label IN ({placeholders})
-                AND (
-                    file_path LIKE 'test_%'
-                    OR file_path LIKE '%_test.py'
-                    OR file_path LIKE 'tests/%'
-                    OR file_path LIKE 'test/%'
-                    OR file_path LIKE '%/tests/%'
-                    OR file_path LIKE '%/test/%'
-                )""",
-            labels,
-        )
-        return [self._row_to_node(row) for row in cur.fetchall()]
-
-    def get_all_symbol_nodes(self) -> list[GraphNode]:
-        """Return all nodes with label FUNCTION, CLASS, METHOD, or ENUM."""
-        assert self._conn is not None
-        labels = (
-            NodeLabel.FUNCTION.value,
-            NodeLabel.CLASS.value,
-            NodeLabel.METHOD.value,
-            NodeLabel.ENUM.value,
-        )
-        placeholders = ",".join("?" * len(labels))
-        cur = self._conn.execute(
-            f"SELECT * FROM nodes WHERE label IN ({placeholders})", labels
-        )
-        return [self._row_to_node(row) for row in cur.fetchall()]
-
-    def mark_dead_nodes(self, node_ids: list[str]) -> None:
-        """Bulk set is_dead=1 for the given node IDs."""
-        assert self._conn is not None
-        if not node_ids:
-            return
-        placeholders = ",".join("?" * len(node_ids))
-        self._conn.execute(
-            f"UPDATE nodes SET is_dead = 1 WHERE id IN ({placeholders})", node_ids
-        )
-        self._conn.commit()
-
-    def get_dead_nodes(self) -> list[GraphNode]:
-        """Return all nodes where is_dead=1."""
-        assert self._conn is not None
-        cur = self._conn.execute("SELECT * FROM nodes WHERE is_dead = 1")
-        return [self._row_to_node(row) for row in cur.fetchall()]
+    def get_callees(self, node_id: str) -> list[GraphNode]:
+        """Return nodes that node_id calls (outgoing CALLS edges)."""
+        return self.get_related_nodes(node_id, RelType.CALLS, "outgoing")
 
     def get_all_relationships_by_types(
         self, rel_types: list[str]
     ) -> list[tuple[str, str, str]]:
-        """Return all relationships of the given types as (source, target, type) tuples.
-
-        Single indexed query for bulk edge retrieval.
-        """
-        assert self._conn is not None
+        """Return all (source_id, target_id, rel_type) for the given rel_type strings."""
         if not rel_types:
             return []
-        placeholders = ",".join("?" * len(rel_types))
-        cur = self._conn.execute(
-            f"SELECT source, target, type FROM relationships WHERE type IN ({placeholders})",
-            rel_types,
+        conn = self._require_conn()
+        types_list = ", ".join(f"'{t}'" for t in rel_types)
+        result = conn.execute(
+            f"MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) "
+            f"WHERE r.rel_type IN [{types_list}] "
+            f"RETURN a.id, b.id, r.rel_type"
         )
-        return cur.fetchall()
+        rows: list[tuple[str, str, str]] = []
+        while result.has_next():
+            row = result.get_next()
+            rows.append((row[0], row[1], row[2]))
+        return rows
 
-    def get_referenced_node_ids(self, rel_types: tuple[str, ...]) -> set[str]:
-        """Return IDs of all nodes targeted by incoming edges of given types.
+    # ------------------------------------------------------------------
+    # File hash tracking (incremental indexing)
+    # ------------------------------------------------------------------
 
-        Uses a single query with GROUP BY for efficiency.
-        """
-        assert self._conn is not None
-        placeholders = ",".join("?" * len(rel_types))
-        cur = self._conn.execute(
-            f"SELECT DISTINCT target FROM relationships WHERE type IN ({placeholders})",
-            rel_types,
+    def get_indexed_files(self) -> dict[str, str]:
+        """Return mapping of file_path -> content_hash for all indexed files."""
+        conn = self._require_conn()
+        result = conn.execute("MATCH (h:FileHash) RETURN h.file_path, h.content_hash")
+        out: dict[str, str] = {}
+        while result.has_next():
+            row = result.get_next()
+            out[row[0]] = row[1]
+        return out
+
+    def update_file_hash(self, file_path: str, content_hash: str) -> None:
+        """Upsert content hash for a file."""
+        conn = self._require_conn()
+        conn.execute(
+            "MERGE (h:FileHash {file_path: $fp}) SET h.content_hash = $ch",
+            {"fp": file_path, "ch": content_hash},
         )
-        return {row[0] for row in cur.fetchall()}
 
-    # --- Full-text search ---
+    def remove_file_hash(self, file_path: str) -> None:
+        """Delete the file hash entry for file_path."""
+        conn = self._require_conn()
+        conn.execute(
+            "MATCH (h:FileHash) WHERE h.file_path = $fp DELETE h",
+            {"fp": file_path},
+        )
+
+    # ------------------------------------------------------------------
+    # Remove by file
+    # ------------------------------------------------------------------
+
+    def remove_nodes_by_file(self, file_path: str) -> None:
+        """Delete all nodes for file_path and their relationships."""
+        conn = self._require_conn()
+        # Delete outgoing and incoming relationships first
+        conn.execute(
+            """
+            MATCH (n:GraphNode)-[r:CodeRelation]->()
+            WHERE n.file_path = $fp DELETE r
+            """,
+            {"fp": file_path},
+        )
+        conn.execute(
+            """
+            MATCH ()-[r:CodeRelation]->(n:GraphNode)
+            WHERE n.file_path = $fp DELETE r
+            """,
+            {"fp": file_path},
+        )
+        # Delete the nodes
+        conn.execute(
+            "MATCH (n:GraphNode) WHERE n.file_path = $fp DELETE n",
+            {"fp": file_path},
+        )
+
+    # ------------------------------------------------------------------
+    # Full-text search (CONTAINS-based with scoring)
+    # ------------------------------------------------------------------
 
     def rebuild_fts(self) -> None:
-        """Rebuild the FTS5 index from the nodes table.
-
-        Must be called after batch inserts/deletes to sync the FTS index.
-        """
-        assert self._conn is not None
-        self._conn.execute("DELETE FROM nodes_fts")
-        self._conn.execute(
-            "INSERT INTO nodes_fts(rowid, name, signature, content) "
-            "SELECT rowid, name, signature, content FROM nodes"
-        )
-        self._conn.commit()
+        """Rebuild search index.  No-op for CONTAINS-based search."""
+        # CONTAINS-based search reads live data; nothing to pre-build.
 
     def search(self, query: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
-        """Search nodes using FTS5 BM25 ranking.
+        """Search nodes by name, signature, and content using CONTAINS.
 
-        Args:
-            query: Search query string (supports FTS5 syntax).
-            limit: Maximum number of results (default 20).
-
-        Returns:
-            List of (GraphNode, score) tuples, highest relevance first.
-            Score is the negative BM25 rank (lower raw value = better match).
+        Returns (node, score) tuples sorted by relevance (higher = better).
+        Score is the count of fields that contain the query string.
         """
-        assert self._conn is not None
-        if not query or not query.strip():
-            return []
-        # Escape quotes in query to prevent FTS syntax errors
-        safe_query = query.replace('"', '""')
-        try:
-            cur = self._conn.execute(
-                """SELECT n.*, rank
-                   FROM nodes_fts fts
-                   JOIN nodes n ON n.rowid = fts.rowid
-                   WHERE nodes_fts MATCH ?
-                   ORDER BY rank
-                   LIMIT ?""",
-                (f'"{safe_query}"', limit),
-            )
-            results = []
-            for row in cur.fetchall():
-                node = self._row_to_node(row[:14])
-                score = row[14]
-                results.append((node, score))
-            return results
-        except sqlite3.OperationalError:
-            return []
-
-    # --- Internal helpers ---
-
-    @staticmethod
-    def _row_to_node(row: tuple) -> GraphNode:
-        """Convert a database row to a GraphNode."""
-        return GraphNode(
-            id=row[0],
-            label=NodeLabel(row[1]),
-            name=row[2],
-            file_path=row[3],
-            start_line=row[4],
-            end_line=row[5],
-            content=row[6],
-            signature=row[7],
-            language=row[8],
-            class_name=row[9],
-            is_dead=bool(row[10]),
-            is_entry_point=bool(row[11]),
-            is_exported=bool(row[12]),
-            properties=json.loads(row[13]),
+        conn = self._require_conn()
+        q_lower = query.lower()
+        result = conn.execute(
+            """
+            MATCH (n:GraphNode)
+            WHERE lower(n.name) CONTAINS $q
+               OR lower(n.signature) CONTAINS $q
+               OR lower(n.content) CONTAINS $q
+            RETURN n.*
+            """,
+            {"q": q_lower},
         )
+        scored: list[tuple[GraphNode, float]] = []
+        while result.has_next():
+            row = result.get_next()
+            node = _row_to_node(row)
+            score = (
+                (1.0 if q_lower in (node.name or "").lower() else 0.0)
+                + (0.5 if q_lower in (node.signature or "").lower() else 0.0)
+                + (0.3 if q_lower in (node.content or "").lower() else 0.0)
+            )
+            scored.append((node, score))
+        # Sort by descending score, then by name for stable ordering
+        scored.sort(key=lambda t: (-t[1], t[0].name))
+        return scored[:limit]
+
+    # ------------------------------------------------------------------
+    # Retrieve all nodes
+    # ------------------------------------------------------------------
+
+    def get_all_nodes(self) -> list[GraphNode]:
+        """Return every GraphNode in the graph."""
+        conn = self._require_conn()
+        result = conn.execute("MATCH (n:GraphNode) RETURN n.*")
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
+
+    # ------------------------------------------------------------------
+    # Internal
+    # ------------------------------------------------------------------
+
+    def _require_conn(self) -> kuzu.Connection:
+        if self._conn is None:
+            raise RuntimeError("GraphStorage not initialized — call initialize() first")
+        return self._conn

@@ -1,10 +1,6 @@
-"""Impact analysis phase (BFS blast radius).
+"""Impact analysis phase.
 
-Given a file path, finds all symbols defined in that file, then BFS outward
-through reverse CALLS, IMPORTS, and EXTENDS edges to determine the blast
-radius of a change.
-
-Zero external dependencies — stdlib only.
+BFS blast radius from all symbols in a changed file via incoming edges.
 """
 
 from __future__ import annotations
@@ -12,98 +8,104 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
-from scripts.context.model import GraphNode, NodeLabel, RelType
+from scripts.context.model import NodeLabel, RelType
 from scripts.context.storage import GraphStorage
 
 
 @dataclass
 class ImpactResult:
-    """A node impacted by a change, with distance and edge type."""
-
-    node: GraphNode
+    node: object  # GraphNode
     depth: int
-    edge_type: str
 
 
 def impact_analysis(
     storage: GraphStorage,
     file_path: str,
-    max_depth: int = 3,
+    max_depth: int = 5,
 ) -> list[ImpactResult]:
-    """BFS blast radius from all symbols in a file.
+    """BFS blast radius from all symbols in a changed file.
 
-    Traverses reverse CALLS, reverse IMPORTS, and reverse EXTENDS edges
-    to find nodes impacted by changes to the given file.
+    1. Get all symbol nodes in the target file (by file_path)
+    2. BFS backwards through INCOMING CALLS/IMPORTS/EXTENDS edges
+    3. Exclude nodes that belong to the target file itself
+    4. Track depth for each discovered node
+    5. Sort results by (depth ASC, name ASC)
 
-    Args:
-        storage: Graph storage with indexed nodes/relationships.
-        file_path: Path of the file being changed.
-        max_depth: Maximum BFS depth (default 3). 0 returns empty.
-
-    Returns:
-        List of ImpactResult sorted by depth ascending, then name ascending.
+    Returns list of ImpactResult.
     """
-    if max_depth <= 0:
+    if max_depth == 0:
         return []
 
-    assert storage._conn is not None
+    # Get all nodes in the target file (symbols + file nodes)
+    file_nodes = storage.get_nodes_by_file(file_path)
+    if not file_nodes:
+        return []
 
-    # Collect seed node IDs: all symbols defined in the target file,
-    # plus the FILE node itself
-    seed_ids: set[str] = set()
-    cur = storage._conn.execute(
-        "SELECT id FROM nodes WHERE file_path = ?", (file_path,)
-    )
-    for (node_id,) in cur.fetchall():
-        seed_ids.add(node_id)
-
+    # Seed BFS with all node IDs in the target file
+    seed_ids: set[str] = {n.id for n in file_nodes}
     if not seed_ids:
         return []
 
-    # BFS outward via reverse edges
-    visited: set[str] = set(seed_ids)
-    queue: deque[tuple[str, int, str]] = deque()
-    results: list[ImpactResult] = []
-
-    # Reverse edge types to traverse: who calls/imports/extends our symbols
-    reverse_edge_types = [
+    # Build reverse edge map: target_id -> list[source_id]
+    # for CALLS, IMPORTS, EXTENDS edges
+    incoming_rel_types = [
         RelType.CALLS.value,
         RelType.IMPORTS.value,
         RelType.EXTENDS.value,
-        RelType.IMPLEMENTS.value,
     ]
+    all_rels = storage.get_all_relationships_by_types(incoming_rel_types)
 
-    # Seed the queue with direct reverse neighbors at depth 1
+    # reverse_map: target_id -> list[source_id]
+    reverse_map: dict[str, list[str]] = {}
+    for src, tgt, _ in all_rels:
+        reverse_map.setdefault(tgt, []).append(src)
+
+    # BFS backward from seed nodes
+    visited: set[str] = set(seed_ids)
+    queue: deque[tuple[str, int]] = deque()
+
     for seed_id in seed_ids:
-        for edge_type in reverse_edge_types:
-            cur = storage._conn.execute(
-                "SELECT source FROM relationships WHERE target = ? AND type = ?",
-                (seed_id, edge_type),
-            )
-            for (source_id,) in cur.fetchall():
-                if source_id not in visited:
-                    visited.add(source_id)
-                    queue.append((source_id, 1, edge_type))
+        for src_id in reverse_map.get(seed_id, []):
+            if src_id not in visited:
+                visited.add(src_id)
+                queue.append((src_id, 1))
 
-    # BFS
+    results_map: dict[str, int] = {}  # node_id -> depth
+
     while queue:
-        node_id, depth, edge_type = queue.popleft()
+        node_id, depth = queue.popleft()
+        if depth > max_depth:
+            continue
 
+        # Fetch node to check file_path
+        node = storage.get_node(node_id)
+        if node is None:
+            continue
+
+        # Exclude nodes in the target file
+        if node.file_path == file_path:
+            continue
+
+        # Record (keep minimum depth if already seen)
+        if node_id not in results_map:
+            results_map[node_id] = depth
+
+            if depth < max_depth:
+                for src_id in reverse_map.get(node_id, []):
+                    if src_id not in visited:
+                        visited.add(src_id)
+                        queue.append((src_id, depth + 1))
+
+    if not results_map:
+        return []
+
+    # Fetch all impacted nodes
+    results: list[ImpactResult] = []
+    for node_id, depth in results_map.items():
         node = storage.get_node(node_id)
         if node is not None:
-            results.append(ImpactResult(node=node, depth=depth, edge_type=edge_type))
+            results.append(ImpactResult(node=node, depth=depth))
 
-        if depth < max_depth:
-            for et in reverse_edge_types:
-                cur = storage._conn.execute(
-                    "SELECT source FROM relationships WHERE target = ? AND type = ?",
-                    (node_id, et),
-                )
-                for (source_id,) in cur.fetchall():
-                    if source_id not in visited:
-                        visited.add(source_id)
-                        queue.append((source_id, depth + 1, et))
-
-    # Sort by depth ascending, then name ascending
+    # Sort by depth ASC, then name ASC
     results.sort(key=lambda r: (r.depth, r.node.name))
     return results

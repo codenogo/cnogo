@@ -176,8 +176,18 @@ def test_persists_community_nodes_and_member_of_edges(storage):
     _add_call_edge(storage, a, b)
     _add_call_edge(storage, b, a)
 
-    detect_communities(storage, min_size=2)
+    result = detect_communities(storage, min_size=2)
 
-    # Check MEMBER_OF edges exist
-    member_edges = storage.get_all_relationships_by_types([RelType.MEMBER_OF.value])
-    assert len(member_edges) == 2  # a and b are members
+    assert result.num_communities == 1
+    community_id = result.communities[0].community_id
+
+    # Check that COMMUNITY node was persisted
+    community_node = storage.get_node(community_id)
+    assert community_node is not None
+    assert community_node.label == NodeLabel.COMMUNITY
+
+    # Check MEMBER_OF edges: a and b should each point to the community
+    a_targets = storage.get_related_nodes(a, RelType.MEMBER_OF, "outgoing")
+    b_targets = storage.get_related_nodes(b, RelType.MEMBER_OF, "outgoing")
+    assert any(n.id == community_id for n in a_targets)
+    assert any(n.id == community_id for n in b_targets)

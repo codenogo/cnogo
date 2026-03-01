@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "feature": "universal-context-graph",
+  "displayName": "Universal Context Graph",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "Replace scripts/context/ entirely — delete old module, build new universal engine in the same location",
+      "rationale": "No adapter overhead, no dual-module maintenance. Clean cut."
+    },
+    {
+      "area": "parsing",
+      "decision": "tree-sitter (py-tree-sitter + per-language grammars) replaces stdlib ast",
+      "rationale": "Proven multi-language AST parsing. Axon validates this approach. Supports 50+ languages via grammar packages."
+    },
+    {
+      "area": "storage",
+      "decision": "KuzuDB replaces SQLite — graph-native storage with Cypher query support",
+      "rationale": "Native graph operations (traversals, path queries) instead of SQL joins on adjacency tables. Better performance for relationship-heavy queries."
+    },
+    {
+      "area": "community-detection",
+      "decision": "Leiden algorithm via igraph + leidenalg replaces label propagation",
+      "rationale": "Leiden produces higher-quality community partitions than label propagation, especially on larger graphs."
+    },
+    {
+      "area": "search",
+      "decision": "Hybrid search: BM25 + semantic vectors (384-dim) + fuzzy matching",
+      "rationale": "BM25 alone misses semantic similarity. Vector search catches conceptually related code. Fuzzy handles typos and partial names."
+    },
+    {
+      "area": "embeddings",
+      "decision": "BAAI/bge-small-en-v1.5 (384-dim) for semantic embeddings",
+      "rationale": "Small, fast model suitable for code search. 384-dim keeps storage reasonable."
+    },
+    {
+      "area": "file-watching",
+      "decision": "watchfiles for live re-indexing on file changes",
+      "rationale": "Keeps graph in sync without manual graph-index commands. watchfiles uses native OS events (inotify/FSEvents)."
+    },
+    {
+      "area": "coupling",
+      "decision": "Jaccard similarity + git history change coupling",
+      "rationale": "Git coupling captures temporal co-change patterns that structural analysis misses."
+    },
+    {
+      "area": "dependencies",
+      "decision": "requirements-graph.txt — install.sh runs pip install -r .cnogo/requirements-graph.txt",
+      "rationale": "Separate requirements file keeps graph deps isolated. Standard pip workflow."
+    },
+    {
+      "area": "stdlib-constraint",
+      "decision": "Stdlib-only constraint removed for the graph module",
+      "rationale": "Tree-sitter, KuzuDB, igraph, sentence-transformers require external packages. Graph is an advanced feature that justifies deps."
+    },
+    {
+      "area": "interface",
+      "decision": "CLI subcommands + Python API only. No MCP server.",
+      "rationale": "cnogo runs inline — no daemons, no servers. Graph accessed via existing workflow_memory.py subcommands and Python imports."
+    },
+    {
+      "area": "data-location",
+      "decision": ".cnogo/graph.kuzu/ for KuzuDB, ~/.cache/cnogo/models/ for embedding model cache",
+      "rationale": "Graph DB is project-specific (gitignored). Embedding model is shared across projects to avoid re-downloading."
+    }
+  ],
+  "constraints": [
+    "Old scripts/context/ is deleted entirely — no adapter, no dual-module period",
+    "All 14 existing analysis phases must be re-implemented with new deps",
+    "Existing CLI subcommands (graph-index, graph-enrich, graph-suggest-scope, etc.) must keep working",
+    "Existing workflow.py integration functions must keep working",
+    "install.sh must handle pip install of graph dependencies",
+    "KuzuDB file (.cnogo/graph.kuzu/) must be gitignored",
+    "Embedding model cached at ~/.cache/cnogo/models/ (shared across projects)",
+    "Tree-sitter grammars installed via pip (tree-sitter-python, tree-sitter-typescript, etc.)",
+    "Python 3.11+ may be required (verify tree-sitter and KuzuDB minimum versions)"
+  ],
+  "openQuestions": [
+    "Which tree-sitter grammar packages to include in requirements-graph.txt for initial release?",
+    "Should watchfiles run as a background subprocess or integrate into graph-index --watch?",
+    "What is the minimum Python version for all new deps (3.10 vs 3.11 vs 3.12)?"
+  ],
+  "relatedCode": [
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/context/model.py",
+    ".cnogo/scripts/context/walker.py",
+    ".cnogo/scripts/context/storage.py",
+    ".cnogo/scripts/context/python_parser.py",
+    ".cnogo/scripts/context/visualization.py",
+    ".cnogo/scripts/context/workflow.py",
+    ".cnogo/scripts/context/phases/",
+    ".cnogo/scripts/workflow_memory.py",
+    "tests/test_context_*.py"
+  ],
+  "research": [
+    {
+      "source": "Axon (github.com/harshkedia177/axon)",
+      "findings": "Graph-powered code intelligence engine with nearly identical architecture. Uses tree-sitter, KuzuDB, Leiden, semantic embeddings. Validates the multi-language graph approach."
+    }
+  ],
+  "memoryEpicId": "cn-ssstkq",
+  "timestamp": "2026-03-01T14:00:00Z"
+}

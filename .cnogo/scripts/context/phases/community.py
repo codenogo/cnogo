@@ -1,46 +1,31 @@
-"""Community detection phase via label propagation.
+"""Community detection phase using Leiden algorithm.
 
-Detects tightly-coupled module clusters by propagating labels through
-the graph until convergence. Creates COMMUNITY nodes with MEMBER_OF edges.
-
-Algorithm:
-1. Bulk query relationship edges (CALLS, IMPORTS, COUPLED_WITH, etc.)
-2. Build undirected adjacency dict
-3. Initialize each node with its own label
-4. Iterate: each node adopts most common neighbor label (ties → smallest)
-5. Group nodes by final label, filter by min_size
-6. Persist COMMUNITY nodes and MEMBER_OF edges
-
-Zero external dependencies — stdlib only.
+Builds an igraph.Graph from CALLS/IMPORTS/EXTENDS edges stored in KuzuDB,
+runs leidenalg.find_partition with ModularityVertexPartition, and persists
+COMMUNITY nodes with MEMBER_OF relationships back to storage.
 """
-
 from __future__ import annotations
 
-from collections import Counter, defaultdict
 from dataclasses import dataclass, field
+
+import igraph
+import leidenalg
 
 from scripts.context.model import (
     GraphNode,
     GraphRelationship,
     NodeLabel,
     RelType,
+    generate_id,
 )
 from scripts.context.storage import GraphStorage
 
-_DEFAULT_EDGE_TYPES = [
-    RelType.CALLS.value,
-    RelType.IMPORTS.value,
-    RelType.COUPLED_WITH.value,
-    RelType.EXTENDS.value,
-    RelType.IMPLEMENTS.value,
-]
-
-_MAX_ITERATIONS = 100
+_EDGE_TYPES = [RelType.CALLS.value, RelType.IMPORTS.value, RelType.EXTENDS.value]
 
 
 @dataclass
 class CommunityInfo:
-    """A detected community (cluster of related symbols)."""
+    """Summary of a single detected community."""
 
     community_id: str
     members: list[str]
@@ -50,128 +35,124 @@ class CommunityInfo:
 
 @dataclass
 class CommunityDetectionResult:
-    """Result of community detection across the graph."""
+    """Result of running Leiden community detection."""
 
     communities: list[CommunityInfo]
     total_nodes: int
     num_communities: int
 
 
+def _query_edges(storage: GraphStorage) -> list[tuple[str, str, str]]:
+    """Return all (source_id, target_id, rel_type) for CALLS/IMPORTS/EXTENDS."""
+    conn = storage._require_conn()
+    types_list = ", ".join(f"'{t}'" for t in _EDGE_TYPES)
+    result = conn.execute(
+        f"MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) "
+        f"WHERE r.rel_type IN [{types_list}] "
+        f"RETURN a.id, b.id, r.rel_type"
+    )
+    edges: list[tuple[str, str, str]] = []
+    while result.has_next():
+        row = result.get_next()
+        edges.append((row[0], row[1], row[2]))
+    return edges
+
+
+def _query_node_name(storage: GraphStorage, node_id: str) -> str:
+    """Return the name for a node_id, or the node_id itself as fallback."""
+    node = storage.get_node(node_id)
+    if node is not None:
+        return node.name
+    return node_id
+
+
 def detect_communities(
     storage: GraphStorage,
-    edge_types: list[str] | None = None,
-    min_size: int = 2,
+    min_size: int = 1,
 ) -> CommunityDetectionResult:
-    """Detect communities via label propagation.
+    """Run Leiden community detection on the code graph.
 
-    Args:
-        storage: Initialized GraphStorage with indexed nodes/relationships.
-        edge_types: Relationship types to use for adjacency. Defaults to
-            CALLS, IMPORTS, COUPLED_WITH, EXTENDS, IMPLEMENTS.
-        min_size: Minimum community size to include in results.
-
-    Returns:
-        CommunityDetectionResult with detected communities.
+    1. Query storage for all CALLS/IMPORTS/EXTENDS relationships.
+    2. Build igraph.Graph from those edges (nodes = unique node IDs).
+    3. Run leidenalg.find_partition with ModularityVertexPartition.
+    4. Filter communities by min_size.
+    5. Create COMMUNITY nodes and MEMBER_OF relationships in storage.
+    6. Return CommunityDetectionResult.
     """
-    types = edge_types if edge_types is not None else _DEFAULT_EDGE_TYPES
+    edges = _query_edges(storage)
 
-    # 1. Bulk load edges
-    edges = storage.get_all_relationships_by_types(types)
     if not edges:
         return CommunityDetectionResult(communities=[], total_nodes=0, num_communities=0)
 
-    # 2. Build undirected adjacency
-    adj: dict[str, set[str]] = defaultdict(set)
-    for source, target, _rtype in edges:
-        adj[source].add(target)
-        adj[target].add(source)
+    # Collect unique node IDs preserving insertion order for determinism
+    node_set: dict[str, int] = {}
+    for src, tgt, _ in edges:
+        if src not in node_set:
+            node_set[src] = len(node_set)
+        if tgt not in node_set:
+            node_set[tgt] = len(node_set)
 
-    # 3. Filter to symbol nodes only
-    symbol_nodes = storage.get_all_symbol_nodes()
-    symbol_ids = {n.id for n in symbol_nodes}
-    symbol_name_map = {n.id: n.name for n in symbol_nodes}
+    n = len(node_set)
+    igraph_edges = [(node_set[src], node_set[tgt]) for src, tgt, _ in edges]
 
-    # Only keep nodes that are symbols and have edges
-    active_nodes = sorted(symbol_ids & set(adj.keys()))
-    if not active_nodes:
-        return CommunityDetectionResult(communities=[], total_nodes=0, num_communities=0)
+    graph = igraph.Graph(n=n, edges=igraph_edges, directed=False)
 
-    # 4. Initialize labels: each node gets its own label
-    labels: dict[str, str] = {nid: nid for nid in active_nodes}
+    # Run Leiden with a fixed seed for determinism
+    partition = leidenalg.find_partition(
+        graph,
+        leidenalg.ModularityVertexPartition,
+        seed=42,
+    )
 
-    # 5. Iterate until convergence
-    for _ in range(_MAX_ITERATIONS):
-        changed = False
-        for nid in active_nodes:
-            neighbor_labels = []
-            for nbr in adj[nid]:
-                if nbr in labels:
-                    neighbor_labels.append(labels[nbr])
-            if not neighbor_labels:
-                continue
+    # Map vertex index back to node_id
+    idx_to_node = {v: k for k, v in node_set.items()}
 
-            # Most common label; break ties by smallest label value
-            counts = Counter(neighbor_labels)
-            max_count = max(counts.values())
-            candidates = [lbl for lbl, cnt in counts.items() if cnt == max_count]
-            best = min(candidates)
+    community_infos: list[CommunityInfo] = []
+    community_nodes: list[GraphNode] = []
+    member_of_rels: list[GraphRelationship] = []
 
-            if labels[nid] != best:
-                labels[nid] = best
-                changed = True
-
-        if not changed:
-            break
-
-    # 6. Group by final label
-    groups: dict[str, list[str]] = defaultdict(list)
-    for nid, lbl in labels.items():
-        groups[lbl].append(nid)
-
-    # 7. Filter by min_size and build results
-    communities: list[CommunityInfo] = []
-    new_nodes: list[GraphNode] = []
-    new_edges: list[GraphRelationship] = []
-
-    for idx, (lbl, members) in enumerate(sorted(groups.items())):
-        if len(members) < min_size:
+    for i, membership in enumerate(partition):
+        member_node_ids = [idx_to_node[v] for v in membership]
+        if len(member_node_ids) < min_size:
             continue
 
-        community_id = f"community:{idx}"
-        member_names = [symbol_name_map.get(m, m) for m in sorted(members)]
+        community_id = generate_id(NodeLabel.COMMUNITY, "", f"community_{i}")
+        member_names = [_query_node_name(storage, nid) for nid in member_node_ids]
 
-        communities.append(CommunityInfo(
+        info = CommunityInfo(
             community_id=community_id,
-            members=sorted(members),
+            members=sorted(member_node_ids),
             member_names=member_names,
-            size=len(members),
-        ))
+            size=len(member_node_ids),
+        )
+        community_infos.append(info)
 
-        # Persist COMMUNITY node
-        new_nodes.append(GraphNode(
-            id=community_id,
-            label=NodeLabel.COMMUNITY,
-            name=f"community-{idx}",
-            properties={"size": len(members)},
-        ))
+        community_nodes.append(
+            GraphNode(
+                id=community_id,
+                label=NodeLabel.COMMUNITY,
+                name=f"community_{i}",
+            )
+        )
 
-        # Persist MEMBER_OF edges
-        for member_id in sorted(members):
-            new_edges.append(GraphRelationship(
-                id=f"member_of:{member_id}->{community_id}",
-                type=RelType.MEMBER_OF,
-                source=member_id,
-                target=community_id,
-            ))
+        for member_id in member_node_ids:
+            rel_id = f"member_of:{member_id}->{community_id}"
+            member_of_rels.append(
+                GraphRelationship(
+                    id=rel_id,
+                    type=RelType.MEMBER_OF,
+                    source=member_id,
+                    target=community_id,
+                )
+            )
 
-    # 8. Persist to storage
-    if new_nodes:
-        storage.add_nodes(new_nodes)
-    if new_edges:
-        storage.add_relationships(new_edges)
+    if community_nodes:
+        storage.add_nodes(community_nodes)
+    if member_of_rels:
+        storage.add_relationships(member_of_rels)
 
     return CommunityDetectionResult(
-        communities=communities,
-        total_nodes=len(active_nodes),
-        num_communities=len(communities),
+        communities=community_infos,
+        total_nodes=n,
+        num_communities=len(community_infos),
     )

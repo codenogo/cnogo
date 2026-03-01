@@ -1,430 +1,422 @@
-"""Context graph package.
-
-Provides a code knowledge graph backed by SQLite for codebase understanding.
-
-Zero external dependencies — stdlib only.
-"""
+"""Context graph package — universal multi-language code intelligence engine."""
 
 from __future__ import annotations
 
-from pathlib import Path, PurePosixPath
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Any, Callable
 
-from scripts.context.model import (
-    GraphNode,
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-)
-from scripts.context.phases.calls import process_calls
-from scripts.context.phases.contracts import compare_signatures, extract_current_signatures
-from scripts.context.visualization import _collect_subgraph, render_dot, render_mermaid
-from scripts.context.phases.community import CommunityDetectionResult, detect_communities
-from scripts.context.phases.coupling import CouplingResult, compute_coupling
-from scripts.context.phases.dead_code import DeadCodeResult, detect_dead_code
-from scripts.context.phases.exports import process_exports
-from scripts.context.phases.flows import FlowResult, trace_flows
-from scripts.context.phases.heritage import process_heritage
-from scripts.context.phases.impact import ImpactResult, impact_analysis
-from scripts.context.phases.imports import process_imports
-from scripts.context.phases.proximity import rank_by_proximity
-from scripts.context.phases.test_coverage import analyze_test_coverage
-from scripts.context.phases.types import process_types
+# Re-export existing symbols
+from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id
+from scripts.context.storage import GraphStorage
+from scripts.context.walker import walk, FileEntry
+from scripts.context.parser_base import ParseResult
+from scripts.context.parser_registry import get_parser
 from scripts.context.phases.structure import process_structure
 from scripts.context.phases.symbols import process_symbols
-from scripts.context.python_parser import PythonParser
-from scripts.context.storage import GraphStorage
-from scripts.context.walker import walk
+from scripts.context.phases.imports import process_imports
+from scripts.context.phases.calls import process_calls
+from scripts.context.phases.heritage import process_heritage
+from scripts.context.phases.types import process_types
+from scripts.context.phases.exports import process_exports
+from scripts.context.phases.flows import FlowResult
 
-__all__ = [
-    "CommunityDetectionResult",
-    "ContextGraph",
-    "CouplingResult",
-    "DeadCodeResult",
-    "FlowResult",
-    "GraphNode",
-    "GraphRelationship",
-    "NodeLabel",
-    "RelType",
-]
+__all__ = ["NodeLabel", "RelType", "GraphNode", "GraphRelationship", "generate_id", "ContextGraph", "FlowResult"]
 
 
 class ContextGraph:
-    """Code knowledge graph backed by SQLite storage.
+    """Main API for the universal context graph.
 
-    Usage::
-
-        graph = ContextGraph(repo_path=".")
-        graph.index()          # Build/update the graph
-        graph.query("foo")     # Search for symbols
-        graph.impact("a.py")   # Analyze change impact
+    Usage:
+        cg = ContextGraph("/path/to/repo")
+        cg.index()         # Build/update the graph
+        nodes = cg.query("MyClass")  # Search
+        cg.close()
     """
 
-    def __init__(self, repo_path: str | Path = ".") -> None:
-        self.repo_path = Path(repo_path)
-        self.db_path = self.repo_path / ".cnogo" / "graph.db"
-        self._storage = GraphStorage(self.db_path)
+    def __init__(self, repo_path: str | Path, db_path: str | Path | None = None) -> None:
+        """Initialize ContextGraph.
+
+        Args:
+            repo_path: Root of the repository to index.
+            db_path: Path for KuzuDB storage. Defaults to <repo_path>/.cnogo/graph.db/
+        """
+        self._repo_path = Path(repo_path).resolve()
+        if db_path is None:
+            db_path = self._repo_path / ".cnogo" / "graph.db"
+        self._db_path = Path(db_path)
+        self._storage = GraphStorage(self._db_path)
         self._storage.initialize()
 
-    def is_indexed(self) -> bool:
-        """Check if the graph has any indexed nodes."""
-        return self._storage.node_count() > 0
+    @property
+    def repo_path(self) -> Path:
+        return self._repo_path
 
-    def index(self) -> None:
-        """Build or incrementally update the context graph.
+    @property
+    def db_path(self) -> Path:
+        return self._db_path
 
-        Pipeline: walk → structure → symbols → imports → calls → heritage.
-        Compares file hashes for incremental updates.
+    def index(self) -> dict[str, Any]:
+        """Run the full indexing pipeline.
+
+        Pipeline: walk → hash check → remove stale → structure → parse → symbols → imports → calls → heritage → types → exports
+
+        Returns dict with stats: {"files_indexed": int, "files_skipped": int, "files_removed": int}
         """
-        # Step 1: Walk files
-        files = walk(self.repo_path)
+        # 1. Walk the repo
+        all_files = walk(self._repo_path)
 
-        # Step 2: Compare hashes for incremental indexing
-        indexed_hashes = self._storage.get_indexed_files()
-        changed_files = []
-        current_paths = set()
+        # 2. Hash check — compare with stored hashes for incremental indexing
+        stored_hashes = self._storage.get_indexed_files()
 
-        for entry in files:
-            file_path = str(PurePosixPath(entry.path))
-            current_paths.add(file_path)
-            old_hash = indexed_hashes.get(file_path)
-            if old_hash != entry.content_hash:
-                changed_files.append(entry)
+        new_or_changed: list[FileEntry] = []
+        current_paths: set[str] = set()
+        skipped = 0
 
-        # Step 3: Remove stale files (deleted from disk)
-        for stale_path in set(indexed_hashes.keys()) - current_paths:
-            self._storage.remove_nodes_by_file(stale_path)
-            self._storage.remove_file_hash(stale_path)
+        for entry in all_files:
+            fp = str(entry.path)
+            current_paths.add(fp)
+            if stored_hashes.get(fp) == entry.content_hash:
+                skipped += 1
+                continue
+            new_or_changed.append(entry)
 
-        if not changed_files:
-            return
+        # 3. Remove stale files (files that were indexed but no longer exist)
+        removed = 0
+        for old_fp in stored_hashes:
+            if old_fp not in current_paths:
+                self._storage.remove_nodes_by_file(old_fp)
+                self._storage.remove_file_hash(old_fp)
+                removed += 1
 
-        # Step 4: Remove old nodes for changed files
-        for entry in changed_files:
-            file_path = str(PurePosixPath(entry.path))
-            self._storage.remove_nodes_by_file(file_path)
+        # Remove nodes for files that changed (will be re-indexed)
+        for entry in new_or_changed:
+            fp = str(entry.path)
+            if fp in stored_hashes:
+                self._storage.remove_nodes_by_file(fp)
 
-        # Step 5: Run structure phase (creates FILE + FOLDER nodes)
-        process_structure(changed_files, self._storage)
+        if not new_or_changed:
+            return {"files_indexed": 0, "files_skipped": skipped, "files_removed": removed}
 
-        # Step 6: Parse changed files
-        parse_results = {}
-        for entry in changed_files:
-            file_path = str(PurePosixPath(entry.path))
-            result = PythonParser.parse(entry.content, file_path)
-            parse_results[file_path] = result
+        # 4. Structure phase — create FILE and FOLDER nodes
+        process_structure(new_or_changed, self._storage)
 
-        # Step 7: Run phases in order
+        # 5. Parse files concurrently
+        parse_results: dict[str, ParseResult] = {}
+
+        def _parse_file(entry: FileEntry) -> tuple[str, ParseResult | None]:
+            parser = get_parser(entry.language)
+            if parser is None:
+                return str(entry.path), None
+            return str(entry.path), parser.parse(entry.content, str(entry.path))
+
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(_parse_file, e) for e in new_or_changed]
+            for future in futures:
+                fp, result = future.result()
+                if result is not None:
+                    parse_results[fp] = result
+
+        # 6. Symbols phase
         process_symbols(parse_results, self._storage)
+
+        # 7. Imports phase
         process_imports(parse_results, self._storage)
+
+        # 8. Calls phase
         process_calls(parse_results, self._storage)
+
+        # 9. Heritage phase
         process_heritage(parse_results, self._storage)
+
+        # 10. Types phase
         process_types(parse_results, self._storage)
+
+        # 11. Exports phase
         process_exports(parse_results, self._storage)
 
-        # Step 8: Trace execution flows from entry points
-        trace_flows(self._storage)
+        # 12. Update file hashes
+        for entry in new_or_changed:
+            self._storage.update_file_hash(str(entry.path), entry.content_hash)
 
-        # Step 9: Rebuild FTS index
-        self._storage.rebuild_fts()
+        return {
+            "files_indexed": len(new_or_changed),
+            "files_skipped": skipped,
+            "files_removed": removed,
+        }
 
-        # Step 10: Update file hashes
-        for entry in changed_files:
-            file_path = str(PurePosixPath(entry.path))
-            self._storage.update_file_hash(file_path, entry.content_hash)
+    def is_indexed(self) -> bool:
+        """Return True if any nodes exist in the graph."""
+        return self._storage.node_count() > 0
 
-    def query(self, name: str) -> list[GraphNode]:
-        """Search for nodes by name."""
-        assert self._storage._conn is not None
-        cur = self._storage._conn.execute(
-            "SELECT * FROM nodes WHERE name = ?", (name,)
-        )
-        return [self._storage._row_to_node(row) for row in cur.fetchall()]
+    def query(self, search_term: str, limit: int = 20) -> list[GraphNode]:
+        """Search the graph for nodes matching search_term. Returns nodes only."""
+        return [node for node, _score in self._storage.search(search_term, limit=limit)]
 
-    def impact(self, file_path: str, max_depth: int = 3) -> list[ImpactResult]:
-        """Analyze change impact for a file (BFS blast radius)."""
+    def search(self, search_term: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
+        """Search the graph with relevance scores. Returns (node, score) tuples."""
+        return self._storage.search(search_term, limit=limit)
+
+    def impact(self, file_path: str, max_depth: int = 5) -> list:
+        """Return blast-radius impact results for a changed file."""
+        from scripts.context.phases.impact import impact_analysis
         return impact_analysis(self._storage, file_path, max_depth)
 
-    def context(self, node_id: str) -> dict:
-        """Get context around a node (callers, callees, imports, heritage).
-
-        Returns a dict with keys: node, callers, callees, importers, imports,
-        parent_classes, child_classes. Each value is a list of GraphNode.
-
-        Raises ValueError if node_id is not found.
-        """
+    def context(self, node_id: str) -> dict[str, Any]:
+        """Return context for a node: callers, callees. Raises ValueError if not found."""
         node = self._storage.get_node(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found")
+        callers = self._storage.get_callers_with_confidence(node_id)
+        callees = self._storage.get_callees(node_id)
+        return {"node": node, "callers": callers, "callees": callees}
 
-        return {
-            "node": node,
-            "callers": self._storage.get_related_nodes(node_id, RelType.CALLS, "incoming"),
-            "callees": self._storage.get_related_nodes(node_id, RelType.CALLS, "outgoing"),
-            "importers": self._storage.get_related_nodes(node_id, RelType.IMPORTS, "incoming"),
-            "imports": self._storage.get_related_nodes(node_id, RelType.IMPORTS, "outgoing"),
-            "parent_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "outgoing"),
-            "child_classes": self._storage.get_related_nodes(node_id, RelType.EXTENDS, "incoming"),
-        }
-
-    def nodes_in_file(self, file_path: str) -> list[GraphNode]:
-        """Return all nodes in the given file."""
-        return self._storage.get_nodes_by_file(file_path)
-
-    def callers_with_confidence(
-        self, node_id: str
-    ) -> list[tuple[GraphNode, float]]:
-        """Get nodes that call the given node, with confidence scores."""
+    def callers_with_confidence(self, node_id: str) -> list[tuple[GraphNode, float]]:
+        """Return (caller_node, confidence) for all incoming CALLS edges."""
         return self._storage.get_callers_with_confidence(node_id)
 
     def callees(self, node_id: str) -> list[GraphNode]:
-        """Get nodes called by the given node."""
+        """Return nodes called by node_id (outgoing CALLS edges)."""
         return self._storage.get_callees(node_id)
 
-    def communities(self, min_size: int = 2) -> CommunityDetectionResult:
-        """Detect communities of tightly-coupled symbols via label propagation."""
+    def nodes_in_file(self, file_path: str) -> list[GraphNode]:
+        """Return all graph nodes for a given file."""
+        return self._storage.get_nodes_by_file(file_path)
+
+    def review_impact(self, changed_files: list[str]) -> dict[str, Any]:
+        """Auto-index and return structured impact analysis for changed files."""
         self.index()
-        return detect_communities(self._storage, min_size=min_size)
+        from scripts.context.phases.impact import impact_analysis
 
-    def coupling(self, threshold: float = 0.5) -> list[CouplingResult]:
-        """Compute structural coupling between symbols via Jaccard similarity."""
-        return compute_coupling(self._storage, threshold)
-
-    def dead_code(self) -> list[DeadCodeResult]:
-        """Detect dead (unreferenced) symbols in the graph."""
-        return detect_dead_code(self._storage)
-
-    def flows(self, max_depth: int = 10) -> list[FlowResult]:
-        """Trace execution flows from entry points through forward CALLS edges."""
-        self.index()
-        return trace_flows(self._storage, max_depth)
-
-    def search(self, query: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
-        """Full-text search over symbol names, signatures, and docstrings.
-
-        Args:
-            query: Search query string (supports FTS5 syntax).
-            limit: Maximum number of results (default 20).
-
-        Returns:
-            List of (GraphNode, score) tuples, highest relevance first.
-        """
-        self.index()
-        return self._storage.search(query, limit)
-
-    def review_impact(self, changed_files: list[str]) -> dict:
-        """Compute blast-radius impact for a set of changed files.
-
-        Auto-indexes the graph for freshness, then runs impact analysis
-        on each changed file and aggregates results.
-
-        Returns a dict with keys:
-            graph_status, affected_files, affected_symbols,
-            per_file, total_affected.
-        """
-        self.index()
-
-        empty: dict = {
-            "graph_status": "indexed",
-            "affected_files": [],
-            "affected_symbols": [],
-            "per_file": {},
-            "total_affected": 0,
-        }
-
-        if not changed_files:
-            return empty
-
-        seen_files: set[str] = set()
-        seen_symbols: dict[str, dict] = {}
         per_file: dict[str, list[dict]] = {}
+        all_affected_files: set[str] = set()
+        all_affected_symbols: list[str] = []
 
-        for fpath in changed_files:
-            impacts = self.impact(fpath)
-            file_entries: list[dict] = []
+        for fp in changed_files:
+            impacts = impact_analysis(self._storage, fp)
+            entries: list[dict] = []
             for ir in impacts:
-                node = ir.node
-                entry = {
-                    "name": node.name,
-                    "label": node.label.value if hasattr(node.label, "value") else str(node.label),
-                    "file_path": node.file_path,
-                    "depth": ir.depth,
-                }
-                file_entries.append(entry)
-                if node.file_path:
-                    seen_files.add(node.file_path)
-                if node.id not in seen_symbols:
-                    seen_symbols[node.id] = entry
-            per_file[fpath] = file_entries
+                entries.append({"name": ir.node.name, "file_path": ir.node.file_path, "depth": ir.depth})
+                if ir.node.file_path:
+                    all_affected_files.add(ir.node.file_path)
+                all_affected_symbols.append(ir.node.name)
+            per_file[fp] = entries
 
         return {
             "graph_status": "indexed",
-            "affected_files": sorted(seen_files),
-            "affected_symbols": list(seen_symbols.values()),
+            "affected_files": sorted(all_affected_files),
+            "affected_symbols": all_affected_symbols,
             "per_file": per_file,
-            "total_affected": len(seen_symbols),
+            "total_affected": len(all_affected_symbols),
         }
 
-    def test_coverage(self) -> dict:
-        """Analyze test coverage by walking CALLS edges from test file symbols.
-
-        Detects test files via path convention (test_*.py, *_test.py, files
-        under tests/ directories). Walks CALLS edges from test file symbols
-        to production symbols.
-
-        Returns a dict with:
-            covered_symbols: list of node IDs covered by tests.
-            uncovered_symbols: list of node IDs not covered by tests.
-            coverage_by_file: dict mapping file_path -> {covered, uncovered}.
-            summary: {total_symbols, covered, uncovered, coverage_pct}.
-        """
-        self.index()
-        return analyze_test_coverage(self._storage)
-
-    def contract_check(self, changed_files: list[str]) -> dict:
-        """Detect signature breaks in changed files and find affected callers.
-
-        For each file in changed_files:
-        1. Gets stored nodes from graph.
-        2. Extracts current signatures from file on disk.
-        3. Compares stored vs current signatures.
-        4. For each break, finds callers via callers_with_confidence().
-
-        Returns:
-            {
-                breaks: [{symbol, old_signature, new_signature, change_type,
-                          callers: [{name, file, confidence}]}],
-                summary: {total_breaks, total_affected_callers}
-            }
-        """
-        if not changed_files:
+    def test_coverage(self) -> dict[str, Any]:
+        """Analyze test coverage based on graph CALLS edges from test files."""
+        symbols = self._storage.get_all_symbol_nodes()
+        if not symbols:
             return {
-                "breaks": [],
-                "summary": {"total_breaks": 0, "total_affected_callers": 0},
+                "covered_symbols": [],
+                "uncovered_symbols": [],
+                "coverage_by_file": {},
+                "summary": {"total_symbols": 0, "covered": 0, "uncovered": 0, "coverage_pct": 0.0},
             }
+
+        # Identify test files
+        all_nodes = self._storage.get_all_nodes()
+        test_node_ids: set[str] = set()
+        for n in all_nodes:
+            fp = n.file_path or ""
+            fname = fp.rsplit("/", 1)[-1] if "/" in fp else fp
+            if fname.startswith("test_") or fname.endswith("_test.py") or "/tests/" in fp:
+                test_node_ids.add(n.id)
+
+        # Get all CALLS relationships
+        calls_rels = self._storage.get_all_relationships_by_types(["calls"])
+        # Symbols called from test files are covered
+        covered_ids: set[str] = set()
+        for src, tgt, _ in calls_rels:
+            if src in test_node_ids:
+                covered_ids.add(tgt)
+
+        # Also include symbols that are themselves in test files (test functions)
+        # but only count non-test, non-file, non-folder symbols for coverage
+        non_test_symbols = [
+            s for s in symbols
+            if s.id not in test_node_ids
+            and s.label not in (NodeLabel.FILE, NodeLabel.FOLDER)
+        ]
+
+        covered: list[str] = []
+        uncovered: list[str] = []
+        coverage_by_file: dict[str, dict] = {}
+
+        for sym in non_test_symbols:
+            if sym.id in covered_ids:
+                covered.append(sym.name)
+            else:
+                uncovered.append(sym.name)
+
+            fp = sym.file_path or "unknown"
+            if fp not in coverage_by_file:
+                coverage_by_file[fp] = {"covered": [], "uncovered": []}
+            if sym.id in covered_ids:
+                coverage_by_file[fp]["covered"].append(sym.name)
+            else:
+                coverage_by_file[fp]["uncovered"].append(sym.name)
+
+        total = len(non_test_symbols)
+        cov_count = len(covered)
+        uncov_count = len(uncovered)
+        pct = (cov_count / total * 100.0) if total > 0 else 0.0
+
+        return {
+            "covered_symbols": covered,
+            "uncovered_symbols": uncovered,
+            "coverage_by_file": coverage_by_file,
+            "summary": {
+                "total_symbols": total,
+                "covered": cov_count,
+                "uncovered": uncov_count,
+                "coverage_pct": pct,
+            },
+        }
+
+    def dead_code(self) -> list:
+        """Detect dead (unreferenced) code in the graph."""
+        from scripts.context.phases.dead_code import detect_dead_code
+        return detect_dead_code(self._storage)
+
+    def coupling(self, threshold: float = 0.1) -> list:
+        """Compute Jaccard coupling between symbols."""
+        from scripts.context.phases.coupling import compute_coupling
+        return compute_coupling(self._storage, threshold)
+
+    def communities(self, min_size: int = 1):
+        """Detect communities using Leiden algorithm."""
+        from scripts.context.phases.community import detect_communities
+        return detect_communities(self._storage, min_size)
+
+    def flows(self, max_depth: int = 10) -> list:
+        """Trace execution flows through the call graph."""
+        from scripts.context.phases.flows import trace_flows
+        return trace_flows(self._storage, max_depth)
+
+    def contract_check(self, files: list[str]) -> dict[str, Any]:
+        """Check for API contract/signature breaks in the given files."""
+        from scripts.context.phases.contracts import extract_current_signatures, compare_signatures
 
         all_breaks: list[dict] = []
+        total_affected_callers = 0
 
-        for file_path in changed_files:
-            stored_nodes = self.nodes_in_file(file_path)
-            if not stored_nodes:
-                continue
+        for fp in files:
+            stored_nodes = self._storage.get_nodes_by_file(fp)
+            # Filter to function/method nodes that have signatures
+            sig_nodes = [
+                n for n in stored_nodes
+                if n.label in (NodeLabel.FUNCTION, NodeLabel.METHOD) and n.signature
+            ]
+            current_sigs = extract_current_signatures(fp)
+            changes = compare_signatures(sig_nodes, current_sigs)
 
-            current_sigs = extract_current_signatures(file_path)
-            sig_changes = compare_signatures(stored_nodes, current_sigs)
-
-            for change in sig_changes:
-                symbol_name = change["symbol"]
-                # Find the stored node for this symbol to look up callers
-                # symbol may be "ClassName.method" or "function_name"
+            for change in changes:
+                # Enrich with caller information
+                # Find the node for this symbol
+                matching = [n for n in sig_nodes if n.name == change["symbol"] or
+                            (n.class_name and f"{n.class_name}.{n.name}" == change["symbol"])]
                 callers_list: list[dict] = []
-                for node in stored_nodes:
-                    node_key = (
-                        f"{node.class_name}.{node.name}"
-                        if node.class_name and node.label.value == "method"
-                        else node.name
-                    )
-                    if node_key == symbol_name or node.name == symbol_name.split(".")[-1]:
-                        for caller_node, confidence in self.callers_with_confidence(node.id):
-                            callers_list.append(
-                                {
-                                    "name": caller_node.name,
-                                    "file": caller_node.file_path,
-                                    "confidence": confidence,
-                                }
-                            )
-                        break
+                if matching:
+                    callers = self._storage.get_callers_with_confidence(matching[0].id)
+                    for caller_node, conf in callers:
+                        callers_list.append({
+                            "name": caller_node.name,
+                            "file": caller_node.file_path,
+                            "confidence": conf,
+                        })
 
-                all_breaks.append(
-                    {
-                        "symbol": change["symbol"],
-                        "old_signature": change["old_signature"],
-                        "new_signature": change["new_signature"],
-                        "change_type": change["change_type"],
-                        "callers": callers_list,
-                    }
-                )
+                total_affected_callers += len(callers_list)
+                all_breaks.append({
+                    **change,
+                    "callers": callers_list,
+                })
 
-        total_affected = sum(len(b["callers"]) for b in all_breaks)
         return {
             "breaks": all_breaks,
             "summary": {
                 "total_breaks": len(all_breaks),
-                "total_affected_callers": total_affected,
+                "total_affected_callers": total_affected_callers,
             },
         }
 
-    def prioritize_files(
-        self, focal_symbols: list[str], max_files: int = 20
-    ) -> list[dict]:
-        """Rank files by graph proximity from focal symbols.
-
-        Resolves focal_symbols (names) to node IDs via query(), then
-        runs BFS proximity ranking to return files sorted by minimum
-        graph distance from those symbols.
+    def visualize(self, scope: str, format: str = "mermaid", center: str | None = None, depth: int = 3) -> str:
+        """Render the graph as Mermaid or DOT syntax.
 
         Args:
-            focal_symbols: List of symbol names to use as BFS seeds.
-            max_files: Maximum number of files to return (default 20).
-
-        Returns:
-            List of dicts sorted by min_distance ascending:
-                {
-                    "file_path": str,
-                    "min_distance": int,
-                    "connected_symbols": [list of symbol names],
-                }
-            Returns empty list if focal_symbols is empty or no matches found.
+            scope: "full", "module", or "file"
+            format: "mermaid" or "dot"
+            center: Node ID for BFS center (used with scope="file")
+            depth: BFS depth limit
         """
-        if not focal_symbols:
-            return []
+        valid_scopes = ("full", "module", "file")
+        if scope not in valid_scopes:
+            raise ValueError(f"Invalid scope '{scope}': must be one of {valid_scopes}")
 
-        # Resolve symbol names to node IDs
-        focal_ids: list[str] = []
-        for name in focal_symbols:
-            nodes = self.query(name)
-            for node in nodes:
-                focal_ids.append(node.id)
+        valid_formats = ("mermaid", "dot")
+        if format not in valid_formats:
+            raise ValueError(f"Invalid format '{format}': must be one of {valid_formats}")
 
-        if not focal_ids:
-            return []
+        from scripts.context.visualization import render_mermaid, render_dot, _collect_subgraph
 
-        ranked = rank_by_proximity(self._storage, focal_ids, max_depth=5)
-        return ranked[:max_files]
+        nodes, edges = _collect_subgraph(self._storage, scope, center, depth)
 
-    def visualize(
+        if format == "dot":
+            return render_dot(nodes, edges)
+        return render_mermaid(nodes, edges)
+
+    def watch(
         self,
-        scope: str = "file",
-        center: str | None = None,
-        depth: int = 3,
-        format: str = "mermaid",
-    ) -> str:
-        """Generate a graph visualization in Mermaid or DOT format.
+        on_cycle: Callable[[dict[str, Any]], Any] | None = None,
+        debounce_ms: int = 1600,
+    ) -> dict[str, Any]:
+        """Watch for file changes and re-index automatically.
+
+        Runs an initial index(), then watches for source file changes and
+        triggers re-indexing on each change batch. Blocks until KeyboardInterrupt.
 
         Args:
-            scope:  Subgraph scope — 'file' (single file's symbols),
-                    'module' (directory), or 'full' (entire graph).
-            center: Center node ID for BFS. Required for 'file'/'module' scopes;
-                    optional for 'full' (omit to include all nodes).
-            depth:  Maximum BFS depth from center node (default 3).
-            format: Output format — 'mermaid' or 'dot' (default 'mermaid').
+            on_cycle: Optional callback receiving stats dict after each index cycle.
+            debounce_ms: Debounce interval in milliseconds for file change batching.
 
         Returns:
-            String containing the visualization in the requested format.
-
-        Raises:
-            ValueError: If scope or format is not a recognized value.
+            Cumulative stats: {"total_cycles": int, "total_files_indexed": int, "total_files_removed": int}
         """
-        if scope not in ("file", "module", "full"):
-            raise ValueError(f"scope must be 'file', 'module', or 'full', got: {scope!r}")
-        if format not in ("mermaid", "dot"):
-            raise ValueError(f"format must be 'mermaid' or 'dot', got: {format!r}")
+        # Lazy import to avoid requiring watchfiles for non-watch usage
+        from scripts.context.watcher import FileWatcher
 
-        nodes, edges = _collect_subgraph(self._storage, scope=scope, center=center, depth=depth)
+        cumulative = {"total_cycles": 0, "total_files_indexed": 0, "total_files_removed": 0}
 
-        if format == "mermaid":
-            return render_mermaid(nodes, edges)
-        return render_dot(nodes, edges)
+        def _run_cycle() -> None:
+            stats = self.index()
+            cumulative["total_cycles"] += 1
+            cumulative["total_files_indexed"] += stats.get("files_indexed", 0)
+            cumulative["total_files_removed"] += stats.get("files_removed", 0)
+            if on_cycle:
+                on_cycle(stats)
+
+        # Initial index
+        _run_cycle()
+
+        # Watch for changes
+        def _on_change(changes: set) -> None:
+            _run_cycle()
+
+        watcher = FileWatcher(self._repo_path, on_change=_on_change, debounce_ms=debounce_ms)
+        try:
+            watcher.start()
+        except KeyboardInterrupt:
+            watcher.stop()
+
+        return cumulative
 
     def close(self) -> None:
-        """Close the underlying storage connection."""
+        """Close the graph storage."""
         self._storage.close()

@@ -1,146 +1,103 @@
-"""Import resolution phase.
-
-Builds a file index mapping dotted module paths to FILE node IDs,
-resolves imports to target files, and creates IMPORTS edges.
-
-Zero external dependencies — stdlib only.
-"""
-
+"""Imports phase: creates IMPORTS relationships between files."""
 from __future__ import annotations
 
-import sys
-from pathlib import PurePosixPath
+from pathlib import Path
 
-from scripts.context.model import (
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-    generate_id,
-)
-from scripts.context.python_parser import ImportInfo, ParseResult
+from scripts.context.model import GraphRelationship, NodeLabel, RelType, generate_id
 from scripts.context.storage import GraphStorage
-
-# Standard library module names to skip (top-level only)
-_STDLIB_MODULES = frozenset(sys.stdlib_module_names) if hasattr(sys, 'stdlib_module_names') else frozenset({
-    "os", "sys", "re", "json", "math", "collections", "itertools", "functools",
-    "pathlib", "typing", "dataclasses", "enum", "abc", "io", "copy", "hashlib",
-    "sqlite3", "ast", "inspect", "textwrap", "argparse", "logging", "unittest",
-    "tempfile", "shutil", "fnmatch", "glob", "contextlib", "importlib",
-    "subprocess", "threading", "multiprocessing", "socket", "http", "urllib",
-    "email", "html", "xml", "csv", "configparser", "struct", "codecs",
-    "datetime", "time", "calendar", "random", "secrets", "string", "operator",
-    "bisect", "heapq", "weakref", "types", "traceback", "warnings", "pdb",
-    "profile", "pstats", "timeit", "dis", "pickle", "shelve", "marshal",
-    "dbm", "gzip", "bz2", "lzma", "zipfile", "tarfile", "stat", "fileinput",
-    "signal", "mmap", "ctypes", "platform", "sysconfig", "builtins",
-    "__future__", "array", "queue", "select", "selectors", "asyncio",
-    "concurrent", "venv", "ensurepip", "pip", "setuptools",
-})
+from scripts.context.parser_base import ImportInfo, ParseResult
 
 
 def build_file_index(storage: GraphStorage) -> dict[str, str]:
-    """Build mapping from dotted module paths to FILE node IDs.
+    """Build a module-name -> file-path mapping from FILE nodes in storage.
 
-    For 'scripts/memory/__init__.py' → 'scripts.memory' maps to 'file:scripts/memory/__init__.py:'
-    For 'scripts/memory/bridge.py' → 'scripts.memory.bridge' maps to 'file:scripts/memory/bridge.py:'
+    For each FILE node in the graph, generates multiple lookup keys:
+    - Slash-based stem: "src/utils" -> "src/utils.py"
+    - Dot-based stem:   "src.utils" -> "src/utils.py"
+    - For __init__.py:  "pkg" -> "pkg/__init__.py"
     """
-    assert storage._conn is not None
-    cur = storage._conn.execute(
-        "SELECT id, file_path FROM nodes WHERE label = ?",
-        (NodeLabel.FILE.value,),
+    # Fetch all file nodes by querying for label=file
+    conn = storage._require_conn()
+    result = conn.execute(
+        "MATCH (n:GraphNode) WHERE n.label = 'file' RETURN n.file_path"
     )
+    file_paths: list[str] = []
+    while result.has_next():
+        row = result.get_next()
+        fp = row[0]
+        if fp:
+            file_paths.append(fp)
 
     index: dict[str, str] = {}
-    for node_id, file_path in cur.fetchall():
-        path = PurePosixPath(file_path)
+    for fp in file_paths:
+        p = Path(fp)
+        stem = str(p.with_suffix(""))
 
-        if path.name == "__init__.py":
-            # Package: map parent directory as dotted path
-            module_path = ".".join(path.parent.parts)
-            if module_path:
-                index[module_path] = node_id
-        else:
-            # Regular module: strip .py and convert to dotted path
-            stem_parts = list(path.parent.parts) + [path.stem]
-            module_path = ".".join(stem_parts)
-            if module_path:
-                index[module_path] = node_id
+        # Slash-based stem (e.g. "src/utils")
+        index[stem] = fp
+
+        # Dot-based stem (e.g. "src.utils")
+        dotted = stem.replace("/", ".").replace("\\", ".")
+        index[dotted] = fp
+
+        # __init__.py -> package directory
+        if p.name == "__init__.py":
+            pkg_slash = str(p.parent)
+            pkg_dot = pkg_slash.replace("/", ".").replace("\\", ".")
+            index[pkg_slash] = fp
+            index[pkg_dot] = fp
 
     return index
-
-
-def _is_stdlib(module: str) -> bool:
-    """Check if a module name is a stdlib module."""
-    top_level = module.split(".")[0]
-    return top_level in _STDLIB_MODULES
 
 
 def resolve_import(
     imp: ImportInfo,
     source_file: str,
-    file_index: dict[str, str],
+    index: dict[str, str],
 ) -> str | None:
-    """Resolve an import to a FILE node ID.
+    """Resolve an ImportInfo to a file path using the file index.
 
-    Returns the node ID of the target file, or None if unresolvable.
+    Returns the resolved file path string, or None if unresolvable.
+
+    Strategy:
+    1. Try the module name directly (both dot and slash forms)
+    2. For relative imports (module contains a dot-prefixed relative path),
+       compute the anchor from source_file's directory
+    3. If still unresolved, try stripping the last component (for from-imports
+       like "from pkg.mod import name" -> try "pkg/mod")
     """
-    if imp.is_relative:
-        return _resolve_relative(imp, source_file, file_index)
-    else:
-        return _resolve_absolute(imp, file_index)
-
-
-def _resolve_absolute(imp: ImportInfo, file_index: dict[str, str]) -> str | None:
-    """Resolve an absolute import."""
     module = imp.module
     if not module:
         return None
 
-    if _is_stdlib(module):
-        return None
+    # Try direct lookup (dot and slash forms already in index)
+    if module in index:
+        resolved = index[module]
+        if resolved != source_file:
+            return resolved
 
-    # Try exact module path
-    if module in file_index:
-        return file_index[module]
+    # Try slash form of a dot-module
+    slash_form = module.replace(".", "/")
+    if slash_form in index:
+        resolved = index[slash_form]
+        if resolved != source_file:
+            return resolved
 
-    # For 'from X import Y', X might be a package and Y a submodule
-    # Try module.name for each imported name
-    for name in imp.names:
-        sub_module = f"{module}.{name}"
-        if sub_module in file_index:
-            return file_index[sub_module]
+    # Try resolving relative to the source file's directory
+    source_dir = str(Path(source_file).parent)
+    if source_dir != ".":
+        # Try "source_dir/module" as both slash and dot
+        relative_slash = f"{source_dir}/{slash_form}"
+        if relative_slash in index:
+            resolved = index[relative_slash]
+            if resolved != source_file:
+                return resolved
 
-    return None
-
-
-def _resolve_relative(
-    imp: ImportInfo,
-    source_file: str,
-    file_index: dict[str, str],
-) -> str | None:
-    """Resolve a relative import via dot-counting from source directory."""
-    source_path = PurePosixPath(source_file)
-    # Go up `level` directories from the source file's directory
-    base = source_path.parent
-    for _ in range(imp.level - 1):
-        base = base.parent
-
-    # Build the target module path
-    base_dotted = ".".join(base.parts) if base.parts else ""
-
-    if imp.module:
-        # from ..utils import helper → resolve 'utils' relative to base
-        target = f"{base_dotted}.{imp.module}" if base_dotted else imp.module
-    else:
-        # from . import sibling → resolve each name relative to base
-        for name in imp.names:
-            target = f"{base_dotted}.{name}" if base_dotted else name
-            if target in file_index:
-                return file_index[target]
-        return None
-
-    if target in file_index:
-        return file_index[target]
+        relative_dot = f"{source_dir.replace('/', '.')}.{module}"
+        if relative_dot in index:
+            resolved = index[relative_dot]
+            if resolved != source_file:
+                return resolved
 
     return None
 
@@ -149,31 +106,45 @@ def process_imports(
     parse_results: dict[str, ParseResult],
     storage: GraphStorage,
 ) -> None:
-    """Create IMPORTS edges from parse results.
+    """Create IMPORTS relationships from parse results.
 
-    Args:
-        parse_results: Mapping of file_path → ParseResult.
-        storage: GraphStorage to write relationships to.
+    For each file's imports, resolves the target file and creates an
+    IMPORTS relationship from the source FILE node to the target FILE node.
+    Unresolvable imports (stdlib, third-party) are silently skipped.
     """
-    file_index = build_file_index(storage)
-    relationships: list[GraphRelationship] = []
+    if not parse_results:
+        return
 
-    for file_path, result in parse_results.items():
+    index = build_file_index(storage)
+    rels: list[GraphRelationship] = []
+    seen_rels: set[str] = set()
+
+    for file_path, parse_result in parse_results.items():
+        if not parse_result.imports:
+            continue
+
         source_id = generate_id(NodeLabel.FILE, file_path, "")
 
-        for imp in result.imports:
-            target_id = resolve_import(imp, file_path, file_index)
-            if target_id is None:
+        for imp in parse_result.imports:
+            target_path = resolve_import(imp, file_path, index)
+            if target_path is None:
                 continue
 
+            target_id = generate_id(NodeLabel.FILE, target_path, "")
             rel_id = f"imports:{source_id}->{target_id}"
-            relationships.append(GraphRelationship(
-                id=rel_id,
-                type=RelType.IMPORTS,
-                source=source_id,
-                target=target_id,
-                properties={"symbols": imp.names} if imp.names else {},
-            ))
+            if rel_id in seen_rels:
+                continue
+            seen_rels.add(rel_id)
 
-    if relationships:
-        storage.add_relationships(relationships)
+            rels.append(
+                GraphRelationship(
+                    id=rel_id,
+                    type=RelType.IMPORTS,
+                    source=source_id,
+                    target=target_id,
+                    properties={"symbols": imp.names},
+                )
+            )
+
+    if rels:
+        storage.add_relationships(rels)

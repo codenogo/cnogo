@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 2,
+  "feature": "universal-context-graph",
+  "planNumber": "05",
+  "goal": "Rebuild analysis phases: Leiden communities, Jaccard+git coupling, dead code detection, flow tracing, and impact analysis",
+  "tasks": [
+    {
+      "name": "Leiden community detection",
+      "files": [
+        ".cnogo/scripts/context/phases/community.py",
+        "tests/test_context_community.py"
+      ],
+      "microSteps": [
+        "Write failing tests: detect_communities returns CommunityDetectionResult with Leiden-quality partitions (higher modularity than label propagation)",
+        "Implement community.py using igraph + leidenalg: build igraph.Graph from storage CALLS/IMPORTS/EXTENDS edges, run leidenalg.find_partition with ModularityVertexPartition",
+        "Create COMMUNITY nodes in storage, assign MEMBER_OF relationships from symbol nodes to community nodes",
+        "Return CommunityDetectionResult with communities list and modularity score",
+        "Run passing tests"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_community.py -x 2>&1 | tail -3"],
+        "passingVerify": ["python3 -m pytest tests/test_context_community.py -x 2>&1 | tail -3"]
+      },
+      "action": "Replace label propagation with Leiden algorithm via igraph + leidenalg. Build an igraph.Graph from the KuzuDB relationships (CALLS, IMPORTS, EXTENDS weighted edges). Run leidenalg.find_partition(graph, leidenalg.ModularityVertexPartition). Store communities as COMMUNITY nodes with MEMBER_OF relationships.",
+      "verify": ["python3 -m pytest tests/test_context_community.py -v 2>&1 | tail -10"]
+    },
+    {
+      "name": "Coupling analysis with Jaccard + git history",
+      "files": [
+        ".cnogo/scripts/context/phases/coupling.py",
+        "tests/test_context_coupling.py"
+      ],
+      "microSteps": [
+        "Write failing tests: compute_coupling returns CouplingResult with both structural Jaccard similarity and git co-change coupling scores",
+        "Implement structural coupling: Jaccard similarity of shared callers/callees between symbol pairs",
+        "Implement git history coupling: parse git log to find files that change together in commits, compute temporal co-change frequency",
+        "Combine scores: max(jaccard, git_coupling) or weighted average for COUPLED_WITH relationship properties",
+        "Create COUPLED_WITH relationships in storage for pairs above threshold",
+        "Run passing tests"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_coupling.py -x 2>&1 | tail -3"],
+        "passingVerify": ["python3 -m pytest tests/test_context_coupling.py -x 2>&1 | tail -3"]
+      },
+      "action": "Rebuild coupling.py with dual scoring: (1) Jaccard similarity of shared callers/callees from graph, (2) git history co-change coupling via subprocess git log parsing. Combine both signals into COUPLED_WITH relationships with structural_score and temporal_score properties. Git coupling captures patterns that pure structural analysis misses.",
+      "verify": ["python3 -m pytest tests/test_context_coupling.py -v 2>&1 | tail -10"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Dead code, flows, and impact phases",
+      "files": [
+        ".cnogo/scripts/context/phases/dead_code.py",
+        ".cnogo/scripts/context/phases/flows.py",
+        ".cnogo/scripts/context/phases/impact.py",
+        "tests/test_context_dead_code.py",
+        "tests/test_context_flows.py",
+        "tests/test_context_impact.py"
+      ],
+      "microSteps": [
+        "Write failing tests for dead_code: symbols with zero incoming CALLS/IMPORTS edges (excluding entry points and exported symbols) flagged as dead",
+        "Implement dead_code.py: query storage for unreferenced symbols, return DeadCodeResult list",
+        "Write failing tests for flows: trace execution paths from entry points via forward CALLS edges",
+        "Implement flows.py: BFS from entry point nodes through CALLS edges, return FlowResult with path chains",
+        "Write failing tests for impact: BFS blast radius from changed files",
+        "Implement impact.py: impact_analysis(storage, file_path, max_depth) returns ImpactResult with affected nodes at each depth",
+        "Run all passing tests"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_dead_code.py tests/test_context_flows.py tests/test_context_impact.py -x 2>&1 | tail -3"],
+        "passingVerify": ["python3 -m pytest tests/test_context_dead_code.py tests/test_context_flows.py tests/test_context_impact.py -x 2>&1 | tail -3"]
+      },
+      "action": "Rebuild three analysis phases. Dead code: Cypher query for symbols with zero incoming CALLS/IMPORTS edges (exclude entry points and exported symbols). Flows: BFS from entry point nodes through forward CALLS edges, tracing execution paths. Impact: BFS blast radius from all symbols in a changed file, expanding through CALLS/IMPORTS/EXTENDS edges up to max_depth.",
+      "verify": ["python3 -m pytest tests/test_context_dead_code.py tests/test_context_flows.py tests/test_context_impact.py -v 2>&1 | tail -10"],
+      "blockedBy": [0, 1]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_context_community.py tests/test_context_coupling.py tests/test_context_dead_code.py tests/test_context_flows.py tests/test_context_impact.py -v 2>&1 | tail -10"
+  ],
+  "commitMessage": "feat(context-graph): analysis phases (Leiden communities, coupling, dead code, flows, impact)",
+  "timestamp": "2026-03-01T15:00:00Z"
+}

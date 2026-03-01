@@ -194,3 +194,107 @@ def test_walk_paths_are_relative(repo):
     entries = walk(repo)
     for entry in entries:
         assert not entry.path.is_absolute()
+
+
+# --- Multi-language discovery ---
+
+
+@pytest.fixture
+def multilang_repo(tmp_path):
+    """Create a repo with multiple language files."""
+    (tmp_path / "main.py").write_text("print('hello')\n")
+    (tmp_path / "app.ts").write_text("const x: number = 1;\n")
+    (tmp_path / "component.tsx").write_text("export default function App() {}\n")
+    (tmp_path / "index.js").write_text("module.exports = {};\n")
+    (tmp_path / "utils.jsx").write_text("export const fn = () => {};\n")
+    (tmp_path / "main.go").write_text("package main\n")
+    (tmp_path / "Main.java").write_text("class Main {}\n")
+    (tmp_path / "lib.rs").write_text("fn main() {}\n")
+    (tmp_path / "script.rb").write_text("puts 'hello'\n")
+    (tmp_path / "README.md").write_text("# Readme\n")  # should be skipped
+    (tmp_path / "data.json").write_text("{}\n")  # should be skipped
+    return tmp_path
+
+
+def test_walk_discovers_ts_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "app.ts" in by_path
+    assert by_path["app.ts"].language == "typescript"
+
+
+def test_walk_discovers_tsx_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "component.tsx" in by_path
+    assert by_path["component.tsx"].language == "typescript"
+
+
+def test_walk_discovers_js_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "index.js" in by_path
+    assert by_path["index.js"].language == "javascript"
+
+
+def test_walk_discovers_jsx_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "utils.jsx" in by_path
+    assert by_path["utils.jsx"].language == "javascript"
+
+
+def test_walk_discovers_go_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "main.go" in by_path
+    assert by_path["main.go"].language == "go"
+
+
+def test_walk_discovers_java_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "Main.java" in by_path
+    assert by_path["Main.java"].language == "java"
+
+
+def test_walk_discovers_rust_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "lib.rs" in by_path
+    assert by_path["lib.rs"].language == "rust"
+
+
+def test_walk_discovers_ruby_files(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    by_path = {str(e.path): e for e in entries}
+    assert "script.rb" in by_path
+    assert by_path["script.rb"].language == "ruby"
+
+
+def test_walk_skips_unsupported_extensions(multilang_repo):
+    from scripts.context.walker import walk
+    entries = walk(multilang_repo)
+    paths = {str(e.path) for e in entries}
+    assert "README.md" not in paths
+    assert "data.json" not in paths
+
+
+def test_supported_extensions_dict_exists():
+    from scripts.context.walker import SUPPORTED_EXTENSIONS
+    assert ".py" in SUPPORTED_EXTENSIONS
+    assert ".ts" in SUPPORTED_EXTENSIONS
+    assert ".tsx" in SUPPORTED_EXTENSIONS
+    assert ".js" in SUPPORTED_EXTENSIONS
+    assert ".jsx" in SUPPORTED_EXTENSIONS
+    assert SUPPORTED_EXTENSIONS[".py"] == "python"
+    assert SUPPORTED_EXTENSIONS[".ts"] == "typescript"
+    assert SUPPORTED_EXTENSIONS[".js"] == "javascript"

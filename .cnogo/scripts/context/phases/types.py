@@ -1,134 +1,76 @@
-"""Types phase: creates USES_TYPE edges from type annotations.
-
-For each TypeRef in ParseResult.type_refs, finds the source symbol
-(function/method containing the annotation by matching file_path + line range)
-and the target type node (CLASS, INTERFACE, TYPE_ALIAS, ENUM). Creates a
-USES_TYPE edge from source → target.
-
-Zero external dependencies — stdlib only.
-"""
-
+"""Types phase: creates USES_TYPE relationships."""
 from __future__ import annotations
 
-from scripts.context.model import (
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-)
-from scripts.context.python_parser import ParseResult
+from scripts.context.model import NodeLabel, RelType, GraphRelationship, generate_id
 from scripts.context.storage import GraphStorage
+from scripts.context.parser_base import ParseResult
+
+PRIMITIVES = {
+    "str", "int", "float", "bool", "bytes", "None", "none",
+    "string", "number", "boolean", "void", "any", "never",
+    "undefined", "null", "object", "unknown",
+}
 
 
-def _build_type_index(storage: GraphStorage) -> dict[str, list[str]]:
-    """Build mapping from type name to list of node IDs.
-
-    Indexes CLASS, INTERFACE, TYPE_ALIAS, and ENUM nodes for type resolution.
-    """
-    assert storage._conn is not None
-    index: dict[str, list[str]] = {}
-    for label in (NodeLabel.CLASS, NodeLabel.INTERFACE, NodeLabel.TYPE_ALIAS, NodeLabel.ENUM):
-        cur = storage._conn.execute(
-            "SELECT id, name FROM nodes WHERE label = ?",
-            (label.value,),
-        )
-        for node_id, name in cur.fetchall():
-            index.setdefault(name, []).append(node_id)
+def _build_type_index(storage: GraphStorage) -> dict[str, str]:
+    """Build type name -> node ID mapping for CLASS, INTERFACE, TYPE_ALIAS, ENUM."""
+    conn = storage._require_conn()
+    result = conn.execute(
+        "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias', 'enum'] RETURN n.id, n.name"
+    )
+    index: dict[str, str] = {}
+    while result.has_next():
+        row = result.get_next()
+        nid, name = row
+        if name not in index:
+            index[name] = nid
     return index
-
-
-def _build_symbol_index(storage: GraphStorage) -> list[tuple[str, str, int, int]]:
-    """Build list of (node_id, file_path, start_line, end_line) for symbol nodes.
-
-    Indexes FUNCTION and METHOD nodes for source symbol resolution.
-    """
-    assert storage._conn is not None
-    symbols = []
-    for label in (NodeLabel.FUNCTION, NodeLabel.METHOD):
-        cur = storage._conn.execute(
-            "SELECT id, file_path, start_line, end_line FROM nodes WHERE label = ?",
-            (label.value,),
-        )
-        for node_id, file_path, start_line, end_line in cur.fetchall():
-            symbols.append((node_id, file_path, start_line, end_line))
-    return symbols
-
-
-def _find_source_symbol(
-    file_path: str,
-    line: int,
-    symbol_index: list[tuple[str, str, int, int]],
-) -> str | None:
-    """Find the function/method node whose line range contains the given line.
-
-    Prefers the narrowest (innermost) containing range.
-    """
-    best_id = None
-    best_range = None
-
-    for node_id, sym_file, start_line, end_line in symbol_index:
-        if sym_file != file_path:
-            continue
-        if start_line <= line <= end_line:
-            span = end_line - start_line
-            if best_range is None or span < best_range:
-                best_id = node_id
-                best_range = span
-
-    return best_id
-
-
-def _find_type_node(
-    name: str,
-    preferred_file: str,
-    type_index: dict[str, list[str]],
-) -> str | None:
-    """Find a type node by name, preferring same-file matches."""
-    candidates = type_index.get(name, [])
-    if not candidates:
-        return None
-
-    # Prefer same-file match by checking if file_path appears in node_id
-    for node_id in candidates:
-        if preferred_file in node_id:
-            return node_id
-
-    # Fall back to first match
-    return candidates[0]
 
 
 def process_types(
     parse_results: dict[str, ParseResult],
     storage: GraphStorage,
 ) -> None:
-    """Create USES_TYPE edges from type annotation references.
+    """Create USES_TYPE relationships from ParseResult.type_refs.
 
-    Args:
-        parse_results: Mapping of file_path → ParseResult.
-        storage: GraphStorage to write relationships to.
+    Skips: primitives, base_class kind (handled by heritage), unresolvable.
+    Source is the FILE node. Target is the resolved type node.
     """
+    if not parse_results:
+        return
+
     type_index = _build_type_index(storage)
-    symbol_index = _build_symbol_index(storage)
-    relationships: list[GraphRelationship] = []
+    rels: list[GraphRelationship] = []
+    seen: set[str] = set()
 
-    for file_path, result in parse_results.items():
-        for type_ref in result.type_refs:
-            # Find source symbol (function/method containing this annotation line)
-            source_id = _find_source_symbol(file_path, type_ref.line, symbol_index)
-            if source_id is None:
+    for file_path, pr in parse_results.items():
+        if not pr.type_refs:
+            continue
+
+        file_id = generate_id(NodeLabel.FILE, file_path, "")
+
+        for tr in pr.type_refs:
+            if tr.kind == "base_class":
+                continue
+            if tr.name in PRIMITIVES:
                 continue
 
-            # Find target type node
-            target_id = _find_type_node(type_ref.name, file_path, type_index)
-            if target_id is None:
+            type_id = type_index.get(tr.name)
+            if type_id is None:
                 continue
 
-            rel_id = f"uses_type:{source_id}->{target_id}"
-            relationships.append(GraphRelationship(
+            rel_id = f"uses_type:{file_id}->{type_id}"
+            if rel_id in seen:
+                continue
+            seen.add(rel_id)
+
+            rels.append(GraphRelationship(
                 id=rel_id,
                 type=RelType.USES_TYPE,
-                source=source_id,
-                target=target_id,
+                source=file_id,
+                target=type_id,
+                properties={"kind": tr.kind},
             ))
 
-    if relationships:
-        storage.add_relationships(relationships)
+    if rels:
+        storage.add_relationships(rels)

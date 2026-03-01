@@ -1,112 +1,73 @@
-"""Exports phase: creates EXPORTS edges from __all__ declarations.
-
-For each file in parse_results, iterates ParseResult.exports (names from
-__all__). For each exported name, finds the symbol node in the same file
-(FUNCTION, CLASS, METHOD). Creates an EXPORTS edge from FILE → symbol.
-Also sets is_exported=True on the symbol node via a bulk UPDATE.
-
-Zero external dependencies — stdlib only.
-"""
-
+"""Exports phase: creates EXPORTS relationships."""
 from __future__ import annotations
 
-from scripts.context.model import (
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-)
-from scripts.context.python_parser import ParseResult
+from scripts.context.model import NodeLabel, RelType, GraphRelationship, generate_id
 from scripts.context.storage import GraphStorage
+from scripts.context.parser_base import ParseResult
 
 
-def _build_symbol_index(storage: GraphStorage) -> dict[str, dict[str, str]]:
-    """Build mapping from file_path → {symbol_name: node_id}.
+def _build_symbol_index_by_file(storage: GraphStorage, file_path: str) -> dict[str, str]:
+    """Build symbol name -> node ID mapping for a specific file.
 
-    Indexes FUNCTION, CLASS, and METHOD nodes for export resolution.
-    Returns: {file_path: {name: node_id}}
+    Returns all FUNCTION, CLASS, METHOD nodes in the given file.
     """
-    assert storage._conn is not None
-    index: dict[str, dict[str, str]] = {}
-    for label in (NodeLabel.FUNCTION, NodeLabel.CLASS, NodeLabel.METHOD):
-        cur = storage._conn.execute(
-            "SELECT id, name, file_path FROM nodes WHERE label = ?",
-            (label.value,),
-        )
-        for node_id, name, file_path in cur.fetchall():
-            index.setdefault(file_path, {})[name] = node_id
-    return index
-
-
-def _build_file_node_index(storage: GraphStorage) -> dict[str, str]:
-    """Build mapping from file_path → FILE node ID."""
-    assert storage._conn is not None
+    conn = storage._require_conn()
+    result = conn.execute(
+        f"MATCH (n:GraphNode) WHERE n.file_path = '{file_path}' AND n.label IN ['function', 'class', 'method'] "
+        "RETURN n.id, n.name, n.class_name"
+    )
     index: dict[str, str] = {}
-    cur = storage._conn.execute(
-        "SELECT id, file_path FROM nodes WHERE label = ?",
-        (NodeLabel.FILE.value,),
-    )
-    for node_id, file_path in cur.fetchall():
-        index[file_path] = node_id
+    while result.has_next():
+        row = result.get_next()
+        nid, name, class_name = row
+        index[name] = nid
+        # Also index by ClassName.method for methods
+        if class_name:
+            index[f"{class_name}.{name}"] = nid
     return index
-
-
-def _mark_exported_nodes(storage: GraphStorage, node_ids: list[str]) -> None:
-    """Bulk set is_exported=1 for the given node IDs."""
-    assert storage._conn is not None
-    if not node_ids:
-        return
-    placeholders = ",".join("?" * len(node_ids))
-    storage._conn.execute(
-        f"UPDATE nodes SET is_exported = 1 WHERE id IN ({placeholders})", node_ids
-    )
-    storage._conn.commit()
 
 
 def process_exports(
     parse_results: dict[str, ParseResult],
     storage: GraphStorage,
 ) -> None:
-    """Create EXPORTS edges from __all__ symbol lists.
+    """Create EXPORTS relationships from ParseResult.exports.
 
-    For each exported name in each file, finds the corresponding symbol
-    node (FUNCTION, CLASS, or METHOD) in the same file and creates an
-    EXPORTS edge from FILE → symbol. Also sets is_exported=True on
-    those symbol nodes.
+    For each exported symbol name in a file:
+    1. Find the symbol node in the graph for that file
+    2. Create an EXPORTS relationship from FILE -> symbol
 
-    Args:
-        parse_results: Mapping of file_path → ParseResult.
-        storage: GraphStorage to write relationships to.
+    Unresolvable names are silently skipped.
     """
-    symbol_index = _build_symbol_index(storage)
-    file_node_index = _build_file_node_index(storage)
-    relationships: list[GraphRelationship] = []
-    exported_node_ids: list[str] = []
+    if not parse_results:
+        return
 
-    for file_path, result in parse_results.items():
-        if not result.exports:
+    rels: list[GraphRelationship] = []
+    seen: set[str] = set()
+
+    for file_path, pr in parse_results.items():
+        if not pr.exports:
             continue
 
-        file_symbols = symbol_index.get(file_path, {})
-        source_id = file_node_index.get(file_path)
-        if source_id is None:
-            continue
+        file_id = generate_id(NodeLabel.FILE, file_path, "")
+        symbol_index = _build_symbol_index_by_file(storage, file_path)
 
-        for exported_name in result.exports:
-            target_id = file_symbols.get(exported_name)
-            if target_id is None:
+        for name in pr.exports:
+            symbol_id = symbol_index.get(name)
+            if symbol_id is None:
                 continue
 
-            rel_id = f"exports:{source_id}->{target_id}"
-            relationships.append(GraphRelationship(
+            rel_id = f"exports:{file_id}->{symbol_id}"
+            if rel_id in seen:
+                continue
+            seen.add(rel_id)
+
+            rels.append(GraphRelationship(
                 id=rel_id,
                 type=RelType.EXPORTS,
-                source=source_id,
-                target=target_id,
+                source=file_id,
+                target=symbol_id,
             ))
-            exported_node_ids.append(target_id)
 
-    if relationships:
-        storage.add_relationships(relationships)
-
-    if exported_node_ids:
-        _mark_exported_nodes(storage, exported_node_ids)
+    if rels:
+        storage.add_relationships(rels)

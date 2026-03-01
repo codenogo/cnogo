@@ -1,93 +1,109 @@
-"""Structure phase: creates File and Folder nodes + CONTAINS edges.
-
-For each FileEntry, creates a FILE node. Extracts unique directory paths,
-creates FOLDER nodes. Connects folders with CONTAINS relationships
-(parent→child folder, folder→file).
-
-Zero external dependencies — stdlib only.
-"""
-
+"""Structure phase: creates FILE and FOLDER nodes with CONTAINS relationships."""
 from __future__ import annotations
 
-from pathlib import PurePosixPath
+from pathlib import Path
 
-from scripts.context.model import (
-    GraphNode,
-    GraphRelationship,
-    NodeLabel,
-    RelType,
-    generate_id,
-)
+from scripts.context.model import GraphNode, GraphRelationship, NodeLabel, RelType, generate_id
 from scripts.context.storage import GraphStorage
 from scripts.context.walker import FileEntry
 
 
 def process_structure(files: list[FileEntry], storage: GraphStorage) -> None:
-    """Create File and Folder nodes with CONTAINS edges from file entries.
-
-    Args:
-        files: List of FileEntry objects from the walker.
-        storage: GraphStorage instance to write nodes/relationships to.
+    """Create FILE nodes for each file, FOLDER nodes for each directory,
+    and CONTAINS relationships (folder->file, parent_folder->child_folder).
     """
+    if not files:
+        return
+
     nodes: list[GraphNode] = []
-    relationships: list[GraphRelationship] = []
+    rels: list[GraphRelationship] = []
+
+    # Collect all unique directory paths from file paths
     seen_folders: set[str] = set()
+    folder_pairs: list[tuple[str, str]] = []  # (parent_path_str, child_path_str)
 
     for entry in files:
-        file_path_str = str(PurePosixPath(entry.path))
+        file_path = entry.path  # relative Path
 
-        # Create FILE node
-        file_id = generate_id(NodeLabel.FILE, file_path_str, "")
-        nodes.append(GraphNode(
-            id=file_id,
-            label=NodeLabel.FILE,
-            name=PurePosixPath(entry.path).name,
-            file_path=file_path_str,
-            language=entry.language,
-            properties={"content_hash": entry.content_hash},
-        ))
+        # Walk up all ancestor directories
+        parts = file_path.parts
+        for depth in range(len(parts) - 1):
+            # Build folder path strings
+            child_str = str(Path(*parts[: depth + 1]))
+            parent_str = str(Path(*parts[:depth])) if depth > 0 else "."
 
-        # Extract folder chain and create FOLDER nodes + CONTAINS edges
-        parts = PurePosixPath(entry.path).parts
-        if len(parts) > 1:
-            # File is in a subdirectory
-            for i in range(1, len(parts)):
-                folder_path = str(PurePosixPath(*parts[:i]))
+            if child_str not in seen_folders:
+                seen_folders.add(child_str)
+                folder_pairs.append((parent_str, child_str))
 
-                if folder_path not in seen_folders:
-                    seen_folders.add(folder_path)
-                    folder_id = generate_id(NodeLabel.FOLDER, folder_path, "")
-                    nodes.append(GraphNode(
-                        id=folder_id,
-                        label=NodeLabel.FOLDER,
-                        name=parts[i - 1],
-                        file_path=folder_path,
-                    ))
+        # Also ensure root "." exists when any file is at root level
+        if len(parts) == 1 and "." not in seen_folders:
+            seen_folders.add(".")
 
-                    # CONTAINS edge from parent folder to this folder
-                    if i > 1:
-                        parent_path = str(PurePosixPath(*parts[:i - 1]))
-                        parent_id = generate_id(NodeLabel.FOLDER, parent_path, "")
-                        rel_id = f"contains:{parent_path}->{folder_path}"
-                        relationships.append(GraphRelationship(
-                            id=rel_id,
-                            type=RelType.CONTAINS,
-                            source=parent_id,
-                            target=folder_id,
-                        ))
+    # Create FOLDER nodes
+    # Ensure root "." is present whenever there are any folders or root files
+    all_root_files = [e for e in files if len(e.path.parts) == 1]
+    if seen_folders or (all_root_files and "." not in seen_folders):
+        seen_folders.add(".")
 
-            # CONTAINS edge from immediate parent folder to file
-            parent_folder = str(PurePosixPath(*parts[:-1]))
-            parent_id = generate_id(NodeLabel.FOLDER, parent_folder, "")
-            rel_id = f"contains:{parent_folder}->{file_path_str}"
-            relationships.append(GraphRelationship(
+    for folder_str in seen_folders:
+        folder_id = generate_id(NodeLabel.FOLDER, folder_str, "")
+        name = Path(folder_str).name if folder_str != "." else "."
+        nodes.append(
+            GraphNode(
+                id=folder_id,
+                label=NodeLabel.FOLDER,
+                name=name,
+                file_path=folder_str,
+            )
+        )
+
+    # Create parent->child CONTAINS relationships for nested folders
+    for parent_str, child_str in folder_pairs:
+        parent_id = generate_id(NodeLabel.FOLDER, parent_str, "")
+        child_id = generate_id(NodeLabel.FOLDER, child_str, "")
+        rel_id = f"contains:{parent_id}->{child_id}"
+        rels.append(
+            GraphRelationship(
                 id=rel_id,
                 type=RelType.CONTAINS,
                 source=parent_id,
-                target=file_id,
-            ))
+                target=child_id,
+            )
+        )
 
-    if nodes:
-        storage.add_nodes(nodes)
-    if relationships:
-        storage.add_relationships(relationships)
+    # Create FILE nodes and folder->file CONTAINS relationships
+    for entry in files:
+        file_path_str = str(entry.path)
+        file_id = generate_id(NodeLabel.FILE, file_path_str, "")
+        nodes.append(
+            GraphNode(
+                id=file_id,
+                label=NodeLabel.FILE,
+                name=entry.path.name,
+                file_path=file_path_str,
+                language=entry.language,
+                properties={"content_hash": entry.content_hash},
+            )
+        )
+
+        # Determine parent folder
+        parts = entry.path.parts
+        if len(parts) == 1:
+            parent_folder_str = "."
+        else:
+            parent_folder_str = str(Path(*parts[:-1]))
+
+        parent_folder_id = generate_id(NodeLabel.FOLDER, parent_folder_str, "")
+        rel_id = f"contains:{parent_folder_id}->{file_id}"
+        rels.append(
+            GraphRelationship(
+                id=rel_id,
+                type=RelType.CONTAINS,
+                source=parent_folder_id,
+                target=file_id,
+            )
+        )
+
+    storage.add_nodes(nodes)
+    storage.add_relationships(rels)

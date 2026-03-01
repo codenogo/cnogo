@@ -1,111 +1,143 @@
-"""File walker for context graph ingestion.
+"""Multi-language file walker for the context graph.
 
-Walks a repository discovering Python files, reading content, and computing
-SHA-256 hashes for incremental re-indexing support.
-
-Supports .gitignore patterns via fnmatch and has built-in skip patterns
-for common non-source directories.
-
-Zero external dependencies — stdlib only.
+Discovers source files across all supported languages, respects .gitignore
+patterns and default skip directories. Zero external dependencies — stdlib only.
 """
 
 from __future__ import annotations
 
+import fnmatch
 import hashlib
+import os
 from dataclasses import dataclass
-from fnmatch import fnmatch
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+from typing import Union
 
+SUPPORTED_EXTENSIONS: dict[str, str] = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".go": "go",
+    ".java": "java",
+    ".rs": "rust",
+    ".rb": "ruby",
+    ".c": "c",
+    ".cpp": "cpp",
+    ".h": "c",
+    ".hpp": "cpp",
+}
 
-# Directories always skipped regardless of .gitignore
-_DEFAULT_SKIP = frozenset({
-    "__pycache__",
-    ".git",
-    ".cnogo",
-    "node_modules",
-    ".venv",
-    ".tox",
-})
+_DEFAULT_SKIP: frozenset[str] = frozenset(
+    {
+        ".git",
+        "node_modules",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        ".tox",
+        ".mypy_cache",
+        ".cnogo",
+    }
+)
 
 
 @dataclass
 class FileEntry:
-    """A discovered file with its content and metadata."""
+    """Represents a discovered source file."""
 
     path: Path
-    content: str
     language: str
+    content: str
     content_hash: str
 
 
-def _compute_hash(content: str) -> str:
-    """Compute SHA-256 hash of file content."""
-    return hashlib.sha256(content.encode()).hexdigest()
-
-
-def _load_gitignore(repo_path: Path) -> list[str]:
-    """Load .gitignore patterns from the repo root."""
-    gitignore = repo_path / ".gitignore"
-    if not gitignore.exists():
+def _load_gitignore(repo_root: Path) -> list[str]:
+    """Load .gitignore patterns from repo root, returning a list of patterns."""
+    gitignore = repo_root / ".gitignore"
+    if not gitignore.is_file():
         return []
-    patterns = []
-    for line in gitignore.read_text().splitlines():
+    patterns: list[str] = []
+    for line in gitignore.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             patterns.append(line)
     return patterns
 
 
-def _is_ignored(rel_path: PurePosixPath, gitignore_patterns: list[str]) -> bool:
-    """Check if a relative path matches any gitignore pattern."""
-    rel_str = str(rel_path)
-    for pattern in gitignore_patterns:
-        # Directory pattern (e.g. "build/")
+def _is_ignored(rel_path: Path, patterns: list[str]) -> bool:
+    """Return True if rel_path matches any gitignore pattern."""
+    rel_str = str(rel_path).replace(os.sep, "/")
+    name = rel_path.name
+    for pattern in patterns:
+        # Directory patterns like "build/"
         if pattern.endswith("/"):
-            dir_name = pattern.rstrip("/")
-            if any(part == dir_name for part in rel_path.parts):
+            dir_pattern = pattern.rstrip("/")
+            # Match if any component equals the pattern or the path starts with it
+            parts = rel_str.split("/")
+            if dir_pattern in parts:
                 return True
-        # File/glob pattern
-        if fnmatch(rel_path.name, pattern):
-            return True
-        if fnmatch(rel_str, pattern):
-            return True
+            if fnmatch.fnmatch(rel_str, dir_pattern + "/*"):
+                return True
+            if fnmatch.fnmatch(rel_str, dir_pattern):
+                return True
+        else:
+            # Match against filename or full relative path
+            if fnmatch.fnmatch(name, pattern):
+                return True
+            if fnmatch.fnmatch(rel_str, pattern):
+                return True
     return False
 
 
-def _in_skip_dir(rel_path: Path) -> bool:
-    """Check if path is under a default-skip directory."""
-    return any(part in _DEFAULT_SKIP for part in rel_path.parts)
+def walk(repo_path: Union[str, Path]) -> list[FileEntry]:
+    """Walk repo_path and return FileEntry objects for all supported source files.
 
-
-def walk(repo_path: str | Path) -> list[FileEntry]:
-    """Walk a repository and return FileEntry list for all Python files.
-
-    Args:
-        repo_path: Root directory to walk.
-
-    Returns:
-        List of FileEntry objects, sorted by path.
+    Skips directories in _DEFAULT_SKIP and files/directories matching .gitignore.
+    Returns paths relative to repo_path.
     """
-    repo_path = Path(repo_path)
-    gitignore_patterns = _load_gitignore(repo_path)
+    root = Path(repo_path).resolve()
+    gitignore_patterns = _load_gitignore(root)
     entries: list[FileEntry] = []
 
-    for abs_path in sorted(repo_path.rglob("*.py")):
-        rel_path = abs_path.relative_to(repo_path)
+    for dirpath, dirnames, filenames in os.walk(root):
+        current = Path(dirpath)
+        rel_dir = current.relative_to(root)
 
-        if _in_skip_dir(rel_path):
-            continue
+        # Prune skipped directories in-place so os.walk won't descend into them
+        pruned: list[str] = []
+        for d in dirnames:
+            if d in _DEFAULT_SKIP:
+                continue
+            rel_subdir = rel_dir / d if str(rel_dir) != "." else Path(d)
+            if _is_ignored(rel_subdir, gitignore_patterns):
+                continue
+            pruned.append(d)
+        dirnames[:] = pruned
 
-        if _is_ignored(PurePosixPath(rel_path), gitignore_patterns):
-            continue
-
-        content = abs_path.read_text()
-        entries.append(FileEntry(
-            path=rel_path,
-            content=content,
-            language="python",
-            content_hash=_compute_hash(content),
-        ))
+        for filename in filenames:
+            suffix = Path(filename).suffix
+            if suffix not in SUPPORTED_EXTENSIONS:
+                continue
+            file_path = current / filename
+            rel_file = file_path.relative_to(root)
+            if _is_ignored(rel_file, gitignore_patterns):
+                continue
+            try:
+                content = file_path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+            entries.append(
+                FileEntry(
+                    path=rel_file,
+                    language=SUPPORTED_EXTENSIONS[suffix],
+                    content=content,
+                    content_hash=content_hash,
+                )
+            )
 
     return entries

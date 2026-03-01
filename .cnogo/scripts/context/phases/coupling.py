@@ -1,128 +1,155 @@
-"""Coupling detection phase.
+"""Coupling analysis phase using Jaccard similarity of shared neighbors.
 
-Computes structural coupling between symbols via shared call/import neighbors
-using Jaccard similarity. Creates COUPLED_WITH edges for pairs above threshold.
-
-Algorithm:
-1. Bulk query all CALLS + IMPORTS edges
-2. Build neighbor sets per symbol node
-3. Use inverted index (neighbor → symbols) to find pairs sharing neighbors
-4. Compute Jaccard similarity = |A∩B| / |A∪B|
-5. Create COUPLED_WITH edges for pairs above threshold
-
-Zero external dependencies — stdlib only.
+Identifies structurally coupled symbol pairs by computing the Jaccard
+similarity of their neighbor sets (callers + callees + importers + imports)
+from the code graph. Pairs above a threshold get COUPLED_WITH relationships.
 """
-
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 
-from scripts.context.model import GraphRelationship, RelType
+from scripts.context.model import (
+    GraphNode,
+    GraphRelationship,
+    NodeLabel,
+    RelType,
+)
 from scripts.context.storage import GraphStorage
 
-_COUPLING_EDGE_TYPES = [
-    RelType.CALLS.value,
-    RelType.IMPORTS.value,
-]
+# Edge types used to build neighbor sets
+_NEIGHBOR_EDGE_TYPES = [RelType.CALLS.value, RelType.IMPORTS.value]
+
+# Symbol node labels considered for coupling analysis
+_SYMBOL_LABELS = {NodeLabel.FUNCTION.value, NodeLabel.CLASS.value, NodeLabel.METHOD.value}
 
 
 @dataclass
 class CouplingResult:
-    """A pair of symbols with structural coupling."""
+    """A single coupling pair result."""
 
     source_id: str
     source_name: str
     target_id: str
     target_name: str
-    strength: float
-    shared_count: int
+    strength: float    # Jaccard similarity of shared neighbors
+    shared_count: int  # number of shared neighbors
+
+
+def _query_symbol_nodes(storage: GraphStorage) -> list[tuple[str, str]]:
+    """Return (node_id, name) for all function/class/method nodes."""
+    conn = storage._require_conn()
+    labels_list = ", ".join(f"'{lbl}'" for lbl in _SYMBOL_LABELS)
+    result = conn.execute(
+        f"MATCH (n:GraphNode) WHERE n.label IN [{labels_list}] RETURN n.id, n.name"
+    )
+    nodes: list[tuple[str, str]] = []
+    while result.has_next():
+        row = result.get_next()
+        nodes.append((row[0], row[1]))
+    return nodes
+
+
+def _build_neighbor_sets(
+    storage: GraphStorage, node_ids: list[str]
+) -> dict[str, set[str]]:
+    """Build neighbor sets for each node_id using CALLS and IMPORTS edges."""
+    # Fetch all relevant edges at once
+    edges = storage.get_all_relationships_by_types(_NEIGHBOR_EDGE_TYPES)
+
+    node_id_set = set(node_ids)
+
+    # For each symbol node, collect both incoming and outgoing neighbors
+    neighbors: dict[str, set[str]] = {nid: set() for nid in node_ids}
+
+    for src, tgt, _rtype in edges:
+        if src in node_id_set:
+            neighbors[src].add(tgt)
+        if tgt in node_id_set:
+            neighbors[tgt].add(src)
+
+    return neighbors
 
 
 def compute_coupling(
-    storage: GraphStorage, threshold: float = 0.5
+    storage: GraphStorage,
+    threshold: float = 0.1,
 ) -> list[CouplingResult]:
-    """Compute structural coupling between symbols via Jaccard similarity.
+    """Compute structural coupling between symbol pairs using Jaccard similarity.
 
-    Args:
-        storage: Initialized GraphStorage with indexed nodes/relationships.
-        threshold: Minimum Jaccard similarity to create a COUPLED_WITH edge.
-
-    Returns:
-        List of CouplingResult sorted by strength descending.
+    1. Query all symbol nodes (function, class, method).
+    2. For each pair, compute Jaccard similarity of their neighbor sets.
+    3. Create COUPLED_WITH relationships for pairs above threshold.
+    4. Return list of CouplingResult sorted by strength descending.
     """
-    # 1. Bulk query all CALLS + IMPORTS edges
-    edges = storage.get_all_relationships_by_types(_COUPLING_EDGE_TYPES)
-    if not edges:
+    symbol_nodes = _query_symbol_nodes(storage)
+
+    if len(symbol_nodes) < 2:
         return []
 
-    # 2. Build neighbor sets per node (both source and target sides)
-    neighbors: dict[str, set[str]] = defaultdict(set)
-    for source, target, _rtype in edges:
-        neighbors[source].add(target)
-        neighbors[target].add(source)
+    node_ids = [nid for nid, _name in symbol_nodes]
+    name_map = {nid: name for nid, name in symbol_nodes}
 
-    # 3. Filter to symbol nodes only
-    symbol_nodes = storage.get_all_symbol_nodes()
-    symbol_ids = {n.id for n in symbol_nodes}
-    symbol_name_map = {n.id: n.name for n in symbol_nodes}
+    neighbor_sets = _build_neighbor_sets(storage, node_ids)
 
-    # Only keep neighbors for symbol nodes
-    symbol_neighbors: dict[str, set[str]] = {
-        nid: neighbors[nid] for nid in symbol_ids if nid in neighbors
-    }
-
-    if not symbol_neighbors:
-        return []
-
-    # 4. Build inverted index: neighbor → set of symbols that have it
-    inverted: dict[str, set[str]] = defaultdict(set)
-    for sym_id, nbrs in symbol_neighbors.items():
-        for nbr in nbrs:
-            inverted[nbr].add(sym_id)
-
-    # 5. Find pairs sharing at least one neighbor and compute Jaccard
-    seen_pairs: set[tuple[str, str]] = set()
     results: list[CouplingResult] = []
-    new_edges: list[GraphRelationship] = []
+    coupled_rels: list[GraphRelationship] = []
 
-    for _nbr, syms in inverted.items():
-        sym_list = sorted(syms)  # deterministic ordering
-        for i in range(len(sym_list)):
-            for j in range(i + 1, len(sym_list)):
-                a, b = sym_list[i], sym_list[j]
-                pair_key = (a, b)
-                if pair_key in seen_pairs:
-                    continue
-                seen_pairs.add(pair_key)
+    # Use canonical ordering to avoid duplicate pairs
+    for i in range(len(node_ids)):
+        for j in range(i + 1, len(node_ids)):
+            a_id = node_ids[i]
+            b_id = node_ids[j]
 
-                set_a = symbol_neighbors[a]
-                set_b = symbol_neighbors[b]
-                intersection = set_a & set_b
-                union = set_a | set_b
-                jaccard = len(intersection) / len(union) if union else 0.0
+            # Skip self-coupling (should never happen with i < j but be safe)
+            if a_id == b_id:
+                continue
 
-                if jaccard >= threshold:
-                    results.append(CouplingResult(
-                        source_id=a,
-                        source_name=symbol_name_map[a],
-                        target_id=b,
-                        target_name=symbol_name_map[b],
-                        strength=round(jaccard, 4),
-                        shared_count=len(intersection),
-                    ))
-                    new_edges.append(GraphRelationship(
-                        id=f"coupled:{a}<->{b}",
-                        type=RelType.COUPLED_WITH,
-                        source=a,
-                        target=b,
-                        properties={"strength": round(jaccard, 4), "shared_count": len(intersection)},
-                    ))
+            nb_a = neighbor_sets[a_id]
+            nb_b = neighbor_sets[b_id]
 
-    # 6. Persist COUPLED_WITH edges
-    if new_edges:
-        storage.add_relationships(new_edges)
+            intersection = nb_a & nb_b
+            union = nb_a | nb_b
 
-    # Sort by strength descending
-    results.sort(key=lambda r: r.strength, reverse=True)
+            if not union or not intersection:
+                continue
+
+            jaccard = len(intersection) / len(union)
+            shared = len(intersection)
+
+            if jaccard < threshold:
+                continue
+
+            # Canonical ordering by sorted IDs
+            if a_id > b_id:
+                a_id, b_id = b_id, a_id
+
+            a_name = name_map[a_id]
+            b_name = name_map[b_id]
+
+            results.append(CouplingResult(
+                source_id=a_id,
+                source_name=a_name,
+                target_id=b_id,
+                target_name=b_name,
+                strength=jaccard,
+                shared_count=shared,
+            ))
+
+            coupled_rels.append(GraphRelationship(
+                id=f"coupled:{a_id}->{b_id}",
+                type=RelType.COUPLED_WITH,
+                source=a_id,
+                target=b_id,
+                properties={
+                    "structural_score": jaccard,
+                    "temporal_score": 0.0,
+                    "combined_score": jaccard,
+                    "shared_count": shared,
+                },
+            ))
+
+    if coupled_rels:
+        storage.add_relationships(coupled_rels)
+
+    results.sort(key=lambda r: -r.strength)
     return results

@@ -1,155 +1,112 @@
-"""Contract detection phase: signature snapshot and comparison.
+"""Contract detection phase.
 
-Parses Python files using AST to extract current signatures, then compares
-them against stored graph signatures to detect breaking changes.
-
-Zero external dependencies — stdlib only.
+Compares stored function/method signatures against current source files
+to detect API breaking changes.
 """
 
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 from typing import Any
 
 from scripts.context.model import GraphNode, NodeLabel
-from scripts.context.python_parser import _build_signature
 
 
 def extract_current_signatures(file_path: str) -> dict[str, str]:
-    """Parse a Python file and return {qualified_name: signature_str}.
+    """Parse a Python file and return {qualified_name: signature_string}.
 
-    Qualified names:
-    - Top-level functions: "function_name"
-    - Methods: "ClassName.method_name"
-
-    Returns empty dict if file doesn't exist or has syntax errors.
+    Functions are keyed by name, methods by 'ClassName.method_name'.
+    Returns empty dict on file not found or syntax error.
     """
-    path = Path(file_path)
-    if not path.exists():
-        return {}
-
     try:
-        source = path.read_text(encoding="utf-8")
-    except OSError:
+        source = Path(file_path).read_text()
+        tree = ast.parse(source)
+    except (OSError, SyntaxError):
         return {}
 
-    if not source.strip():
-        return {}
-
-    try:
-        tree = ast.parse(source, filename=file_path)
-    except SyntaxError:
-        return {}
-
+    lines = source.splitlines()
     sigs: dict[str, str] = {}
 
+    # Build parent map for method detection
+    parent_map: dict[int, ast.AST] = {}
     for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef):
-            class_name = node.name
-            for child in ast.iter_child_nodes(node):
-                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    qualified = f"{class_name}.{child.name}"
-                    sigs[qualified] = _build_signature(child)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            # Only include top-level functions (not methods already captured above)
-            # We check if this is directly inside a class by walking the tree again
-            # Instead: we track which function nodes are methods
-            pass
+        for child in ast.iter_child_nodes(node):
+            parent_map[id(child)] = node
 
-    # Second pass: collect top-level functions only
-    for node in ast.iter_child_nodes(tree):
+    for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            sigs[node.name] = _build_signature(node)
+            sig_line = lines[node.lineno - 1].strip()
+            if sig_line.endswith(":"):
+                sig_line = sig_line[:-1].strip()
+
+            parent = parent_map.get(id(node))
+            if isinstance(parent, ast.ClassDef):
+                key = f"{parent.name}.{node.name}"
+            else:
+                key = node.name
+
+            sigs[key] = sig_line
 
     return sigs
 
 
-def _parse_signature_params(sig: str) -> tuple[list[str], str]:
-    """Parse a signature string into (param_names, return_type).
+def _parse_func_def(sig: str) -> ast.FunctionDef | None:
+    """Parse a signature string into an AST FunctionDef node."""
+    try:
+        source = sig.rstrip(":").strip() + ":\n    pass\n"
+        tree = ast.parse(source)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                return node
+    except SyntaxError:
+        return None
+    return None
 
-    Returns (param_list, return_annotation) as strings for comparison.
-    This is a best-effort parse for change classification.
-    """
-    # Extract params between outer parens
-    match = re.match(r"def \w+\((.*)\)(?:\s*->\s*(.+))?$", sig.strip())
-    if not match:
-        return [], ""
-    params_str = match.group(1) or ""
-    return_type = (match.group(2) or "").strip()
 
-    if not params_str.strip():
-        return [], return_type
+def _get_param_names(func: ast.FunctionDef) -> list[str]:
+    """Extract parameter names from a function def."""
+    return [arg.arg for arg in func.args.args]
 
-    # Split params (naive split on comma, ignoring nested brackets)
-    params: list[str] = []
-    depth = 0
-    current = ""
-    for ch in params_str:
-        if ch in "([{":
-            depth += 1
-            current += ch
-        elif ch in ")]}":
-            depth -= 1
-            current += ch
-        elif ch == "," and depth == 0:
-            params.append(current.strip())
-            current = ""
-        else:
-            current += ch
-    if current.strip():
-        params.append(current.strip())
 
-    return params, return_type
+def _get_defaults_map(func: ast.FunctionDef) -> dict[str, str]:
+    """Map parameter names to their default value AST dumps."""
+    args = func.args.args
+    defaults = func.args.defaults
+    result: dict[str, str] = {}
+    offset = len(args) - len(defaults)
+    for i, d in enumerate(defaults):
+        arg_name = args[offset + i].arg
+        result[arg_name] = ast.dump(d)
+    return result
+
+
+def _get_return_annotation(func: ast.FunctionDef) -> str | None:
+    """Get the AST dump of the return annotation, or None."""
+    if func.returns is not None:
+        return ast.dump(func.returns)
+    return None
 
 
 def _classify_change(
-    old_sig: str, new_sig: str
+    old_func: ast.FunctionDef, new_func: ast.FunctionDef
 ) -> str:
-    """Classify the type of signature change between old and new.
+    """Classify the type of signature change."""
+    old_names = set(_get_param_names(old_func))
+    new_names = set(_get_param_names(new_func))
 
-    Returns one of: param_added, param_removed, default_changed,
-    return_type_changed, signature_changed (catch-all).
-    """
-    old_params, old_return = _parse_signature_params(old_sig)
-    new_params, new_return = _parse_signature_params(new_sig)
-
-    # Check return type change
-    if old_return != new_return and old_params == new_params:
-        return "return_type_changed"
-
-    # Strip param names for count comparison
-    def _strip_default(p: str) -> str:
-        return p.split("=")[0].strip()
-
-    def _param_name(p: str) -> str:
-        # Remove type annotation and default
-        name = p.split(":")[0].split("=")[0].strip()
-        return name.lstrip("*")
-
-    old_names = [_param_name(p) for p in old_params]
-    new_names = [_param_name(p) for p in new_params]
-
-    # Check param added
-    if len(new_params) > len(old_params):
+    if new_names - old_names:
         return "param_added"
-
-    # Check param removed
-    if len(new_params) < len(old_params):
+    if old_names - new_names:
         return "param_removed"
 
-    # Same count — check for default changes
-    for op, np in zip(old_params, new_params):
-        old_has_default = "=" in op
-        new_has_default = "=" in np
-        if old_has_default or new_has_default:
-            old_default = op.split("=", 1)[1].strip() if old_has_default else None
-            new_default = np.split("=", 1)[1].strip() if new_has_default else None
-            if old_default != new_default:
-                return "default_changed"
+    old_defaults = _get_defaults_map(old_func)
+    new_defaults = _get_defaults_map(new_func)
+    if old_defaults != new_defaults:
+        return "default_changed"
 
-    # Return type also changed alongside other changes
+    old_return = _get_return_annotation(old_func)
+    new_return = _get_return_annotation(new_func)
     if old_return != new_return:
         return "return_type_changed"
 
@@ -160,51 +117,43 @@ def compare_signatures(
     stored_nodes: list[GraphNode],
     current_sigs: dict[str, str],
 ) -> list[dict[str, Any]]:
-    """Compare stored graph signatures against fresh AST output.
+    """Compare stored node signatures against current file signatures.
 
-    For each stored node (FUNCTION or METHOD), looks up the corresponding
-    qualified name in current_sigs and detects breaks.
+    Returns list of change dicts with keys:
+        symbol, change_type, old_signature, new_signature
 
-    Args:
-        stored_nodes: GraphNode list from the graph (must have .signature).
-        current_sigs: Dict from extract_current_signatures() — qualified_name → sig_str.
-
-    Returns:
-        List of change dicts with keys:
-            symbol, old_signature, new_signature, change_type
+    Symbols not present in current_sigs are not reported (they may be deleted).
     """
     changes: list[dict[str, Any]] = []
 
     for node in stored_nodes:
-        if node.label not in (NodeLabel.FUNCTION, NodeLabel.METHOD):
+        if node.class_name:
+            key = f"{node.class_name}.{node.name}"
+        else:
+            key = node.name
+
+        if key not in current_sigs:
             continue
 
         old_sig = node.signature
-        if not old_sig:
-            continue
+        new_sig = current_sigs[key]
 
-        # Build qualified lookup key
-        if node.label == NodeLabel.METHOD and node.class_name:
-            lookup_key = f"{node.class_name}.{node.name}"
-        else:
-            lookup_key = node.name
-
-        if lookup_key not in current_sigs:
-            # Symbol not present in current file — skip (deletion handled elsewhere)
-            continue
-
-        new_sig = current_sigs[lookup_key]
         if old_sig == new_sig:
             continue
 
-        change_type = _classify_change(old_sig, new_sig)
-        changes.append(
-            {
-                "symbol": lookup_key,
-                "old_signature": old_sig,
-                "new_signature": new_sig,
-                "change_type": change_type,
-            }
-        )
+        old_func = _parse_func_def(old_sig)
+        new_func = _parse_func_def(new_sig)
+
+        if old_func is None or new_func is None:
+            change_type = "signature_changed"
+        else:
+            change_type = _classify_change(old_func, new_func)
+
+        changes.append({
+            "symbol": key,
+            "change_type": change_type,
+            "old_signature": old_sig,
+            "new_signature": new_sig,
+        })
 
     return changes

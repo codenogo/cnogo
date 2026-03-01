@@ -1,7 +1,6 @@
 """Context graph data model.
 
-Ported from axon's graph model. Defines node types, relationship types,
-and the core dataclasses for the knowledge graph.
+Defines node types, relationship types, and core dataclasses for the knowledge graph.
 
 Zero external dependencies — stdlib only.
 """
@@ -70,6 +69,7 @@ class GraphNode:
     is_entry_point: bool = False
     is_exported: bool = False
     properties: dict[str, Any] = field(default_factory=dict)
+    embedding: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict."""
@@ -88,6 +88,7 @@ class GraphNode:
             "is_entry_point": self.is_entry_point,
             "is_exported": self.is_exported,
             "properties": self.properties,
+            "embedding": self.embedding,
         }
 
 

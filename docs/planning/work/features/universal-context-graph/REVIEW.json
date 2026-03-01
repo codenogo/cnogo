@@ -1,0 +1,109 @@
+{
+  "automated": [
+    { "name": "lint", "result": "pass" },
+    { "name": "types", "result": "skipped" },
+    { "name": "tests", "result": "pass" }
+  ],
+  "blockers": [],
+  "branch": "feature/universal-context-graph",
+  "feature": "universal-context-graph",
+  "impactAnalysis": {
+    "enabled": false,
+    "error": "No module named 'kuzu'"
+  },
+  "invariants": {
+    "findings": [],
+    "summary": { "fail": 0, "total": 0, "warn": 0 }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "name": "lint",
+          "output": "",
+          "result": "pass"
+        },
+        { "cmd": null, "name": "typecheck", "result": "skipped" },
+        {
+          "cmd": "python -m pytest tests/test_context_core.py tests/test_context_analysis.py tests/test_context_contracts.py tests/test_context_visualization.py tests/test_context_workflow.py --tb=short -q",
+          "exitCode": 0,
+          "name": "test",
+          "output": "118 passed in 14.39s",
+          "result": "pass"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    { "pattern": "graceful-degradation", "compliant": true, "note": "All 6 workflow functions return {enabled: True/False, error} on failure" },
+    { "pattern": "lazy-imports", "compliant": true, "note": "Heavy analysis phases use lazy imports to avoid loading unused dependencies" },
+    { "pattern": "context-manager-cleanup", "compliant": true, "note": "All workflow functions use try/finally with g.close()" }
+  ],
+  "performanceFindings": [
+    { "severity": "low", "file": "visualization.py:107-111", "description": "N+1 query pattern in _collect_subgraph BFS — each visited node is fetched individually. Acceptable for current graph sizes but worth optimizing for large repos." }
+  ],
+  "principleNotes": [
+    { "principle": "Surgical Changes", "status": "pass", "note": "4 modified files + 3 new files, all within context graph package scope" },
+    { "principle": "Simplicity First", "status": "pass", "note": "Methods delegate to existing phases/storage, no speculative abstractions" },
+    { "principle": "Validate Boundaries", "status": "pass", "note": "ContextGraph validates scope/format args; workflow functions validate inputs" }
+  ],
+  "securityFindings": [
+    { "severity": "low", "file": "storage.py:374", "description": "get_all_relationships_by_types uses string interpolation for Cypher IN clause. Pre-existing code, all current callers pass controlled enum values. Low risk since values are never user-supplied." },
+    { "severity": "info", "file": "contracts.py:23", "description": "read_text() without encoding= param may raise UnicodeDecodeError on non-UTF-8 files, uncaught by except guard." }
+  ],
+  "schemaVersion": 4,
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Plan 08 Task 1: All ContextGraph methods implemented — search, impact, context, callers_with_confidence, callees, review_impact, test_coverage, dead_code, coupling, communities, flows, contract_check, visualize, watch",
+        "Plan 08 Task 2: All 6 workflow functions implemented with graceful degradation — suggest_scope, validate_scope, enrich_context, test_coverage_report, contract_warnings, prioritize_context",
+        "Plan 08 Task 3: 118/118 tests pass, 18 CLI subcommands verified working end-to-end",
+        "db_path default changed from graph.kuzu to graph.db — matches test expectations",
+        "query() returns list[GraphNode], search() returns list[tuple[GraphNode, float]] — API split matches test contracts"
+      ],
+      "notes": "All 3 plan tasks completed. Changed files are within declared scope. No drive-by edits."
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        { "severity": "warn", "description": "contracts.py extracts only first line of function signatures — multi-line defs truncated. Acceptable for initial implementation, tracked for follow-up." },
+        { "severity": "warn", "description": "test_coverage marks all nodes under /tests/ as test nodes, including helper fixtures. Acceptable heuristic for initial implementation." },
+        { "severity": "warn", "description": "compare_signatures silently skips deleted functions — does not report symbol_removed as a break. Design choice documented in code." },
+        { "severity": "info", "description": "Mermaid/DOT renderers don't escape special characters in node names. Edge case for unusual symbol names." },
+        { "severity": "info", "description": "suggest_scope/validate_scope don't call g.index() — assumes pre-built graph. Consistent with workflow's role as query-only layer." }
+      ],
+      "evidence": [
+        "118/118 tests pass across 5 test files",
+        "Confidence lookup bug fixed correctly in suggest_scope and validate_scope",
+        "Docstring extraction fixed in symbols phase (content=sym.docstring)",
+        "All lazy imports resolve correctly",
+        "CLI smoke-tested: graph-index (888 nodes, 40 files), graph-status, graph-query, graph-search, graph-dead, graph-viz, graph-communities, graph-flows, graph-test-coverage"
+      ],
+      "notes": "Code quality is good. Warnings are acceptable trade-offs for initial implementation — none are correctness bugs."
+    }
+  ],
+  "timestamp": "2026-03-01T18:45:00Z",
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": [
+    "contracts.py: multi-line signature extraction truncated to first line — follow-up improvement",
+    "visualization.py: node name escaping for Mermaid/DOT special characters — follow-up improvement"
+  ]
+}

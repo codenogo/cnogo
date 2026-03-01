@@ -1,1 +1,1 @@
-"""Context graph ingestion phases."""
+"""Context graph phases package."""
