@@ -1,0 +1,101 @@
+# Plan 01: Lay the foundation: external dependencies, delete old context module, create new data model and KuzuDB storage layer
+
+## Goal
+Lay the foundation: external dependencies, delete old context module, create new data model and KuzuDB storage layer
+
+## Tasks
+
+### Task 1: Create requirements-graph.txt and update install.sh
+**Files:** `.cnogo/requirements-graph.txt`, `install.sh`
+**Action:**
+Create the external dependency manifest for the graph module. Pin major versions for stability. Update install.sh to install graph deps via pip, guarded by an optional --skip-graph flag for environments that don't need graph features. Add .cnogo/graph.kuzu/ to .gitignore.
+
+**Micro-steps:**
+- Create .cnogo/requirements-graph.txt with pinned versions of tree-sitter, py-tree-sitter, tree-sitter-python, tree-sitter-typescript, tree-sitter-javascript, kuzu, igraph, leidenalg, sentence-transformers, watchfiles, rank-bm25
+- Read install.sh to understand current install flow
+- Add pip install -r .cnogo/requirements-graph.txt step to install.sh (after existing setup, with optional --skip-graph flag)
+- Add .cnogo/graph.kuzu/ to .gitignore if not already present
+- Run install.sh in a test mode to verify pip install works
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `test ! -f .cnogo/requirements-graph.txt && echo FAIL || echo EXISTS`
+- passingVerify:
+  - `pip install --dry-run -r .cnogo/requirements-graph.txt 2>&1 | tail -5`
+
+**Verify:**
+```bash
+pip install --dry-run -r .cnogo/requirements-graph.txt
+grep -q 'requirements-graph' install.sh
+grep -q 'graph.kuzu' .gitignore
+```
+
+**Done when:** [Observable outcome]
+
+### Task 2: Delete old context module and create new model.py
+**Files:** `.cnogo/scripts/context/__init__.py`, `.cnogo/scripts/context/model.py`, `.cnogo/scripts/context/walker.py`, `.cnogo/scripts/context/storage.py`, `.cnogo/scripts/context/python_parser.py`, `.cnogo/scripts/context/visualization.py`, `.cnogo/scripts/context/workflow.py`, `.cnogo/scripts/context/phases/__init__.py`, `.cnogo/scripts/context/phases/structure.py`, `.cnogo/scripts/context/phases/symbols.py`, `.cnogo/scripts/context/phases/imports.py`, `.cnogo/scripts/context/phases/calls.py`, `.cnogo/scripts/context/phases/heritage.py`, `.cnogo/scripts/context/phases/types.py`, `.cnogo/scripts/context/phases/exports.py`, `.cnogo/scripts/context/phases/flows.py`, `.cnogo/scripts/context/phases/impact.py`, `.cnogo/scripts/context/phases/dead_code.py`, `.cnogo/scripts/context/phases/coupling.py`, `.cnogo/scripts/context/phases/community.py`, `.cnogo/scripts/context/phases/test_coverage.py`, `.cnogo/scripts/context/phases/proximity.py`, `.cnogo/scripts/context/phases/contracts.py`
+**Action:**
+Remove the entire old context module (all .py files in context/ and context/phases/). Create new model.py that preserves the exact same public API: NodeLabel(10 values), RelType(11 values), GraphNode(14 fields + new embedding field), GraphRelationship(5 fields), generate_id(). The model must be importable standalone with no external deps.
+
+**Micro-steps:**
+- Delete all files in .cnogo/scripts/context/ and .cnogo/scripts/context/phases/ (keep directories)
+- Create new model.py preserving NodeLabel enum (same 10 values), RelType enum (same 11 values), GraphNode dataclass (add optional embedding field: list[float]), GraphRelationship dataclass (same fields), generate_id() function
+- Create empty __init__.py with just the __all__ export list as placeholder
+- Create empty phases/__init__.py
+- Verify model.py imports cleanly
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `python3 -c "from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id" 2>&1 | grep -q Error && echo RED`
+- passingVerify:
+  - `python3 -c "import sys; sys.path.insert(0,'.cnogo'); from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id; print('OK')"`
+
+**Verify:**
+```bash
+python3 -c "import sys; sys.path.insert(0,'.cnogo'); from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id; assert len(NodeLabel) == 10; assert len(RelType) == 11; print('model OK')"
+```
+
+**Done when:** [Observable outcome]
+
+### Task 3: Create new KuzuDB storage layer
+**Files:** `.cnogo/scripts/context/storage.py`
+**Action:**
+Create storage.py with KuzuDB backend replacing SQLite. Schema: one node table per NodeLabel enum value (FileNode, FolderNode, FunctionNode, ClassNode, MethodNode, InterfaceNode, TypeAliasNode, EnumNode, CommunityNode, ProcessNode) each with columns matching GraphNode fields. Single CodeRelation relationship table with type, confidence, properties columns. Separate file_hashes table for incremental indexing. Use Cypher queries via kuzu Python API. Implement bulk import via CSV files in a temp directory for performance. DB path: .cnogo/graph.kuzu/
+
+**Micro-steps:**
+- Write failing test: test_context_storage_kuzu.py with tests for initialize, add_nodes, get_node, add_relationships, search, node_count, get_indexed_files, remove_nodes_by_file
+- Run failing tests to verify RED
+- Implement storage.py with KuzuDB backend: one node table per NodeLabel value, single CodeRelation relationship table, file_hashes table for incremental indexing
+- Implement CRUD methods: add_nodes (CSV bulk import pattern), add_relationships, get_node, get_nodes_by_file, get_related_nodes, remove_nodes_by_file, update_file_hash, get_indexed_files
+- Implement node_count, close, initialize (create schema if not exists)
+- Run passing tests to verify GREEN
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `python3 -m pytest tests/test_context_storage_kuzu.py -x 2>&1 | tail -3`
+- passingVerify:
+  - `python3 -m pytest tests/test_context_storage_kuzu.py -x 2>&1 | tail -3`
+
+**Verify:**
+```bash
+python3 -m pytest tests/test_context_storage_kuzu.py -v 2>&1 | tail -10
+```
+
+**Done when:** [Observable outcome]
+
+## Verification
+
+After all tasks:
+```bash
+python3 -c "import sys; sys.path.insert(0,'.cnogo'); from scripts.context.model import NodeLabel, RelType, GraphNode; print('model OK')"
+python3 -m pytest tests/test_context_storage_kuzu.py -v 2>&1 | tail -5
+grep -q 'kuzu' .cnogo/requirements-graph.txt
+```
+
+## Commit Message
+```
+feat(context-graph): foundation — deps, delete old module, new model + KuzuDB storage
+```
