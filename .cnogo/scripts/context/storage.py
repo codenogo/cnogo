@@ -232,6 +232,28 @@ class GraphStorage:
                 {"id": nid},
             )
 
+    def get_all_symbol_nodes(self) -> list[GraphNode]:
+        """Return all FUNCTION, CLASS, METHOD, ENUM nodes."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label IN ['function', 'class', 'method', 'enum'] RETURN n.*"
+        )
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
+
+    def get_dead_nodes(self) -> list[GraphNode]:
+        """Return all nodes where is_dead=True."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.is_dead = true RETURN n.*"
+        )
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
+
     # ------------------------------------------------------------------
     # Relationship operations
     # ------------------------------------------------------------------
