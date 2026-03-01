@@ -139,6 +139,7 @@ class GraphStorage:
 
     def initialize(self) -> None:
         """Create database, schema tables, and mark storage ready."""
+        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._db = kuzu.Database(str(self._db_path))
         self._conn = kuzu.Connection(self._db)
         self._conn.execute(_CREATE_NODE_TABLE)

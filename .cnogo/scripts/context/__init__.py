@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 # Re-export existing symbols
 from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id
@@ -146,6 +146,51 @@ class ContextGraph:
     def nodes_in_file(self, file_path: str) -> list[GraphNode]:
         """Return all graph nodes for a given file."""
         return self._storage.get_nodes_by_file(file_path)
+
+    def watch(
+        self,
+        on_cycle: Callable[[dict[str, Any]], Any] | None = None,
+        debounce_ms: int = 1600,
+    ) -> dict[str, Any]:
+        """Watch for file changes and re-index automatically.
+
+        Runs an initial index(), then watches for source file changes and
+        triggers re-indexing on each change batch. Blocks until KeyboardInterrupt.
+
+        Args:
+            on_cycle: Optional callback receiving stats dict after each index cycle.
+            debounce_ms: Debounce interval in milliseconds for file change batching.
+
+        Returns:
+            Cumulative stats: {"total_cycles": int, "total_files_indexed": int, "total_files_removed": int}
+        """
+        # Lazy import to avoid requiring watchfiles for non-watch usage
+        from scripts.context.watcher import FileWatcher
+
+        cumulative = {"total_cycles": 0, "total_files_indexed": 0, "total_files_removed": 0}
+
+        def _run_cycle() -> None:
+            stats = self.index()
+            cumulative["total_cycles"] += 1
+            cumulative["total_files_indexed"] += stats.get("files_indexed", 0)
+            cumulative["total_files_removed"] += stats.get("files_removed", 0)
+            if on_cycle:
+                on_cycle(stats)
+
+        # Initial index
+        _run_cycle()
+
+        # Watch for changes
+        def _on_change(changes: set) -> None:
+            _run_cycle()
+
+        watcher = FileWatcher(self._repo_path, on_change=_on_change, debounce_ms=debounce_ms)
+        try:
+            watcher.start()
+        except KeyboardInterrupt:
+            watcher.stop()
+
+        return cumulative
 
     def close(self) -> None:
         """Close the graph storage."""

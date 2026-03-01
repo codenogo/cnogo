@@ -642,22 +642,56 @@ def _graph_open(repo: str | None) -> "ContextGraph":
     return ContextGraph(repo_path=repo or ".")
 
 
+def _graph_stats(graph: "ContextGraph") -> dict:
+    """Get graph stats using available storage methods."""
+    node_count = graph._storage.node_count()
+    file_count = len(graph._storage.get_indexed_files())
+    return {"nodes": node_count, "files": file_count}
+
+
 def cmd_graph_index(args: argparse.Namespace) -> int:
     repo = getattr(args, "repo", None) or "."
+    use_json = getattr(args, "json", False)
+    use_watch = getattr(args, "watch", False)
     graph = _graph_open(repo)
     try:
-        graph.index()
-        node_count = graph._storage.node_count()
-        rel_count = graph._storage.relationship_count()
-        file_count = graph._storage.file_count()
-        if getattr(args, "json", False):
-            print(json.dumps({
-                "nodes": node_count,
-                "relationships": rel_count,
-                "files": file_count,
-            }))
+        if not use_watch:
+            graph.index()
+            stats = _graph_stats(graph)
+            if use_json:
+                print(json.dumps(stats))
+            else:
+                print(f"Indexed: {stats['nodes']} nodes, {stats['files']} files")
         else:
-            print(f"Indexed: {node_count} nodes, {rel_count} relationships, {file_count} files")
+            cycle_count = [0]
+
+            def on_cycle(index_stats: dict) -> None:
+                cycle_count[0] += 1
+                gs = _graph_stats(graph)
+                if cycle_count[0] == 1:
+                    if use_json:
+                        print(json.dumps({"event": "index", **gs}), flush=True)
+                        print(json.dumps({"event": "watching"}), flush=True)
+                    else:
+                        print(f"Indexed: {gs['nodes']} nodes, {gs['files']} files")
+                        print("Watching for changes... (Ctrl+C to stop)")
+                else:
+                    indexed = index_stats.get("files_indexed", 0)
+                    removed = index_stats.get("files_removed", 0)
+                    changed = indexed + removed
+                    if use_json:
+                        evt = {"event": "reindex", "files_changed": changed,
+                               "files_indexed": indexed, "files_removed": removed,
+                               "nodes": gs["nodes"]}
+                        print(json.dumps(evt), flush=True)
+                    else:
+                        print(f"Re-indexed: {changed} files changed, {gs['nodes']} nodes total")
+
+            result = graph.watch(on_cycle=on_cycle)
+            if use_json:
+                print(json.dumps({"event": "stopped", **result}), flush=True)
+            else:
+                print("Stopped watching.")
     finally:
         graph.close()
     return 0
@@ -1530,6 +1564,7 @@ def main() -> int:
     p = sub.add_parser("graph-index", help="Index the codebase into the context graph")
     p.add_argument("--repo", help="Repository root path (default: cwd)")
     p.add_argument("--json", action="store_true", help="Output as JSON")
+    p.add_argument("--watch", action="store_true", help="Watch for file changes and re-index automatically")
 
     # graph-query
     p = sub.add_parser("graph-query", help="Search for symbols by name in the context graph")

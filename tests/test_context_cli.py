@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -600,3 +602,99 @@ class TestGraphSearch:
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert len(data) <= 1
+
+
+# --- graph-index --watch ---
+
+
+class TestGraphIndexWatch:
+    """Tests for graph-index --watch flag."""
+
+    @staticmethod
+    def _watch_repo(tmp_path):
+        """Ensure .cnogo dir exists for KuzuDB."""
+        (tmp_path / ".cnogo").mkdir(exist_ok=True)
+
+    def test_help_shows_watch_flag(self):
+        """graph-index --help shows --watch flag."""
+        result = _run_cli("graph-index", "--help")
+        assert result.returncode == 0
+        assert "--watch" in result.stdout
+
+    def test_watch_empty_repo_sigint(self, tmp_path):
+        """graph-index --watch on empty repo runs and exits on SIGINT."""
+        self._watch_repo(tmp_path)
+        proc = subprocess.Popen(
+            [sys.executable, ".cnogo/scripts/workflow_memory.py",
+             "graph-index", "--repo", str(tmp_path), "--watch"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        # Wait for initial index output
+        time.sleep(2)
+        proc.send_signal(signal.SIGINT)
+        stdout, stderr = proc.communicate(timeout=10)
+        # Should have indexed and then stopped
+        assert "Indexed:" in stdout or "0 nodes" in stdout
+        assert "Stopped watching." in stdout
+
+    def test_json_mode_events(self, tmp_path):
+        """JSON mode outputs events with correct structure."""
+        self._watch_repo(tmp_path)
+        proc = subprocess.Popen(
+            [sys.executable, ".cnogo/scripts/workflow_memory.py",
+             "graph-index", "--repo", str(tmp_path), "--watch", "--json"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        time.sleep(2)
+        proc.send_signal(signal.SIGINT)
+        stdout, stderr = proc.communicate(timeout=10)
+        lines = [l for l in stdout.strip().split("\n") if l.strip()]
+        assert len(lines) >= 3  # index, watching, stopped
+        index_event = json.loads(lines[0])
+        assert index_event["event"] == "index"
+        assert "nodes" in index_event
+        watching_event = json.loads(lines[1])
+        assert watching_event["event"] == "watching"
+
+    def test_ctrl_c_graceful_shutdown(self, tmp_path):
+        """Ctrl+C produces graceful shutdown message."""
+        self._watch_repo(tmp_path)
+        proc = subprocess.Popen(
+            [sys.executable, ".cnogo/scripts/workflow_memory.py",
+             "graph-index", "--repo", str(tmp_path), "--watch"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        time.sleep(2)
+        proc.send_signal(signal.SIGINT)
+        stdout, stderr = proc.communicate(timeout=10)
+        assert "Stopped watching." in stdout
+
+    def test_json_stopped_event_has_stats(self, tmp_path):
+        """JSON stopped event includes cumulative stats."""
+        self._watch_repo(tmp_path)
+        proc = subprocess.Popen(
+            [sys.executable, ".cnogo/scripts/workflow_memory.py",
+             "graph-index", "--repo", str(tmp_path), "--watch", "--json"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=Path(__file__).resolve().parent.parent,
+        )
+        time.sleep(2)
+        proc.send_signal(signal.SIGINT)
+        stdout, stderr = proc.communicate(timeout=10)
+        lines = [l for l in stdout.strip().split("\n") if l.strip()]
+        stopped_event = json.loads(lines[-1])
+        assert stopped_event["event"] == "stopped"
+        assert "total_cycles" in stopped_event
+        assert "total_files_indexed" in stopped_event
+        assert "total_files_removed" in stopped_event

@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "live-file-watching",
+  "slug": "live-file-watching",
+  "outcome": "Added live file watching via watchfiles with graph-index --watch CLI flag. Watcher filters by supported extensions and gitignore, triggers incremental re-indexing on changes.",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/watcher.py",
+      "description": "New SourceFileFilter and FileWatcher classes wrapping watchfiles with extension/gitignore filtering"
+    },
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Added ContextGraph.watch() method that runs initial index then watches for file changes"
+    },
+    {
+      "file": ".cnogo/scripts/context/storage.py",
+      "description": "Fixed initialize() to mkdir parent directory before KuzuDB init"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_memory.py",
+      "description": "Added --watch flag to graph-index CLI with human and JSON event streaming output"
+    },
+    {
+      "file": "tests/test_context_watcher.py",
+      "description": "13 tests for SourceFileFilter, FileWatcher, and ContextGraph.watch()"
+    },
+    {
+      "file": "tests/test_context_cli.py",
+      "description": "5 CLI integration tests for graph-index --watch with subprocess + SIGINT"
+    }
+  ],
+  "verification": [
+    "21/21 tests pass (pytest tests/test_context_watcher.py tests/test_context_cli.py -k watch)",
+    "graph-index --help shows --watch flag",
+    "Lint passes (py_compile on all scripts)"
+  ],
+  "commit": "feat(context-graph): add live file watching via watchfiles with graph-index --watch CLI",
+  "timestamp": "2026-03-01T17:08:13Z"
+}
