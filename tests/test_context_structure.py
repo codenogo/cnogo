@@ -1,4 +1,4 @@
-"""Tests for structure phase (File/Folder nodes + CONTAINS edges)."""
+"""Tests for structure phase (File/Folder nodes + CONTAINS edges) and symbols phase."""
 
 from __future__ import annotations
 
@@ -165,3 +165,121 @@ def test_multiple_files_in_tree(storage):
     # All folder nodes
     assert storage.get_node("folder:pkg:") is not None
     assert storage.get_node("folder:pkg/sub:") is not None
+
+
+# ---------------------------------------------------------------------------
+# Symbols phase tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def storage_with_file(tmp_path):
+    """Storage pre-populated with a FILE node for 'src/mod.py'."""
+    from scripts.context.storage import GraphStorage
+    from scripts.context.phases.structure import process_structure
+    s = GraphStorage(tmp_path / "sym.db")
+    s.initialize()
+    files = [FileEntry(path=Path("src/mod.py"), language="python", content="", content_hash="h1")]
+    process_structure(files, s)
+    yield s
+    s.close()
+
+
+def _make_parse_result(symbols):
+    from scripts.context.parser_base import ParseResult
+    return ParseResult(symbols=symbols)
+
+
+def _make_symbol(name, kind, start_line=1, end_line=5, signature="", class_name=""):
+    from scripts.context.parser_base import SymbolInfo
+    return SymbolInfo(
+        name=name,
+        kind=kind,
+        start_line=start_line,
+        end_line=end_line,
+        signature=signature,
+        class_name=class_name,
+    )
+
+
+def test_symbols_creates_function_node(storage_with_file):
+    from scripts.context.phases.symbols import process_symbols
+    pr = _make_parse_result([_make_symbol("my_func", "function")])
+    process_symbols({"src/mod.py": pr}, storage_with_file)
+
+    node = storage_with_file.get_node("function:src/mod.py:my_func")
+    assert node is not None
+    assert node.label == NodeLabel.FUNCTION
+    assert node.name == "my_func"
+    assert node.file_path == "src/mod.py"
+
+
+def test_symbols_creates_class_node(storage_with_file):
+    from scripts.context.phases.symbols import process_symbols
+    pr = _make_parse_result([_make_symbol("MyClass", "class")])
+    process_symbols({"src/mod.py": pr}, storage_with_file)
+
+    node = storage_with_file.get_node("class:src/mod.py:MyClass")
+    assert node is not None
+    assert node.label == NodeLabel.CLASS
+    assert node.name == "MyClass"
+
+
+def test_symbols_creates_method_node(storage_with_file):
+    from scripts.context.phases.symbols import process_symbols
+    pr = _make_parse_result([_make_symbol("run", "method", class_name="MyClass")])
+    process_symbols({"src/mod.py": pr}, storage_with_file)
+
+    node = storage_with_file.get_node("method:src/mod.py:MyClass.run")
+    assert node is not None
+    assert node.label == NodeLabel.METHOD
+    assert node.class_name == "MyClass"
+
+
+def test_symbols_creates_defines_relationship(storage_with_file):
+    from scripts.context.phases.symbols import process_symbols
+    pr = _make_parse_result([_make_symbol("my_func", "function")])
+    process_symbols({"src/mod.py": pr}, storage_with_file)
+
+    file_node = storage_with_file.get_node("file:src/mod.py:")
+    assert file_node is not None
+    defined = storage_with_file.get_related_nodes(file_node.id, RelType.DEFINES, "outgoing")
+    names = [n.name for n in defined]
+    assert "my_func" in names
+
+
+def test_symbols_empty_parse_result(storage_with_file):
+    from scripts.context.phases.symbols import process_symbols
+    pr = _make_parse_result([])
+    process_symbols({"src/mod.py": pr}, storage_with_file)
+
+    # Only the structure nodes should exist (file + folder nodes); no symbol nodes
+    nodes = storage_with_file.get_nodes_by_file("src/mod.py")
+    labels = {n.label for n in nodes}
+    assert NodeLabel.FUNCTION not in labels
+    assert NodeLabel.CLASS not in labels
+
+
+def test_symbols_multiple_files(tmp_path):
+    from scripts.context.storage import GraphStorage
+    from scripts.context.phases.structure import process_structure
+    from scripts.context.phases.symbols import process_symbols
+
+    s = GraphStorage(tmp_path / "multi.db")
+    s.initialize()
+
+    files = [
+        FileEntry(path=Path("a.py"), language="python", content="", content_hash="h1"),
+        FileEntry(path=Path("b.py"), language="python", content="", content_hash="h2"),
+    ]
+    process_structure(files, s)
+
+    parse_results = {
+        "a.py": _make_parse_result([_make_symbol("foo", "function")]),
+        "b.py": _make_parse_result([_make_symbol("Bar", "class")]),
+    }
+    process_symbols(parse_results, s)
+
+    assert s.get_node("function:a.py:foo") is not None
+    assert s.get_node("class:b.py:Bar") is not None
+    s.close()
