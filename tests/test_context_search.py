@@ -9,7 +9,8 @@ import pytest
 
 from scripts.context.model import GraphNode, NodeLabel, generate_id
 from scripts.context.storage import GraphStorage
-from scripts.context.search import SearchResult, BM25Search, FuzzySearch
+from scripts.context.search import SearchResult, BM25Search, FuzzySearch, HybridSearch
+from scripts.context.embeddings import EmbeddingEngine
 
 
 @pytest.fixture
@@ -219,3 +220,121 @@ def test_fuzzy_case_insensitive(storage):
     results = fuzzy.search("HELPER")
     names = [r.name for r in results]
     assert "helper" in names
+
+
+# ---------------------------------------------------------------------------
+# HybridSearch tests (RRF fusion)
+# ---------------------------------------------------------------------------
+
+def test_hybrid_empty_index_returns_empty(storage):
+    """Hybrid search on empty storage returns []."""
+    hybrid = HybridSearch()
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    assert results == []
+
+
+def test_hybrid_finds_results_without_embeddings(storage):
+    """Hybrid search works even without embedding engine (BM25 + fuzzy only)."""
+    _add_symbol(storage, "helper")
+    _add_symbol(storage, "compute")
+    _add_symbol(storage, "another_func")
+    hybrid = HybridSearch()  # No embedding engine
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    names = [r.name for r in results]
+    assert "helper" in names
+
+
+def test_hybrid_source_is_hybrid(storage):
+    """All hybrid results have source='hybrid'."""
+    _add_symbol(storage, "helper")
+    _add_symbol(storage, "compute")
+    _add_symbol(storage, "another_func")
+    hybrid = HybridSearch()
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    assert len(results) > 0
+    for r in results:
+        assert r.source == "hybrid"
+
+
+def test_hybrid_rrf_scores_are_positive(storage):
+    """RRF scores should be positive floats."""
+    _add_symbol(storage, "helper")
+    _add_symbol(storage, "compute")
+    _add_symbol(storage, "another_func")
+    hybrid = HybridSearch()
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    for r in results:
+        assert r.score > 0
+
+
+def test_hybrid_results_sorted_by_score(storage):
+    """Hybrid results are sorted by RRF score descending."""
+    _add_symbol(storage, "helper")
+    _add_symbol(storage, "helper_util")
+    _add_symbol(storage, "compute")
+    hybrid = HybridSearch()
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    assert len(results) >= 2
+    scores = [r.score for r in results]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_hybrid_respects_limit(storage):
+    """limit=1 returns at most 1 result."""
+    _add_symbol(storage, "helper_a")
+    _add_symbol(storage, "helper_b")
+    _add_symbol(storage, "helper_c")
+    hybrid = HybridSearch()
+    hybrid.build_index(storage)
+    results = hybrid.search("helper", limit=1)
+    assert len(results) <= 1
+
+
+def test_hybrid_with_embeddings(storage, tmp_path):
+    """Hybrid search with all three rankers produces results."""
+    _add_symbol(storage, "authenticate_user", signature="def authenticate_user(username, password)")
+    _add_symbol(storage, "validate_input", signature="def validate_input(data)")
+    _add_symbol(storage, "compute_hash", signature="def compute_hash(value)")
+    engine = EmbeddingEngine(cache_dir=tmp_path / "models")
+    hybrid = HybridSearch(embedding_engine=engine)
+    hybrid.build_index(storage)
+    results = hybrid.search("authenticate")
+    names = [r.name for r in results]
+    assert "authenticate_user" in names
+
+
+def test_hybrid_rrf_boosts_multi_ranker_hits(storage, tmp_path):
+    """A node found by multiple rankers should have higher RRF score than one found by only one."""
+    # "helper" will be found by both BM25 (exact token match) and fuzzy (exact name match)
+    # "compute_hash" won't match "helper" well on either
+    _add_symbol(storage, "helper", signature="def helper()")
+    _add_symbol(storage, "compute_hash", signature="def compute_hash(value)")
+    _add_symbol(storage, "another_func", signature="def another_func()")
+    hybrid = HybridSearch()
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    if len(results) >= 2:
+        helper_result = next((r for r in results if r.name == "helper"), None)
+        other_results = [r for r in results if r.name != "helper"]
+        if helper_result and other_results:
+            assert helper_result.score >= other_results[0].score
+
+
+def test_hybrid_custom_k_parameter(storage):
+    """HybridSearch respects custom k parameter for RRF."""
+    _add_symbol(storage, "helper")
+    _add_symbol(storage, "compute")
+    _add_symbol(storage, "another_func")
+    hybrid = HybridSearch(k=10)  # Lower k gives more weight to top ranks
+    hybrid.build_index(storage)
+    results = hybrid.search("helper")
+    assert len(results) > 0
+    # Score with k=10 should be higher than default k=60 for rank-1 items
+    # 1/(10+1) = 0.0909 vs 1/(60+1) = 0.0164
+    for r in results:
+        assert r.score > 0

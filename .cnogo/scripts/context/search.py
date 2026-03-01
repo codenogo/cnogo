@@ -6,6 +6,7 @@ from typing import Any
 
 from rank_bm25 import BM25Okapi
 
+from scripts.context.embeddings import EmbeddingEngine, cosine_similarity
 from scripts.context.model import GraphNode, NodeLabel
 from scripts.context.storage import GraphStorage
 
@@ -114,5 +115,106 @@ class FuzzySearch:
                 name=node.name,
                 score=float(score),
                 source="fuzzy",
+            ))
+        return results
+
+
+class HybridSearch:
+    """Hybrid search combining BM25, semantic, and fuzzy search via Reciprocal Rank Fusion.
+
+    RRF score = sum(1/(k + rank_i)) across all rankers where k=60.
+    """
+
+    def __init__(
+        self,
+        bm25: BM25Search | None = None,
+        embedding_engine: EmbeddingEngine | None = None,
+        fuzzy: FuzzySearch | None = None,
+        k: int = 60,
+    ) -> None:
+        self._bm25 = bm25 or BM25Search()
+        self._embedding = embedding_engine
+        self._fuzzy = fuzzy or FuzzySearch()
+        self._k = k
+        self._node_embeddings: dict[str, list[float]] = {}  # node_id -> embedding
+        self._node_map: dict[str, GraphNode] = {}  # node_id -> node
+
+    def build_index(self, storage: GraphStorage) -> None:
+        """Build indices for all search components and store embeddings."""
+        self._bm25.build_index(storage)
+        self._fuzzy.build_index(storage)
+
+        # Build embedding index if engine available
+        if self._embedding is not None:
+            nodes = storage.get_all_symbol_nodes()
+            if nodes:
+                vectors = self._embedding.embed_nodes(nodes)
+                for node, vec in zip(nodes, vectors):
+                    self._node_embeddings[node.id] = vec
+                    self._node_map[node.id] = node
+
+    def _semantic_search(self, query: str, limit: int) -> list[SearchResult]:
+        """Run semantic search using embeddings."""
+        if not self._embedding or not self._node_embeddings:
+            return []
+
+        query_vec = self._embedding.embed_text(query)
+        scored: list[tuple[float, str]] = []
+
+        for node_id, node_vec in self._node_embeddings.items():
+            sim = cosine_similarity(query_vec, node_vec)
+            if sim > 0:
+                scored.append((sim, node_id))
+
+        scored.sort(key=lambda x: -x[0])
+
+        results = []
+        for score, node_id in scored[:limit]:
+            node = self._node_map[node_id]
+            results.append(SearchResult(
+                node_id=node_id,
+                name=node.name,
+                score=float(score),
+                source="semantic",
+            ))
+        return results
+
+    def search(self, query: str, limit: int = 20) -> list[SearchResult]:
+        """Run hybrid search: BM25 + semantic + fuzzy, fused via RRF.
+
+        Returns SearchResult list sorted by fused RRF score descending.
+        Each result has source="hybrid".
+        """
+        # Get results from each ranker
+        bm25_results = self._bm25.search(query, limit=limit * 2)
+        fuzzy_results = self._fuzzy.search(query, limit=limit * 2)
+        semantic_results = self._semantic_search(query, limit=limit * 2)
+
+        # Compute RRF scores
+        rrf_scores: dict[str, float] = {}
+        node_names: dict[str, str] = {}
+
+        for rank, r in enumerate(bm25_results):
+            rrf_scores[r.node_id] = rrf_scores.get(r.node_id, 0.0) + 1.0 / (self._k + rank + 1)
+            node_names[r.node_id] = r.name
+
+        for rank, r in enumerate(fuzzy_results):
+            rrf_scores[r.node_id] = rrf_scores.get(r.node_id, 0.0) + 1.0 / (self._k + rank + 1)
+            node_names[r.node_id] = r.name
+
+        for rank, r in enumerate(semantic_results):
+            rrf_scores[r.node_id] = rrf_scores.get(r.node_id, 0.0) + 1.0 / (self._k + rank + 1)
+            node_names[r.node_id] = r.name
+
+        # Sort by RRF score descending
+        sorted_ids = sorted(rrf_scores.keys(), key=lambda nid: -rrf_scores[nid])
+
+        results = []
+        for node_id in sorted_ids[:limit]:
+            results.append(SearchResult(
+                node_id=node_id,
+                name=node_names[node_id],
+                score=rrf_scores[node_id],
+                source="hybrid",
             ))
         return results
