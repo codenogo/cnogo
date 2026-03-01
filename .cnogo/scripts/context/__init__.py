@@ -19,8 +19,9 @@ from scripts.context.phases.calls import process_calls
 from scripts.context.phases.heritage import process_heritage
 from scripts.context.phases.types import process_types
 from scripts.context.phases.exports import process_exports
+from scripts.context.phases.flows import FlowResult
 
-__all__ = ["NodeLabel", "RelType", "GraphNode", "GraphRelationship", "generate_id", "ContextGraph"]
+__all__ = ["NodeLabel", "RelType", "GraphNode", "GraphRelationship", "generate_id", "ContextGraph", "FlowResult"]
 
 
 class ContextGraph:
@@ -38,13 +39,22 @@ class ContextGraph:
 
         Args:
             repo_path: Root of the repository to index.
-            db_path: Path for KuzuDB storage. Defaults to <repo_path>/.cnogo/graph.kuzu/
+            db_path: Path for KuzuDB storage. Defaults to <repo_path>/.cnogo/graph.db/
         """
         self._repo_path = Path(repo_path).resolve()
         if db_path is None:
-            db_path = self._repo_path / ".cnogo" / "graph.kuzu"
-        self._storage = GraphStorage(db_path)
+            db_path = self._repo_path / ".cnogo" / "graph.db"
+        self._db_path = Path(db_path)
+        self._storage = GraphStorage(self._db_path)
         self._storage.initialize()
+
+    @property
+    def repo_path(self) -> Path:
+        return self._repo_path
+
+    @property
+    def db_path(self) -> Path:
+        return self._db_path
 
     def index(self) -> dict[str, Any]:
         """Run the full indexing pipeline.
@@ -136,16 +146,231 @@ class ContextGraph:
         }
 
     def is_indexed(self) -> bool:
-        """Return True if any files have been indexed."""
-        return bool(self._storage.get_indexed_files())
+        """Return True if any nodes exist in the graph."""
+        return self._storage.node_count() > 0
 
-    def query(self, search_term: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
-        """Search the graph for nodes matching search_term."""
+    def query(self, search_term: str, limit: int = 20) -> list[GraphNode]:
+        """Search the graph for nodes matching search_term. Returns nodes only."""
+        return [node for node, _score in self._storage.search(search_term, limit=limit)]
+
+    def search(self, search_term: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
+        """Search the graph with relevance scores. Returns (node, score) tuples."""
         return self._storage.search(search_term, limit=limit)
+
+    def impact(self, file_path: str, max_depth: int = 5) -> list:
+        """Return blast-radius impact results for a changed file."""
+        from scripts.context.phases.impact import impact_analysis
+        return impact_analysis(self._storage, file_path, max_depth)
+
+    def context(self, node_id: str) -> dict[str, Any]:
+        """Return context for a node: callers, callees. Raises ValueError if not found."""
+        node = self._storage.get_node(node_id)
+        if node is None:
+            raise ValueError(f"Node '{node_id}' not found")
+        callers = self._storage.get_callers_with_confidence(node_id)
+        callees = self._storage.get_callees(node_id)
+        return {"node": node, "callers": callers, "callees": callees}
+
+    def callers_with_confidence(self, node_id: str) -> list[tuple[GraphNode, float]]:
+        """Return (caller_node, confidence) for all incoming CALLS edges."""
+        return self._storage.get_callers_with_confidence(node_id)
+
+    def callees(self, node_id: str) -> list[GraphNode]:
+        """Return nodes called by node_id (outgoing CALLS edges)."""
+        return self._storage.get_callees(node_id)
 
     def nodes_in_file(self, file_path: str) -> list[GraphNode]:
         """Return all graph nodes for a given file."""
         return self._storage.get_nodes_by_file(file_path)
+
+    def review_impact(self, changed_files: list[str]) -> dict[str, Any]:
+        """Auto-index and return structured impact analysis for changed files."""
+        self.index()
+        from scripts.context.phases.impact import impact_analysis
+
+        per_file: dict[str, list[dict]] = {}
+        all_affected_files: set[str] = set()
+        all_affected_symbols: list[str] = []
+
+        for fp in changed_files:
+            impacts = impact_analysis(self._storage, fp)
+            entries: list[dict] = []
+            for ir in impacts:
+                entries.append({"name": ir.node.name, "file_path": ir.node.file_path, "depth": ir.depth})
+                if ir.node.file_path:
+                    all_affected_files.add(ir.node.file_path)
+                all_affected_symbols.append(ir.node.name)
+            per_file[fp] = entries
+
+        return {
+            "graph_status": "indexed",
+            "affected_files": sorted(all_affected_files),
+            "affected_symbols": all_affected_symbols,
+            "per_file": per_file,
+            "total_affected": len(all_affected_symbols),
+        }
+
+    def test_coverage(self) -> dict[str, Any]:
+        """Analyze test coverage based on graph CALLS edges from test files."""
+        symbols = self._storage.get_all_symbol_nodes()
+        if not symbols:
+            return {
+                "covered_symbols": [],
+                "uncovered_symbols": [],
+                "coverage_by_file": {},
+                "summary": {"total_symbols": 0, "covered": 0, "uncovered": 0, "coverage_pct": 0.0},
+            }
+
+        # Identify test files
+        all_nodes = self._storage.get_all_nodes()
+        test_node_ids: set[str] = set()
+        for n in all_nodes:
+            fp = n.file_path or ""
+            fname = fp.rsplit("/", 1)[-1] if "/" in fp else fp
+            if fname.startswith("test_") or fname.endswith("_test.py") or "/tests/" in fp:
+                test_node_ids.add(n.id)
+
+        # Get all CALLS relationships
+        calls_rels = self._storage.get_all_relationships_by_types(["calls"])
+        # Symbols called from test files are covered
+        covered_ids: set[str] = set()
+        for src, tgt, _ in calls_rels:
+            if src in test_node_ids:
+                covered_ids.add(tgt)
+
+        # Also include symbols that are themselves in test files (test functions)
+        # but only count non-test, non-file, non-folder symbols for coverage
+        non_test_symbols = [
+            s for s in symbols
+            if s.id not in test_node_ids
+            and s.label not in (NodeLabel.FILE, NodeLabel.FOLDER)
+        ]
+
+        covered: list[str] = []
+        uncovered: list[str] = []
+        coverage_by_file: dict[str, dict] = {}
+
+        for sym in non_test_symbols:
+            if sym.id in covered_ids:
+                covered.append(sym.name)
+            else:
+                uncovered.append(sym.name)
+
+            fp = sym.file_path or "unknown"
+            if fp not in coverage_by_file:
+                coverage_by_file[fp] = {"covered": [], "uncovered": []}
+            if sym.id in covered_ids:
+                coverage_by_file[fp]["covered"].append(sym.name)
+            else:
+                coverage_by_file[fp]["uncovered"].append(sym.name)
+
+        total = len(non_test_symbols)
+        cov_count = len(covered)
+        uncov_count = len(uncovered)
+        pct = (cov_count / total * 100.0) if total > 0 else 0.0
+
+        return {
+            "covered_symbols": covered,
+            "uncovered_symbols": uncovered,
+            "coverage_by_file": coverage_by_file,
+            "summary": {
+                "total_symbols": total,
+                "covered": cov_count,
+                "uncovered": uncov_count,
+                "coverage_pct": pct,
+            },
+        }
+
+    def dead_code(self) -> list:
+        """Detect dead (unreferenced) code in the graph."""
+        from scripts.context.phases.dead_code import detect_dead_code
+        return detect_dead_code(self._storage)
+
+    def coupling(self, threshold: float = 0.1) -> list:
+        """Compute Jaccard coupling between symbols."""
+        from scripts.context.phases.coupling import compute_coupling
+        return compute_coupling(self._storage, threshold)
+
+    def communities(self, min_size: int = 1):
+        """Detect communities using Leiden algorithm."""
+        from scripts.context.phases.community import detect_communities
+        return detect_communities(self._storage, min_size)
+
+    def flows(self, max_depth: int = 10) -> list:
+        """Trace execution flows through the call graph."""
+        from scripts.context.phases.flows import trace_flows
+        return trace_flows(self._storage, max_depth)
+
+    def contract_check(self, files: list[str]) -> dict[str, Any]:
+        """Check for API contract/signature breaks in the given files."""
+        from scripts.context.phases.contracts import extract_current_signatures, compare_signatures
+
+        all_breaks: list[dict] = []
+        total_affected_callers = 0
+
+        for fp in files:
+            stored_nodes = self._storage.get_nodes_by_file(fp)
+            # Filter to function/method nodes that have signatures
+            sig_nodes = [
+                n for n in stored_nodes
+                if n.label in (NodeLabel.FUNCTION, NodeLabel.METHOD) and n.signature
+            ]
+            current_sigs = extract_current_signatures(fp)
+            changes = compare_signatures(sig_nodes, current_sigs)
+
+            for change in changes:
+                # Enrich with caller information
+                # Find the node for this symbol
+                matching = [n for n in sig_nodes if n.name == change["symbol"] or
+                            (n.class_name and f"{n.class_name}.{n.name}" == change["symbol"])]
+                callers_list: list[dict] = []
+                if matching:
+                    callers = self._storage.get_callers_with_confidence(matching[0].id)
+                    for caller_node, conf in callers:
+                        callers_list.append({
+                            "name": caller_node.name,
+                            "file": caller_node.file_path,
+                            "confidence": conf,
+                        })
+
+                total_affected_callers += len(callers_list)
+                all_breaks.append({
+                    **change,
+                    "callers": callers_list,
+                })
+
+        return {
+            "breaks": all_breaks,
+            "summary": {
+                "total_breaks": len(all_breaks),
+                "total_affected_callers": total_affected_callers,
+            },
+        }
+
+    def visualize(self, scope: str, format: str = "mermaid", center: str | None = None, depth: int = 3) -> str:
+        """Render the graph as Mermaid or DOT syntax.
+
+        Args:
+            scope: "full", "module", or "file"
+            format: "mermaid" or "dot"
+            center: Node ID for BFS center (used with scope="file")
+            depth: BFS depth limit
+        """
+        valid_scopes = ("full", "module", "file")
+        if scope not in valid_scopes:
+            raise ValueError(f"Invalid scope '{scope}': must be one of {valid_scopes}")
+
+        valid_formats = ("mermaid", "dot")
+        if format not in valid_formats:
+            raise ValueError(f"Invalid format '{format}': must be one of {valid_formats}")
+
+        from scripts.context.visualization import render_mermaid, render_dot, _collect_subgraph
+
+        nodes, edges = _collect_subgraph(self._storage, scope, center, depth)
+
+        if format == "dot":
+            return render_dot(nodes, edges)
+        return render_mermaid(nodes, edges)
 
     def watch(
         self,

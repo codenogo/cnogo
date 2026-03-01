@@ -55,6 +55,7 @@ def process_symbols(parse_results: dict[str, ParseResult], storage: GraphStorage
                     file_path=file_path,
                     start_line=sym.start_line,
                     end_line=sym.end_line,
+                    content=sym.docstring,
                     signature=sym.signature,
                     class_name=sym.class_name,
                 )

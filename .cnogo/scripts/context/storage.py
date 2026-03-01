@@ -222,6 +222,26 @@ class GraphStorage:
             return int(result.get_next()[0])
         return 0
 
+    def relationship_count(self) -> int:
+        """Return total number of relationships in the graph."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH ()-[r:CodeRelation]->() RETURN count(r)"
+        )
+        if result.has_next():
+            return int(result.get_next()[0])
+        return 0
+
+    def file_count(self) -> int:
+        """Return number of FILE-label nodes in the graph."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label = 'file' RETURN count(n)"
+        )
+        if result.has_next():
+            return int(result.get_next()[0])
+        return 0
+
     def mark_dead_nodes(self, node_ids: list[str]) -> None:
         """Set is_dead=True for the given node IDs."""
         if not node_ids:
@@ -460,6 +480,19 @@ class GraphStorage:
         # Sort by descending score, then by name for stable ordering
         scored.sort(key=lambda t: (-t[1], t[0].name))
         return scored[:limit]
+
+    # ------------------------------------------------------------------
+    # Retrieve all nodes
+    # ------------------------------------------------------------------
+
+    def get_all_nodes(self) -> list[GraphNode]:
+        """Return every GraphNode in the graph."""
+        conn = self._require_conn()
+        result = conn.execute("MATCH (n:GraphNode) RETURN n.*")
+        nodes: list[GraphNode] = []
+        while result.has_next():
+            nodes.append(_row_to_node(result.get_next()))
+        return nodes
 
     # ------------------------------------------------------------------
     # Internal
