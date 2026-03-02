@@ -57,6 +57,7 @@ except ImportError:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -65,6 +66,25 @@ _script_dir = Path(__file__).resolve().parent
 _repo_root = _script_dir.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
+
+
+def _ensure_graph_venv() -> None:
+    """Re-exec under .cnogo/.venv/bin/python3 for graph commands."""
+    venv_python = _repo_root / ".venv" / "bin" / "python3"
+    current = Path(sys.executable).resolve()
+    if current == venv_python.resolve():
+        return  # already in venv
+    if not venv_python.exists():
+        print(
+            "Graph dependencies not installed.\n"
+            "Run:\n"
+            f"  python3 -m venv {_repo_root / '.venv'}\n"
+            f"  {venv_python} -m pip install -r {_repo_root / 'requirements-graph.txt'}\n",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    os.execv(str(venv_python), [str(venv_python)] + sys.argv)
+
 
 from scripts.memory import (  # noqa: E402
     blocks,
@@ -903,11 +923,17 @@ def cmd_graph_status(args: argparse.Namespace) -> int:
     repo_path = Path(repo).resolve()
     db_path = repo_path / ".cnogo" / "graph.db"
 
+    # Venv health
+    venv_python = repo_path / ".cnogo" / ".venv" / "bin" / "python3"
+    venv_ok = venv_python.exists()
+    in_venv = Path(sys.executable).resolve() == venv_python.resolve() if venv_ok else False
+
     if not db_path.exists():
         if getattr(args, "json", False):
-            print(json.dumps({"exists": False}))
+            print(json.dumps({"exists": False, "venv": venv_ok, "in_venv": in_venv}))
         else:
-            print("Not indexed — no graph.db found.")
+            venv_label = "ok" if venv_ok else "missing"
+            print(f"Not indexed — no graph.db found. (venv: {venv_label})")
         return 0
 
     graph = _graph_open(repo)
@@ -939,10 +965,13 @@ def cmd_graph_status(args: argparse.Namespace) -> int:
                 "relationships": rel_count,
                 "files": file_count,
                 "stale_files": stale_count,
+                "venv": venv_ok,
+                "in_venv": in_venv,
             }))
         else:
             status = "fresh" if stale_count == 0 else f"{stale_count} stale"
-            print(f"Graph: {node_count} nodes, {rel_count} relationships, {file_count} files ({status})")
+            venv_label = "ok" if venv_ok else "missing"
+            print(f"Graph: {node_count} nodes, {rel_count} relationships, {file_count} files ({status}, venv: {venv_label})")
         return 0
     finally:
         graph.close()
@@ -1687,6 +1716,10 @@ def main() -> int:
     # 'costs --project-slug' reads transcripts only, no DB needed
     # 'graph-*' commands use context graph DB, not memory engine DB
     _graph_cmds = {"graph-index", "graph-query", "graph-impact", "graph-context", "graph-dead", "graph-coupling", "graph-blast-radius", "graph-communities", "graph-flows", "graph-search", "graph-status", "graph-suggest-scope", "graph-validate-scope", "graph-enrich", "graph-contract-check", "graph-prioritize", "graph-test-coverage", "graph-viz"}
+
+    if args.command in _graph_cmds:
+        _ensure_graph_venv()
+
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
     if args.command != "init" and _needs_db and not is_initialized(_root()):

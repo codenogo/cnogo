@@ -517,6 +517,10 @@ def post_commit_graph(repo_root_override: Path | None = None) -> int:
 
     When called as a hook, reads CLAUDE_TOOL_INPUT to detect git commit.
     When called directly with repo_root_override, skips command detection.
+
+    Delegates to .cnogo/.venv/bin/python3 if available and we're not
+    already running inside the venv. Uses subprocess.run() (not os.execv)
+    so the hook process returns cleanly.
     """
     if repo_root_override is None:
         raw_input = os.environ.get("CLAUDE_TOOL_INPUT", "").strip()
@@ -525,8 +529,23 @@ def post_commit_graph(repo_root_override: Path | None = None) -> int:
         command = _extract_bash_command(raw_input)
         if not command or not _is_git_commit_command(command):
             return 0
+
     try:
         root = repo_root_override or repo_root()
+
+        # Delegate to venv python if available and we're not already in it
+        venv_python = root / ".cnogo" / ".venv" / "bin" / "python3"
+        current = Path(sys.executable).resolve()
+        if venv_python.exists() and current != venv_python.resolve():
+            result = subprocess.run(
+                [str(venv_python), __file__, "post_commit_graph"],
+                cwd=str(root),
+            )
+            return result.returncode
+        if not venv_python.exists():
+            print("Graph reindex skipped: graph venv not found", file=sys.stderr)
+            return 0
+
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
         from scripts.context import ContextGraph
