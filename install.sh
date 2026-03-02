@@ -346,6 +346,19 @@ for entry in data['files']:
     generate_manifest "$target"
     generate_version "$target" "$source"
 
+    # Refresh graph venv deps if venv exists
+    local graph_venv_pip="$target/.cnogo/.venv/bin/pip"
+    local graph_req="$target/.cnogo/requirements-graph.txt"
+    if [ -f "$graph_venv_pip" ] && [ -f "$graph_req" ]; then
+        echo ""
+        echo "📦 Refreshing graph venv deps..."
+        if "$graph_venv_pip" install -r "$graph_req" --quiet 2>/dev/null; then
+            echo -e "   ${GREEN}Graph deps updated${NC}"
+        else
+            echo -e "   ${YELLOW}Graph deps update failed — run manually: $graph_venv_pip install -r $graph_req${NC}"
+        fi
+    fi
+
     echo ""
     if [ $backed_up -gt 0 ]; then
         echo -e "${YELLOW}Backups saved to: $backup_dir${NC}"
@@ -818,26 +831,30 @@ else
 fi
 
 # =============================================================================
-# Graph module dependencies (optional)
+# Graph module dependencies (venv-managed)
 # =============================================================================
 echo ""
 echo "📦 Graph module dependencies"
+GRAPH_VENV="$TARGET_DIR/.cnogo/.venv"
+GRAPH_REQ="$TARGET_DIR/.cnogo/requirements-graph.txt"
 if [ "$SKIP_GRAPH" = true ]; then
     echo "   Skipped (--skip-graph flag set)"
-elif command -v pip &>/dev/null || command -v pip3 &>/dev/null; then
-    PIP_CMD="pip"
-    command -v pip3 &>/dev/null && PIP_CMD="pip3"
-    GRAPH_REQ="$TARGET_DIR/.cnogo/requirements-graph.txt"
-    if [ -f "$GRAPH_REQ" ]; then
-        echo "   Installing graph deps from requirements-graph.txt..."
-        $PIP_CMD install -r "$GRAPH_REQ" --quiet && \
-            echo -e "   ${GREEN}Graph deps installed${NC}" || \
-            echo -e "   ${YELLOW}Graph deps install failed — run manually: pip install -r .cnogo/requirements-graph.txt${NC}"
+elif [ -f "$GRAPH_REQ" ]; then
+    if python3 -m venv "$GRAPH_VENV" 2>/dev/null; then
+        echo "   Created venv at .cnogo/.venv/"
+        if "$GRAPH_VENV/bin/pip" install -r "$GRAPH_REQ" --quiet 2>/dev/null; then
+            echo -e "   ${GREEN}Graph deps installed in venv${NC}"
+        else
+            echo -e "   ${YELLOW}Graph deps install failed — run manually:${NC}"
+            echo -e "   ${YELLOW}  $GRAPH_VENV/bin/pip install -r .cnogo/requirements-graph.txt${NC}"
+        fi
     else
-        echo -e "   ${YELLOW}requirements-graph.txt not found — skipping${NC}"
+        echo -e "   ${YELLOW}Venv creation failed — run manually:${NC}"
+        echo -e "   ${YELLOW}  python3 -m venv $GRAPH_VENV${NC}"
+        echo -e "   ${YELLOW}  $GRAPH_VENV/bin/pip install -r .cnogo/requirements-graph.txt${NC}"
     fi
 else
-    echo -e "   ${YELLOW}pip not found — install graph deps manually: pip install -r .cnogo/requirements-graph.txt${NC}"
+    echo -e "   ${YELLOW}requirements-graph.txt not found — skipping${NC}"
 fi
 
 # =============================================================================
@@ -867,6 +884,9 @@ CNOGO_BLOCK="# >>> cnogo
 
 # Context graph (rebuild from source)
 .cnogo/graph.db
+
+# Graph venv (auto-managed, rebuild via install.sh)
+.cnogo/.venv/
 
 # Task description cache (generated, not source)
 .cnogo/task-descriptions-*.json

@@ -64,6 +64,9 @@ service-account*.json
 .cnogo/graph.db
 .cnogo/graph.kuzu/
 
+# Graph venv (auto-managed, rebuild via install.sh)
+.cnogo/.venv/
+
 # Task description cache (generated, not source)
 .cnogo/task-descriptions-*.json
 .cnogo/prompt-*.md
