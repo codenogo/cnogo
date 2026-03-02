@@ -46,6 +46,9 @@ def impact_analysis(
     if not seed_ids:
         return []
 
+    # Pre-fetch all nodes into a cache to avoid N+1 get_node() calls
+    node_cache: dict[str, object] = {n.id: n for n in storage.get_all_nodes()}
+
     # Build reverse edge map: target_id -> list[source_id]
     # for CALLS, IMPORTS, EXTENDS edges
     incoming_rel_types = [
@@ -77,8 +80,8 @@ def impact_analysis(
         if depth > max_depth:
             continue
 
-        # Fetch node to check file_path
-        node = storage.get_node(node_id)
+        # Look up node from cache to check file_path
+        node = node_cache.get(node_id)
         if node is None:
             continue
 
@@ -99,10 +102,10 @@ def impact_analysis(
     if not results_map:
         return []
 
-    # Fetch all impacted nodes
+    # Build results from cached nodes
     results: list[ImpactResult] = []
     for node_id, depth in results_map.items():
-        node = storage.get_node(node_id)
+        node = node_cache.get(node_id)
         if node is not None:
             results.append(ImpactResult(node=node, depth=depth))
 

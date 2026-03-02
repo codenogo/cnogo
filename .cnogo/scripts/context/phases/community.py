@@ -47,14 +47,6 @@ def _query_edges(storage: GraphStorage) -> list[tuple[str, str, str]]:
     return storage.get_all_relationships_by_types(_EDGE_TYPES)
 
 
-def _query_node_name(storage: GraphStorage, node_id: str) -> str:
-    """Return the name for a node_id, or the node_id itself as fallback."""
-    node = storage.get_node(node_id)
-    if node is not None:
-        return node.name
-    return node_id
-
-
 def detect_communities(
     storage: GraphStorage,
     min_size: int = 1,
@@ -72,6 +64,10 @@ def detect_communities(
 
     if not edges:
         return CommunityDetectionResult(communities=[], total_nodes=0, num_communities=0)
+
+    # Pre-fetch all node names to avoid N+1 get_node() calls per community member
+    all_nodes = storage.get_all_nodes()
+    name_lookup: dict[str, str] = {n.id: n.name for n in all_nodes}
 
     # Collect unique node IDs preserving insertion order for determinism
     node_set: dict[str, int] = {}
@@ -106,7 +102,7 @@ def detect_communities(
             continue
 
         community_id = generate_id(NodeLabel.COMMUNITY, "", f"community_{i}")
-        member_names = [_query_node_name(storage, nid) for nid in member_node_ids]
+        member_names = [name_lookup.get(nid, nid) for nid in member_node_ids]
 
         info = CommunityInfo(
             community_id=community_id,

@@ -39,6 +39,7 @@ class ContextGraph:
         from scripts.context.storage import GraphStorage
         self._storage = GraphStorage(self._db_path)
         self._storage.initialize()
+        self._hybrid_search = None  # None = not attempted, False = unavailable
 
     @property
     def repo_path(self) -> Path:
@@ -152,8 +153,37 @@ class ContextGraph:
         """Search the graph for nodes matching search_term. Returns nodes only."""
         return [node for node, _score in self._storage.search(search_term, limit=limit)]
 
+    def _get_hybrid_search(self):
+        """Lazily initialize HybridSearch. Returns instance or None if unavailable."""
+        if self._hybrid_search is False:
+            return None
+        if self._hybrid_search is not None:
+            return self._hybrid_search
+        try:
+            from scripts.context.search import HybridSearch
+            hs = HybridSearch()
+            hs.build_index(self._storage)
+            self._hybrid_search = hs
+            return hs
+        except Exception:
+            self._hybrid_search = False
+            return None
+
     def search(self, search_term: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
-        """Search the graph with relevance scores. Returns (node, score) tuples."""
+        """Search the graph with relevance scores. Returns (node, score) tuples.
+
+        Tries HybridSearch (BM25+fuzzy+semantic via RRF) first, falls back to
+        storage CONTAINS search if HybridSearch is unavailable.
+        """
+        hs = self._get_hybrid_search()
+        if hs is not None:
+            results = hs.search(search_term, limit=limit)
+            out: list[tuple[GraphNode, float]] = []
+            for r in results:
+                node = self._storage.get_node(r.node_id)
+                if node is not None:
+                    out.append((node, r.score))
+            return out
         return self._storage.search(search_term, limit=limit)
 
     def impact(self, file_path: str, max_depth: int = 5) -> list:
