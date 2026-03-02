@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph-fixes",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Moved GraphStorage import from module-level to lazy import inside ContextGraph.__init__(); phase function imports also made lazy within index()"
+    },
+    {
+      "file": ".cnogo/scripts/context/storage.py",
+      "description": "Added 5 public query methods: get_symbol_nodes_by_file(), get_all_file_paths(), get_all_callable_nodes(), get_class_like_nodes(), get_type_nodes()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/exports.py",
+      "description": "Replaced _require_conn() with storage.get_symbol_nodes_by_file()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/imports.py",
+      "description": "Replaced _require_conn() with storage.get_all_file_paths()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/calls.py",
+      "description": "Replaced _require_conn() with storage.get_all_callable_nodes()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/heritage.py",
+      "description": "Replaced _require_conn() with storage.get_class_like_nodes()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/types.py",
+      "description": "Replaced _require_conn() with storage.get_type_nodes()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/coupling.py",
+      "description": "Replaced _require_conn() with storage.get_all_callable_nodes() filtered by _SYMBOL_LABELS"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/community.py",
+      "description": "Replaced _require_conn() with storage.get_all_relationships_by_types()"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/_utils.py",
+      "description": "Created shared is_entry_point() utility with is_exported check (superset of both prior implementations)"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/dead_code.py",
+      "description": "Replaced local _is_entry_point() with import from phases._utils"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/flows.py",
+      "description": "Replaced local _is_entry_point() with import from phases._utils"
+    }
+  ],
+  "verification": [
+    {"command": "py_compile __init__.py", "result": "pass"},
+    {"command": "from scripts.context.model import NodeLabel", "result": "pass — lazy import OK"},
+    {"command": "grep _require_conn phases/", "result": "pass — encapsulation OK, no leaks"},
+    {"command": "py_compile all 11 modified files", "result": "pass — all OK"}
+  ],
+  "commit": "ef6e115 (task 2) + 199ade7 (task 1) + 3e23bee (task 3)",
+  "timestamp": "2026-03-02T14:30:00Z"
+}
