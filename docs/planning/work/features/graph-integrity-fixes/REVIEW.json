@@ -32,20 +32,21 @@
     }
   ],
   "patternCompliance": [
-    {"pattern": "Parameterized Cypher queries", "status": "compliant", "note": "get_reverse_dependency_files uses numbered params ($f0..$fN); remove_edges_from_file uses named param $fp"},
-    {"pattern": "stdlib-only for core modules", "status": "compliant", "note": "No new deps; kuzu remains sole external dep"},
-    {"pattern": "Lazy imports for kuzu", "status": "compliant", "note": "No new imports at module level"},
-    {"pattern": "context() contract matches CLI expectations", "status": "compliant", "note": "All 7 keys returned (node, callers, callees, importers, imports, parent_classes, child_classes); callers unwrapped to plain GraphNode list"}
+    {"pattern": "Parameterized Cypher queries", "status": "compliant", "note": "get_reverse_dependency_files uses numbered params ($f0..$fN); remove_edges_from_file uses named param $fp. No string interpolation of user data."},
+    {"pattern": "stdlib-only for core modules", "status": "compliant", "note": "No new dependencies. kuzu remains sole external dep behind lazy import."},
+    {"pattern": "Lazy imports for kuzu", "status": "compliant", "note": "No new module-level imports. impact_analysis still lazy-imported inside methods."},
+    {"pattern": "context() contract matches CLI expectations", "status": "compliant", "note": "Returns 7-key dict matching workflow_memory.py:1047-1069 formatter exactly. All values are GraphNode lists."}
   ],
   "performanceFindings": [
     {"severity": "info", "description": "context() makes 8 storage calls (1 get_node + 1 callers + 1 callees + 2 imports + 4 heritage). Acceptable for single-node queries; could batch if profiling shows latency."},
-    {"severity": "info", "description": "Affected unchanged files parsed sequentially during reindex. Small set in practice; could parallelize later."}
+    {"severity": "info", "description": "Affected unchanged files parsed sequentially during reindex edge rebuild. Typically a small set in incremental reindex; could parallelize with ThreadPoolExecutor if profiling warrants."},
+    {"severity": "info", "description": "remove_edges_from_file() deletes ALL outgoing edges from affected files (including edges to other unchanged files), then rebuilds them all. Slightly wasteful but correct and simple."}
   ],
   "principleNotes": [
-    {"principle": "Surgical Changes", "note": "4 source files touched across 3 plans. No drive-by edits."},
-    {"principle": "Simplicity First", "note": "Reuses existing storage.get_related_nodes() for all new neighborhood queries. No new abstractions."},
-    {"principle": "Verification Before Completion", "note": "Each plan verified with py_compile + grep. Fresh output inspected before commit."},
-    {"principle": "Goal-Driven Execution", "note": "All 5 fixed findings (P0, P1x2, P2x2) match CONTEXT.json scope exactly."}
+    {"principle": "Surgical Changes", "note": "4 source files touched across 3 plans. No drive-by edits. Only code directly related to the 6 findings was modified."},
+    {"principle": "Simplicity First", "note": "Reuses existing storage.get_related_nodes() for all new neighborhood queries. No new abstractions or helper classes added."},
+    {"principle": "Verification Before Completion", "note": "Each plan verified with py_compile + targeted grep. Fresh output inspected before every commit."},
+    {"principle": "Goal-Driven Execution", "note": "All 6 fixed findings (P0 x1, P1 x3, P2 x2) match CONTEXT.json scope exactly. No scope creep."}
   ],
   "schemaVersion": 4,
   "securityFindings": [],
@@ -55,33 +56,37 @@
       "status": "pass",
       "findings": [],
       "evidence": [
-        "Plan 03 goal: P2 context() contract drift. Implementation matches exactly — context() now returns all 7 keys CLI expects.",
-        "Declared file: __init__.py. Changed file: __init__.py. No scope violations.",
-        "03-PLAN.json, 03-SUMMARY.json present and valid. CONTEXT.json complete.",
-        "Phase progression: discuss -> plan -> implement -> review (correct).",
-        "Commit message matches plan: 'fix(graph): expand context() to return full neighborhood'.",
-        "Across all 3 plans: 5 findings fixed (P0 reindex, P1 search cache, P1 heritage, P1 blast-radius, P2 flows, P2 context). All match CONTEXT.json scope."
+        "CONTEXT.json documents 8 findings (P0-P3). Plans 01-03 address the top 6 (P0 x1, P1 x3, P2 x2). Remaining P2 proximity + P3 hook items documented as out-of-scope.",
+        "Plan 01 goal: 'Fix P0 reindex edge loss and P1 search cache staleness'. Implemented: reverse-dep collection + edge rebuild in index(); _hybrid_search = None reset. Exact match.",
+        "Plan 02 goal: 'Fix P1 heritage label bug, P1 blast-radius KeyError, P2 flows auto-index'. Implemented: class_index.get() in heritage.py; label key in review_impact(); graph.index() in cmd_graph_flows(). Exact match.",
+        "Plan 03 goal: 'Fix P2 context() contract drift'. Implemented: context() returns 7-key dict. Exact match.",
+        "Declared files across 3 plans: __init__.py, storage.py, heritage.py, workflow_memory.py. Changed files: exactly those 4 + issues.jsonl (memory tracking). No scope violations.",
+        "All artifacts present: CONTEXT.json/md, 01/02/03-PLAN.json/md, 01/02/03-SUMMARY.json/md, REVIEW.json/md.",
+        "Phase progression: discuss -> plan -> implement -> review -> ship (correct lifecycle).",
+        "4 commits on branch: 3 implementation + 1 docs. Commit messages follow conventional-commit and match plan commitMessage fields."
       ],
-      "notes": "Full feature review covering Plans 01-03. All micro-steps executed. TDD waived per plan (kuzu unavailable)."
+      "notes": "Full feature review covering Plans 01-03 (4 source files, 6 findings fixed). TDD waived per each plan's tdd.reason (kuzu unavailable in dev/test)."
     },
     {
       "stage": "code-quality",
       "status": "pass",
       "findings": [
-        {"severity": "info", "description": "context() callers unwrapped from (GraphNode, float) tuples to plain GraphNode list. callers_with_confidence() preserved as separate public method for consumers needing confidence scores."},
-        {"severity": "info", "description": "parent_classes combines EXTENDS+IMPLEMENTS outgoing; child_classes combines EXTENDS+IMPLEMENTS incoming. Matches CLI formatter iteration pattern exactly."}
+        {"severity": "info", "description": "context() callers unwrapped from (GraphNode, float) to plain GraphNode list. callers_with_confidence() preserved at __init__.py:264 for consumers needing confidence scores. This is a clean separation."},
+        {"severity": "info", "description": "parent_classes combines EXTENDS+IMPLEMENTS outgoing; child_classes combines EXTENDS+IMPLEMENTS incoming. Matches CLI formatter iteration pattern at workflow_memory.py:1057-1069 exactly."},
+        {"severity": "info", "description": "get_reverse_dependency_files() uses parameterized Cypher with $f0..$fN placeholders. Guards empty input early. Returns DISTINCT file_paths. Follows same pattern as existing get_all_relationships_by_types()."},
+        {"severity": "info", "description": "Heritage fix: class_index.get(child_name) returns correct node ID for all class-like labels (CLASS, INTERFACE, TYPE_ALIAS, ENUM). The _build_class_index() already queries all class-like nodes via storage.get_class_like_nodes(). Unused imports (NodeLabel, generate_id) properly removed."}
       ],
       "evidence": [
-        "__init__.py: context() returns 7-key dict with node, callers, callees, importers, imports, parent_classes, child_classes.",
-        "__init__.py: callers unwrapped via list comprehension [n for n, _conf in ...]. Clean, readable.",
-        "__init__.py: Uses existing RelType.IMPORTS/EXTENDS/IMPLEMENTS with storage.get_related_nodes() — no new storage methods needed.",
-        "__init__.py: callers_with_confidence() still available at line 264 for consumers needing confidence scores.",
-        "storage.py: get_reverse_dependency_files() uses parameterized Cypher. remove_edges_from_file() reuses MATCH pattern.",
-        "heritage.py: class_index.get() resolves all class-like types (CLASS, INTERFACE, TYPE_ALIAS, ENUM). Removed unused imports.",
-        "workflow_memory.py: graph.index() added before graph.flows() — matches auto-index pattern of other graph commands.",
-        "__init__.py: review_impact() includes 'label' key — prevents KeyError in CLI formatter."
+        "Plan 01 — __init__.py: Reverse deps collected BEFORE remove_nodes_by_file() (edges still exist at that point). affected_fps filtered to current_paths and excludes changed files (no double-processing). Edge rebuild runs only edge phases (imports/calls/heritage/types/exports), NOT process_symbols/process_structure.",
+        "Plan 01 — __init__.py: _hybrid_search = None at top of index(). Correct sentinel protocol (None = not attempted, False = unavailable, instance = ready).",
+        "Plan 01 — storage.py: get_reverse_dependency_files() parameterized Cypher, guards empty input, returns DISTINCT paths. remove_edges_from_file() reuses same MATCH pattern as remove_nodes_by_file() first query.",
+        "Plan 02 — heritage.py: class_index.get(child_name) replaces generate_id(NodeLabel.CLASS, file_path, child_name). No longer hardcodes CLASS label. Handles INTERFACE, TYPE_ALIAS, ENUM children correctly.",
+        "Plan 02 — __init__.py:291: 'label': ir.node.label.value added to review_impact() entry dict. CLI formatter at workflow_memory.py:1018 accesses e['label'] — KeyError prevented.",
+        "Plan 02 — workflow_memory.py:883: graph.index() before graph.flows(). Matches auto-index pattern used by graph-context, graph-blast-radius, and graph-coupling.",
+        "Plan 03 — __init__.py: context() returns 7-key dict. CLI JSON formatter (lines 1047-1054) and text formatter (lines 1057-1069) iterate all 7 keys using .name, .label.value, .file_path — all return GraphNode lists. Contract aligned.",
+        "Plan 03 — __init__.py: callers unwrapped via [n for n, _conf in ...]. Clean list comprehension, no tuple leakage to CLI."
       ],
-      "notes": "Clean, minimal changes across all 3 plans. Follows existing patterns throughout."
+      "notes": "Clean, minimal changes across all 3 plans. Follows existing code patterns throughout. No new dependencies, no new abstractions."
     }
   ],
   "scores": {
@@ -95,7 +100,7 @@
     "total": 13,
     "maxTotal": 14
   },
-  "timestamp": "2026-03-02T18:10:00Z",
+  "timestamp": "2026-03-02T18:30:00Z",
   "tokenTelemetry": {
     "checksRun": 0,
     "checksSkipped": 3,
