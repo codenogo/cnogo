@@ -23,6 +23,15 @@ def _create_parser(language: str) -> LanguageParser | None:
     elif language == "javascript":
         from .parsers.javascript_parser import JavaScriptParser
         return JavaScriptParser()
+    elif language == "go":
+        from .parsers.go_parser import GoParser
+        return GoParser()
+    elif language == "rust":
+        from .parsers.rust_parser import RustParser
+        return RustParser()
+    elif language == "java":
+        from .parsers.java_parser import JavaParser
+        return JavaParser()
     return None
 
 
@@ -42,7 +51,7 @@ def get_parser(language: str) -> LanguageParser | None:
 
 def supported_languages() -> list[str]:
     """Return list of languages with parser support."""
-    return ["python", "typescript", "javascript"]
+    return ["python", "typescript", "javascript", "go", "rust", "java"]
 
 
 def clear_cache() -> None:

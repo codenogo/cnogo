@@ -332,11 +332,35 @@ def test_registry_caches_instances():
     assert p1 is p2
 
 
+def test_registry_get_go():
+    clear_cache()
+    parser = get_parser("go")
+    assert parser is not None
+    assert isinstance(parser, LanguageParser)
+
+
+def test_registry_get_rust():
+    clear_cache()
+    parser = get_parser("rust")
+    assert parser is not None
+    assert isinstance(parser, LanguageParser)
+
+
+def test_registry_get_java():
+    clear_cache()
+    parser = get_parser("java")
+    assert parser is not None
+    assert isinstance(parser, LanguageParser)
+
+
 def test_registry_supported_languages():
     langs = supported_languages()
     assert "python" in langs
     assert "typescript" in langs
     assert "javascript" in langs
+    assert "go" in langs
+    assert "rust" in langs
+    assert "java" in langs
 
 
 def test_registry_parsers_produce_parse_result():
