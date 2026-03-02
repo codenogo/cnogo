@@ -71,9 +71,9 @@ if str(_repo_root) not in sys.path:
 def _ensure_graph_venv() -> None:
     """Re-exec under .cnogo/.venv/bin/python3 for graph commands."""
     venv_python = _repo_root / ".venv" / "bin" / "python3"
-    current = Path(sys.executable).resolve()
-    if current == venv_python.resolve():
-        return  # already in venv
+    venv_dir = (_repo_root / ".venv").resolve()
+    if Path(sys.prefix).resolve() == venv_dir:
+        return  # already in this venv
     if not venv_python.exists():
         print(
             "Graph dependencies not installed.\n"
@@ -759,7 +759,6 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
                     "name": r.node.name,
                     "label": r.node.label.value,
                     "file_path": r.node.file_path,
-                    "edge_type": r.edge_type,
                     "depth": r.depth,
                 }
                 for r in results
@@ -774,7 +773,7 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
             if r.depth != current_depth:
                 current_depth = r.depth
                 print(f"\n  Depth {current_depth}:")
-            print(f"    {r.node.name} ({r.node.label.value}) [{r.edge_type}] — {r.node.file_path}")
+            print(f"    {r.node.name} ({r.node.label.value}) — {r.node.file_path}")
     finally:
         graph.close()
     return 0
@@ -925,8 +924,9 @@ def cmd_graph_status(args: argparse.Namespace) -> int:
 
     # Venv health
     venv_python = repo_path / ".cnogo" / ".venv" / "bin" / "python3"
+    venv_dir = (repo_path / ".cnogo" / ".venv").resolve()
     venv_ok = venv_python.exists()
-    in_venv = Path(sys.executable).resolve() == venv_python.resolve() if venv_ok else False
+    in_venv = Path(sys.prefix).resolve() == venv_dir if venv_ok else False
 
     if not db_path.exists():
         if getattr(args, "json", False):

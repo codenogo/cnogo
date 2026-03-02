@@ -535,8 +535,8 @@ def post_commit_graph(repo_root_override: Path | None = None) -> int:
 
         # Delegate to venv python if available and we're not already in it
         venv_python = root / ".cnogo" / ".venv" / "bin" / "python3"
-        current = Path(sys.executable).resolve()
-        if venv_python.exists() and current != venv_python.resolve():
+        venv_dir = (root / ".cnogo" / ".venv").resolve()
+        if venv_python.exists() and Path(sys.prefix).resolve() != venv_dir:
             result = subprocess.run(
                 [str(venv_python), __file__, "post_commit_graph"],
                 cwd=str(root),
