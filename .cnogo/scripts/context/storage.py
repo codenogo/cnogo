@@ -280,7 +280,7 @@ class GraphStorage:
     # ------------------------------------------------------------------
 
     def add_relationships(self, rels: list[GraphRelationship]) -> None:
-        """Insert relationships.  Duplicate rel_ids are silently skipped."""
+        """Create relationships.  Callers must deduplicate before calling — duplicates will be inserted."""
         if not rels:
             return
         conn = self._require_conn()
@@ -371,11 +371,13 @@ class GraphStorage:
         if not rel_types:
             return []
         conn = self._require_conn()
-        types_list = ", ".join(f"'{t}'" for t in rel_types)
+        params = {f"t{i}": t for i, t in enumerate(rel_types)}
+        placeholders = ", ".join(f"$t{i}" for i in range(len(rel_types)))
         result = conn.execute(
             f"MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) "
-            f"WHERE r.rel_type IN [{types_list}] "
-            f"RETURN a.id, b.id, r.rel_type"
+            f"WHERE r.rel_type IN [{placeholders}] "
+            f"RETURN a.id, b.id, r.rel_type",
+            params,
         )
         rows: list[tuple[str, str, str]] = []
         while result.has_next():

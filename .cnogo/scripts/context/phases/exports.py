@@ -13,8 +13,9 @@ def _build_symbol_index_by_file(storage: GraphStorage, file_path: str) -> dict[s
     """
     conn = storage._require_conn()
     result = conn.execute(
-        f"MATCH (n:GraphNode) WHERE n.file_path = '{file_path}' AND n.label IN ['function', 'class', 'method'] "
-        "RETURN n.id, n.name, n.class_name"
+        "MATCH (n:GraphNode) WHERE n.file_path = $fp AND n.label IN ['function', 'class', 'method'] "
+        "RETURN n.id, n.name, n.class_name",
+        {"fp": file_path},
     )
     index: dict[str, str] = {}
     while result.has_next():

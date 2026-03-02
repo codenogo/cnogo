@@ -7,13 +7,13 @@ from scripts.context.parser_base import ParseResult
 
 
 def _build_class_index(storage: GraphStorage) -> dict[str, str]:
-    """Build class/interface name -> node ID mapping.
+    """Build class/interface/type_alias name -> node ID mapping.
 
-    Query for CLASS and INTERFACE nodes. Return name -> node_id dict.
+    Query for CLASS, INTERFACE, and TYPE_ALIAS nodes. Return name -> node_id dict.
     """
     conn = storage._require_conn()
     result = conn.execute(
-        "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface'] RETURN n.id, n.name"
+        "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias'] RETURN n.id, n.name"
     )
     index: dict[str, str] = {}
     while result.has_next():
