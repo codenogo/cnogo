@@ -15,6 +15,13 @@ from scripts.context.parser_registry import get_parser
 __all__ = ["NodeLabel", "RelType", "GraphNode", "GraphRelationship", "generate_id", "ContextGraph", "FlowResult"]
 
 
+def __getattr__(name: str):
+    if name == "FlowResult":
+        from scripts.context.phases.flows import FlowResult
+        return FlowResult
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 class ContextGraph:
     """Main API for the universal context graph.
 
