@@ -63,6 +63,9 @@ class ContextGraph:
 
         Returns dict with stats: {"files_indexed": int, "files_skipped": int, "files_removed": int}
         """
+        # 0. Reset HybridSearch so next search() rebuilds against updated storage
+        self._hybrid_search = None
+
         # 1. Walk the repo
         all_files = walk(self._repo_path)
 
@@ -70,6 +73,7 @@ class ContextGraph:
         stored_hashes = self._storage.get_indexed_files()
 
         new_or_changed: list[FileEntry] = []
+        unchanged_entries: dict[str, FileEntry] = {}
         current_paths: set[str] = set()
         skipped = 0
 
@@ -78,6 +82,7 @@ class ContextGraph:
             current_paths.add(fp)
             if stored_hashes.get(fp) == entry.content_hash:
                 skipped += 1
+                unchanged_entries[fp] = entry
                 continue
             new_or_changed.append(entry)
 
@@ -88,6 +93,12 @@ class ContextGraph:
                 self._storage.remove_nodes_by_file(old_fp)
                 self._storage.remove_file_hash(old_fp)
                 removed += 1
+
+        # Collect reverse deps BEFORE removing changed-file nodes
+        changed_fps = [str(e.path) for e in new_or_changed if str(e.path) in stored_hashes]
+        affected_fps = self._storage.get_reverse_dependency_files(changed_fps) if changed_fps else []
+        changed_fp_set = {str(e.path) for e in new_or_changed}
+        affected_fps = [fp for fp in affected_fps if fp in current_paths and fp not in changed_fp_set]
 
         # Remove nodes for files that changed (will be re-indexed)
         for entry in new_or_changed:
@@ -142,7 +153,32 @@ class ContextGraph:
         from scripts.context.phases.exports import process_exports
         process_exports(parse_results, self._storage)
 
-        # 12. Update file hashes
+        # 12. Rebuild edges for affected unchanged files (reverse deps)
+        if affected_fps:
+            affected_parse_results: dict[str, ParseResult] = {}
+            for fp in affected_fps:
+                entry = unchanged_entries.get(fp)
+                if entry is None:
+                    continue
+                parser = get_parser(entry.language)
+                if parser is None:
+                    continue
+                pr = parser.parse(entry.content, fp)
+                if pr is not None:
+                    affected_parse_results[fp] = pr
+
+            if affected_parse_results:
+                # Remove outgoing edges so re-run doesn't create duplicates
+                for fp in affected_parse_results:
+                    self._storage.remove_edges_from_file(fp)
+                # Re-run edge-building phases only (nodes are already correct)
+                process_imports(affected_parse_results, self._storage)
+                process_calls(affected_parse_results, self._storage)
+                process_heritage(affected_parse_results, self._storage)
+                process_types(affected_parse_results, self._storage)
+                process_exports(affected_parse_results, self._storage)
+
+        # 13. Update file hashes
         for entry in new_or_changed:
             self._storage.update_file_hash(str(entry.path), entry.content_hash)
 
