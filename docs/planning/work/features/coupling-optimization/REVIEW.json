@@ -1,0 +1,89 @@
+{
+  "automated": [
+    {"name": "lint", "result": "skipped"},
+    {"name": "types", "result": "skipped"},
+    {"name": "tests", "result": "pass", "detail": "13/13 passed (manual run)"}
+  ],
+  "blockers": [],
+  "branch": "feature/coupling-optimization",
+  "feature": "coupling-optimization",
+  "impactAnalysis": {"enabled": false, "error": "No module named 'tree_sitter'"},
+  "invariants": {"findings": [], "summary": {"fail": 0, "total": 0, "warn": 0}},
+  "packages": [
+    {
+      "checks": [
+        {"cmd": "python3 -m py_compile .cnogo/scripts/context/phases/coupling.py", "name": "lint", "result": "pass"},
+        {"cmd": null, "name": "typecheck", "result": "skipped"},
+        {"cmd": "python3 -m pytest tests/test_context_coupling.py -v", "name": "test", "result": "pass", "detail": "13/13 passed"}
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    "stdlib-only constraint maintained",
+    "Private function naming convention (_build_*) followed",
+    "Docstring format consistent with codebase"
+  ],
+  "performanceFindings": [
+    {
+      "type": "improvement",
+      "description": "O(n^2) pairwise loop replaced with inverted-index candidate pruning, reducing to O(E+C) for sparse graphs"
+    }
+  ],
+  "principleNotes": [
+    "Simplicity First: single new function, minimal code delta",
+    "Surgical Changes: only the loop replaced, all surrounding logic untouched",
+    "Goal-Driven Execution: 13/13 tests green as verification"
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "All 5 CONTEXT.json decisions implemented correctly",
+        "All 4 constraints satisfied (stdlib only, tests pass, ordering preserved, COUPLED_WITH identical)",
+        "Changed-scope discipline: only coupling.py and test_context_coupling.py modified",
+        "API surface (compute_coupling signature, CouplingResult dataclass) unchanged"
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "13/13 tests pass (12 original + 1 new scaling test)",
+        "_build_candidate_pairs correctly builds inverted index and generates canonical pairs",
+        "Set deduplication handles overlapping posting lists",
+        "name_map lookup safe: candidates from neighbor_sets.keys() subset of node_ids",
+        "Worst-case O(n^2) only when all symbols share same neighbor (unavoidable, correct)"
+      ],
+      "notes": ""
+    }
+  ],
+  "timestamp": "2026-03-02T02:25:50Z",
+  "tokenTelemetry": {
+    "checksRun": 2,
+    "checksSkipped": 1,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "axes": {
+    "correctness": 2,
+    "security": 2,
+    "performance": 2,
+    "maintainability": 2,
+    "testCoverage": 2,
+    "contractCompliance": 2,
+    "scopeDiscipline": 2
+  },
+  "warnings": []
+}

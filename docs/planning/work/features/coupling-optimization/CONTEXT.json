@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "feature": "coupling-optimization",
+  "displayName": "O(n^2) Coupling Optimization",
+  "decisions": [
+    {
+      "area": "algorithm",
+      "decision": "Inverted-index candidate pruning: build neighbor-to-symbols map, generate candidate pairs from co-occurrence, compute Jaccard only for candidates",
+      "rationale": "Most symbol pairs share zero neighbors. Current O(n^2) loop wastes time on pairs that can never produce a result. Inverted index reduces to O(E + C) where C << n^2."
+    },
+    {
+      "area": "api",
+      "decision": "compute_coupling() signature and CouplingResult dataclass remain unchanged",
+      "rationale": "Purely internal optimization. No callers need to change."
+    },
+    {
+      "area": "correctness",
+      "decision": "Must produce identical results to the current O(n^2) implementation for all inputs",
+      "rationale": "This is a performance refactor, not a behavior change. Existing test suite serves as regression gate."
+    },
+    {
+      "area": "data-flow",
+      "decision": "Build inverted index from the same edge data already fetched by _build_neighbor_sets; reuse neighbor_sets dict for Jaccard computation",
+      "rationale": "No additional storage queries needed. Single pass over edges builds both neighbor_sets and inverted index."
+    },
+    {
+      "area": "scope",
+      "decision": "No threshold-based early-exit optimization (e.g., max possible Jaccard upper bound pruning)",
+      "rationale": "Adds algorithmic complexity for marginal gain. The inverted-index pruning alone eliminates the dominant cost (pairs with zero intersection)."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no numpy, scipy, or external deps",
+    "Existing test suite (test_context_coupling.py, 14 tests) must pass unchanged",
+    "CouplingResult ordering (sorted by -strength) must be preserved",
+    "COUPLED_WITH relationship creation must remain identical"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/context/phases/coupling.py",
+    "tests/test_context_coupling.py",
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/context/storage.py"
+  ],
+  "timestamp": "2026-03-02T00:00:00Z"
+}

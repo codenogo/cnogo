@@ -63,6 +63,38 @@ def _build_neighbor_sets(
     return neighbors
 
 
+def _build_candidate_pairs(
+    neighbor_sets: dict[str, set[str]],
+) -> set[tuple[str, str]]:
+    """Return candidate symbol pairs that share at least one neighbor.
+
+    Builds an inverted index (neighbor -> set of symbol_ids) and collects
+    pairs from co-occurrence in posting lists. Returns canonically ordered
+    (a_id, b_id) tuples where a_id < b_id.
+    """
+    # Inverted index: neighbor_id -> set of symbol_ids that have it as neighbor
+    inv: dict[str, list[str]] = {}
+    for sym_id, neighbors in neighbor_sets.items():
+        for nb in neighbors:
+            inv.setdefault(nb, []).append(sym_id)
+
+    # Generate candidate pairs from co-occurrence
+    candidates: set[tuple[str, str]] = set()
+    for symbols in inv.values():
+        n = len(symbols)
+        if n < 2:
+            continue
+        for i in range(n):
+            for j in range(i + 1, n):
+                a, b = symbols[i], symbols[j]
+                # Canonical ordering
+                if a > b:
+                    a, b = b, a
+                candidates.add((a, b))
+
+    return candidates
+
+
 def compute_coupling(
     storage: GraphStorage,
     threshold: float = 0.1,
@@ -87,59 +119,49 @@ def compute_coupling(
     results: list[CouplingResult] = []
     coupled_rels: list[GraphRelationship] = []
 
-    # Use canonical ordering to avoid duplicate pairs
-    for i in range(len(node_ids)):
-        for j in range(i + 1, len(node_ids)):
-            a_id = node_ids[i]
-            b_id = node_ids[j]
+    # Only evaluate pairs that share at least one neighbor (inverted-index pruning)
+    candidate_pairs = _build_candidate_pairs(neighbor_sets)
 
-            # Skip self-coupling (should never happen with i < j but be safe)
-            if a_id == b_id:
-                continue
+    for a_id, b_id in candidate_pairs:
+        nb_a = neighbor_sets[a_id]
+        nb_b = neighbor_sets[b_id]
 
-            nb_a = neighbor_sets[a_id]
-            nb_b = neighbor_sets[b_id]
+        intersection = nb_a & nb_b
+        union = nb_a | nb_b
 
-            intersection = nb_a & nb_b
-            union = nb_a | nb_b
+        if not union or not intersection:
+            continue
 
-            if not union or not intersection:
-                continue
+        jaccard = len(intersection) / len(union)
+        shared = len(intersection)
 
-            jaccard = len(intersection) / len(union)
-            shared = len(intersection)
+        if jaccard < threshold:
+            continue
 
-            if jaccard < threshold:
-                continue
+        a_name = name_map[a_id]
+        b_name = name_map[b_id]
 
-            # Canonical ordering by sorted IDs
-            if a_id > b_id:
-                a_id, b_id = b_id, a_id
+        results.append(CouplingResult(
+            source_id=a_id,
+            source_name=a_name,
+            target_id=b_id,
+            target_name=b_name,
+            strength=jaccard,
+            shared_count=shared,
+        ))
 
-            a_name = name_map[a_id]
-            b_name = name_map[b_id]
-
-            results.append(CouplingResult(
-                source_id=a_id,
-                source_name=a_name,
-                target_id=b_id,
-                target_name=b_name,
-                strength=jaccard,
-                shared_count=shared,
-            ))
-
-            coupled_rels.append(GraphRelationship(
-                id=f"coupled:{a_id}->{b_id}",
-                type=RelType.COUPLED_WITH,
-                source=a_id,
-                target=b_id,
-                properties={
-                    "structural_score": jaccard,
-                    "temporal_score": 0.0,
-                    "combined_score": jaccard,
-                    "shared_count": shared,
-                },
-            ))
+        coupled_rels.append(GraphRelationship(
+            id=f"coupled:{a_id}->{b_id}",
+            type=RelType.COUPLED_WITH,
+            source=a_id,
+            target=b_id,
+            properties={
+                "structural_score": jaccard,
+                "temporal_score": 0.0,
+                "combined_score": jaccard,
+                "shared_count": shared,
+            },
+        ))
 
     if coupled_rels:
         storage.add_relationships(coupled_rels)
