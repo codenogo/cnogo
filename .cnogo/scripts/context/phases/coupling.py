@@ -37,19 +37,9 @@ class CouplingResult:
 
 def _query_symbol_nodes(storage: GraphStorage) -> list[tuple[str, str]]:
     """Return (node_id, name) for all function/class/method nodes."""
-    conn = storage._require_conn()
-    labels = sorted(_SYMBOL_LABELS)  # deterministic order for parameterization
-    params = {f"l{i}": lbl for i, lbl in enumerate(labels)}
-    placeholders = ", ".join(f"$l{i}" for i in range(len(labels)))
-    result = conn.execute(
-        f"MATCH (n:GraphNode) WHERE n.label IN [{placeholders}] RETURN n.id, n.name",
-        params,
-    )
-    nodes: list[tuple[str, str]] = []
-    while result.has_next():
-        row = result.get_next()
-        nodes.append((row[0], row[1]))
-    return nodes
+    rows = storage.get_all_callable_nodes()
+    return [(nid, name) for nid, name, _cn, _lbl, _fp in rows
+            if _lbl in _SYMBOL_LABELS]
 
 
 def _build_neighbor_sets(

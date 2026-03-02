@@ -19,18 +19,10 @@ def _build_symbol_index(storage: GraphStorage) -> dict[str, list[str]]:
         "do_thing": ["method:src/main.py:MyClass.do_thing"],
     }
     """
-    conn = storage._require_conn()
-    result = conn.execute(
-        "MATCH (n:GraphNode) WHERE n.label IN ['function', 'method', 'class'] "
-        "RETURN n.id, n.name, n.class_name, n.label, n.file_path"
-    )
+    rows = storage.get_all_callable_nodes()
     index: dict[str, list[str]] = {}
-    while result.has_next():
-        row = result.get_next()
-        nid, name, class_name, label, file_path = row
-        # Index by simple name
+    for nid, name, class_name, label, file_path in rows:
         index.setdefault(name, []).append(nid)
-        # Index by ClassName.method_name for methods
         if class_name and label == "method":
             qualified = f"{class_name}.{name}"
             index.setdefault(qualified, []).append(nid)

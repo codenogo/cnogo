@@ -14,14 +14,9 @@ PRIMITIVES = {
 
 def _build_type_index(storage: GraphStorage) -> dict[str, str]:
     """Build type name -> node ID mapping for CLASS, INTERFACE, TYPE_ALIAS, ENUM."""
-    conn = storage._require_conn()
-    result = conn.execute(
-        "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias', 'enum'] RETURN n.id, n.name"
-    )
+    rows = storage.get_type_nodes()
     index: dict[str, str] = {}
-    while result.has_next():
-        row = result.get_next()
-        nid, name = row
+    for nid, name in rows:
         if name not in index:
             index[name] = nid
     return index

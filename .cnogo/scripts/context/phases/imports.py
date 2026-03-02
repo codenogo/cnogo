@@ -9,24 +9,8 @@ from scripts.context.parser_base import ImportInfo, ParseResult
 
 
 def build_file_index(storage: GraphStorage) -> dict[str, str]:
-    """Build a module-name -> file-path mapping from FILE nodes in storage.
-
-    For each FILE node in the graph, generates multiple lookup keys:
-    - Slash-based stem: "src/utils" -> "src/utils.py"
-    - Dot-based stem:   "src.utils" -> "src/utils.py"
-    - For __init__.py:  "pkg" -> "pkg/__init__.py"
-    """
-    # Fetch all file nodes by querying for label=file
-    conn = storage._require_conn()
-    result = conn.execute(
-        "MATCH (n:GraphNode) WHERE n.label = 'file' RETURN n.file_path"
-    )
-    file_paths: list[str] = []
-    while result.has_next():
-        row = result.get_next()
-        fp = row[0]
-        if fp:
-            file_paths.append(fp)
+    """Build a module-name -> file-path mapping from FILE nodes in storage."""
+    file_paths = storage.get_all_file_paths()
 
     index: dict[str, str] = {}
     for fp in file_paths:

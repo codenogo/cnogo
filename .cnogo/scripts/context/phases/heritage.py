@@ -11,14 +11,9 @@ def _build_class_index(storage: GraphStorage) -> dict[str, str]:
 
     Query for CLASS, INTERFACE, and TYPE_ALIAS nodes. Return name -> node_id dict.
     """
-    conn = storage._require_conn()
-    result = conn.execute(
-        "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias'] RETURN n.id, n.name"
-    )
+    rows = storage.get_class_like_nodes()
     index: dict[str, str] = {}
-    while result.has_next():
-        row = result.get_next()
-        nid, name = row
+    for nid, name in rows:
         if name not in index:
             index[name] = nid
     return index

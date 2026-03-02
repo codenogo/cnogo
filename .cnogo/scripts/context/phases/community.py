@@ -44,20 +44,7 @@ class CommunityDetectionResult:
 
 def _query_edges(storage: GraphStorage) -> list[tuple[str, str, str]]:
     """Return all (source_id, target_id, rel_type) for CALLS/IMPORTS/EXTENDS."""
-    conn = storage._require_conn()
-    params = {f"t{i}": t for i, t in enumerate(_EDGE_TYPES)}
-    placeholders = ", ".join(f"$t{i}" for i in range(len(_EDGE_TYPES)))
-    result = conn.execute(
-        f"MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) "
-        f"WHERE r.rel_type IN [{placeholders}] "
-        f"RETURN a.id, b.id, r.rel_type",
-        params,
-    )
-    edges: list[tuple[str, str, str]] = []
-    while result.has_next():
-        row = result.get_next()
-        edges.append((row[0], row[1], row[2]))
-    return edges
+    return storage.get_all_relationships_by_types(_EDGE_TYPES)
 
 
 def _query_node_name(storage: GraphStorage, node_id: str) -> str:
