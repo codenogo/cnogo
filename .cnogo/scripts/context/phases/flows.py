@@ -9,6 +9,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from scripts.context.model import GraphNode, GraphRelationship, NodeLabel, RelType, generate_id
+from scripts.context.phases._utils import is_entry_point
 from scripts.context.storage import GraphStorage
 
 
@@ -23,19 +24,6 @@ class FlowResult:
     process_id: str
     entry_point: GraphNode
     steps: list[FlowStep] = field(default_factory=list)
-
-
-def _is_entry_point(node: GraphNode) -> bool:
-    """Return True if node qualifies as an entry point."""
-    if node.is_entry_point:
-        return True
-    if node.name == "main":
-        return True
-    if node.name.startswith("test_") or node.name.startswith("Test"):
-        return True
-    if "__init__.py" in node.file_path:
-        return True
-    return False
 
 
 def trace_flows(storage: GraphStorage, max_depth: int = 10) -> list[FlowResult]:
@@ -60,7 +48,7 @@ def trace_flows(storage: GraphStorage, max_depth: int = 10) -> list[FlowResult]:
     # Use get_all_symbol_nodes to find functions, classes, methods, enums
     symbol_nodes = storage.get_all_symbol_nodes()
 
-    entry_points: list[GraphNode] = [n for n in symbol_nodes if _is_entry_point(n)]
+    entry_points: list[GraphNode] = [n for n in symbol_nodes if is_entry_point(n)]
 
     if not entry_points:
         return []

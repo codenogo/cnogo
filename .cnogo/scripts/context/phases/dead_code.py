@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from scripts.context.model import NodeLabel, RelType
+from scripts.context.phases._utils import is_entry_point
 from scripts.context.storage import GraphStorage
 
 
@@ -19,21 +20,6 @@ class DeadCodeResult:
     label: NodeLabel
     file_path: str
     line: int
-
-
-def _is_entry_point(node) -> bool:
-    """Return True if node should be treated as an entry point (not dead)."""
-    if node.is_entry_point:
-        return True
-    if node.is_exported:
-        return True
-    if node.name == "main":
-        return True
-    if node.name.startswith("test_") or node.name.startswith("Test"):
-        return True
-    if "__init__.py" in node.file_path:
-        return True
-    return False
 
 
 def detect_dead_code(storage: GraphStorage) -> list[DeadCodeResult]:
@@ -61,7 +47,7 @@ def detect_dead_code(storage: GraphStorage) -> list[DeadCodeResult]:
     dead_ids: list[str] = []
 
     for node in symbol_nodes:
-        if _is_entry_point(node):
+        if is_entry_point(node):
             continue
         if node.id not in referenced:
             dead_results.append(DeadCodeResult(
