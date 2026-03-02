@@ -1,7 +1,7 @@
 """Heritage phase: creates EXTENDS and IMPLEMENTS relationships."""
 from __future__ import annotations
 
-from scripts.context.model import NodeLabel, RelType, GraphRelationship, generate_id
+from scripts.context.model import RelType, GraphRelationship
 from scripts.context.storage import GraphStorage
 from scripts.context.parser_base import ParseResult
 
@@ -39,8 +39,8 @@ def process_heritage(
             continue
 
         for child_name, parent_name, kind in pr.heritage:
-            child_id = generate_id(NodeLabel.CLASS, file_path, child_name)
-            if storage.get_node(child_id) is None:
+            child_id = class_index.get(child_name)
+            if child_id is None:
                 continue
 
             parent_id = class_index.get(parent_name)

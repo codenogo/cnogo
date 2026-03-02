@@ -268,7 +268,7 @@ class ContextGraph:
             impacts = impact_analysis(self._storage, fp)
             entries: list[dict] = []
             for ir in impacts:
-                entries.append({"name": ir.node.name, "file_path": ir.node.file_path, "depth": ir.depth})
+                entries.append({"name": ir.node.name, "label": ir.node.label.value, "file_path": ir.node.file_path, "depth": ir.depth})
                 if ir.node.file_path:
                     all_affected_files.add(ir.node.file_path)
                 all_affected_symbols.append(ir.node.name)

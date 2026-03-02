@@ -880,6 +880,7 @@ def cmd_graph_flows(args: argparse.Namespace) -> int:
     graph = _graph_open(repo)
     try:
         max_depth = getattr(args, "max_depth", 10)
+        graph.index()
         flows = graph.flows(max_depth=max_depth)
         if getattr(args, "json", False):
             print(json.dumps([
