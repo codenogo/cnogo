@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "feature": "coupling-optimization",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/phases/coupling.py",
+      "description": "Added _build_candidate_pairs() inverted-index function; replaced O(n^2) nested loop with candidate pair iteration"
+    },
+    {
+      "file": "tests/test_context_coupling.py",
+      "description": "Added test_sparse_large_graph_coupling: 50 nodes with sparse connectivity, validates 3 expected coupled pairs"
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -m pytest tests/test_context_coupling.py -v",
+      "result": "13 passed"
+    },
+    {
+      "command": "python3 -c \"import ast; ast.parse(...)\"",
+      "result": "AST OK"
+    },
+    {
+      "command": "PYTHONPATH=.cnogo python3 -c \"from scripts.context.phases.coupling import compute_coupling, CouplingResult, _build_candidate_pairs\"",
+      "result": "imports OK"
+    }
+  ],
+  "commit": "6104753",
+  "timestamp": "2026-03-02T00:00:00Z"
+}
