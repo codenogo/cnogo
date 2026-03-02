@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph-fixes",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/phases/impact.py",
+      "description": "Pre-fetch all nodes into a dict cache at start of impact_analysis(); replaced two storage.get_node() N+1 calls (BFS loop + results loop) with dict lookups"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/community.py",
+      "description": "Removed _query_node_name() helper; pre-fetch all node names into name_lookup dict; replaced per-member storage.get_node() with dict lookup"
+    },
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Added _hybrid_search lazy attribute and _get_hybrid_search() method; updated search() to try HybridSearch (BM25+fuzzy+semantic RRF) first with CONTAINS fallback"
+    }
+  ],
+  "verification": [
+    {"command": "py_compile impact.py", "result": "pass"},
+    {"command": "grep storage.get_node( impact.py", "result": "pass — N+1 eliminated"},
+    {"command": "py_compile community.py", "result": "pass"},
+    {"command": "grep _query_node_name community.py", "result": "pass — N+1 eliminated"},
+    {"command": "py_compile __init__.py", "result": "pass"},
+    {"command": "from scripts.context.model import NodeLabel", "result": "pass — lazy import OK"},
+    {"command": "ast check _get_hybrid_search", "result": "pass — HybridSearch wired"}
+  ],
+  "commit": "c25673b",
+  "timestamp": "2026-03-02T15:10:00Z"
+}

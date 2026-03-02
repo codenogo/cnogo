@@ -6,22 +6,20 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
-# Re-export existing symbols
+# Re-export existing symbols (kuzu-free imports only)
 from scripts.context.model import NodeLabel, RelType, GraphNode, GraphRelationship, generate_id
-from scripts.context.storage import GraphStorage
 from scripts.context.walker import walk, FileEntry
 from scripts.context.parser_base import ParseResult
 from scripts.context.parser_registry import get_parser
-from scripts.context.phases.structure import process_structure
-from scripts.context.phases.symbols import process_symbols
-from scripts.context.phases.imports import process_imports
-from scripts.context.phases.calls import process_calls
-from scripts.context.phases.heritage import process_heritage
-from scripts.context.phases.types import process_types
-from scripts.context.phases.exports import process_exports
-from scripts.context.phases.flows import FlowResult
 
 __all__ = ["NodeLabel", "RelType", "GraphNode", "GraphRelationship", "generate_id", "ContextGraph", "FlowResult"]
+
+
+def __getattr__(name: str):
+    if name == "FlowResult":
+        from scripts.context.phases.flows import FlowResult
+        return FlowResult
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 class ContextGraph:
@@ -45,8 +43,10 @@ class ContextGraph:
         if db_path is None:
             db_path = self._repo_path / ".cnogo" / "graph.db"
         self._db_path = Path(db_path)
+        from scripts.context.storage import GraphStorage
         self._storage = GraphStorage(self._db_path)
         self._storage.initialize()
+        self._hybrid_search = None  # None = not attempted, False = unavailable
 
     @property
     def repo_path(self) -> Path:
@@ -99,6 +99,7 @@ class ContextGraph:
             return {"files_indexed": 0, "files_skipped": skipped, "files_removed": removed}
 
         # 4. Structure phase — create FILE and FOLDER nodes
+        from scripts.context.phases.structure import process_structure
         process_structure(new_or_changed, self._storage)
 
         # 5. Parse files concurrently
@@ -118,21 +119,27 @@ class ContextGraph:
                     parse_results[fp] = result
 
         # 6. Symbols phase
+        from scripts.context.phases.symbols import process_symbols
         process_symbols(parse_results, self._storage)
 
         # 7. Imports phase
+        from scripts.context.phases.imports import process_imports
         process_imports(parse_results, self._storage)
 
         # 8. Calls phase
+        from scripts.context.phases.calls import process_calls
         process_calls(parse_results, self._storage)
 
         # 9. Heritage phase
+        from scripts.context.phases.heritage import process_heritage
         process_heritage(parse_results, self._storage)
 
         # 10. Types phase
+        from scripts.context.phases.types import process_types
         process_types(parse_results, self._storage)
 
         # 11. Exports phase
+        from scripts.context.phases.exports import process_exports
         process_exports(parse_results, self._storage)
 
         # 12. Update file hashes
@@ -153,8 +160,37 @@ class ContextGraph:
         """Search the graph for nodes matching search_term. Returns nodes only."""
         return [node for node, _score in self._storage.search(search_term, limit=limit)]
 
+    def _get_hybrid_search(self):
+        """Lazily initialize HybridSearch. Returns instance or None if unavailable."""
+        if self._hybrid_search is False:
+            return None
+        if self._hybrid_search is not None:
+            return self._hybrid_search
+        try:
+            from scripts.context.search import HybridSearch
+            hs = HybridSearch()
+            hs.build_index(self._storage)
+            self._hybrid_search = hs
+            return hs
+        except Exception:
+            self._hybrid_search = False
+            return None
+
     def search(self, search_term: str, limit: int = 20) -> list[tuple[GraphNode, float]]:
-        """Search the graph with relevance scores. Returns (node, score) tuples."""
+        """Search the graph with relevance scores. Returns (node, score) tuples.
+
+        Tries HybridSearch (BM25+fuzzy+semantic via RRF) first, falls back to
+        storage CONTAINS search if HybridSearch is unavailable.
+        """
+        hs = self._get_hybrid_search()
+        if hs is not None:
+            results = hs.search(search_term, limit=limit)
+            out: list[tuple[GraphNode, float]] = []
+            for r in results:
+                node = self._storage.get_node(r.node_id)
+                if node is not None:
+                    out.append((node, r.score))
+            return out
         return self._storage.search(search_term, limit=limit)
 
     def impact(self, file_path: str, max_depth: int = 5) -> list:

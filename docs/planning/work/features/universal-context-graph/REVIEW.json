@@ -1,98 +1,200 @@
 {
+  "schemaVersion": 4,
+  "feature": "universal-context-graph",
+  "branch": "main",
+  "reviewType": "standing-code-review",
+  "verdict": "warn",
+  "score": 9,
+  "maxScore": 14,
   "automated": [
     { "name": "lint", "result": "pass" },
     { "name": "types", "result": "skipped" },
-    { "name": "tests", "result": "pass" }
+    { "name": "tests", "result": "fail", "note": "All 30 test files fail with ModuleNotFoundError: No module named 'kuzu' on system Python 3.14. Previous run (project venv): 118/118 pass" }
   ],
-  "blockers": [],
-  "branch": "feature/universal-context-graph",
-  "feature": "universal-context-graph",
-  "impactAnalysis": {
-    "enabled": false,
-    "error": "No module named 'kuzu'"
-  },
-  "invariants": {
-    "findings": [],
-    "summary": { "fail": 0, "total": 0, "warn": 0 }
-  },
-  "packages": [
-    {
-      "checks": [
-        {
-          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
-          "cwd": ".",
-          "exitCode": 0,
-          "name": "lint",
-          "output": "",
-          "result": "pass"
-        },
-        { "cmd": null, "name": "typecheck", "result": "skipped" },
-        {
-          "cmd": "python -m pytest tests/test_context_core.py tests/test_context_analysis.py tests/test_context_contracts.py tests/test_context_visualization.py tests/test_context_workflow.py --tb=short -q",
-          "exitCode": 0,
-          "name": "test",
-          "output": "118 passed in 14.39s",
-          "result": "pass"
-        }
-      ],
-      "kind": "python",
-      "name": "cnogo-scripts",
-      "path": ".cnogo/scripts"
-    }
-  ],
-  "patternCompliance": [
-    { "pattern": "graceful-degradation", "compliant": true, "note": "All 6 workflow functions return {enabled: True/False, error} on failure" },
-    { "pattern": "lazy-imports", "compliant": true, "note": "Heavy analysis phases use lazy imports to avoid loading unused dependencies" },
-    { "pattern": "context-manager-cleanup", "compliant": true, "note": "All workflow functions use try/finally with g.close()" }
-  ],
-  "performanceFindings": [
-    { "severity": "low", "file": "visualization.py:107-111", "description": "N+1 query pattern in _collect_subgraph BFS — each visited node is fetched individually. Acceptable for current graph sizes but worth optimizing for large repos." }
-  ],
-  "principleNotes": [
-    { "principle": "Surgical Changes", "status": "pass", "note": "4 modified files + 3 new files, all within context graph package scope" },
-    { "principle": "Simplicity First", "status": "pass", "note": "Methods delegate to existing phases/storage, no speculative abstractions" },
-    { "principle": "Validate Boundaries", "status": "pass", "note": "ContextGraph validates scope/format args; workflow functions validate inputs" }
-  ],
-  "securityFindings": [
-    { "severity": "low", "file": "storage.py:374", "description": "get_all_relationships_by_types uses string interpolation for Cypher IN clause. Pre-existing code, all current callers pass controlled enum values. Low risk since values are never user-supplied." },
-    { "severity": "info", "file": "contracts.py:23", "description": "read_text() without encoding= param may raise UnicodeDecodeError on non-UTF-8 files, uncaught by except guard." }
-  ],
-  "schemaVersion": 4,
   "stageReviews": [
     {
       "stage": "spec-compliance",
       "status": "pass",
       "findings": [],
       "evidence": [
-        "Plan 08 Task 1: All ContextGraph methods implemented — search, impact, context, callers_with_confidence, callees, review_impact, test_coverage, dead_code, coupling, communities, flows, contract_check, visualize, watch",
-        "Plan 08 Task 2: All 6 workflow functions implemented with graceful degradation — suggest_scope, validate_scope, enrich_context, test_coverage_report, contract_warnings, prioritize_context",
-        "Plan 08 Task 3: 118/118 tests pass, 18 CLI subcommands verified working end-to-end",
-        "db_path default changed from graph.kuzu to graph.db — matches test expectations",
-        "query() returns list[GraphNode], search() returns list[tuple[GraphNode, float]] — API split matches test contracts"
+        "All 8 plans (01-08) completed with SUMMARY artifacts",
+        "CONTEXT.json and CONTEXT.md present and up to date",
+        "All 21 ContextGraph methods implemented per plan specifications",
+        "All 6 workflow functions implemented with graceful degradation",
+        "18 CLI subcommands verified in previous review"
       ],
-      "notes": "All 3 plan tasks completed. Changed files are within declared scope. No drive-by edits."
+      "notes": "All planning artifacts complete. Feature fully implemented as specified across 8 plans."
     },
     {
       "stage": "code-quality",
-      "status": "pass",
+      "status": "warn",
       "findings": [
-        { "severity": "warn", "description": "contracts.py extracts only first line of function signatures — multi-line defs truncated. Acceptable for initial implementation, tracked for follow-up." },
-        { "severity": "warn", "description": "test_coverage marks all nodes under /tests/ as test nodes, including helper fixtures. Acceptable heuristic for initial implementation." },
-        { "severity": "warn", "description": "compare_signatures silently skips deleted functions — does not report symbol_removed as a break. Design choice documented in code." },
-        { "severity": "info", "description": "Mermaid/DOT renderers don't escape special characters in node names. Edge case for unusual symbol names." },
-        { "severity": "info", "description": "suggest_scope/validate_scope don't call g.index() — assumes pre-built graph. Consistent with workflow's role as query-only layer." }
+        {
+          "severity": "critical",
+          "category": "security",
+          "file": "phases/exports.py:16",
+          "description": "f-string interpolation of file_path directly into Cypher query. Potential injection if file path contains single quotes."
+        },
+        {
+          "severity": "warn",
+          "category": "correctness",
+          "file": "storage.py:282",
+          "description": "add_relationships() docstring claims 'Duplicate rel_ids are silently skipped' but uses CREATE, not MERGE. Duplicates are not prevented."
+        },
+        {
+          "severity": "warn",
+          "category": "correctness",
+          "file": "phases/heritage.py",
+          "description": "_build_class_index() hardcodes NodeLabel.CLASS — won't find INTERFACE nodes for EXTENDS/IMPLEMENTS."
+        },
+        {
+          "severity": "warn",
+          "category": "correctness",
+          "file": "__init__.py:156-158",
+          "description": "ContextGraph.search() uses CONTAINS-based storage.search(). HybridSearch in search.py (BM25+semantic+fuzzy via RRF) is completely unused."
+        },
+        {
+          "severity": "warn",
+          "category": "performance",
+          "file": "phases/impact.py:81,105",
+          "description": "N+1 query: storage.get_node() called per BFS node, then again per result node. Same nodes fetched twice."
+        },
+        {
+          "severity": "warn",
+          "category": "performance",
+          "file": "phases/community.py:120",
+          "description": "N+1 query: _query_node_name() called per member node in each community."
+        },
+        {
+          "severity": "warn",
+          "category": "performance",
+          "file": "phases/coupling.py:98-99",
+          "description": "O(n^2) pairwise comparison of all symbol nodes. Will not scale to large codebases."
+        },
+        {
+          "severity": "warn",
+          "category": "maintainability",
+          "file": "imports.py:21, calls.py:22, heritage.py, exports.py:14, community.py:47, coupling.py:40",
+          "description": "6 phase files directly call storage._require_conn() to run raw Cypher. Breaks encapsulation."
+        },
+        {
+          "severity": "warn",
+          "category": "maintainability",
+          "file": "workflow.py",
+          "description": "All 6 workflow functions access g._storage directly. Private attribute access across module boundary."
+        },
+        {
+          "severity": "warn",
+          "category": "maintainability",
+          "file": "__init__.py:11",
+          "description": "Module-level 'from storage import GraphStorage' triggers kuzu import for the entire package. Pure-Python components (model, walker, parser_base) unnecessarily coupled to C extension."
+        },
+        {
+          "severity": "info",
+          "category": "maintainability",
+          "file": "storage.py:75",
+          "description": "_row_to_node() uses fragile 15-element positional destructuring. Schema changes will silently corrupt data."
+        },
+        {
+          "severity": "info",
+          "category": "maintainability",
+          "file": "dead_code.py, flows.py",
+          "description": "Duplicate _is_entry_point() logic in both files."
+        },
+        {
+          "severity": "info",
+          "category": "security",
+          "file": "community.py:48, coupling.py:41-43, storage.py:374",
+          "description": "String interpolation in Cypher IN clauses. All current callers pass controlled enum constants. Low risk."
+        },
+        {
+          "severity": "info",
+          "category": "performance",
+          "file": "search.py",
+          "description": "_semantic_search() is O(n) linear scan over all embeddings. No ANN index."
+        },
+        {
+          "severity": "info",
+          "category": "performance",
+          "file": "storage.py:165",
+          "description": "add_nodes() executes one MERGE+SET per node. No batch optimization."
+        }
       ],
       "evidence": [
-        "118/118 tests pass across 5 test files",
-        "Confidence lookup bug fixed correctly in suggest_scope and validate_scope",
-        "Docstring extraction fixed in symbols phase (content=sym.docstring)",
-        "All lazy imports resolve correctly",
-        "CLI smoke-tested: graph-index (888 nodes, 40 files), graph-status, graph-query, graph-search, graph-dead, graph-viz, graph-communities, graph-flows, graph-test-coverage"
+        "Read all 29 source files (~7,080 LOC)",
+        "30 test files found, all fail without kuzu (cascade import)",
+        "Previous run in project venv: 118/118 tests pass",
+        "Cross-referenced schema DDL against _row_to_node() column order",
+        "Verified Cypher parameterized query support in KuzuDB"
       ],
-      "notes": "Code quality is good. Warnings are acceptable trade-offs for initial implementation — none are correctness bugs."
+      "notes": "5 of 7 axes scored 1 (Concern). No blockers but cumulative technical debt across security, correctness, performance, and maintainability."
     }
   ],
-  "timestamp": "2026-03-01T18:45:00Z",
+  "securityFindings": [
+    { "severity": "high", "file": "phases/exports.py:16", "description": "f-string interpolation of file_path in Cypher query — potential injection with single-quote file paths" },
+    { "severity": "low", "file": "community.py:48", "description": "String interpolation in Cypher IN clause — controlled enum constants only" },
+    { "severity": "low", "file": "coupling.py:41-43", "description": "String interpolation in Cypher IN clause — controlled enum constants only" },
+    { "severity": "low", "file": "storage.py:374", "description": "String interpolation in Cypher IN clause — all callers pass controlled values" }
+  ],
+  "performanceFindings": [
+    { "severity": "medium", "file": "phases/impact.py:81,105", "description": "N+1 query pattern: get_node() per BFS node, then again per result. Double-fetch of same nodes." },
+    { "severity": "medium", "file": "phases/community.py:120", "description": "N+1 query pattern: _query_node_name() per member node in each community." },
+    { "severity": "medium", "file": "phases/coupling.py:98-99", "description": "O(n^2) pairwise comparison of all symbol nodes." },
+    { "severity": "low", "file": "search.py", "description": "Linear O(n) semantic search scan. No ANN index." },
+    { "severity": "low", "file": "storage.py:165", "description": "Per-node MERGE+SET in add_nodes(). No batch optimization." }
+  ],
+  "patternCompliance": [
+    { "pattern": "graceful-degradation", "compliant": true, "note": "All 6 workflow functions return {enabled: True/False, error} on failure" },
+    { "pattern": "lazy-imports", "compliant": true, "note": "Heavy phases (community, coupling, impact, flows, contracts, visualization) use lazy imports" },
+    { "pattern": "context-manager-cleanup", "compliant": true, "note": "All workflow functions use try/finally with g.close()" },
+    { "pattern": "encapsulation", "compliant": false, "note": "12+ call sites access private storage._require_conn() and ContextGraph._storage" },
+    { "pattern": "parameterized-queries", "compliant": false, "note": "exports.py:16 uses f-string in Cypher; 3 more files use string interpolation for IN clauses" }
+  ],
+  "principleNotes": [
+    { "principle": "Correctness", "score": 1, "note": "add_relationships docstring/behavior mismatch; heritage CLASS-only; HybridSearch unused" },
+    { "principle": "Security", "score": 1, "note": "exports.py f-string injection; 3 controlled-value interpolations" },
+    { "principle": "Contract Compliance", "score": 2, "note": "All planning artifacts complete across 8 plans" },
+    { "principle": "Performance", "score": 1, "note": "N+1 in impact/community; O(n^2) coupling; linear semantic search" },
+    { "principle": "Maintainability", "score": 1, "note": "Private API access in 12+ sites; cascade import; fragile destructuring" },
+    { "principle": "Test Coverage", "score": 1, "note": "30 test files exist but cascade import failure; pure parts untestable via package" },
+    { "principle": "Scope Discipline", "score": 2, "note": "Codebase focused on stated purpose" }
+  ],
+  "blockers": [],
+  "warnings": [
+    "exports.py:16: f-string Cypher injection — replace with parameterized query",
+    "storage.py:282: add_relationships docstring claims dedup but uses CREATE",
+    "heritage.py: CLASS-only lookup misses INTERFACE nodes",
+    "HybridSearch (search.py) not wired into ContextGraph API",
+    "12+ private API access sites across phases and workflow",
+    "Module-level kuzu import cascades to entire package",
+    "N+1 queries in impact.py and community.py",
+    "O(n^2) coupling computation"
+  ],
+  "impactAnalysis": {
+    "enabled": false,
+    "error": "Standing code review — no changed files to analyze"
+  },
+  "packages": [
+    {
+      "name": "context-graph",
+      "kind": "python",
+      "path": ".cnogo/scripts/context",
+      "checks": [
+        {
+          "name": "source-read",
+          "result": "pass",
+          "output": "29 files, ~7,080 LOC read and analyzed"
+        },
+        {
+          "name": "test",
+          "result": "fail",
+          "cmd": "python3 -m pytest tests/ -q",
+          "output": "All 30 test files fail with ModuleNotFoundError: No module named 'kuzu'",
+          "note": "Previous run in project venv: 118/118 pass in 14.39s"
+        }
+      ]
+    }
+  ],
   "tokenTelemetry": {
     "checksRun": 2,
     "checksSkipped": 1,
@@ -101,9 +203,5 @@
     "savedTokens": 0,
     "savingsPct": 0.0
   },
-  "verdict": "pass",
-  "warnings": [
-    "contracts.py: multi-line signature extraction truncated to first line — follow-up improvement",
-    "visualization.py: node name escaping for Mermaid/DOT special characters — follow-up improvement"
-  ]
+  "timestamp": "2026-03-01T20:00:00Z"
 }

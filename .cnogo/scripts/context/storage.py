@@ -280,7 +280,7 @@ class GraphStorage:
     # ------------------------------------------------------------------
 
     def add_relationships(self, rels: list[GraphRelationship]) -> None:
-        """Insert relationships.  Duplicate rel_ids are silently skipped."""
+        """Create relationships.  Callers must deduplicate before calling — duplicates will be inserted."""
         if not rels:
             return
         conn = self._require_conn()
@@ -371,11 +371,13 @@ class GraphStorage:
         if not rel_types:
             return []
         conn = self._require_conn()
-        types_list = ", ".join(f"'{t}'" for t in rel_types)
+        params = {f"t{i}": t for i, t in enumerate(rel_types)}
+        placeholders = ", ".join(f"$t{i}" for i in range(len(rel_types)))
         result = conn.execute(
             f"MATCH (a:GraphNode)-[r:CodeRelation]->(b:GraphNode) "
-            f"WHERE r.rel_type IN [{types_list}] "
-            f"RETURN a.id, b.id, r.rel_type"
+            f"WHERE r.rel_type IN [{placeholders}] "
+            f"RETURN a.id, b.id, r.rel_type",
+            params,
         )
         rows: list[tuple[str, str, str]] = []
         while result.has_next():
@@ -493,6 +495,70 @@ class GraphStorage:
         while result.has_next():
             nodes.append(_row_to_node(result.get_next()))
         return nodes
+
+    def get_symbol_nodes_by_file(self, file_path: str) -> list[tuple[str, str, str]]:
+        """Return (id, name, class_name) for function/class/method nodes in file_path."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.file_path = $fp AND n.label IN ['function', 'class', 'method'] "
+            "RETURN n.id, n.name, n.class_name",
+            {"fp": file_path},
+        )
+        rows: list[tuple[str, str, str]] = []
+        while result.has_next():
+            row = result.get_next()
+            rows.append((row[0], row[1], row[2] or ""))
+        return rows
+
+    def get_all_file_paths(self) -> list[str]:
+        """Return file_path for all FILE-label nodes."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label = 'file' RETURN n.file_path"
+        )
+        paths: list[str] = []
+        while result.has_next():
+            row = result.get_next()
+            if row[0]:
+                paths.append(row[0])
+        return paths
+
+    def get_all_callable_nodes(self) -> list[tuple[str, str, str, str, str]]:
+        """Return (id, name, class_name, label, file_path) for function/method/class nodes."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label IN ['function', 'method', 'class'] "
+            "RETURN n.id, n.name, n.class_name, n.label, n.file_path"
+        )
+        rows: list[tuple[str, str, str, str, str]] = []
+        while result.has_next():
+            row = result.get_next()
+            rows.append((row[0], row[1], row[2] or "", row[3], row[4] or ""))
+        return rows
+
+    def get_class_like_nodes(self) -> list[tuple[str, str]]:
+        """Return (id, name) for class/interface/type_alias nodes."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias'] RETURN n.id, n.name"
+        )
+        rows: list[tuple[str, str]] = []
+        while result.has_next():
+            row = result.get_next()
+            rows.append((row[0], row[1]))
+        return rows
+
+    def get_type_nodes(self) -> list[tuple[str, str]]:
+        """Return (id, name) for class/interface/type_alias/enum nodes."""
+        conn = self._require_conn()
+        result = conn.execute(
+            "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias', 'enum'] RETURN n.id, n.name"
+        )
+        rows: list[tuple[str, str]] = []
+        while result.has_next():
+            row = result.get_next()
+            rows.append((row[0], row[1]))
+        return rows
 
     # ------------------------------------------------------------------
     # Internal

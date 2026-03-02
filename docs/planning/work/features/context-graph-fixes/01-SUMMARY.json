@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph-fixes",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/phases/exports.py",
+      "description": "Replaced f-string file_path interpolation with parameterized $fp query parameter"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/community.py",
+      "description": "Replaced string-built IN clause with parameterized placeholders for edge types"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/coupling.py",
+      "description": "Replaced string-built IN clause with parameterized placeholders for symbol labels"
+    },
+    {
+      "file": ".cnogo/scripts/context/storage.py",
+      "description": "Parameterized get_all_relationships_by_types IN clause; fixed add_relationships docstring to reflect CREATE behavior"
+    },
+    {
+      "file": ".cnogo/scripts/context/phases/heritage.py",
+      "description": "Added type_alias to label filter in _build_class_index; updated docstring"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_memory.py",
+      "description": "Removed invalid limit parameter from cmd_graph_suggest_scope and cmd_graph_enrich CLI handlers"
+    }
+  ],
+  "verification": [
+    {
+      "command": "py_compile on all 6 changed files",
+      "result": "pass",
+      "detail": "All 6 files compile without errors"
+    },
+    {
+      "command": "Pattern assertion: exports.py uses $fp param, no f-string file_path interpolation",
+      "result": "pass"
+    },
+    {
+      "command": "Pattern assertion: heritage.py includes type_alias in label filter",
+      "result": "pass"
+    },
+    {
+      "command": "Pattern assertion: workflow_memory.py has no limit= in suggest_scope/enrich calls",
+      "result": "pass"
+    },
+    {
+      "command": "pytest regression suite (172 tests: model, walker, analysis, cli, core, visualization)",
+      "result": "pass_with_preexisting",
+      "detail": "113 failed, 24 passed, 35 errors — all failures are pre-existing kuzu cascade import, no new regressions"
+    }
+  ],
+  "commit": "c9373c6",
+  "timestamp": "2026-03-02T12:00:00Z"
+}

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "feature": "context-graph-fixes",
+  "displayName": "Context Graph Fixes",
+  "decisions": [
+    {
+      "area": "security",
+      "decision": "Replace all f-string Cypher interpolations with parameterized queries ($param style)",
+      "rationale": "exports.py:16 interpolates dynamic file_path — potential injection. community.py:48, coupling.py:41-43, storage.py:374 interpolate enum constants — low risk but bad pattern. Fix all 4 sites for consistency."
+    },
+    {
+      "area": "correctness",
+      "decision": "Fix add_relationships() docstring to match CREATE behavior (not MERGE)",
+      "rationale": "Changing to MERGE on rel tables in KuzuDB may have unexpected semantics. The simpler and safer fix is to update the docstring to say 'duplicates may occur if caller does not deduplicate'. All current callers already deduplicate via seen sets."
+    },
+    {
+      "area": "correctness",
+      "decision": "Add INTERFACE and TYPE_ALIAS to heritage _build_class_index() lookup",
+      "rationale": "TypeScript interfaces can extend other interfaces. Currently hardcoded to CLASS only, which misses INTERFACE-to-INTERFACE EXTENDS relationships."
+    },
+    {
+      "area": "correctness",
+      "decision": "Wire HybridSearch into ContextGraph.search() with fallback to CONTAINS",
+      "rationale": "HybridSearch (BM25+semantic+fuzzy via RRF) in search.py is purpose-built but unused. ContextGraph.search() should try HybridSearch when embeddings exist, fall back to storage.search() (CONTAINS) otherwise."
+    },
+    {
+      "area": "maintainability",
+      "decision": "Lazy-import GraphStorage inside ContextGraph.__init__() instead of module level",
+      "rationale": "Module-level import kuzu in storage.py cascades through __init__.py, making the entire package unimportable without kuzu. Lazy import breaks the cascade, letting model.py, walker.py, parser_base.py work independently."
+    },
+    {
+      "area": "maintainability",
+      "decision": "Add public query methods to GraphStorage; phases use those instead of _require_conn()",
+      "rationale": "6 phase files and 6 workflow functions access private storage internals (12+ sites). Adding get_symbol_nodes_by_file(), get_symbol_index(), get_class_index(), and get_edge_types() centralizes Cypher queries and enables safe refactoring of storage internals."
+    },
+    {
+      "area": "maintainability",
+      "decision": "Extract shared _is_entry_point() to phases package utility",
+      "rationale": "Identical logic duplicated in dead_code.py and flows.py. Single source of truth."
+    },
+    {
+      "area": "performance",
+      "decision": "Pre-fetch all nodes into a dict before BFS in impact.py",
+      "rationale": "Currently calls get_node() per BFS node (N+1), then again per result. Pre-fetching eliminates both N+1 patterns."
+    },
+    {
+      "area": "performance",
+      "decision": "Batch-fetch member node names in community.py",
+      "rationale": "_query_node_name() per member node is N+1. Fetch all nodes once, build name lookup dict."
+    },
+    {
+      "area": "scope",
+      "decision": "Defer O(n^2) coupling optimization and batch node insertion to future work",
+      "rationale": "These are architectural changes that require rethinking data structures. Not appropriate for a fixes pass. Track as follow-up."
+    },
+    {
+      "area": "correctness",
+      "decision": "Remove invalid limit parameter from cmd_graph_suggest_scope and cmd_graph_enrich CLI handlers",
+      "rationale": "workflow_memory.py passes limit= to suggest_scope() and enrich_context() but neither function accepts it. Causes TypeError (masked by kuzu import crash). Fix is to remove limit from the call sites."
+    },
+    {
+      "area": "correctness",
+      "decision": "RESOLVED: task key 'name' in graph CLI output is correct",
+      "rationale": "Investigated: item['name'] in graph enrich/impact/suggest-scope output matches the workflow.py return schema which uses 'name'. The KeyError: 'name' was in a consumer's ad-hoc inline script accessing task description dicts (which use 'title'), not cnogo code. No fix needed."
+    }
+  ],
+  "constraints": [
+    "Max 3 tasks per plan (workflow policy)",
+    "All existing tests must continue to pass (118/118)",
+    "No new external dependencies",
+    "Maintain backward-compatible ContextGraph API",
+    "Storage schema must remain unchanged (no migration needed)"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/context/storage.py",
+    ".cnogo/scripts/context/search.py",
+    ".cnogo/scripts/context/workflow.py",
+    ".cnogo/scripts/context/phases/exports.py",
+    ".cnogo/scripts/context/phases/imports.py",
+    ".cnogo/scripts/context/phases/calls.py",
+    ".cnogo/scripts/context/phases/heritage.py",
+    ".cnogo/scripts/context/phases/community.py",
+    ".cnogo/scripts/context/phases/coupling.py",
+    ".cnogo/scripts/context/phases/impact.py",
+    ".cnogo/scripts/context/phases/dead_code.py",
+    ".cnogo/scripts/context/phases/flows.py",
+    ".cnogo/scripts/workflow_memory.py"
+  ],
+  "planStrategy": {
+    "plan01": {
+      "name": "Security + Quick Correctness + CLI Wiring",
+      "tasks": [
+        "Parameterize all Cypher string interpolation (exports.py, community.py, coupling.py, storage.py)",
+        "Fix heritage _build_class_index() to include INTERFACE and TYPE_ALIAS + fix add_relationships() docstring",
+        "Fix CLI wiring: remove invalid limit param from graph commands, fix task key 'name'->'title'"
+      ]
+    },
+    "plan02": {
+      "name": "Lazy Imports + Encapsulation",
+      "tasks": [
+        "Lazy-import GraphStorage in __init__.py to break kuzu cascade",
+        "Add public query methods to GraphStorage for phase use",
+        "Extract shared _is_entry_point() utility and update dead_code.py + flows.py"
+      ]
+    },
+    "plan03": {
+      "name": "Performance + HybridSearch",
+      "tasks": [
+        "Pre-fetch nodes in impact.py BFS to eliminate N+1",
+        "Batch-fetch member names in community.py to eliminate N+1",
+        "Wire HybridSearch into ContextGraph.search() with CONTAINS fallback"
+      ]
+    }
+  },
+  "deferred": [
+    "O(n^2) coupling computation optimization",
+    "Batch node insertion in storage.add_nodes()",
+    "ANN index for semantic search",
+    "Multi-line signature extraction in contracts.py"
+  ],
+  "sourceReview": "docs/planning/work/features/universal-context-graph/REVIEW.md",
+  "timestamp": "2026-03-02T10:00:00Z"
+}

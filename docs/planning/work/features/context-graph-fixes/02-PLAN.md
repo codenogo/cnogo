@@ -1,0 +1,113 @@
+# Plan 02: Break kuzu cascade import, encapsulate storage internals behind public methods, extract shared utility
+
+## Goal
+Break kuzu cascade import, encapsulate storage internals behind public methods, extract shared utility
+
+## Tasks
+
+### Task 1: Lazy-import GraphStorage to break kuzu cascade
+**Files:** `.cnogo/scripts/context/__init__.py`
+**Action:**
+In __init__.py, remove the module-level `from scripts.context.storage import GraphStorage` import (line 11). Inside ContextGraph.__init__() method, add `from scripts.context.storage import GraphStorage` as a local import just before `self._storage = GraphStorage(self._db_path)`. This ensures importing the context package for model/walker/parser_base access no longer triggers kuzu loading.
+
+**Micro-steps:**
+- Remove top-level `from scripts.context.storage import GraphStorage` (line 11)
+- Add lazy import inside ContextGraph.__init__() before self._storage assignment
+- Verify all other __init__.py imports remain unchanged
+- Run py_compile on __init__.py
+- Verify `from scripts.context.model import NodeLabel` works without kuzu installed
+
+**TDD:**
+- required: `false`
+- reason: kuzu not installed in dev env; verification via py_compile and import smoke test
+
+**Verify:**
+```bash
+python3 -m py_compile .cnogo/scripts/context/__init__.py
+python3 -c "from scripts.context.model import NodeLabel; print('model import OK')"
+python3 -c "from scripts.context.walker import walk; print('walker import OK')"
+python3 -c "from scripts.context.parser_base import ParseResult; print('parser_base import OK')"
+```
+
+**Done when:** [Observable outcome]
+
+### Task 2: Add public query methods to GraphStorage and update phase callers
+**Files:** `.cnogo/scripts/context/storage.py`, `.cnogo/scripts/context/phases/exports.py`, `.cnogo/scripts/context/phases/imports.py`, `.cnogo/scripts/context/phases/calls.py`, `.cnogo/scripts/context/phases/heritage.py`, `.cnogo/scripts/context/phases/types.py`, `.cnogo/scripts/context/phases/coupling.py`, `.cnogo/scripts/context/phases/community.py`
+**Action:**
+Add 5 new public query methods to GraphStorage in storage.py. Then update all 7 phase files to use the new public methods instead of calling storage._require_conn() directly. community.py already has an equivalent public method (get_all_relationships_by_types) — just replace its internal _require_conn() call with that. The new methods: get_symbol_nodes_by_file(file_path) returns list[tuple[str,str,str|None]], get_all_file_paths() returns list[str], get_all_callable_nodes() returns list[tuple[str,str,str|None,str,str|None]], get_class_like_nodes() returns list[tuple[str,str]], get_type_nodes() returns list[tuple[str,str]].
+
+**Micro-steps:**
+- Add get_symbol_nodes_by_file(file_path) to storage.py — returns (id, name, class_name) tuples
+- Add get_all_file_paths() to storage.py — returns list of file paths from FILE nodes
+- Add get_all_callable_nodes() to storage.py — returns (id, name, class_name, label, file_path) tuples
+- Add get_class_like_nodes() to storage.py — returns (id, name) for class/interface/type_alias
+- Add get_type_nodes() to storage.py — returns (id, name) for class/interface/type_alias/enum
+- Update exports.py to use storage.get_symbol_nodes_by_file() instead of _require_conn()
+- Update imports.py to use storage.get_all_file_paths() instead of _require_conn()
+- Update calls.py to use storage.get_all_callable_nodes() instead of _require_conn()
+- Update heritage.py to use storage.get_class_like_nodes() instead of _require_conn()
+- Update types.py to use storage.get_type_nodes() instead of _require_conn()
+- Update coupling.py to use storage.get_all_callable_nodes() (select id,name) instead of _require_conn()
+- Update community.py to use storage.get_all_relationships_by_types() instead of _require_conn()
+- Run py_compile on all 8 files
+- Grep to confirm no _require_conn() calls remain in phases/
+
+**TDD:**
+- required: `false`
+- reason: kuzu not installed in dev env; verification via py_compile and pattern assertions
+
+**Verify:**
+```bash
+python3 -m py_compile .cnogo/scripts/context/storage.py
+python3 -m py_compile .cnogo/scripts/context/phases/exports.py
+python3 -m py_compile .cnogo/scripts/context/phases/imports.py
+python3 -m py_compile .cnogo/scripts/context/phases/calls.py
+python3 -m py_compile .cnogo/scripts/context/phases/heritage.py
+python3 -m py_compile .cnogo/scripts/context/phases/types.py
+python3 -m py_compile .cnogo/scripts/context/phases/coupling.py
+python3 -m py_compile .cnogo/scripts/context/phases/community.py
+python3 -c "import subprocess; r=subprocess.run(['grep','-rn','_require_conn','.cnogo/scripts/context/phases/'],capture_output=True,text=True); assert r.stdout.strip()=='', f'_require_conn still found in phases: {r.stdout}'; print('No _require_conn in phases/')"
+```
+
+**Done when:** [Observable outcome]
+
+### Task 3: Extract shared _is_entry_point() utility
+**Files:** `.cnogo/scripts/context/phases/_utils.py`, `.cnogo/scripts/context/phases/dead_code.py`, `.cnogo/scripts/context/phases/flows.py`
+**Action:**
+Create a new .cnogo/scripts/context/phases/_utils.py with the canonical _is_entry_point(node: GraphNode) -> bool function that includes the is_exported check (superset of both existing versions). Import GraphNode from scripts.context.model. Then update dead_code.py and flows.py to import is_entry_point from scripts.context.phases._utils and remove their local _is_entry_point() definitions.
+
+**Micro-steps:**
+- Create .cnogo/scripts/context/phases/_utils.py with shared _is_entry_point(node: GraphNode) -> bool (superset version with is_exported check)
+- Update dead_code.py to import from _utils and remove local definition
+- Update flows.py to import from _utils and remove local definition
+- Run py_compile on all 3 files
+- Grep to confirm no local _is_entry_point def in dead_code.py or flows.py
+
+**TDD:**
+- required: `false`
+- reason: kuzu not installed in dev env; verification via py_compile and pattern assertions
+
+**Verify:**
+```bash
+python3 -m py_compile .cnogo/scripts/context/phases/_utils.py
+python3 -m py_compile .cnogo/scripts/context/phases/dead_code.py
+python3 -m py_compile .cnogo/scripts/context/phases/flows.py
+python3 -c "import subprocess; r=subprocess.run(['grep','-n','def _is_entry_point','.cnogo/scripts/context/phases/dead_code.py','.cnogo/scripts/context/phases/flows.py'],capture_output=True,text=True); assert r.stdout.strip()=='', f'Local _is_entry_point still found: {r.stdout}'; print('No local _is_entry_point defs')"
+```
+
+**Done when:** [Observable outcome]
+
+## Verification
+
+After all tasks:
+```bash
+python3 -m py_compile .cnogo/scripts/context/__init__.py
+python3 -c "from scripts.context.model import NodeLabel; print('lazy import OK')"
+python3 -c "import subprocess; r=subprocess.run(['grep','-rn','_require_conn','.cnogo/scripts/context/phases/'],capture_output=True,text=True); assert r.stdout.strip()=='', f'Leak: {r.stdout}'; print('encapsulation OK')"
+python3 -m pytest tests/test_context_model.py tests/test_context_walker.py -x -q 2>&1 | tail -5
+```
+
+## Commit Message
+```
+refactor(context-graph): lazy-import kuzu, encapsulate storage queries, extract shared utility
+```

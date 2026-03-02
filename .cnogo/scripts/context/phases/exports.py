@@ -11,19 +11,12 @@ def _build_symbol_index_by_file(storage: GraphStorage, file_path: str) -> dict[s
 
     Returns all FUNCTION, CLASS, METHOD nodes in the given file.
     """
-    conn = storage._require_conn()
-    result = conn.execute(
-        f"MATCH (n:GraphNode) WHERE n.file_path = '{file_path}' AND n.label IN ['function', 'class', 'method'] "
-        "RETURN n.id, n.name, n.class_name"
-    )
+    rows = storage.get_symbol_nodes_by_file(file_path)
     index: dict[str, str] = {}
-    while result.has_next():
-        row = result.get_next()
-        nid, name, class_name = row
-        index[name] = nid
-        # Also index by ClassName.method for methods
+    for nid, name, class_name in rows:
         if class_name:
             index[f"{class_name}.{name}"] = nid
+        index[name] = nid
     return index
 
 

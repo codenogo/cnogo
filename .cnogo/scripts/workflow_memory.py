@@ -1127,9 +1127,8 @@ def cmd_graph_suggest_scope(args: argparse.Namespace) -> int:
     repo = getattr(args, "repo", None) or "."
     keywords = [k.strip() for k in args.keywords.split(",")] if args.keywords else []
     related_files = [f.strip() for f in args.files.split(",")] if getattr(args, "files", None) else []
-    limit = getattr(args, "limit", 20)
 
-    result = suggest_scope(repo, keywords=keywords, related_files=related_files, limit=limit)
+    result = suggest_scope(repo, keywords=keywords, related_files=related_files)
 
     if getattr(args, "json", False):
         print(json.dumps(result))
@@ -1157,9 +1156,8 @@ def cmd_graph_enrich(args: argparse.Namespace) -> int:
 
     repo = getattr(args, "repo", None) or "."
     keywords = [k.strip() for k in args.keywords.split(",")]
-    limit = getattr(args, "limit", 20)
 
-    result = enrich_context(repo, keywords=keywords, limit=limit)
+    result = enrich_context(repo, keywords=keywords)
 
     if getattr(args, "json", False):
         print(json.dumps(result))
