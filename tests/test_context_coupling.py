@@ -261,3 +261,66 @@ def test_coupling_via_imports(storage):
     pair = results[0]
     names = {pair.source_name, pair.target_name}
     assert names == {"a", "b"}
+
+
+def test_sparse_large_graph_coupling(storage):
+    """50 symbols with sparse shared neighbors — only 2 coupled pairs expected.
+
+    Validates inverted-index pruning produces correct results at scale:
+    no false positives, no missed pairs.
+    """
+    from scripts.context.phases.coupling import compute_coupling
+
+    # Create 50 function nodes
+    nodes = {}
+    for i in range(50):
+        name = f"fn_{i}"
+        nodes[name] = _add_function(storage, name)
+
+    # Shared targets
+    s1 = _add_function(storage, "shared_1")
+    s2 = _add_function(storage, "shared_2")
+    s3 = _add_function(storage, "shared_3")
+
+    # Pair 1: fn_0 and fn_1 both call shared_1 and shared_2 → Jaccard = 1.0
+    _add_call_edge(storage, nodes["fn_0"], s1)
+    _add_call_edge(storage, nodes["fn_0"], s2)
+    _add_call_edge(storage, nodes["fn_1"], s1)
+    _add_call_edge(storage, nodes["fn_1"], s2)
+
+    # Pair 2: fn_10 and fn_11 both call shared_3 → Jaccard = 1.0
+    _add_call_edge(storage, nodes["fn_10"], s3)
+    _add_call_edge(storage, nodes["fn_11"], s3)
+
+    # Give some isolated nodes unique targets so they have non-empty neighbor sets
+    # but share nothing with anyone
+    for i in range(20, 30):
+        unique_target = _add_function(storage, f"unique_{i}")
+        _add_call_edge(storage, nodes[f"fn_{i}"], unique_target)
+
+    results = compute_coupling(storage, threshold=0.5)
+
+    # 3 coupled pairs expected:
+    # - (fn_0, fn_1) via shared_1 + shared_2
+    # - (fn_10, fn_11) via shared_3
+    # - (shared_1, shared_2) — both are function nodes with bidirectional
+    #   neighbors {fn_0, fn_1}, so they are coupled too
+    assert len(results) == 3
+
+    pair_names = [
+        frozenset({r.source_name, r.target_name}) for r in results
+    ]
+    assert frozenset({"fn_0", "fn_1"}) in pair_names
+    assert frozenset({"fn_10", "fn_11"}) in pair_names
+    assert frozenset({"shared_1", "shared_2"}) in pair_names
+
+    # All pairs have strength 1.0 (identical neighbor sets within each pair)
+    for r in results:
+        assert r.strength == 1.0
+
+    pair_fn01 = [r for r in results if {r.source_name, r.target_name} == {"fn_0", "fn_1"}][0]
+    pair_fn1011 = [r for r in results if {r.source_name, r.target_name} == {"fn_10", "fn_11"}][0]
+    pair_shared = [r for r in results if {r.source_name, r.target_name} == {"shared_1", "shared_2"}][0]
+    assert pair_fn01.shared_count == 2
+    assert pair_fn1011.shared_count == 1
+    assert pair_shared.shared_count == 2  # shared_1 and shared_2 both have neighbors {fn_0, fn_1}

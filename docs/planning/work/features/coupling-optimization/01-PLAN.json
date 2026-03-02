@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 2,
+  "feature": "coupling-optimization",
+  "planNumber": "01",
+  "goal": "Replace O(n^2) pairwise coupling loop with inverted-index candidate pruning to reduce complexity to O(E + C)",
+  "tasks": [
+    {
+      "name": "Replace O(n^2) loop with inverted-index candidate generation",
+      "files": [".cnogo/scripts/context/phases/coupling.py"],
+      "microSteps": [
+        "Run existing test suite to confirm GREEN baseline",
+        "Add _build_candidate_pairs() function that builds neighbor-to-symbols inverted index and returns set of frozenset candidate pairs",
+        "Replace the nested for-i/for-j loop in compute_coupling with iteration over candidate pairs from _build_candidate_pairs",
+        "Preserve canonical ordering (sorted IDs) and all existing behavior",
+        "Run existing test suite to confirm GREEN after refactor"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Pure refactor — green-refactor-green cycle. Existing 14 tests serve as regression gate."
+      },
+      "action": "Add a _build_candidate_pairs(neighbor_sets) function that: (1) builds an inverted index mapping each neighbor to the set of symbol node_ids that have it as a neighbor, (2) iterates over posting lists to collect candidate pairs (as frozensets to deduplicate), (3) returns a set of (a_id, b_id) tuples with canonical ordering. Then replace the O(n^2) nested loop in compute_coupling (lines 91-142) with iteration over these candidate pairs. Keep the Jaccard computation, threshold check, CouplingResult creation, and COUPLED_WITH relationship creation identical.",
+      "verify": ["python3 -m pytest tests/test_context_coupling.py -v"]
+    },
+    {
+      "name": "Add scaling regression test for inverted-index correctness",
+      "files": ["tests/test_context_coupling.py"],
+      "microSteps": [
+        "Write a test that creates 50 symbol nodes with sparse shared neighbors (only a few pairs sharing neighbors)",
+        "Assert that compute_coupling returns only the expected coupled pairs and no false positives",
+        "Run the new test to confirm GREEN"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_context_coupling.py::test_sparse_large_graph_coupling -v"],
+        "passingVerify": ["python3 -m pytest tests/test_context_coupling.py::test_sparse_large_graph_coupling -v"]
+      },
+      "action": "Add test_sparse_large_graph_coupling to test_context_coupling.py: create 50 function nodes, wire only 2 pairs to share neighbors (pair A-B shares s1+s2, pair C-D shares s3), leave remaining 46 nodes isolated or with unique neighbors. Assert compute_coupling returns exactly 2 results with correct strengths. This validates the inverted-index doesn't miss or invent pairs at scale.",
+      "verify": ["python3 -m pytest tests/test_context_coupling.py -v"],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_context_coupling.py -v",
+    "python3 -c \"import ast; ast.parse(open('.cnogo/scripts/context/phases/coupling.py').read()); print('AST OK')\"",
+    "python3 -c \"from scripts.context.phases.coupling import compute_coupling, CouplingResult, _build_candidate_pairs; print('imports OK')\""
+  ],
+  "commitMessage": "perf(coupling): replace O(n^2) loop with inverted-index candidate pruning",
+  "timestamp": "2026-03-02T00:00:00Z"
+}
