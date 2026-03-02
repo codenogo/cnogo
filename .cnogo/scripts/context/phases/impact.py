@@ -16,6 +16,7 @@ from scripts.context.storage import GraphStorage
 class ImpactResult:
     node: object  # GraphNode
     depth: int
+    edge_type: str  # RelType value that led to this node (e.g. "calls")
 
 
 def impact_analysis(
@@ -49,7 +50,7 @@ def impact_analysis(
     # Pre-fetch all nodes into a cache to avoid N+1 get_node() calls
     node_cache: dict[str, object] = {n.id: n for n in storage.get_all_nodes()}
 
-    # Build reverse edge map: target_id -> list[source_id]
+    # Build reverse edge map: target_id -> list[(source_id, rel_type)]
     # for CALLS, IMPORTS, EXTENDS edges
     incoming_rel_types = [
         RelType.CALLS.value,
@@ -58,25 +59,25 @@ def impact_analysis(
     ]
     all_rels = storage.get_all_relationships_by_types(incoming_rel_types)
 
-    # reverse_map: target_id -> list[source_id]
-    reverse_map: dict[str, list[str]] = {}
-    for src, tgt, _ in all_rels:
-        reverse_map.setdefault(tgt, []).append(src)
+    # reverse_map: target_id -> list[(source_id, rel_type)]
+    reverse_map: dict[str, list[tuple[str, str]]] = {}
+    for src, tgt, rel_type in all_rels:
+        reverse_map.setdefault(tgt, []).append((src, rel_type))
 
     # BFS backward from seed nodes
     visited: set[str] = set(seed_ids)
-    queue: deque[tuple[str, int]] = deque()
+    queue: deque[tuple[str, int, str]] = deque()  # (node_id, depth, edge_type)
 
     for seed_id in seed_ids:
-        for src_id in reverse_map.get(seed_id, []):
+        for src_id, rel_type in reverse_map.get(seed_id, []):
             if src_id not in visited:
                 visited.add(src_id)
-                queue.append((src_id, 1))
+                queue.append((src_id, 1, rel_type))
 
-    results_map: dict[str, int] = {}  # node_id -> depth
+    results_map: dict[str, tuple[int, str]] = {}  # node_id -> (depth, edge_type)
 
     while queue:
-        node_id, depth = queue.popleft()
+        node_id, depth, edge_type = queue.popleft()
         if depth > max_depth:
             continue
 
@@ -91,23 +92,23 @@ def impact_analysis(
 
         # Record (keep minimum depth if already seen)
         if node_id not in results_map:
-            results_map[node_id] = depth
+            results_map[node_id] = (depth, edge_type)
 
             if depth < max_depth:
-                for src_id in reverse_map.get(node_id, []):
+                for src_id, rel_type in reverse_map.get(node_id, []):
                     if src_id not in visited:
                         visited.add(src_id)
-                        queue.append((src_id, depth + 1))
+                        queue.append((src_id, depth + 1, rel_type))
 
     if not results_map:
         return []
 
     # Build results from cached nodes
     results: list[ImpactResult] = []
-    for node_id, depth in results_map.items():
+    for node_id, (depth, edge_type) in results_map.items():
         node = node_cache.get(node_id)
         if node is not None:
-            results.append(ImpactResult(node=node, depth=depth))
+            results.append(ImpactResult(node=node, depth=depth, edge_type=edge_type))
 
     # Sort by depth ASC, then name ASC
     results.sort(key=lambda r: (r.depth, r.node.name))
