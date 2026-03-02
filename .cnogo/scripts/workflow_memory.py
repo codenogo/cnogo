@@ -759,6 +759,7 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
                     "name": r.node.name,
                     "label": r.node.label.value,
                     "file_path": r.node.file_path,
+                    "edge_type": r.edge_type,
                     "depth": r.depth,
                 }
                 for r in results
@@ -773,7 +774,7 @@ def cmd_graph_impact(args: argparse.Namespace) -> int:
             if r.depth != current_depth:
                 current_depth = r.depth
                 print(f"\n  Depth {current_depth}:")
-            print(f"    {r.node.name} ({r.node.label.value}) — {r.node.file_path}")
+            print(f"    {r.node.name} ({r.node.label.value}) [{r.edge_type}] — {r.node.file_path}")
     finally:
         graph.close()
     return 0
