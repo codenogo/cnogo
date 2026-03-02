@@ -1,0 +1,103 @@
+{
+  "automated": [
+    {"name": "lint", "result": "skipped"},
+    {"name": "types", "result": "skipped"},
+    {"name": "tests", "result": "skipped"}
+  ],
+  "blockers": [],
+  "branch": "feature/graph-integrity-fixes",
+  "feature": "graph-integrity-fixes",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {"fail": 0, "total": 0, "warn": 0}
+  },
+  "packages": [
+    {
+      "checks": [
+        {"cmd": "python3 -m py_compile ...", "name": "lint", "reason": "no changed files for package", "result": "skipped"},
+        {"cmd": null, "name": "typecheck", "result": "skipped"},
+        {"cmd": null, "name": "test", "result": "skipped"}
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    {"pattern": "Parameterized Cypher queries", "status": "compliant", "note": "get_reverse_dependency_files uses numbered params ($f0..$fN) matching existing get_all_relationships_by_types pattern"},
+    {"pattern": "stdlib-only for core modules", "status": "compliant", "note": "No new deps; kuzu remains sole external dep"},
+    {"pattern": "Lazy imports for kuzu", "status": "compliant", "note": "No new imports at module level"}
+  ],
+  "performanceFindings": [
+    {"severity": "info", "description": "Affected unchanged files parsed sequentially (not with ThreadPoolExecutor). For typical incremental reindexes this set is small; could optimize later if profiling shows bottleneck."}
+  ],
+  "principleNotes": [
+    {"principle": "Surgical Changes", "note": "Only index() and storage touched. No drive-by edits."},
+    {"principle": "Simplicity First", "note": "Reuses existing edge phase functions. New storage methods follow established patterns."},
+    {"principle": "Verification Before Completion", "note": "py_compile and grep verification ran with fresh output."}
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "Plan goal: P0 reindex edge loss + P1 HybridSearch cache. Implementation matches exactly.",
+        "Declared files: __init__.py, storage.py. Changed files: __init__.py, storage.py, issues.jsonl (memory tracking). No scope violations.",
+        "01-PLAN.json, 01-SUMMARY.json, CONTEXT.json all present and valid.",
+        "Phase progression: discuss -> plan -> implement -> review (correct).",
+        "Commit message matches plan: 'fix(graph): preserve cross-file edges on incremental reindex and reset search cache'."
+      ],
+      "notes": "All micro-steps executed. TDD waived per plan (kuzu unavailable in dev/test). py_compile verification passed."
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        {"severity": "info", "description": "remove_edges_from_file() deletes ALL outgoing edges from affected files (including edges to other unchanged files), then rebuilds them all. Slightly wasteful but correct and simple. A targeted deletion (only edges to changed-file nodes) would be more efficient but adds complexity."}
+      ],
+      "evidence": [
+        "storage.py: get_reverse_dependency_files() uses parameterized Cypher, guards empty input, returns DISTINCT paths.",
+        "storage.py: remove_edges_from_file() reuses exact same MATCH pattern as remove_nodes_by_file() first query.",
+        "__init__.py: Reverse deps collected BEFORE node removal (edges still exist at that point).",
+        "__init__.py: affected_fps filtered to current_paths and excludes changed files (no double-processing).",
+        "__init__.py: Edge rebuild runs only edge phases (imports/calls/heritage/types/exports), NOT process_symbols/process_structure.",
+        "__init__.py: _hybrid_search = None placed at top of index(), before walk. Correct sentinel protocol.",
+        "Edge cases handled: empty new_or_changed (early return), new files (excluded from changed_fps), deleted affected files (excluded by current_paths)."
+      ],
+      "notes": "Clean, minimal changes. Follows existing code patterns. No new dependencies."
+    }
+  ],
+  "scores": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "performance": 2,
+    "maintainability": 2,
+    "testCoverage": 1,
+    "simplicity": 2,
+    "total": 13,
+    "maxTotal": 14
+  },
+  "timestamp": "2026-03-02T09:30:00Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}

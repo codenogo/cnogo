@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 2,
+  "feature": "graph-integrity-fixes",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/phases/heritage.py",
+      "description": "Replaced hardcoded generate_id(NodeLabel.CLASS, ...) child lookup with class_index.get(child_name), resolving node IDs for all class-like types (CLASS, INTERFACE, TYPE_ALIAS, ENUM). Removed unused imports."
+    },
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Added 'label': ir.node.label.value to review_impact() entry dicts, preventing KeyError in CLI formatter."
+    },
+    {
+      "file": ".cnogo/scripts/workflow_memory.py",
+      "description": "Added graph.index() call in cmd_graph_flows() before graph.flows(), matching auto-index pattern of other graph commands."
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/phases/heritage.py', doraise=True)\"",
+      "result": "pass"
+    },
+    {
+      "command": "grep -n 'generate_id(NodeLabel.CLASS' .cnogo/scripts/context/phases/heritage.py",
+      "result": "pass",
+      "output": "No matches (exit 1) — hardcoded CLASS lookup removed"
+    },
+    {
+      "command": "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/__init__.py', doraise=True)\"",
+      "result": "pass"
+    },
+    {
+      "command": "grep -n '\"label\".*ir.node.label.value' .cnogo/scripts/context/__init__.py",
+      "result": "pass",
+      "output": "271: entries.append({\"name\": ir.node.name, \"label\": ir.node.label.value, ...})"
+    },
+    {
+      "command": "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/workflow_memory.py', doraise=True)\"",
+      "result": "pass"
+    },
+    {
+      "command": "grep -A8 'def cmd_graph_flows' .cnogo/scripts/workflow_memory.py",
+      "result": "pass",
+      "output": "graph.index() precedes graph.flows()"
+    }
+  ],
+  "commit": "06926d2",
+  "timestamp": "2026-03-02T17:30:00Z"
+}

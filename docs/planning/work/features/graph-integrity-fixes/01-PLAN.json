@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 2,
+  "feature": "graph-integrity-fixes",
+  "planNumber": "01",
+  "goal": "Fix P0 incremental reindex edge loss and P1 HybridSearch cache staleness in ContextGraph.index()",
+  "tasks": [
+    {
+      "name": "Fix incremental reindex to preserve cross-file edges",
+      "files": [
+        ".cnogo/scripts/context/__init__.py",
+        ".cnogo/scripts/context/storage.py"
+      ],
+      "microSteps": [
+        "Add get_reverse_dependency_files(file_paths) method to GraphStorage that returns distinct file paths with edges pointing into the given files",
+        "In ContextGraph.index(), before removing changed-file nodes, call get_reverse_dependency_files() to collect affected unchanged files",
+        "After edge-building phases run for new_or_changed, re-parse affected unchanged files and run edge phases (calls, imports, heritage, types, exports) for them",
+        "Verify with py_compile that both files compile cleanly"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "kuzu not available in dev/test environment — verify via py_compile and grep assertions"
+      },
+      "action": "Add storage.get_reverse_dependency_files(changed_fps) that runs: MATCH (n:GraphNode)-[r:CodeRelation]->(m:GraphNode) WHERE m.file_path IN $fps AND n.file_path NOT IN $fps RETURN DISTINCT n.file_path. In index(), before remove_nodes_by_file, collect reverse deps. After processing new_or_changed through all phases, also re-parse the affected unchanged files (using walk entries or reading from disk) and run the edge-building phases (imports, calls, heritage, types, exports) with those parse results merged in. Do NOT re-run process_symbols or process_structure for unchanged files since their nodes are already correct.",
+      "verify": [
+        "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/__init__.py', doraise=True)\"",
+        "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/storage.py', doraise=True)\""
+      ]
+    },
+    {
+      "name": "Reset HybridSearch cache on reindex",
+      "files": [
+        ".cnogo/scripts/context/__init__.py"
+      ],
+      "microSteps": [
+        "Add self._hybrid_search = None as the first line of index() method body",
+        "Verify the sentinel protocol: None=not attempted, False=unavailable, instance=ready"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "kuzu not available in dev/test environment — verify via grep assertion"
+      },
+      "action": "Add `self._hybrid_search = None` as the first line inside index() (before the walk call). This resets the lazy sentinel so the next search() call triggers a fresh build_index() against updated storage.",
+      "verify": [
+        "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/__init__.py', doraise=True)\"",
+        "grep -n '_hybrid_search = None' .cnogo/scripts/context/__init__.py | grep -v '__init__' | head -5"
+      ],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/__init__.py', doraise=True)\"",
+    "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/storage.py', doraise=True)\""
+  ],
+  "commitMessage": "fix(graph): preserve cross-file edges on incremental reindex and reset search cache",
+  "timestamp": "2026-03-02T16:30:00Z"
+}

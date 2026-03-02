@@ -235,13 +235,36 @@ class ContextGraph:
         return impact_analysis(self._storage, file_path, max_depth)
 
     def context(self, node_id: str) -> dict[str, Any]:
-        """Return context for a node: callers, callees. Raises ValueError if not found."""
+        """Return full neighborhood for a node.
+
+        Returns dict with keys: node, callers, callees, importers, imports,
+        parent_classes, child_classes.  Raises ValueError if not found.
+        """
         node = self._storage.get_node(node_id)
         if node is None:
             raise ValueError(f"Node '{node_id}' not found")
-        callers = self._storage.get_callers_with_confidence(node_id)
+        # Callers: unwrap (GraphNode, confidence) tuples to plain GraphNode list
+        callers = [n for n, _conf in self._storage.get_callers_with_confidence(node_id)]
         callees = self._storage.get_callees(node_id)
-        return {"node": node, "callers": callers, "callees": callees}
+        importers = self._storage.get_related_nodes(node_id, RelType.IMPORTS, "incoming")
+        imports = self._storage.get_related_nodes(node_id, RelType.IMPORTS, "outgoing")
+        parent_classes = (
+            self._storage.get_related_nodes(node_id, RelType.EXTENDS, "outgoing")
+            + self._storage.get_related_nodes(node_id, RelType.IMPLEMENTS, "outgoing")
+        )
+        child_classes = (
+            self._storage.get_related_nodes(node_id, RelType.EXTENDS, "incoming")
+            + self._storage.get_related_nodes(node_id, RelType.IMPLEMENTS, "incoming")
+        )
+        return {
+            "node": node,
+            "callers": callers,
+            "callees": callees,
+            "importers": importers,
+            "imports": imports,
+            "parent_classes": parent_classes,
+            "child_classes": child_classes,
+        }
 
     def callers_with_confidence(self, node_id: str) -> list[tuple[GraphNode, float]]:
         """Return (caller_node, confidence) for all incoming CALLS edges."""

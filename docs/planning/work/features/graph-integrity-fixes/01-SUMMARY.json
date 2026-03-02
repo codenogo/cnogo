@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "feature": "graph-integrity-fixes",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/storage.py",
+      "description": "Added get_reverse_dependency_files() to find unchanged files with edges into changed files, and remove_edges_from_file() to delete outgoing edges before rebuilding."
+    },
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Updated index() to collect reverse deps before node removal, then re-parse affected unchanged files and re-run edge phases (imports, calls, heritage, types, exports) to restore cross-file edges. Added _hybrid_search = None reset at start of index() to invalidate stale search cache."
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/__init__.py', doraise=True)\"",
+      "result": "pass"
+    },
+    {
+      "command": "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/storage.py', doraise=True)\"",
+      "result": "pass"
+    },
+    {
+      "command": "grep -n '_hybrid_search = None' .cnogo/scripts/context/__init__.py | grep -v '__init__'",
+      "result": "pass",
+      "output": "67:        self._hybrid_search = None"
+    }
+  ],
+  "commit": "5d4c0ea",
+  "timestamp": "2026-03-02T17:00:00Z"
+}

@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "feature": "graph-integrity-fixes",
+  "displayName": "Graph Integrity Fixes",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "Two-phase incremental reindex: after removing changed-file nodes, re-run edge-building phases (calls, imports, heritage, types, exports) for ALL indexed files whose parse results reference changed symbols, not just new_or_changed files.",
+      "rationale": "P0 fix. Current approach only rebuilds edges from changed files, losing incoming edges from unchanged callers. A targeted reverse-dependency scan (find files that import/call symbols in changed files) is cheaper than full rebuild while restoring correctness.",
+      "finding": "P0-incremental-reindex"
+    },
+    {
+      "area": "architecture",
+      "decision": "Reset _hybrid_search to None at the start of index() so next search() call triggers a fresh build_index().",
+      "rationale": "P1 fix. Minimal change — one line in index(). Lazy rebuild on next search is safe because build_index() reads current storage state.",
+      "finding": "P1-hybrid-search-cache"
+    },
+    {
+      "area": "architecture",
+      "decision": "In heritage.py, resolve child_id by trying all class-like labels (CLASS, INTERFACE, TYPE_ALIAS, ENUM) instead of hardcoding NodeLabel.CLASS.",
+      "rationale": "P1 fix. An interface implementing another interface, or a type alias extending a class, generates the wrong ID and silently drops the edge. Use the class_index to look up child_name the same way parent_name is looked up.",
+      "finding": "P1-heritage-labels"
+    },
+    {
+      "area": "data-flow",
+      "decision": "Add 'label': ir.node.label.value to the dict emitted in review_impact() entries.",
+      "rationale": "P1 fix. CLI formatter at workflow_memory.py:1017 reads e['label']. One-line addition prevents KeyError crash.",
+      "finding": "P1-blast-radius-keyerror"
+    },
+    {
+      "area": "data-flow",
+      "decision": "Add graph.index() call in cmd_graph_flows() before graph.flows(), matching the pattern used by cmd_graph_dead() and cmd_graph_coupling().",
+      "rationale": "P2 fix. Consistent with other commands. Without auto-index, fresh repos always report zero flows.",
+      "finding": "P2-flows-auto-index"
+    },
+    {
+      "area": "api",
+      "decision": "Expand context() to return all 6 keys the CLI expects: node, callers, callees, importers, imports, parent_classes, child_classes. Callers should return GraphNode list (unwrap confidence tuples for the dict, keep callers_with_confidence() as separate method).",
+      "rationale": "P2 fix. CLI formatter at workflow_memory.py:1047-1068 iterates all 6 neighborhood keys. The context() method is the public API for graph-context command. Add storage queries for import/heritage neighbors.",
+      "finding": "P2-context-contract-drift"
+    },
+    {
+      "area": "architecture",
+      "decision": "Defer proximity feature. Remove dangling test expectations if any. The prioritize_context() workflow entrypoint is sufficient for now.",
+      "rationale": "P2 finding. No consumers of the missing proximity.py or ContextGraph.prioritize_files(). The existing prioritize_context() function works. Adding proximity is a new feature, not a bug fix.",
+      "finding": "P2-proximity-defer"
+    }
+  ],
+  "constraints": [
+    "Python stdlib-only for core graph modules (kuzu is the single external dep for storage)",
+    "Lazy imports for kuzu to avoid cascading ImportError when graph is not installed",
+    "Parameterized Cypher queries only (no f-string interpolation of user data)",
+    "Heritage edge fix must handle all NodeLabel class-like types: CLASS, INTERFACE, TYPE_ALIAS, ENUM",
+    "context() return type must remain dict[str, Any] for CLI compatibility",
+    "Max 3 tasks per plan (project rule)"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/context/phases/heritage.py",
+    ".cnogo/scripts/context/phases/impact.py",
+    ".cnogo/scripts/context/phases/calls.py",
+    ".cnogo/scripts/context/phases/imports.py",
+    ".cnogo/scripts/context/phases/exports.py",
+    ".cnogo/scripts/context/phases/types.py",
+    ".cnogo/scripts/context/storage.py",
+    ".cnogo/scripts/context/model.py",
+    ".cnogo/scripts/workflow_memory.py"
+  ],
+  "findings": {
+    "verified": [
+      {
+        "id": "P0-incremental-reindex",
+        "priority": "P0",
+        "title": "Incremental reindex drops cross-file edges",
+        "status": "open",
+        "file": ".cnogo/scripts/context/__init__.py",
+        "lines": "92-99",
+        "description": "remove_nodes_by_file() deletes all edges for changed files, but edge-building phases only run on new_or_changed files. Unchanged callers to changed symbols lose their CALLS edges permanently."
+      },
+      {
+        "id": "P1-hybrid-search-cache",
+        "priority": "P1",
+        "title": "HybridSearch cache not invalidated after reindex",
+        "status": "open",
+        "file": ".cnogo/scripts/context/__init__.py",
+        "lines": "49,59-153",
+        "description": "_hybrid_search is initialized lazily but never reset when index() rebuilds the graph. Subsequent search() calls return stale/empty results."
+      },
+      {
+        "id": "P1-heritage-labels",
+        "priority": "P1",
+        "title": "Heritage edges drop non-CLASS children",
+        "status": "open",
+        "file": ".cnogo/scripts/context/phases/heritage.py",
+        "line": 42,
+        "description": "generate_id(NodeLabel.CLASS, ...) is used for child lookup but interfaces, enums, and type aliases have different label prefixes in their IDs. get_node() returns None and the edge is silently skipped."
+      },
+      {
+        "id": "P1-blast-radius-keyerror",
+        "priority": "P1",
+        "title": "review_impact() entries missing 'label' key",
+        "status": "open",
+        "file": ".cnogo/scripts/context/__init__.py",
+        "line": 235,
+        "description": "review_impact() emits dicts with name/file_path/depth but not label. CLI formatter at workflow_memory.py:1017 reads e['label'], causing KeyError at runtime."
+      },
+      {
+        "id": "P2-flows-auto-index",
+        "priority": "P2",
+        "title": "graph-flows CLI doesn't auto-index",
+        "status": "open",
+        "file": ".cnogo/scripts/workflow_memory.py",
+        "line": 883,
+        "description": "cmd_graph_flows() calls graph.flows() directly without graph.index(). Other commands (dead, coupling, blast-radius) auto-index. Fresh repos report zero flows."
+      },
+      {
+        "id": "P2-context-contract-drift",
+        "priority": "P2",
+        "title": "context() returns 3 keys, CLI expects 7",
+        "status": "open",
+        "file": ".cnogo/scripts/context/__init__.py",
+        "lines": "201-208",
+        "description": "context() returns {node, callers, callees}. CLI formatter expects {node, callers, callees, importers, imports, parent_classes, child_classes}. Additionally callers returns (node, confidence) tuples but formatter expects plain nodes."
+      }
+    ],
+    "deferred": [
+      {
+        "id": "P2-proximity-defer",
+        "priority": "P2",
+        "title": "Proximity feature incomplete",
+        "status": "deferred",
+        "description": "proximity.py doesn't exist, ContextGraph.prioritize_files() is absent. Existing prioritize_context() works. This is a new feature, not a bug fix."
+      }
+    ],
+    "resolved": [
+      {
+        "id": "P3-post-commit-hook",
+        "priority": "P3",
+        "title": "Post-commit hook silently skips when venv missing",
+        "status": "fixed",
+        "description": "Returns exit code 0 on skip, which is correct behavior — hooks should not block commits when optional graph tooling is unavailable."
+      }
+    ]
+  },
+  "timestamp": "2026-03-02T16:00:00Z"
+}
