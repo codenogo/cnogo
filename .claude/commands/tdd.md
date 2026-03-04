@@ -39,7 +39,12 @@ Stop if they pass unexpectedly and explain why. Do not continue with implementat
 - known gaps
 - explicit failing->passing evidence (commands + outputs)
 
-8. Commit with conventional message (`test(...)` and/or `feat/fix(...)`).
+8. Validate workflow artifacts:
+```bash
+python3 .cnogo/scripts/workflow_validate.py
+```
+
+9. Commit with conventional message (`test(...)` and/or `feat/fix(...)`).
 
 ## Output
 

@@ -70,15 +70,15 @@ if str(_repo_root) not in sys.path:
 
 def _ensure_graph_venv() -> None:
     """Re-exec under .cnogo/.venv/bin/python3 for graph commands."""
-    venv_python = _repo_root / ".venv" / "bin" / "python3"
-    venv_dir = (_repo_root / ".venv").resolve()
+    venv_python = _repo_root / ".cnogo" / ".venv" / "bin" / "python3"
+    venv_dir = (_repo_root / ".cnogo" / ".venv").resolve()
     if Path(sys.prefix).resolve() == venv_dir:
         return  # already in this venv
     if not venv_python.exists():
         print(
             "Graph dependencies not installed.\n"
             "Run:\n"
-            f"  python3 -m venv {_repo_root / '.venv'}\n"
+            f"  python3 -m venv {_repo_root / '.cnogo' / '.venv'}\n"
             f"  {venv_python} -m pip install -r {_repo_root / 'requirements-graph.txt'}\n",
             file=sys.stderr,
         )

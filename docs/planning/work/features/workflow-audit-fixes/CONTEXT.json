@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "feature": "workflow-audit-fixes",
+  "displayName": "Workflow Audit Fixes",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "Fix all 26 confirmed findings from deep workflow audit in 4 phases, ordered by severity and dependency",
+      "rationale": "Phased approach keeps each plan at max 3 tasks and lets us ship incrementally with verification at each stage"
+    },
+    {
+      "area": "phase-1-critical",
+      "decision": "Phase 1 fixes runtime bugs: venv path inconsistency (workflow_memory.py lines 73-74 use .venv, should be .cnogo/.venv), quick SUMMARY.json validation gap, team.md epic_id derivation",
+      "rationale": "These affect correctness at runtime — venv mismatch can cause graph features to silently fail"
+    },
+    {
+      "area": "phase-2-standards",
+      "decision": "Phase 2 aligns standards: unify severity scales to Critical/Warning/Info across all skills, add 2 missing principles to root CLAUDE.md, consolidate perf-analysis.md into performance-review.md",
+      "rationale": "Inconsistent severity scales make review findings hard to compare; missing principles create a gap between policy documents"
+    },
+    {
+      "area": "phase-3-commands",
+      "decision": "Phase 3 normalizes commands: standardize step headings to '### Step N:', add validate step to tdd.md, convert ship.md to Step format, add branch cleanup to plan/implement/ship, fix implementer agent git add -A",
+      "rationale": "Consistency across commands reduces cognitive load and prevents parsing fragility if tooling consumes these"
+    },
+    {
+      "area": "phase-4-docs-lowpri",
+      "decision": "Phase 4 addresses documentation and low-priority items: ROADMAP graph coverage, missing renderers, dead code cleanup, WORKFLOW.json graph config, secret redaction patterns, missing commands/skills",
+      "rationale": "Lower urgency — documentation gaps and nice-to-haves that don't affect runtime behavior"
+    },
+    {
+      "area": "dropped-finding",
+      "decision": "Drop original HIGH #2 (bare except in validation) — investigation shows all exceptions are properly caught with error reporting",
+      "rationale": "Agent verified workflow_validate_core.py properly catches and logs exceptions — no bare except: pass exists"
+    }
+  ],
+  "constraints": [
+    "Python code is stdlib-only",
+    "Max 3 tasks per plan",
+    "Each phase should be independently shippable",
+    "Must not break existing tests or workflow validation",
+    "Skill changes must preserve the 7-axis scoring rubric interface",
+    "Command heading changes must be consistent across all 29 command files"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_hooks.py",
+    ".claude/commands/team.md",
+    ".claude/commands/ship.md",
+    ".claude/commands/tdd.md",
+    ".claude/commands/discuss.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/plan.md",
+    ".claude/commands/review.md",
+    ".claude/commands/performance-review.md",
+    ".claude/skills/perf-analysis.md",
+    ".claude/skills/performance-review.md",
+    ".claude/skills/security-scan.md",
+    ".claude/skills/code-review.md",
+    ".claude/skills/boundary-and-sdk-enforcement.md",
+    ".claude/agents/implementer.md",
+    "CLAUDE.md",
+    ".claude/CLAUDE.md",
+    "docs/planning/ROADMAP.md",
+    "docs/planning/WORKFLOW.json"
+  ],
+  "timestamp": "2026-03-04T14:00:00Z"
+}

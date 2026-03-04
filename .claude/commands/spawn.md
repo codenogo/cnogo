@@ -10,7 +10,7 @@ Launch a focused subagent with specialization-specific guidance.
 Specialization -> skill/agent mapping:
 - `security` -> `.claude/skills/security-scan.md`
 - `tests` -> `.claude/skills/test-writing.md`
-- `perf` -> `.claude/skills/perf-analysis.md`
+- `perf` -> `.claude/skills/performance-review.md`
 - `api` -> `.claude/skills/api-review.md`
 - `review` -> `.claude/skills/code-review.md` + `.claude/skills/boundary-and-sdk-enforcement.md`
 - `refactor` -> `.claude/skills/refactor-safety.md`

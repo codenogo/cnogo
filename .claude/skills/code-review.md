@@ -48,6 +48,6 @@ Review checklist for code quality, security, and maintainability.
 
 - **Critical** (must fix before merge)
 - **Warning** (should fix, creates tech debt)
-- **Suggestion** (consider improving)
+- **Info** (consider improving)
 
 Include file:line references and specific fix examples.

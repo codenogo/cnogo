@@ -466,6 +466,21 @@ def _validate_quick_contract(contract: Any, findings: list[Finding], path: Path)
         findings.append(Finding("ERROR", "Quick contract missing non-empty 'verify' array of commands.", str(path)))
 
 
+def _validate_quick_summary(contract: dict, findings: list, path: "Path") -> None:
+    """Validate SUMMARY.json content for quick tasks."""
+    if "schemaVersion" not in contract:
+        findings.append(Finding("WARN", "Quick summary missing 'schemaVersion'.", str(path)))
+    outcome = contract.get("outcome")
+    if not isinstance(outcome, str) or not outcome:
+        findings.append(Finding("ERROR", "Quick summary missing non-empty 'outcome'.", str(path)))
+    changes = contract.get("changes")
+    if not isinstance(changes, list) or not changes:
+        findings.append(Finding("ERROR", "Quick summary missing non-empty 'changes' list.", str(path)))
+    verification = contract.get("verification")
+    if not isinstance(verification, list) or not verification:
+        findings.append(Finding("ERROR", "Quick summary missing non-empty 'verification' list.", str(path)))
+
+
 def _iter_feature_dirs(root: Path) -> Iterable[Path]:
     base = root / "docs" / "planning" / "work" / "features"
     if not base.is_dir():
@@ -1534,6 +1549,12 @@ def _validate_quick_tasks(root: Path, findings: list[Finding], touched) -> None:
         summary_json = quick_dir / "SUMMARY.json"
         if summary_md.exists():
             _require(summary_json, findings, "Missing SUMMARY.json contract for quick SUMMARY.md")
+        if summary_json.exists():
+            try:
+                sc = _load_json(summary_json)
+                _validate_quick_summary(sc, findings, summary_json)
+            except Exception as e:
+                findings.append(Finding("ERROR", f"Failed to parse quick summary contract: {e}", str(summary_json)))
 
 
 def _validate_research(root: Path, findings: list[Finding], touched) -> None:

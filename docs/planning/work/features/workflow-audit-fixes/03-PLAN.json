@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-audit-fixes",
+  "planNumber": "03",
+  "goal": "Normalize command consistency: convert ship.md and tdd.md to Step heading format, add validate steps, add branch cleanup to key commands, fix implementer git add -A",
+  "tasks": [
+    {
+      "name": "Convert ship.md to Step headings and add branch cleanup",
+      "files": [".claude/commands/ship.md"],
+      "microSteps": [
+        "Read ship.md — currently uses numbered list format (1-8)",
+        "Convert each numbered item to ### Step N: format matching other commands",
+        "Add branch cleanup step (from discuss.md pattern) before preflight"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation-only change in markdown command file"
+      },
+      "action": "Reformat ship.md from numbered list (1. 2. 3. ...) to ### Step N: heading format consistent with discuss.md, plan.md, implement.md, review.md. Add a Step 0a for merged branch cleanup (using the discuss.md pattern: `git branch --merged main | grep -v '^\\*\\|main' | xargs -r git branch -d`).",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    },
+    {
+      "name": "Add validate step to tdd.md and add branch cleanup to plan/implement",
+      "files": [
+        ".claude/commands/tdd.md",
+        ".claude/commands/plan.md",
+        ".claude/commands/implement.md"
+      ],
+      "microSteps": [
+        "Read tdd.md — currently 8 steps, no validate step",
+        "Add step 9: run workflow_validate.py before commit",
+        "Read plan.md and implement.md Step 0 sections",
+        "Add Step 0a branch cleanup to plan.md (after Step 0, before Step 1)",
+        "Add Step 0a branch cleanup to implement.md (after Step 0, before Step 1)"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation-only changes in markdown command files"
+      },
+      "action": "In tdd.md, add a validation step (step 8.5 or renumber) that runs `python3 .cnogo/scripts/workflow_validate.py` before the commit step. In plan.md and implement.md, add a Step 0a merged branch cleanup block (same pattern as discuss.md) between Step 0 and Step 1.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Fix implementer agent git add -A",
+      "files": [".claude/agents/implementer.md"],
+      "microSteps": [
+        "Read implementer.md line 21",
+        "Change git add -A to git add <listed-files> pattern",
+        "Add note to only stage files from the task file scope"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation-only change in markdown agent file"
+      },
+      "action": "In implementer.md line 21, change `git add -A && git commit -m \"task(<feature>): <task-name>\"` to `git add <task-files> && git commit -m \"task(<feature>): <task-name>\"` where <task-files> are the files listed in the task description. Add a note that staging should only include files from the task's file scope, not `git add -A`.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "blockedBy": []
+    }
+  ],
+  "planVerify": [
+    "python3 .cnogo/scripts/workflow_validate.py"
+  ],
+  "commitMessage": "docs(workflow): normalize command headings, add validate/cleanup steps, fix implementer staging",
+  "timestamp": "2026-03-04T14:00:00Z"
+}

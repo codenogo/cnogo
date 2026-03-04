@@ -107,6 +107,26 @@
     {
       "glob": "*.py",
       "importPattern": "(?:from|import)\\s+{module}"
+    },
+    {
+      "glob": "*.sh",
+      "importPattern": ""
+    },
+    {
+      "glob": "*.bash",
+      "importPattern": ""
+    },
+    {
+      "glob": "*.md",
+      "importPattern": ""
+    },
+    {
+      "glob": "*.json",
+      "importPattern": ""
+    },
+    {
+      "glob": "*.jsonl",
+      "importPattern": ""
     }
   ],
   "agentTeams": {
@@ -118,7 +138,12 @@
     "defaultCompositions": {
       "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
       "fullstack": ["test-writer", "debugger", "docs-writer", "refactorer"],
-      "debug": ["debugger", "debugger", "debugger"]
+      "debug": ["debugger-runtime", "debugger-test", "debugger-build"]
     }
+  },
+  "graph": {
+    "dbPath": ".cnogo/graph.db",
+    "venvPath": ".cnogo/.venv",
+    "indexOnCommit": true
   }
 }

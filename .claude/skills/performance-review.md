@@ -33,6 +33,20 @@ Apply `.claude/skills/code-review.md` sections:
 - General Quality (clarity, naming, duplication, error handling, test coverage)
 - Refactor Safety (behavior preserved, minimal changes, no mixed concerns)
 
+### Step B2: Performance Deep-Dive
+
+Apply `.claude/skills/performance-review.md` performance checklist:
+- Identify hotspot (profile or log timings)
+- Complexity check (watch for O(n^2) or worse)
+- IO patterns (DB queries, network calls, file reads)
+- N+1 query detection
+- Caching opportunities (memoization, HTTP cache, query cache)
+- Backpressure, retries, and timeout configuration
+- Large payload handling (pagination, streaming, compression)
+- Connection pooling and resource lifecycle
+
+Process: measure baseline → identify bottleneck → fix → measure after → check regressions
+
 ### Step C: Contract Compliance
 
 Check planning artifact and multi-agent safety:

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-audit-fixes",
+  "planNumber": "04",
+  "outcome": "complete",
+  "changes": [
+    {
+      "task": "Add context graph subsystem to ROADMAP.md",
+      "files": ["docs/planning/ROADMAP.md"],
+      "description": "Added Phase 4: Context Graph section covering storage, proximity, heritage, flows, graph DB, indexing hooks, and resolver agent."
+    },
+    {
+      "task": "Add graph config and fix debug composition in WORKFLOW.json",
+      "files": ["docs/planning/WORKFLOW.json"],
+      "description": "Added graph config section. Differentiated 3 identical debuggers to runtime/test/build. Extended cascadePatterns with shell/markdown/json."
+    },
+    {
+      "task": "Expand secret redaction patterns in workflow_hooks.py",
+      "files": [".cnogo/scripts/workflow_hooks.py"],
+      "description": "Added Bearer token, PEM private key block, and long base64 patterns to _INLINE_SECRET_PATTERNS."
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_hooks.py", "result": "OK"},
+    {"command": "python3 -c \"import json; json.load(open('docs/planning/WORKFLOW.json'))\"", "result": "valid JSON"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"}
+  ],
+  "commit": "9850a63",
+  "timestamp": "2026-03-04T14:48:00Z"
+}

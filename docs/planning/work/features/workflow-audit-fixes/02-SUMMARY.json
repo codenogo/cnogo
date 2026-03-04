@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-audit-fixes",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "task": "Unify severity scales across skills",
+      "files": [".claude/skills/security-scan.md", ".claude/skills/code-review.md", ".claude/skills/boundary-and-sdk-enforcement.md"],
+      "description": "Normalized all three skills to Critical/Warning/Info severity scale."
+    },
+    {
+      "task": "Add missing principles to root CLAUDE.md",
+      "files": ["CLAUDE.md"],
+      "description": "Added TDD Is Core (5) and Verification Before Completion (6), renumbered remaining to 7-10."
+    },
+    {
+      "task": "Consolidate perf-analysis into performance-review",
+      "files": [".claude/skills/performance-review.md", ".claude/commands/spawn.md"],
+      "description": "Merged perf-analysis checklist into performance-review.md as Step B2. Deleted perf-analysis.md. Fixed stale spawn.md reference."
+    }
+  ],
+  "verification": [
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"},
+    {"command": "grep -r perf-analysis .claude/", "result": "no stale references"}
+  ],
+  "commit": "fcced0e",
+  "timestamp": "2026-03-04T14:48:00Z"
+}

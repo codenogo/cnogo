@@ -69,8 +69,9 @@ try:
       - run takeover:
         `python3 .cnogo/scripts/workflow_memory.py takeover <task_id> --to <next-actor> --reason "stalled (>N min)" --actor leader --json`
       - spawn replacement implementer using `generate_implement_prompt(taskdesc, actor_name=<next-actor>)`
-  12. Run leader reconciliation:
-      python3 -c "import sys; sys.path.insert(0, '.cnogo'); from scripts.memory.reconcile_leader import reconcile; print(reconcile('<epic_id>'))"
+  12. Run leader reconciliation (derive epic_id from earlier memory create output, or:
+      `epic_id=$(python3 .cnogo/scripts/workflow_memory.py show-epic --feature <feature> --json | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")`):
+      python3 -c "import sys; sys.path.insert(0, '.cnogo'); from scripts.memory.reconcile_leader import reconcile; print(reconcile('$epic_id'))"
   13. Merge branches: `python3 .cnogo/scripts/workflow_memory.py session-merge --json`
       If conflict, run resolver agent (max 2 retries).
   14. Run planVerify commands.

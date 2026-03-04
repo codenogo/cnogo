@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-audit-fixes",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "task": "Convert ship.md to Step headings and add branch cleanup",
+      "files": [".claude/commands/ship.md"],
+      "description": "Converted numbered list to ### Step N: format. Added Step 0a merged branch cleanup."
+    },
+    {
+      "task": "Add validate step to tdd.md and branch cleanup to plan/implement",
+      "files": [".claude/commands/tdd.md", ".claude/commands/plan.md", ".claude/commands/implement.md"],
+      "description": "Added Step 8 (workflow_validate.py) to tdd.md. Added Step 0a branch cleanup to plan.md and implement.md."
+    },
+    {
+      "task": "Fix implementer agent git add -A",
+      "files": [".claude/agents/implementer.md"],
+      "description": "Changed git add -A to git add <task-files>. Added rule to only stage task scope files."
+    }
+  ],
+  "verification": [
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"}
+  ],
+  "commit": "14444ac",
+  "timestamp": "2026-03-04T14:49:00Z"
+}

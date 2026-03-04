@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-audit-fixes",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "task": "Fix venv path inconsistency in workflow_memory.py",
+      "files": [".cnogo/scripts/workflow_memory.py"],
+      "description": "Changed _ensure_graph_venv() lines 73-74 from .venv to .cnogo/.venv, updated error message at line 81. Now consistent with workflow_hooks.py and cmd_graph_status."
+    },
+    {
+      "task": "Add quick SUMMARY.json content validation",
+      "files": [".cnogo/scripts/workflow_validate_core.py"],
+      "description": "Added _validate_quick_summary() function after _validate_quick_contract. Validates schemaVersion, outcome, changes[], verification[]. Hooked into _validate_quick_tasks() after existence check."
+    },
+    {
+      "task": "Fix team.md epic_id derivation",
+      "files": [".claude/commands/team.md"],
+      "description": "Updated step 12 reconcile command to derive epic_id via show-epic command with shell variable substitution."
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_memory.py", "result": "OK"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_validate_core.py", "result": "OK"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"}
+  ],
+  "commit": "5df01e3",
+  "timestamp": "2026-03-04T14:47:00Z"
+}
