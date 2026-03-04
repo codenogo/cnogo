@@ -1,0 +1,149 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/workflow-deepdive-v2",
+  "feature": "workflow-deepdive-v2",
+  "impactAnalysis": {
+    "affected_files": [
+      ".cnogo/scripts/memory/sync.py",
+      ".cnogo/scripts/workflow_hooks.py",
+      ".cnogo/scripts/memory/storage.py"
+    ],
+    "affected_symbols": [
+      "export_jsonl",
+      "pre_bash",
+      "_column_exists",
+      "_ALLOWED_TABLES"
+    ],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 3
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/memory/sync.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/memory/storage.py",
+          "name": "lint",
+          "result": "pass"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    {
+      "pattern": "read-transaction-isolation",
+      "status": "pass",
+      "note": "export_jsonl now uses BEGIN/ROLLBACK for consistent WAL snapshot, matching get_stats() pattern"
+    },
+    {
+      "pattern": "stdlib-only",
+      "status": "pass",
+      "note": "No external dependencies introduced"
+    },
+    {
+      "pattern": "defense-in-depth",
+      "status": "pass",
+      "note": "_ALLOWED_TABLES prevents PRAGMA injection even though current callers are all hardcoded"
+    }
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    "Correctness: 2/2 — All changes verified correct via compile + integration",
+    "Security: 2/2 — PRAGMA injection closed, no secrets or OWASP issues",
+    "Contract Compliance: 2/2 — Full artifact alignment",
+    "Performance: 2/2 — All additions are O(1), no hot-path impact",
+    "Maintainability: 2/2 — Clear, self-documenting changes",
+    "Test Coverage: 1/2 — TDD waived (stdlib-only, no test framework); verified via py_compile + prime",
+    "Scope Discipline: 2/2 — Surgical, 3 files, minimal additions"
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [
+    {
+      "severity": "info",
+      "description": "PRAGMA table_info SQL injection vector closed via _ALLOWED_TABLES frozenset allowlist. Defense-in-depth — all current callers already pass hardcoded table names.",
+      "file": ".cnogo/scripts/memory/storage.py",
+      "line": 248
+    }
+  ],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [
+        {
+          "severity": "warn",
+          "description": "Plan action specified ROLLBACK in finally block (citing get_stats pattern) but implementation placed ROLLBACK inline after reads. Functionally equivalent since conn.close() in existing finally implicitly rolls back.",
+          "file": ".cnogo/scripts/memory/sync.py",
+          "line": 76
+        }
+      ],
+      "evidence": [
+        "All 3 plan tasks implemented: transaction isolation, hook logging, PRAGMA allowlist",
+        "Changed files match plan files[] exactly: sync.py, workflow_hooks.py, storage.py",
+        "No drive-by edits — only declared files modified",
+        "SUMMARY.json changes[] aligned with plan"
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "py_compile passes for all 3 files",
+        "prime command integration test passes",
+        "workflow_validate passes (zero errors for this feature)",
+        "_ALLOWED_TABLES matches all 7 SCHEMA_SQL tables exactly",
+        "All 4 _column_exists callers pass 'issues' which is in allowlist"
+      ],
+      "notes": ""
+    }
+  ],
+  "timestamp": "2026-03-04T17:50:00Z",
+  "tokenTelemetry": {
+    "checksRun": 3,
+    "checksSkipped": 2,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}
