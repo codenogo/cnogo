@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "feature": "graph-hook-fallback",
+  "displayName": "Post-commit graph hook fallback indexing",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "When .cnogo/.venv is missing, fall through to current-interpreter indexing instead of returning early. Remove the hard-skip block at line 545.",
+      "rationale": "The venv is a performance/isolation optimization, not a hard requirement. ContextGraph imports and indexes fine from any Python that has kuzu available. The current early return makes the hook a no-op in fresh repos and test environments."
+    },
+    {
+      "area": "data-flow",
+      "decision": "Reorder the venv logic: (1) if venv exists and we're not in it, delegate to venv python (existing behavior). (2) Otherwise fall through to direct import and index. Remove the venv-missing early return entirely.",
+      "rationale": "Simplest change. The existing try/except around the import/index block already handles ImportError gracefully (prints warning, returns 0). No new error handling needed."
+    },
+    {
+      "area": "operational",
+      "decision": "Keep the informational stderr message about missing venv but downgrade from blocking skip to advisory warning. Print it before attempting fallback indexing.",
+      "rationale": "Users should know the venv is recommended for best results (tree-sitter parsing), but indexing should still attempt to work without it."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only in workflow_hooks.py",
+    "Hook must return 0 on all failure paths (non-blocking constraint)",
+    "Must not change behavior when venv IS present (delegation path unchanged)",
+    "Existing try/except at line 567 catches ImportError if kuzu is unavailable"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/workflow_hooks.py",
+    "tests/test_workflow_hooks_graph.py"
+  ],
+  "priorWork": {
+    "feature": "graph-release-fixes",
+    "finding": "P2-hook-warning",
+    "description": "Previous fix improved the warning message but kept the hard-skip. This fix removes the skip entirely."
+  },
+  "timestamp": "2026-03-04T00:00:00Z"
+}
