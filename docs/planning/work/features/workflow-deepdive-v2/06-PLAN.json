@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-deepdive-v2",
+  "planNumber": "06",
+  "goal": "Polish documentation: DRY rationalization in commands, fix skill/agent docs, and clean up command formatting",
+  "tasks": [
+    {
+      "name": "DRY rationalization in command files",
+      "files": [
+        ".claude/commands/discuss.md",
+        ".claude/commands/plan.md",
+        ".claude/commands/implement.md",
+        ".claude/commands/review.md",
+        ".claude/commands/ship.md",
+        ".claude/commands/quick.md"
+      ],
+      "microSteps": [
+        "Identify repeated boilerplate across commands (branch verify, phase check, memory sync, validate)",
+        "Standardize wording for shared patterns without losing self-containment",
+        "Remove verbose examples where compact form suffices",
+        "Verify all commands stay within token budget"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation cleanup validated by workflow_validate token budgets"
+      },
+      "action": "Audit all 6 command files for DRY violations. Standardize: (1) branch verification wording (same phrasing for the git commands), (2) phase check blocks (same format), (3) memory sync/validate steps (same final sections). Trim verbose code examples to compact form. Each command must remain self-contained (no cross-references to other commands).",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    },
+    {
+      "name": "Fix skill and agent documentation accuracy",
+      "files": [
+        ".claude/skills/code-review.md",
+        ".claude/skills/security-scan.md",
+        ".claude/skills/release-readiness.md",
+        ".claude/agents/implementer.md"
+      ],
+      "microSteps": [
+        "Review skills for stale references or broken file paths",
+        "Ensure implementer.md reflects TaskDesc V2 bridge protocol",
+        "Fix any inaccurate descriptions or outdated patterns"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation accuracy fixes validated by workflow_validate"
+      },
+      "action": "Review and fix: (1) code-review.md, security-scan.md, release-readiness.md for stale file path references and outdated patterns, (2) implementer.md for alignment with TaskDesc V2 protocol (structured fields, micro_steps, tdd contract, completion_footer). Fix any paths that reference deleted or renamed files.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    },
+    {
+      "name": "Clean up context, team, and spawn command formatting",
+      "files": [
+        ".claude/commands/context.md",
+        ".claude/commands/team.md",
+        ".claude/commands/spawn.md"
+      ],
+      "microSteps": [
+        "Fix context.md formatting to match other command patterns",
+        "Update team.md for current agent teams protocol and worktree mode",
+        "Update spawn.md for current implementation after perf-analysis removal"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation formatting and accuracy fixes"
+      },
+      "action": "Fix formatting and accuracy: (1) context.md — ensure consistent Step numbering and code examples, (2) team.md — verify action descriptions match current WORKFLOW.json config and bridge V2 protocol, (3) spawn.md — ensure it references current agent types (implementer, debugger, resolver) and doesn't reference removed skills.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    }
+  ],
+  "planVerify": [
+    "python3 .cnogo/scripts/workflow_validate.py"
+  ],
+  "commitMessage": "docs(polish): DRY rationalization, skill/agent doc fixes, command formatting cleanup",
+  "timestamp": "2026-03-04T17:00:00Z"
+}
