@@ -65,6 +65,7 @@ python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> implement
 
 - If `--team` passed: delegate to `/team implement <feature> <plan-number>`.
 - Else if plan has `"parallelizable": true` and Agent Teams available: delegate to `/team implement <feature> <plan-number>`.
+- If team delegation fails, fall back to serial execution with a warning.
 - Else execute serially.
 
 ### Step 2d: Bridge Validation
@@ -93,7 +94,8 @@ For each task in the TaskDescV2 list from Step 2d:
 5. do not claim success before fresh evidence (avoid "should/probably/seems fixed" language)
 6. on success if task_id present: run `python3 .cnogo/scripts/workflow_memory.py report-done <task_id> --actor implementer`
    and include structured outputs evidence when workflow policy requires it
-7. on failure: inspect history, fix, retry (max 2 attempts before escalation)
+7. on failure: run checkpoint, inspect history, fix, retry (max 2 attempts). After 2 failures, stop and report the failure with context — do not continue to next task.
+8. on partial completion (stopping mid-plan): ensure completed tasks have memory report-done entries and checkpoint is saved.
 
 **Important:** Workers NEVER close memory issues — only report done. The leader handles closure.
 After all tasks, include each task's `completion_footer` in a combined footer: `TASK_DONE: [cn-xxx, cn-yyy]`

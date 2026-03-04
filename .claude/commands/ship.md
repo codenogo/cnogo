@@ -5,13 +5,16 @@ Commit, push, and open a PR after review passes.
 
 ## Your Task
 
-### Step 0: Phase Check (Warn, Do Not Block)
+### Step 0: Branch Verification (verify-only — do NOT create)
 
 ```bash
-python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
+git branch --show-current
+git status --porcelain
 ```
 
-Warn if not in `ship` phase; continue only with confirmation.
+Rules:
+- Refuse to ship from `main/master`.
+- Must be on `feature/<feature-slug>`. If not, stop and tell user to switch first.
 
 **Step 0a: Clean up merged branches** before shipping:
 
@@ -20,10 +23,13 @@ git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
 git remote prune origin
 ```
 
-### Step 1: Preflight
+### Step 1: Phase Check + Preflight
 
-- refuse to ship from `main/master`
-- inspect `git status --porcelain`
+```bash
+python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
+```
+
+Warn if not in `ship` phase; continue only with confirmation.
 - ensure review/verify artifacts are up to date
 - require staged review + freshness gate:
 ```bash

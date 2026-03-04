@@ -7,7 +7,25 @@ Comprehensive quality gate before merge, optimized for package-aware automation.
 
 Review current changes for correctness, safety, and ship readiness.
 
-### Step 0: Phase Check (Warn, Do Not Block)
+### Step 0: Branch Verification (verify-only — do NOT create)
+
+```bash
+git branch --show-current
+git status --porcelain
+```
+
+Rules:
+- Must be on `feature/<feature-slug>`. If not, stop and tell the user to switch first.
+- If working tree is dirty, warn but continue (review reads committed state).
+
+**Step 0a: Clean up merged branches**
+
+```bash
+git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
+git remote prune origin
+```
+
+### Step 1: Phase Check (Warn, Do Not Block)
 
 If memory is enabled and feature slug is known:
 
@@ -17,17 +35,15 @@ python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 
 Expected before `/review`: `implement` or `review`.
 
-### Step 1: Scope
+### Step 2: Scope
 
 Collect quick context (changed files + branch state):
 
 ```bash
-git branch --show-current
-git status --porcelain
 git diff --name-only HEAD~1..HEAD 2>/dev/null || git diff --name-only
 ```
 
-### Step 2: Run Automated Review (Primary Path)
+### Step 3: Run Automated Review (Primary Path)
 
 Run package-aware checks and write artifacts in one step:
 
@@ -60,7 +76,7 @@ Then validate workflow artifacts:
 python3 .cnogo/scripts/workflow_validate.py --json --feature <feature-slug>
 ```
 
-### Step 3: Stage 1 — Spec Compliance (must run first)
+### Step 4: Stage 1 — Spec Compliance (must run first)
 
 Run a strict spec pass before any code-quality judgment:
 
@@ -73,9 +89,9 @@ Update `REVIEW.json`:
 - set `stageReviews[0].status = pass|warn|fail`
 - fill `stageReviews[0].findings[]` + `stageReviews[0].evidence[]`
 
-If spec stage is `fail`, stop and return blockers.
+**If spec stage is `fail`, STOP and return blockers. Do NOT proceed to Step 5 code quality.**
 
-### Step 4: Stage 2 — Code Quality (only after spec stage passes)
+### Step 5: Stage 2 — Code Quality (only after spec stage passes)
 
 Apply `.claude/skills/performance-review.md` and supporting skills:
 - `.claude/skills/code-review.md`
@@ -97,7 +113,7 @@ Re-run validator after stage updates:
 python3 .cnogo/scripts/workflow_validate.py --json --feature <feature-slug>
 ```
 
-### Step 5: Verdict
+### Step 6: Verdict
 
 Score 7 axes (0-2 each) per `.claude/skills/performance-review.md` rubric:
 
