@@ -27,6 +27,15 @@ Rules:
   - Else switch to it and pull latest: `git switch feature/<feature-slug> && git pull --ff-only`
 - If `feature/<feature-slug>` does **not** exist, stop and tell the user to run `/discuss <feature-name>` first to create the branch.
 
+**Step 0a: Clean up merged branches**
+
+```bash
+git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
+git remote prune origin
+```
+
+Report deleted branches if any.
+
 ### Step 1: Phase Check (Warn, Do Not Block)
 
 ```bash

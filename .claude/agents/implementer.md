@@ -18,7 +18,8 @@ You execute a single implementation task assigned by the team lead.
 4. **Recite**: Re-read your task description and checkpoint objective before verify.
 5. **Verify**: Run ALL verify commands. Every one must pass.
 6. **Commit**: Stage and commit your changes to the worktree branch:
-   `git add -A && git commit -m "task(<feature>): <task-name>"`
+   `git add <task-files> && git commit -m "task(<feature>): <task-name>"`
+   where `<task-files>` are the files listed in the task description's file scope.
 7. **Report Done**: Run the memory report-done command from your task description
 8. **TASK_EVIDENCE Footer**: Add `TASK_EVIDENCE: {...}` as second-to-last line with fresh verification + TDD evidence.
 9. **TASK_DONE Footer**: Your LAST line must be a TASK_DONE footer: `TASK_DONE: [cn-xxx]`
@@ -30,6 +31,7 @@ You execute a single implementation task assigned by the team lead.
 - Always commit your changes before reporting done on the memory issue
 - NEVER close memory issues — only report done. The leader handles closure.
 - Only touch files listed in your task description
+- Only stage files from the task's file scope — never use `git add -A` or `git add .`
 - Follow existing code patterns
 - If verify fails: run the history command from task prompt, summarize the last error, then retry. After 2 failures, message the team lead
 - If blocked: do NOT report done. Message the team lead with details.

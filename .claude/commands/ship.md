@@ -5,13 +5,23 @@ Commit, push, and open a PR after review passes.
 
 ## Your Task
 
-1. Optional phase warning (memory-enabled repos):
+### Step 0: Phase Check (Warn, Do Not Block)
+
 ```bash
 python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
+
 Warn if not in `ship` phase; continue only with confirmation.
 
-2. Preflight:
+**Step 0a: Clean up merged branches** before shipping:
+
+```bash
+git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
+git remote prune origin
+```
+
+### Step 1: Preflight
+
 - refuse to ship from `main/master`
 - inspect `git status --porcelain`
 - ensure review/verify artifacts are up to date
@@ -21,32 +31,41 @@ python3 .cnogo/scripts/workflow_checks.py ship-ready --feature <feature-slug>
 ```
 If this fails, stop and return the failing checks.
 
-3. Commit (if needed):
+### Step 2: Commit (if needed)
+
 ```bash
 git add -A
 git commit -m "<conventional-commit-message>"
 ```
 Choose `feat|fix|refactor|docs|test|chore` based on diff.
 
-4. Push branch:
+### Step 3: Push Branch
+
 ```bash
 git push -u origin $(git branch --show-current)
 ```
 
-5. Create PR:
+### Step 4: Create PR
+
 ```bash
 gh pr create --title "<title>" --body "<summary/testing/links>"
 ```
 PR body should include summary, key changes, testing evidence, and planning artifact links.
 
-6. Memory sync (if enabled):
+### Step 5: Memory Sync (if enabled)
+
 ```bash
 python3 .cnogo/scripts/workflow_memory.py sync
 ```
 If feature IDs are known, close shipped issues and set phase accordingly.
 
-7. Apply `.claude/skills/feature-lifecycle-closure.md` checklist before final handoff.
-8. Optional local cleanup after confirmation (switch back to main and pull).
+### Step 6: Feature Lifecycle Closure
+
+Apply `.claude/skills/feature-lifecycle-closure.md` checklist before final handoff.
+
+### Step 7: Local Cleanup
+
+Optional local cleanup after confirmation (switch back to main and pull).
 
 ## Output
 
