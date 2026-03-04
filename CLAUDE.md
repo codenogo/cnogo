@@ -38,7 +38,9 @@ Use this priority order:
 2. Simplicity First
 3. Surgical Changes
 4. Goal-Driven Execution
-5. Prefer shared utilities over hand-rolled helpers
-6. Don’t probe data YOLO-style
-7. Validate boundaries
-8. Typed SDKs
+5. TDD Is Core
+6. Verification Before Completion
+7. Prefer shared utilities over hand-rolled helpers
+8. Don’t probe data YOLO-style
+9. Validate boundaries
+10. Typed SDKs

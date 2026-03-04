@@ -37,6 +37,7 @@ Enforce boundary validation and typed-client usage across system edges.
 
 ## Output
 
-- Critical boundary/SDK violations
-- Medium-risk gaps
+- **Critical** — must-fix boundary/SDK violations
+- **Warning** — should-fix gaps
+- **Info** — improvement suggestions
 - Exact remediation edits

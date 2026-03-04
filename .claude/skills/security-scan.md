@@ -27,6 +27,6 @@ OWASP-based security review for application code.
 - Permission checks near data access points
 - Audit logging for sensitive actions
 
-## Output: Critical / High / Medium / Info
+## Output: Critical / Warning / Info
 
 Each finding: file:line, vulnerability type, impact, fix recommendation.
