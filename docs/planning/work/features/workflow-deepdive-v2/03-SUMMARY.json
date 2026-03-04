@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-deepdive-v2",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": "docs/planning/WORKFLOW.json",
+      "description": "Replaced invalid agent role names (code-reviewer, security-scanner, etc.) in agentTeams.defaultCompositions with valid .claude/agents/ references (implementer, debugger, resolver)."
+    },
+    {
+      "file": ".cnogo/scripts/workflow_validate_core.py",
+      "description": "Extracted _is_positive_int(val, *, allow_zero=False) helper. Replaced ~14 occurrences of expanded bool-type-check patterns across config parsers and validators."
+    },
+    {
+      "file": ".claude/skills/performance-review.md",
+      "description": "Removed self-referential 'Apply .claude/skills/performance-review.md' at line 38. Replaced with direct 'Performance checklist:' heading."
+    }
+  ],
+  "verification": [
+    {"command": "python3 -c \"import json; json.load(open('docs/planning/WORKFLOW.json'))\"", "result": "pass"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_validate_core.py", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py --feature workflow-deepdive-v2", "result": "pass"}
+  ],
+  "commit": "0f4b5da",
+  "timestamp": "2026-03-04T19:00:00Z"
+}

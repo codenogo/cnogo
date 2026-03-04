@@ -21,20 +21,12 @@ git branch --show-current
 git status --porcelain
 ```
 
-**Step 0a: Clean up merged branches** before creating new work:
-
-```bash
-git branch --merged main
-```
-
-Delete any local branches already merged into main (excluding `main` itself):
+**Step 0a: Clean up merged branches**
 
 ```bash
 git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
 git remote prune origin
 ```
-
-Report deleted branches if any.
 
 **Step 0b: Switch or create feature branch:**
 
@@ -105,21 +97,6 @@ Create:
 `CONTEXT.json` minimum:
 - `schemaVersion`, `feature`, `displayName`, `decisions[]`, `constraints[]`, `openQuestions[]`, `relatedCode[]`, `timestamp`
 - optional: `featureId`, `research[]`, `memoryEpicId`
-
-Minimal contract shape:
-
-```json
-{
-  "schemaVersion": 1,
-  "feature": "websocket-notifications",
-  "displayName": "Websocket Notifications",
-  "decisions": [{ "area": "api", "decision": "REST", "rationale": "..." }],
-  "constraints": ["..."],
-  "openQuestions": ["..."],
-  "relatedCode": ["path/to/file.ts"],
-  "timestamp": "2026-01-24T00:00:00Z"
-}
-```
 
 `CONTEXT.md` should be a concise human summary of the same information.
 

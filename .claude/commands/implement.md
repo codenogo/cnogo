@@ -63,49 +63,28 @@ python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> implement
 
 ### Step 2c: Team Mode Routing
 
-- If `--team` passed: delegate to `/team implement <feature> <plan-number>`.
-- Else if plan has `"parallelizable": true` and Agent Teams available: delegate to `/team implement <feature> <plan-number>`.
-- Else execute serially.
+If `--team` or plan `"parallelizable": true`: delegate to `/team implement`. Falls back to serial on failure.
 
 ### Step 2d: Bridge Validation
 
-Generate TaskDescV2 list via bridge for validation and memory bootstrapping:
-
-```python
-import sys; sys.path.insert(0, '.cnogo')
-from scripts.memory.bridge import plan_to_task_descriptions
-from pathlib import Path
-tasks = plan_to_task_descriptions(Path('docs/planning/work/features/<feature>/<NN>-PLAN.json'), Path('.'))
-```
-
-This validates blockedBy indices, creates memory issues if needed, and skips already-closed tasks on resume.
+Generate TaskDescV2 list via bridge (`plan_to_task_descriptions(plan_path, root)`).
+Validates blockedBy indices, creates memory issues if needed, skips already-closed tasks on resume.
 
 ### Step 3: Execute Tasks (TaskDescV2)
 
-For each task in the TaskDescV2 list from Step 2d:
-1. skip if `task['skipped']` is true
-1b. announce task start, review Operating Principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution)
-1c. if present, execute task `micro_steps` in order and respect task `tdd` contract (no time boxes)
-2. if `task['task_id']` present, run `python3 .cnogo/scripts/workflow_memory.py claim <task_id> --actor implementer`
-3. execute `task['action']`, editing only files in `task['file_scope']['paths']`
-4. run all `task['commands']['verify']` commands and inspect fresh output
-4b. run scope validation: `python3 .cnogo/scripts/workflow_memory.py graph-validate-scope --declared "<task file_scope paths>" --changed "<actually modified files>" --json`. Warn user if violations found but do not block.
-5. do not claim success before fresh evidence (avoid "should/probably/seems fixed" language)
-6. on success if task_id present: run `python3 .cnogo/scripts/workflow_memory.py report-done <task_id> --actor implementer`
-   and include structured outputs evidence when workflow policy requires it
-7. on failure: inspect history, fix, retry (max 2 attempts before escalation)
+For each task in the TaskDescV2 list:
+1. Skip if `task['skipped']`. Announce start, review Operating Principles.
+2. Execute `micro_steps` in order; respect `tdd` contract (no time boxes).
+3. If `task_id` present: `workflow_memory.py claim <task_id> --actor implementer`
+4. Execute `task['action']`, editing only files in `task['file_scope']['paths']`.
+5. Run all verify commands; run `graph-validate-scope` (advisory, don't block).
+6. No success claims without fresh evidence.
+7. On success: `workflow_memory.py report-done <task_id> --actor implementer`
+8. On failure: checkpoint, inspect history, fix, retry (max 2). After 2 failures, stop and report.
+9. On partial completion: ensure report-done entries and checkpoint saved.
 
-**Important:** Workers NEVER close memory issues — only report done. The leader handles closure.
-After all tasks, include each task's `completion_footer` in a combined footer: `TASK_DONE: [cn-xxx, cn-yyy]`
-
-If task files touch memory sync/import paths, apply `.claude/skills/memory-sync-reconciliation.md`.
-
-Retry helper commands:
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py checkpoint --feature <feature-slug>
-python3 .cnogo/scripts/workflow_memory.py history <task_id>
-```
+Workers NEVER close memory issues — only report done. Combined footer: `TASK_DONE: [cn-xxx, cn-yyy]`
+Retry helpers: `workflow_memory.py checkpoint --feature <slug>` / `history <task_id>`.
 
 ### Step 4: Run Plan Verification
 
@@ -125,19 +104,8 @@ git commit -m "<commitMessage from plan>"
 
 ### Step 6: Write Summary Contract + Render
 
-Create:
-- `docs/planning/work/features/<feature>/<NN>-SUMMARY.json`
-
-Minimum fields:
-- `schemaVersion`, `feature`, `planNumber`, `outcome`, `changes[]`, `verification[]`, `commit`, `timestamp`
-
-Then render markdown summary:
-
-```bash
-python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/<feature>/<NN>-SUMMARY.json
-```
-
-Use `.claude/skills/workflow-contract-integrity.md` before final validation.
+Create `<NN>-SUMMARY.json` (`schemaVersion`, `feature`, `planNumber`, `outcome`, `changes[]`, `verification[]`, `commit`, `timestamp`).
+Render with `workflow_render.py`. Apply `.claude/skills/workflow-contract-integrity.md` before validation.
 
 ### Step 7: Validate
 

@@ -67,10 +67,13 @@ def export_jsonl(root: Path) -> Path:
 
     conn = _st.connect(db_path)
     try:
+        # Explicit read transaction for consistent WAL snapshot across all reads
+        conn.execute("BEGIN")
         issues = _st.all_issues(conn)
         all_deps = _st.all_dependencies(conn)
         all_labels = _st.all_labels(conn)
         all_events = _st.all_events(conn)
+        conn.execute("ROLLBACK")
 
         # Group deps by issue_id
         deps_by_issue: dict[str, list[dict[str, str]]] = {}

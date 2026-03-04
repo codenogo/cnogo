@@ -35,7 +35,12 @@ git switch -c fix/<slug>
 ### Step 1: Scope
 
 Identify likely files, expected behavior, and verification commands.
-If scope looks large/risky, stop and switch to `/discuss` + `/plan`.
+
+**Escalation triggers** — stop and switch to `/discuss` + `/plan` if any:
+- Scope exceeds 5 files
+- Changes touch core data models or schemas
+- Requires migration or breaking API changes
+- Risk level is unclear or high
 
 ### Step 2: Write Quick Plan Contract
 

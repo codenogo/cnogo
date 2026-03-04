@@ -77,54 +77,11 @@ Write:
 - `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`
 
 Required constraints:
-- `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`
-- new plans should use `schemaVersion: 2` (legacy `schemaVersion: 1` remains valid for historical artifacts)
-- `tasks.length <= 3`
-- each task has explicit `files[]`, `action`, `verify[]`
-- for `schemaVersion >= 2`, each task also has non-empty `microSteps[]` (no minute/time-box estimates) and `tdd`
-  (`required=true` with failing/passing verify commands, or `required=false` with non-rationalized reason)
-- `"deletions": ["path/to/file.py"]` — optional list of files being deleted by this task;
-  when present, the bridge auto-scans the repo for callers and expands the next task's file scope
-
-Minimal contract shape:
-
-```json
-{
-  "schemaVersion": 2,
-  "feature": "feature-slug",
-  "planNumber": "01",
-  "goal": "One-sentence goal",
-  "tasks": [
-    {
-      "name": "Task name",
-      "cwd": "packages/api (optional)",
-      "files": ["path/to/file.ts"],
-      "microSteps": [
-        "Write failing test",
-        "Run failing test to verify RED",
-        "Implement minimal fix",
-        "Run passing tests to verify GREEN"
-      ],
-      "tdd": {
-        "required": true,
-        "failingVerify": ["npm test -- --runInBand path/to/test.spec.ts"],
-        "passingVerify": ["npm test -- --runInBand path/to/test.spec.ts"]
-      },
-      "action": "Specific instructions",
-      "verify": ["npm test --silent"],
-      "blockedBy": [0]
-    }
-  ],
-  "planVerify": ["npm test --silent"],
-  "commitMessage": "feat(feature-slug): ...",
-  "timestamp": "2026-01-24T00:00:00Z"
-}
-```
-
-`blockedBy` semantics:
-- zero-based task indices in the same plan
-- task starts only when all referenced tasks are complete
-- optional; empty means runnable immediately
+- `schemaVersion: 2`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`
+- `tasks.length <= 3`; each has `files[]`, `action`, `verify[]`, `microSteps[]`, `tdd`
+- `tdd`: `required=true` with `failingVerify`/`passingVerify`, or `required=false` with `reason`
+- `blockedBy`: zero-based task indices (optional; empty = runnable immediately)
+- `deletions`: optional list of files deleted; bridge auto-expands next task's scope
 
 ### Step 5: Render `NN-PLAN.md` from Contract
 

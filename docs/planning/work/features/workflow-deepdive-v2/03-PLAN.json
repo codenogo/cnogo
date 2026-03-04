@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-deepdive-v2",
+  "planNumber": "03",
+  "goal": "Fix WORKFLOW.json agent specializations, extract bool-type-check helper, and fix performance-review self-reference",
+  "tasks": [
+    {
+      "name": "Fix WORKFLOW.json agent team compositions",
+      "files": ["docs/planning/WORKFLOW.json"],
+      "microSteps": [
+        "Map defaultCompositions roles to actual .claude/agents/ files (implementer, debugger, resolver)",
+        "Replace undefined roles with valid agent names or generic 'implementer' references",
+        "Validate JSON parses correctly"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Config-only change validated by JSON parse and workflow_validate"
+      },
+      "action": "In WORKFLOW.json agentTeams.defaultCompositions, roles like 'code-reviewer', 'security-scanner', 'perf-analyzer', 'test-writer', 'docs-writer', 'refactorer', 'debugger-runtime', 'debugger-test', 'debugger-build' don't map to .claude/agents/ files (only implementer.md, debugger.md, resolver.md exist). Replace compositions with valid mappings: 'review' uses ['implementer', 'implementer', 'implementer'], 'fullstack' uses ['implementer', 'debugger', 'implementer', 'implementer'], 'debug' uses ['debugger', 'debugger', 'debugger']. Config-only fix per constraint.",
+      "verify": [
+        "python3 -c \"import json; d=json.load(open('docs/planning/WORKFLOW.json')); print('agents:', list(d['agentTeams']['defaultCompositions'].keys()))\"",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    },
+    {
+      "name": "Extract _is_positive_int helper in validate_core",
+      "files": [".cnogo/scripts/workflow_validate_core.py"],
+      "microSteps": [
+        "Add _is_positive_int(val, *, allow_zero=False) helper function near top",
+        "Replace ~20 occurrences of isinstance(val, bool) or not isinstance(val, int) pattern",
+        "Verify all existing validations still produce same results"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Pure DRY refactor with no behavior change; validated by workflow_validate producing identical results"
+      },
+      "action": "In workflow_validate_core.py, add: def _is_positive_int(val: Any, *, allow_zero: bool = False) -> bool: return isinstance(val, int) and not isinstance(val, bool) and (val >= 0 if allow_zero else val > 0). Replace the ~20 occurrences of the expanded pattern. For negated checks like 'isinstance(val, bool) or not isinstance(val, int) or val <= 0', replace with 'not _is_positive_int(val)'. For zero-allowing checks, use _is_positive_int(val, allow_zero=True).",
+      "verify": [
+        "python3 -m py_compile .cnogo/scripts/workflow_validate_core.py",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    },
+    {
+      "name": "Fix performance-review self-reference",
+      "files": [".claude/skills/performance-review.md"],
+      "microSteps": [
+        "Locate Step B2 line 38: 'Apply .claude/skills/performance-review.md'",
+        "Replace with inline checklist (the content is already there in lines 39-48)",
+        "Remove the self-referential apply instruction"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation fix removing circular reference"
+      },
+      "action": "In performance-review.md Step B2 (line 38), remove the self-referential 'Apply `.claude/skills/performance-review.md` performance checklist:' line. The performance checklist items are already inline in lines 39-48 of the same file. Replace line 38 with a direct heading like 'Performance checklist:' to eliminate the circular reference.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ]
+    }
+  ],
+  "planVerify": [
+    "python3 -c \"import json; json.load(open('docs/planning/WORKFLOW.json'))\"",
+    "python3 -m py_compile .cnogo/scripts/workflow_validate_core.py",
+    "python3 .cnogo/scripts/workflow_validate.py"
+  ],
+  "commitMessage": "fix(config): fix agent compositions, extract bool-type helper, fix performance-review self-ref",
+  "timestamp": "2026-03-04T17:00:00Z"
+}

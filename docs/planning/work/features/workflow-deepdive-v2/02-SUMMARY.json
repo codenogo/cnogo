@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-deepdive-v2",
+  "planNumber": "02",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/memory/storage.py",
+      "description": "Added validate_phase_transition() with forward-only check and stderr warning. Wired into set_feature_phase() in advisory mode (warns but proceeds)."
+    },
+    {
+      "file": ".cnogo/scripts/memory/bridge.py",
+      "description": "Added _validate_plan_structure() gate at top of plan_to_task_descriptions(). Validates feature, planNumber, tasks (1-3), and each task's name/files/action."
+    },
+    {
+      "file": ".cnogo/scripts/workflow_checks_core.py",
+      "description": "Added phase_check to ship-ready gate. Uses subprocess to call phase-get and warns if not in review/ship phase. Gracefully skips if memory unavailable."
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m py_compile .cnogo/scripts/memory/storage.py", "result": "pass"},
+    {"command": "python3 -m py_compile .cnogo/scripts/memory/bridge.py", "result": "pass"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_checks_core.py", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_memory.py phase-get workflow-deepdive-v2", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"},
+    {"command": "python3 .cnogo/scripts/workflow_checks.py ship-ready --feature workflow-deepdive-v2", "result": "pass (phase_check warns as expected for implement phase)"}
+  ],
+  "commit": "ad09d24",
+  "timestamp": "2026-03-04T18:10:00Z"
+}

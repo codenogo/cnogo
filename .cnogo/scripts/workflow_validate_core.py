@@ -35,6 +35,11 @@ except ModuleNotFoundError:
     from .workflow_utils import parse_skill_frontmatter as _parse_skill_frontmatter  # type: ignore
 
 
+def _is_positive_int(val: Any, *, allow_zero: bool = False) -> bool:
+    """Check val is a real int (not bool) and positive (or >= 0 if allow_zero)."""
+    return isinstance(val, int) and not isinstance(val, bool) and (val >= 0 if allow_zero else val > 0)
+
+
 FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 QUICK_DIR_RE = re.compile(r"^[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLAN_MD_RE = re.compile(r"^(?P<num>[0-9]{2})-PLAN\.md$")
@@ -189,7 +194,7 @@ def _freshness_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
         "summaryMaxAgeDaysWithoutReview",
     ):
         val = raw.get(key)
-        if isinstance(val, int) and not isinstance(val, bool) and val >= 0:
+        if _is_positive_int(val, allow_zero=True):
             out[key] = val
     return out
 
@@ -218,7 +223,7 @@ def _token_budgets_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
         "brainstormWordMax",
     ):
         val = raw.get(key)
-        if isinstance(val, int) and not isinstance(val, bool) and val > 0:
+        if _is_positive_int(val):
             out[key] = val
 
     return out
@@ -238,7 +243,7 @@ def _bootstrap_context_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
         out["enabled"] = enabled
     for key in ("rootClaudeWordMax", "workflowClaudeWordMax", "commandSetWordMax"):
         val = raw.get(key)
-        if isinstance(val, int) and not isinstance(val, bool) and val > 0:
+        if _is_positive_int(val):
             out[key] = val
     return out
 
@@ -299,7 +304,7 @@ def _validate_plan_contract(
     if "schemaVersion" not in contract:
         findings.append(Finding("WARN", "Plan contract missing schemaVersion (recommended).", str(path)))
     schema_version_raw = contract.get("schemaVersion", 1)
-    schema_version = schema_version_raw if isinstance(schema_version_raw, int) and not isinstance(schema_version_raw, bool) else 1
+    schema_version = schema_version_raw if _is_positive_int(schema_version_raw, allow_zero=True) else 1
 
     # Validate optional memory fields
     _validate_memory_id(contract.get("memoryEpicId"), "memoryEpicId", findings, path)
@@ -629,7 +634,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
             findings.append(Finding("WARN", "WORKFLOW.json: performance.changedFilesFallback should be none|head.", str(cfg_path)))
         timeout = perf.get("commandTimeoutSec")
         if timeout is not None and (
-            isinstance(timeout, bool) or not isinstance(timeout, int) or timeout <= 0
+            not _is_positive_int(timeout)
         ):
             findings.append(Finding("WARN", "WORKFLOW.json: performance.commandTimeoutSec should be an integer > 0.", str(cfg_path)))
         budgets = perf.get("tokenBudgets")
@@ -651,7 +656,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
             ):
                 val = budgets.get(key)
                 if val is not None and (
-                    isinstance(val, bool) or not isinstance(val, int) or val <= 0
+                    not _is_positive_int(val)
                 ):
                     findings.append(
                         Finding(
@@ -674,7 +679,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
             for key in ("maxLines", "failTailLines", "passLines"):
                 val = compaction.get(key)
                 if val is not None and (
-                    isinstance(val, bool) or not isinstance(val, int) or val <= 0
+                    not _is_positive_int(val)
                 ):
                     findings.append(
                         Finding(
@@ -700,7 +705,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
             for key in ("minChars", "maxFiles", "maxFileSize"):
                 val = recovery.get(key)
                 if val is not None and (
-                    isinstance(val, bool) or not isinstance(val, int) or val <= 0
+                    not _is_positive_int(val)
                 ):
                     findings.append(
                         Finding(
@@ -745,7 +750,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
             for key in ("rootClaudeWordMax", "workflowClaudeWordMax", "commandSetWordMax"):
                 val = bootstrap.get(key)
                 if val is not None and (
-                    isinstance(val, bool) or not isinstance(val, int) or val <= 0
+                    not _is_positive_int(val)
                 ):
                     findings.append(
                         Finding(
@@ -825,11 +830,11 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
     elif isinstance(agent_teams, dict):
         stale = agent_teams.get("staleIndicatorMinutes")
         if stale is not None:
-            if isinstance(stale, bool) or not isinstance(stale, int) or stale <= 0:
+            if not _is_positive_int(stale):
                 findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.staleIndicatorMinutes should be an integer > 0.", str(cfg_path)))
         max_takeovers = agent_teams.get("maxTakeoversPerTask")
         if max_takeovers is not None:
-            if isinstance(max_takeovers, bool) or not isinstance(max_takeovers, int) or max_takeovers < 0:
+            if not _is_positive_int(max_takeovers, allow_zero=True):
                 findings.append(
                     Finding(
                         "WARN",
@@ -856,7 +861,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         ):
             v = freshness.get(key)
             if v is not None:
-                if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                if not _is_positive_int(v, allow_zero=True):
                     findings.append(Finding("WARN", f"WORKFLOW.json: freshness.{key} should be an integer >= 0.", str(cfg_path)))
 
     invariants = cfg.get("invariants")
@@ -872,7 +877,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         for key in ("maxFileLines", "maxLineLength"):
             v = invariants.get(key)
             if v is not None:
-                if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+                if not _is_positive_int(v):
                     findings.append(Finding("WARN", f"WORKFLOW.json: invariants.{key} should be an integer > 0.", str(cfg_path)))
         exceptions = invariants.get("maxFileLinesExceptions")
         if exceptions is not None:
@@ -905,7 +910,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         for key in ("maxFilesPerTask", "maxTasksPerRun"):
             v = entropy.get(key)
             if v is not None:
-                if isinstance(v, bool) or not isinstance(v, int) or v <= 0:
+                if not _is_positive_int(v):
                     findings.append(Finding("WARN", f"WORKFLOW.json: entropy.{key} should be an integer > 0.", str(cfg_path)))
 
 
