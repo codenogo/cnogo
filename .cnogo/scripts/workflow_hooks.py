@@ -351,8 +351,9 @@ def pre_bash() -> int:
                 )
                 return 2
         return 0
-    except Exception:
+    except Exception as exc:
         # Never block work on hook telemetry/suggestion failure.
+        print(f"[cnogo] Hook error (non-blocking): {exc}", file=sys.stderr)
         return 0
 
 

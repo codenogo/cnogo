@@ -102,6 +102,16 @@ CREATE INDEX IF NOT EXISTS idx_labels_label ON labels(label);
 
 
 # ---------------------------------------------------------------------------
+# Table allowlist (defense-in-depth for PRAGMA calls)
+# ---------------------------------------------------------------------------
+
+_ALLOWED_TABLES = frozenset({
+    "issues", "dependencies", "events", "labels",
+    "blocked_cache", "child_counters", "schema_info",
+})
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -235,6 +245,8 @@ def _current_schema_version(conn: sqlite3.Connection) -> int:
 
 
 def _column_exists(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    if table not in _ALLOWED_TABLES:
+        raise ValueError(f"Unknown table: {table!r}")
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()  # noqa: S608
     return any(r["name"] == column for r in rows)
 
