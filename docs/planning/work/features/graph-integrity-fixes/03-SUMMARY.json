@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "feature": "graph-integrity-fixes",
+  "planNumber": "03",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Expanded context() to return full 7-key neighborhood dict: node, callers, callees, importers, imports, parent_classes, child_classes. Callers unwrapped from (GraphNode, confidence) tuples to plain GraphNode list. Uses existing storage.get_related_nodes() for IMPORTS/EXTENDS/IMPLEMENTS edges."
+    }
+  ],
+  "verification": [
+    {
+      "command": "python3 -c \"import py_compile; py_compile.compile('.cnogo/scripts/context/__init__.py', doraise=True)\"",
+      "result": "pass"
+    },
+    {
+      "command": "grep -c 'importers\\|parent_classes\\|child_classes' .cnogo/scripts/context/__init__.py",
+      "result": "pass",
+      "output": "8 (all new neighborhood keys present)"
+    }
+  ],
+  "commit": "1d1fd24",
+  "timestamp": "2026-03-02T18:00:00Z"
+}

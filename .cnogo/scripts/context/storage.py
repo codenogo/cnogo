@@ -416,6 +416,45 @@ class GraphStorage:
         )
 
     # ------------------------------------------------------------------
+    # Reverse dependency & edge management
+    # ------------------------------------------------------------------
+
+    def get_reverse_dependency_files(self, file_paths: list[str]) -> list[str]:
+        """Return distinct file paths that have outgoing edges into nodes in file_paths.
+
+        Used during incremental reindex to find unchanged files whose edges
+        into changed files need rebuilding.
+        """
+        if not file_paths:
+            return []
+        conn = self._require_conn()
+        params = {f"f{i}": fp for i, fp in enumerate(file_paths)}
+        placeholders = ", ".join(f"$f{i}" for i in range(len(file_paths)))
+        result = conn.execute(
+            f"MATCH (n:GraphNode)-[r:CodeRelation]->(m:GraphNode) "
+            f"WHERE m.file_path IN [{placeholders}] AND n.file_path NOT IN [{placeholders}] "
+            f"RETURN DISTINCT n.file_path",
+            params,
+        )
+        paths: list[str] = []
+        while result.has_next():
+            row = result.get_next()
+            if row[0]:
+                paths.append(row[0])
+        return paths
+
+    def remove_edges_from_file(self, file_path: str) -> None:
+        """Delete all outgoing edges from nodes in file_path (preserves nodes)."""
+        conn = self._require_conn()
+        conn.execute(
+            """
+            MATCH (n:GraphNode)-[r:CodeRelation]->()
+            WHERE n.file_path = $fp DELETE r
+            """,
+            {"fp": file_path},
+        )
+
+    # ------------------------------------------------------------------
     # Remove by file
     # ------------------------------------------------------------------
 
