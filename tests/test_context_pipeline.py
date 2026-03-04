@@ -10,6 +10,18 @@ import pytest
 
 from scripts.context.model import NodeLabel, RelType
 
+# tree-sitter is required for all language parsers (Python included).
+# Tests that need parsed symbols must skip when it's unavailable.
+_has_tree_sitter = True
+try:
+    import tree_sitter  # noqa: F401
+except ImportError:
+    _has_tree_sitter = False
+
+needs_tree_sitter = pytest.mark.skipif(
+    not _has_tree_sitter, reason="tree-sitter not installed"
+)
+
 
 # ---------------------------------------------------------------------------
 # Helper
@@ -74,6 +86,7 @@ def test_index_creates_folder_nodes(tmp_path):
     assert "src" in folder_names or "." in folder_names
 
 
+@needs_tree_sitter
 def test_index_creates_function_nodes(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -95,6 +108,7 @@ def test_index_creates_function_nodes(tmp_path):
     assert "world" in names
 
 
+@needs_tree_sitter
 def test_index_creates_class_nodes(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -116,6 +130,7 @@ def test_index_creates_class_nodes(tmp_path):
     assert "Dog" in names
 
 
+@needs_tree_sitter
 def test_index_creates_method_nodes(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -143,6 +158,7 @@ def test_index_creates_method_nodes(tmp_path):
     assert "cleanup" in names
 
 
+@needs_tree_sitter
 def test_index_creates_imports_relationships(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -201,6 +217,7 @@ def test_incremental_index_skips_unchanged(tmp_path):
     assert stats2["files_removed"] == 0
 
 
+@needs_tree_sitter
 def test_incremental_index_detects_change(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -271,6 +288,7 @@ def test_is_indexed_true_after_index(tmp_path):
     assert result is True
 
 
+@needs_tree_sitter
 def test_query_finds_function(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -282,7 +300,7 @@ def test_query_finds_function(tmp_path):
     cg.close()
 
     assert len(results) >= 1
-    names = [node.name for node, score in results]
+    names = [node.name for node in results]
     assert "hello_world" in names
 
 
@@ -300,6 +318,7 @@ def test_nodes_in_file(tmp_path):
     assert any(n.file_path == "main.py" for n in nodes)
 
 
+@needs_tree_sitter
 def test_close_and_reopen(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -315,9 +334,10 @@ def test_close_and_reopen(tmp_path):
     cg2.close()
 
     assert len(results) >= 1
-    assert any(node.name == "compute" for node, _ in results)
+    assert any(node.name == "compute" for node in results)
 
 
+@needs_tree_sitter
 def test_typescript_file_parsed(tmp_path):
     from scripts.context import ContextGraph
     repo = _make_repo(tmp_path, {
@@ -363,6 +383,7 @@ def test_empty_repo(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@needs_tree_sitter
 def test_pipeline_calls_relationships(tmp_path):
     """Index a Python file with function calls -> CALLS rels exist."""
     from scripts.context import ContextGraph
@@ -383,6 +404,7 @@ def test_pipeline_calls_relationships(tmp_path):
     assert count >= 1
 
 
+@needs_tree_sitter
 def test_pipeline_heritage_relationships(tmp_path):
     """Index a Python file with class inheritance -> EXTENDS rels exist."""
     from scripts.context import ContextGraph
@@ -402,6 +424,7 @@ def test_pipeline_heritage_relationships(tmp_path):
     assert count >= 1
 
 
+@needs_tree_sitter
 def test_pipeline_exports_relationships(tmp_path):
     """Index a TypeScript file with export -> EXPORTS rels exist."""
     from scripts.context import ContextGraph
@@ -429,6 +452,7 @@ def test_pipeline_exports_relationships(tmp_path):
     assert count >= 0
 
 
+@needs_tree_sitter
 def test_pipeline_all_phases_run(tmp_path):
     """Index a multi-file repo and verify nodes and relationship types exist."""
     from scripts.context import ContextGraph

@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "006",
+  "slug": "pipeline-tree-sitter-resilience",
+  "goal": "Make pipeline gracefully handle missing tree-sitter dependency and fix pre-existing test failures",
+  "files": [
+    ".cnogo/scripts/context/parser_registry.py",
+    "tests/test_context_pipeline.py",
+    "tests/test_context_storage.py"
+  ],
+  "verify": [
+    "python3 -m pytest tests/test_context_storage.py tests/test_context_storage_kuzu.py tests/test_context_heritage.py tests/test_context_pipeline.py -q"
+  ],
+  "timestamp": "2026-03-04T00:00:00Z"
+}

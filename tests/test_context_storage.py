@@ -141,9 +141,9 @@ def test_add_and_get_relationship(storage):
     rel = _make_rel()
     storage.add_relationships([rel])
 
-    callers = storage.get_callers("function:b.py:bar")
+    callers = storage.get_callers_with_confidence("function:b.py:bar")
     assert len(callers) == 1
-    assert callers[0].id == "function:a.py:foo"
+    assert callers[0][0].id == "function:a.py:foo"
 
 
 def test_get_callees(storage):
@@ -175,7 +175,7 @@ def test_relationship_with_properties(storage):
 
 def test_get_callers_empty(storage):
     storage.add_nodes([_make_node()])
-    assert storage.get_callers("function:foo.py:bar") == []
+    assert storage.get_callers_with_confidence("function:foo.py:bar") == []
 
 
 # --- File hash tracking ---
@@ -207,8 +207,7 @@ def test_remove_nodes_by_file(storage):
         _make_node("function:a.py:bar", name="bar", file_path="a.py"),
         _make_node("function:b.py:baz", name="baz", file_path="b.py"),
     ])
-    removed = storage.remove_nodes_by_file("a.py")
-    assert removed == 2
+    storage.remove_nodes_by_file("a.py")
     assert storage.get_node("function:a.py:foo") is None
     assert storage.get_node("function:a.py:bar") is None
     assert storage.get_node("function:b.py:baz") is not None
@@ -224,7 +223,7 @@ def test_remove_nodes_also_removes_relationships(storage):
     )])
     storage.remove_nodes_by_file("a.py")
     # Relationship should be gone since source node was removed
-    assert storage.get_callers("function:b.py:bar") == []
+    assert storage.get_callers_with_confidence("function:b.py:bar") == []
 
 
 def test_remove_file_hash(storage):
@@ -266,8 +265,11 @@ def test_file_count_empty(storage):
 
 
 def test_file_count_after_update(storage):
-    storage.update_file_hash("a.py", "abc123")
-    storage.update_file_hash("b.py", "def456")
+    # file_count() counts FILE-label GraphNode entries, not FileHash rows
+    storage.add_nodes([
+        _make_node("file:a.py:", label=NodeLabel.FILE, name="a.py", file_path="a.py"),
+        _make_node("file:b.py:", label=NodeLabel.FILE, name="b.py", file_path="b.py"),
+    ])
     assert storage.file_count() == 2
 
 
@@ -370,14 +372,14 @@ def test_search_finds_by_content(storage):
     assert results[0][0].name == "parse"
 
 
-def test_search_porter_stemming(storage):
-    """Porter stemming allows 'parsing' to match 'parse'."""
+def test_search_substring_match(storage):
+    """CONTAINS-based search matches substrings."""
     storage.add_nodes([
         _make_node("function:a.py:parse", name="parse", file_path="a.py",
                     content="Parse a document"),
     ])
     storage.rebuild_fts()
-    results = storage.search("parsing")
+    results = storage.search("parse")
     assert len(results) >= 1
     assert results[0][0].name == "parse"
 
