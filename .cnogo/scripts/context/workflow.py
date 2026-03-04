@@ -312,36 +312,48 @@ def contract_warnings(
         g.close()
 
 
-def prioritize_context(repo_path: str | Path) -> dict[str, Any]:
-    """Prioritize files based on graph centrality."""
+def prioritize_context(
+    repo_path: str | Path,
+    focal_symbols: list[str] | None = None,
+    max_files: int = 20,
+) -> dict[str, Any]:
+    """Rank files by BFS proximity from focal symbols."""
     try:
         g = ContextGraph(repo_path=repo_path)
     except Exception as e:
         return {"enabled": False, "error": str(e)}
 
     try:
-        g.index()
-        symbols = g._storage.get_all_symbol_nodes()
-        rels = g._storage.get_all_relationships_by_types(
-            ["calls", "imports", "extends"]
-        )
+        if not g.is_indexed():
+            return {"enabled": False, "error": "Graph not indexed"}
 
-        file_connections: dict[str, int] = {}
-        node_files: dict[str, str] = {n.id: n.file_path for n in symbols}
+        focal = focal_symbols or []
+        results = g.prioritize_files(focal, max_files=max_files)
 
-        for src, tgt, _ in rels:
-            for nid in (src, tgt):
-                fp = node_files.get(nid, "")
-                if fp:
-                    file_connections[fp] = file_connections.get(fp, 0) + 1
+        ranked_files = [
+            {
+                "path": r["file_path"],
+                "distance": r["min_distance"],
+                "reason": f"{len(r['connected_symbols'])} connected symbols",
+            }
+            for r in results
+        ]
 
-        ranked = sorted(
-            [{"path": fp, "connections": c} for fp, c in file_connections.items()],
-            key=lambda x: x["connections"],
-            reverse=True,
-        )
+        # Track which focal symbols were actually resolved
+        resolved: list[str] = []
+        if focal:
+            for sym_name in focal:
+                matches = g._storage.search(sym_name, limit=1)
+                for node, _ in matches:
+                    if node.name == sym_name:
+                        resolved.append(sym_name)
+                        break
 
-        return {"enabled": True, "ranked_files": ranked}
+        return {
+            "enabled": True,
+            "ranked_files": ranked_files,
+            "focal_symbols_resolved": resolved,
+        }
     except Exception as e:
         return {"enabled": False, "error": str(e)}
     finally:

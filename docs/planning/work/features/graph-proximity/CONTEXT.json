@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "feature": "graph-proximity",
+  "displayName": "Graph Proximity Mechanism",
+  "decisions": [
+    {
+      "area": "algorithm",
+      "decision": "Bidirectional BFS from seed nodes over all edge types. Rank files by shortest graph distance to any seed.",
+      "rationale": "Bidirectional captures both callers and callees. All edge types (CALLS, IMPORTS, EXTENDS, IMPLEMENTS, USES_TYPE, EXPORTS, CONTAINS, DEFINES) ensure comprehensive reach. BFS gives natural distance metric."
+    },
+    {
+      "area": "api",
+      "decision": "Hybrid input: accept both --symbols (focal symbol names) and --files (file paths). If symbols given, resolve to node IDs via search/name lookup. If files given, extract their symbol nodes as seeds. Falls back to centrality ranking if neither provided.",
+      "rationale": "Flexible entry points. Symbols mode is the primary use case (e.g. 'what files relate to function X'). Files mode is useful for 'what else is near these changed files'. Centrality fallback preserves current behavior."
+    },
+    {
+      "area": "architecture",
+      "decision": "BFS logic in new .cnogo/scripts/context/phases/proximity.py. ContextGraph gets prioritize_files() method. workflow.py prioritize_context() delegates to it.",
+      "rationale": "Consistent with existing phase file pattern (heritage.py, calls.py, etc.). Keeps __init__.py focused on orchestration. Testable in isolation."
+    },
+    {
+      "area": "data-flow",
+      "decision": "Max BFS depth defaults to 3, configurable via --max-depth CLI flag. Max files defaults to 20 (existing).",
+      "rationale": "Depth 3 covers direct deps + their deps + one more hop. Sufficient for context gathering without flooding results in highly connected graphs."
+    },
+    {
+      "area": "data-flow",
+      "decision": "Return format: list of {path, distance, reason} dicts. distance = shortest BFS hops from any seed. reason = edge type chain that connects the file (e.g. 'calls -> imports').",
+      "rationale": "Matches existing CLI formatter expectations at workflow_memory.py:1349-1352 which prints path, distance, reason columns."
+    },
+    {
+      "area": "api",
+      "decision": "Fix prioritize_context() signature to accept focal_symbols and max_files parameters, matching cmd_graph_prioritize() caller.",
+      "rationale": "Current function signature (repo_path only) doesn't match CLI call at workflow_memory.py:1334 which passes focal_symbols and max_files. This is a contract bug."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only (collections.deque for BFS queue)",
+    "Parameterized Cypher queries only",
+    "Must handle disconnected graphs gracefully (seeds with no edges return only seed files at distance 0)",
+    "Must work with empty graph (return enabled: false with error)",
+    "Max 3 tasks per plan"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/context/storage.py",
+    ".cnogo/scripts/context/workflow.py",
+    ".cnogo/scripts/context/phases/proximity.py",
+    ".cnogo/scripts/workflow_memory.py"
+  ],
+  "priorWork": {
+    "feature": "graph-integrity-fixes",
+    "finding": "P2-proximity-defer",
+    "description": "Proximity feature was deferred as new feature, not a bug fix. CLI command and workflow function exist but are mismatched."
+  },
+  "timestamp": "2026-03-04T00:00:00Z"
+}

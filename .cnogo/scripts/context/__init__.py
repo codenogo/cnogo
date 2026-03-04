@@ -401,6 +401,29 @@ class ContextGraph:
         from scripts.context.phases.flows import trace_flows
         return trace_flows(self._storage, max_depth)
 
+    def prioritize_files(self, focal_symbols: list[str], max_files: int = 20) -> list[dict]:
+        """Rank files by BFS proximity from focal symbols."""
+        from scripts.context.phases.proximity import rank_by_proximity
+
+        if not focal_symbols:
+            return []
+
+        # Resolve symbol names to node IDs
+        resolved_ids: list[str] = []
+        for sym_name in focal_symbols:
+            matches = self._storage.search(sym_name, limit=5)
+            # Find exact name match
+            for node, score in matches:
+                if node.name == sym_name:
+                    resolved_ids.append(node.id)
+                    break
+
+        if not resolved_ids:
+            return []
+
+        results = rank_by_proximity(self._storage, resolved_ids, max_depth=3)
+        return results[:max_files]
+
     def contract_check(self, files: list[str]) -> dict[str, Any]:
         """Check for API contract/signature breaks in the given files."""
         from scripts.context.phases.contracts import extract_current_signatures, compare_signatures

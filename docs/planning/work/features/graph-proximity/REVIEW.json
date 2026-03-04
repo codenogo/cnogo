@@ -1,0 +1,134 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/graph-proximity",
+  "feature": "graph-proximity",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    {"pattern": "phase-file", "status": "pass", "note": "proximity.py follows existing phase pattern (impact.py): pure function taking GraphStorage, pre-fetch nodes, build adjacency, return sorted list"},
+    {"pattern": "stdlib-only", "status": "pass", "note": "Only collections.deque used; no external dependencies"},
+    {"pattern": "parameterized-cypher", "status": "pass", "note": "All DB queries go through storage layer; no raw Cypher in proximity.py"}
+  ],
+  "performanceFindings": [
+    {"severity": "info", "location": "proximity.py:30", "note": "get_all_nodes() pre-fetch is O(N) but consistent with impact.py pattern and avoids N+1 lookups during BFS"}
+  ],
+  "principleNotes": [
+    {"principle": "Simplicity First", "note": "Multi-source BFS with deque is the minimal correct algorithm for shortest-distance ranking"},
+    {"principle": "Surgical Changes", "note": "3 files changed (1 new, 2 modified), exactly matching plan scope"},
+    {"principle": "TDD Is Core", "note": "All 3 tasks followed RED→GREEN with pre-existing tests (25 total)"}
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [
+        "All 3 plan tasks implemented matching plan scope and goal",
+        "TDD contract honored: all tasks verified RED then GREEN",
+        "Changed files match declared files[] arrays exactly",
+        "01-SUMMARY.json exists with outcome: complete",
+        "planVerify: 25/25 proximity + 40/40 storage + py_compile OK"
+      ],
+      "evidence": [
+        "PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py -q → 25 passed",
+        "PYTHONPATH=.cnogo python3 -m pytest tests/test_context_storage.py -q → 40 passed",
+        "python3 -m py_compile (proximity.py, __init__.py, workflow.py) → OK"
+      ],
+      "notes": "Team execution with 3 worktree-isolated agents (impl-t0, impl-t1, impl-t2). Sequential task dependencies honored."
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        "BFS algorithm is correct: multi-source, bidirectional, tracks min distance per node",
+        "Edge exclusion (focal files at distance 0) prevents self-referential results",
+        "prioritize_files() resolves symbols via exact-match search; skips unresolved symbols gracefully",
+        "prioritize_context() has proper try/except with graceful degradation and finally: g.close()",
+        "No new dependencies (stdlib only constraint held)",
+        "Return format matches CLI expectations (path, distance, reason)"
+      ],
+      "evidence": [
+        "proximity.py: 92 lines, clean BFS with deque",
+        "__init__.py: prioritize_files() added ~15 lines",
+        "workflow.py: prioritize_context() rewritten ~40 lines with error handling"
+      ],
+      "notes": "Info: workflow.py duplicates symbol resolution (also done in prioritize_files). Minor but acceptable — keeps focal_symbols_resolved in return dict without coupling."
+    }
+  ],
+  "scoring": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "testCoverage": 2,
+    "codeClarity": 2,
+    "scopeDiscipline": 2,
+    "operationalSafety": 1,
+    "total": 13,
+    "maxTotal": 14
+  },
+  "timestamp": "2026-03-04T13:27:53Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}
