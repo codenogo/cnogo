@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-deepdive-v2",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/memory/sync.py",
+      "description": "Added explicit BEGIN/ROLLBACK read transaction around all_issues/all_dependencies/all_labels/all_events in export_jsonl() for consistent WAL snapshot"
+    },
+    {
+      "file": ".cnogo/scripts/workflow_hooks.py",
+      "description": "Changed silent 'except Exception:' to 'except Exception as exc:' with stderr logging in pre_bash() — surfaces debugging info without blocking commands"
+    },
+    {
+      "file": ".cnogo/scripts/memory/storage.py",
+      "description": "Added _ALLOWED_TABLES frozenset and validation check in _column_exists() to prevent PRAGMA SQL injection from untrusted table names"
+    }
+  ],
+  "verification": [
+    {"command": "python3 -m py_compile .cnogo/scripts/memory/sync.py", "result": "pass"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_hooks.py", "result": "pass"},
+    {"command": "python3 -m py_compile .cnogo/scripts/memory/storage.py", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_memory.py prime", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass (warnings pre-existing)"}
+  ],
+  "commit": "266a394",
+  "timestamp": "2026-03-04T17:30:00Z"
+}
