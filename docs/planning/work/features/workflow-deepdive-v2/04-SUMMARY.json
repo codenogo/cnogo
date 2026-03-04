@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-deepdive-v2",
+  "planNumber": "04",
+  "outcome": "complete",
+  "changes": [
+    {
+      "file": ".claude/commands/review.md",
+      "description": "Added Step 0 branch verification (verify-only) and Step 0a merged branch cleanup. Renumbered steps 1-6. Strengthened spec-compliance fail gate with bold STOP instruction."
+    },
+    {
+      "file": ".claude/commands/ship.md",
+      "description": "Restructured Step 0 as branch verification (verify-only, refuse main/master). Combined phase check into Step 1 preflight."
+    },
+    {
+      "file": ".claude/commands/implement.md",
+      "description": "Added team delegation fallback to serial. Strengthened Step 3 error recovery: checkpoint on failure, max 2 retries, stop and report. Added partial completion guidance."
+    },
+    {
+      "file": ".claude/commands/quick.md",
+      "description": "Added explicit escalation triggers to Step 1: >5 files, core data models, migrations, or unclear risk."
+    }
+  ],
+  "verification": [
+    {"command": "python3 .cnogo/scripts/workflow_validate.py", "result": "pass"},
+    {"command": "python3 .cnogo/scripts/workflow_validate.py --feature workflow-deepdive-v2", "result": "pass"}
+  ],
+  "commit": "8a1d270",
+  "timestamp": "2026-03-04T19:30:00Z"
+}
