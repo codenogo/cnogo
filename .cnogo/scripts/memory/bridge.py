@@ -33,6 +33,33 @@ TASK_DESC_SCHEMA_VERSION = 2
 _MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
 
 
+def _validate_plan_structure(plan: dict[str, Any]) -> None:
+    """Validate plan JSON has required structure. Raises ValueError on violations."""
+    feature = plan.get("feature")
+    if not isinstance(feature, str) or not feature.strip():
+        raise ValueError("Plan missing required non-empty 'feature' string")
+    plan_number = plan.get("planNumber")
+    if not isinstance(plan_number, str) or not plan_number.strip():
+        raise ValueError("Plan missing required non-empty 'planNumber' string")
+    tasks = plan.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        raise ValueError("Plan 'tasks' must be a non-empty list")
+    if len(tasks) > 3:
+        raise ValueError(f"Plan has {len(tasks)} tasks; max is 3")
+    for i, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            raise ValueError(f"Task {i} must be a dict")
+        name = task.get("name")
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"Task {i} missing required non-empty 'name' string")
+        files = task.get("files")
+        if not isinstance(files, list) or not files:
+            raise ValueError(f"Task {i} missing required non-empty 'files' list")
+        action = task.get("action")
+        if not isinstance(action, str) or not action.strip():
+            raise ValueError(f"Task {i} missing required non-empty 'action' string")
+
+
 def plan_to_task_descriptions(
     plan_json_path: Path,
     root: Path,
@@ -49,6 +76,7 @@ def plan_to_task_descriptions(
     """
     text = plan_json_path.read_text(encoding="utf-8")
     plan = json.loads(text)
+    _validate_plan_structure(plan)
 
     feature = plan.get("feature", "")
     plan_number = plan.get("planNumber", "")

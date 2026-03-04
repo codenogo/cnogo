@@ -1578,6 +1578,25 @@ def _cmd_ship_ready(root: Path, feature: str, *, json_output: bool = False) -> i
             print(f"ship-ready: feature directory not found for `{feature}`")
         return 1
 
+    # Phase check (advisory — warn only, never blocks)
+    try:
+        phase_result = subprocess.run(
+            ["python3", ".cnogo/scripts/workflow_memory.py", "phase-get", feature],
+            capture_output=True, text=True, timeout=10, cwd=str(root),
+        )
+        phase_line = phase_result.stdout.strip()
+        current_phase = phase_line.split(":")[-1].strip() if ":" in phase_line else ""
+        phase_ok = current_phase in ("review", "ship")
+        add_check(
+            "phase_check",
+            phase_ok,
+            f"Feature phase is '{current_phase}'; expected 'review' or 'ship'.",
+            "warn",
+        )
+    except Exception:
+        # Memory not initialized or subprocess failed — skip silently
+        checks.append({"name": "phase_check", "status": "pass", "details": "skipped (memory unavailable)"})
+
     review_json = feature_dir / "REVIEW.json"
     add_check("review_contract_exists", review_json.exists(), "Missing REVIEW.json contract.", "error")
     if not review_json.exists():

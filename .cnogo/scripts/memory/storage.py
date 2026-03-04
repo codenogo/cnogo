@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -137,6 +138,25 @@ def normalize_phase(phase: str | None) -> str:
             f"Invalid phase {phase!r}. Expected one of {sorted(_VALID_PHASES)}"
         )
     return p
+
+
+def validate_phase_transition(current: str, target: str) -> bool:
+    """Check if a phase transition is forward-only.
+
+    Returns True if the transition is valid (forward or idempotent).
+    Prints a stderr warning and returns False for backward transitions.
+    Advisory mode: callers should proceed regardless.
+    """
+    cur_idx = WORKFLOW_PHASES.index(normalize_phase(current))
+    tgt_idx = WORKFLOW_PHASES.index(normalize_phase(target))
+    if tgt_idx < cur_idx:
+        print(
+            f"[cnogo] Warning: backward phase transition "
+            f"{current!r} -> {target!r} (advisory)",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
 def _row_to_issue(row: sqlite3.Row) -> Issue:
@@ -726,6 +746,8 @@ def set_feature_phase(
     if not feature_slug:
         return 0
     normalized = normalize_phase(phase)
+    current = get_feature_phase(conn, feature_slug)
+    validate_phase_transition(current, normalized)  # advisory — always proceeds
     cursor = conn.execute(
         "UPDATE issues SET phase = ?, updated_at = ? WHERE feature_slug = ?",
         (normalized, _now(), feature_slug),
