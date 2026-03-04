@@ -1,0 +1,125 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/graph-hook-fallback",
+  "feature": "graph-hook-fallback",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    {"pattern": "non-blocking-hook", "status": "pass", "note": "Hook still returns 0 on all failure paths (try/except catches ImportError)"},
+    {"pattern": "stdlib-only", "status": "pass", "note": "No new imports or dependencies"}
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    {"principle": "Surgical Changes", "note": "1 line removed, 2 lines reworded — minimal diff"},
+    {"principle": "Simplicity First", "note": "Removed code rather than adding new logic; relies on existing try/except"}
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [
+        "Plan goal achieved: venv-missing early return removed, fallback to current interpreter",
+        "Only planned file modified (.cnogo/scripts/workflow_hooks.py)",
+        "TDD contract honored: RED (1 fail) → GREEN (5 pass)",
+        "01-SUMMARY.json present with outcome: complete"
+      ],
+      "evidence": [
+        "git diff main...HEAD -- .cnogo/scripts/workflow_hooks.py: 1 line removed (return 0), 2 lines reworded",
+        "PYTHONPATH=.cnogo python3 -m pytest tests/test_workflow_hooks_graph.py -q → 5 passed"
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        "Removed early return preserves existing control flow — no new branches added",
+        "Advisory warning message is clear and actionable",
+        "Existing try/except at line 567 catches ImportError if kuzu unavailable",
+        "No new dependencies, no injection risk"
+      ],
+      "evidence": [
+        "python3 -m py_compile .cnogo/scripts/workflow_hooks.py → OK",
+        "5/5 hook tests pass including previously-failing test_reindex_creates_graph_db"
+      ],
+      "notes": ""
+    }
+  ],
+  "scoring": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "testCoverage": 2,
+    "codeClarity": 2,
+    "scopeDiscipline": 2,
+    "operationalSafety": 2,
+    "total": 14,
+    "maxTotal": 14
+  },
+  "timestamp": "2026-03-04T13:50:17Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}
