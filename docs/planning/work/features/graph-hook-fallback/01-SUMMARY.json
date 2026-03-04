@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "feature": "graph-hook-fallback",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "task": "Remove venv-missing early return, fall through to direct indexing",
+      "files": [".cnogo/scripts/workflow_hooks.py"],
+      "description": "Removed the early return at line 545-553 that hard-skipped indexing when .cnogo/.venv was missing. Advisory warning is preserved but now falls through to current-interpreter indexing."
+    }
+  ],
+  "verification": [
+    {"command": "PYTHONPATH=.cnogo python3 -m pytest tests/test_workflow_hooks_graph.py -q", "result": "5 passed"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_hooks.py", "result": "OK"}
+  ],
+  "commit": "33ac6c9",
+  "timestamp": "2026-03-04T00:00:00Z"
+}
