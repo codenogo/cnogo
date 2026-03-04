@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "005",
+  "slug": "incremental-edge-enum-heritage",
+  "outcome": "Fixed two graph integrity bugs: incremental reindex no longer over-deletes DEFINES edges, and enum nodes now participate in heritage resolution",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/storage.py",
+      "description": "Added remove_edges_from_file_by_types() method for selective edge removal; added 'enum' to get_class_like_nodes() query"
+    },
+    {
+      "file": ".cnogo/scripts/context/__init__.py",
+      "description": "Changed affected-file edge cleanup to use remove_edges_from_file_by_types() with only the 6 rebuilt edge types (imports, calls, extends, implements, uses_type, exports), preserving DEFINES and CONTAINS edges"
+    }
+  ],
+  "verification": [
+    {"command": "pytest tests/test_context_storage_kuzu.py tests/test_context_heritage.py", "result": "32 passed"},
+    {"command": "pytest tests/test_context_storage.py (excluding pre-existing failures)", "result": "31 passed, 0 new failures"}
+  ],
+  "commit": "pending",
+  "timestamp": "2026-03-04T00:00:00Z"
+}

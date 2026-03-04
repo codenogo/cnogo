@@ -454,6 +454,22 @@ class GraphStorage:
             {"fp": file_path},
         )
 
+    def remove_edges_from_file_by_types(
+        self, file_path: str, rel_types: list[str]
+    ) -> None:
+        """Delete outgoing edges of specific types from nodes in file_path."""
+        if not rel_types:
+            return
+        conn = self._require_conn()
+        params: dict[str, str] = {"fp": file_path}
+        params.update({f"t{i}": t for i, t in enumerate(rel_types)})
+        placeholders = ", ".join(f"$t{i}" for i in range(len(rel_types)))
+        conn.execute(
+            f"MATCH (n:GraphNode)-[r:CodeRelation]->() "
+            f"WHERE n.file_path = $fp AND r.rel_type IN [{placeholders}] DELETE r",
+            params,
+        )
+
     # ------------------------------------------------------------------
     # Remove by file
     # ------------------------------------------------------------------
@@ -576,10 +592,10 @@ class GraphStorage:
         return rows
 
     def get_class_like_nodes(self) -> list[tuple[str, str]]:
-        """Return (id, name) for class/interface/type_alias nodes."""
+        """Return (id, name) for class/interface/type_alias/enum nodes."""
         conn = self._require_conn()
         result = conn.execute(
-            "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias'] RETURN n.id, n.name"
+            "MATCH (n:GraphNode) WHERE n.label IN ['class', 'interface', 'type_alias', 'enum'] RETURN n.id, n.name"
         )
         rows: list[tuple[str, str]] = []
         while result.has_next():
