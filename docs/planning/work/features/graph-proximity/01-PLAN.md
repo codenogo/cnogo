@@ -1,0 +1,97 @@
+# Plan 01: Implement BFS proximity ranking: proximity.py phase, ContextGraph.prioritize_files(), and updated prioritize_context() workflow
+
+## Goal
+Implement BFS proximity ranking: proximity.py phase, ContextGraph.prioritize_files(), and updated prioritize_context() workflow
+
+## Tasks
+
+### Task 1: Create proximity.py with rank_by_proximity BFS
+**Files:** `.cnogo/scripts/context/phases/proximity.py`, `tests/test_context_proximity.py`
+**Action:**
+Create proximity.py phase file implementing bidirectional BFS. Use the same pattern as impact.py: pre-fetch all nodes, build edge maps from get_all_relationships_by_types for CALLS/IMPORTS/EXTENDS/USES_TYPE, BFS with deque tracking distance. Return list of {file_path, min_distance, connected_symbols} sorted by distance.
+
+**Micro-steps:**
+- Run TestRankByProximityBasic, TestRankByProximityDistances, TestRankByProximityEdgeTypes, TestRankByProximityConnectedSymbols — expect all fail (ImportError: no proximity module)
+- Create .cnogo/scripts/context/phases/proximity.py with rank_by_proximity(storage, focal_node_ids, max_depth=5) -> list[dict]
+- Algorithm: pre-fetch all nodes into cache, build bidirectional adjacency map from CALLS/IMPORTS/EXTENDS/USES_TYPE edges, BFS from focal node IDs using collections.deque, track min distance per node, group by file_path, collect connected_symbols per file, exclude focal files (distance 0), sort by min_distance ascending
+- Run tests — expect all 14 rank_by_proximity tests pass
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestRankByProximityBasic -q`
+- passingVerify:
+  - `PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestRankByProximityBasic tests/test_context_proximity.py::TestRankByProximityDistances tests/test_context_proximity.py::TestRankByProximityEdgeTypes tests/test_context_proximity.py::TestRankByProximityConnectedSymbols -q`
+
+**Verify:**
+```bash
+PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py -k 'TestRankByProximity' -q
+```
+
+**Done when:** [Observable outcome]
+
+### Task 2: Add ContextGraph.prioritize_files() method
+**Files:** `.cnogo/scripts/context/__init__.py`
+**Action:**
+Add prioritize_files() to ContextGraph. Resolve each focal_symbol name to a node ID using storage.search(name), take the first exact match. Collect resolved IDs, call rank_by_proximity(storage, ids, max_depth=3), return results[:max_files].
+
+**Micro-steps:**
+- Run TestPrioritizeFiles — expect all fail (AttributeError: no prioritize_files method)
+- Add prioritize_files(self, focal_symbols, max_files=20) method to ContextGraph class in __init__.py
+- Method resolves symbol names to node IDs via storage.search(), extracts top match per symbol, calls rank_by_proximity(), truncates to max_files
+- Run TestPrioritizeFiles — expect all 5 tests pass
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestPrioritizeFiles -q`
+- passingVerify:
+  - `PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestPrioritizeFiles -q`
+
+**Verify:**
+```bash
+PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestPrioritizeFiles -q
+```
+
+**Done when:** [Observable outcome]
+
+### Task 3: Update prioritize_context() workflow function
+**Files:** `.cnogo/scripts/context/workflow.py`
+**Action:**
+Rewrite prioritize_context(repo_path, focal_symbols=None, max_files=20). If not indexed, return {enabled: false, error}. Otherwise call g.prioritize_files(focal_symbols or [], max_files). Transform each result to {path: file_path, distance: min_distance, reason: f'{len(connected_symbols)} connected symbols'}. Return {enabled: true, ranked_files: [...], focal_symbols_resolved: [resolved names]}. Wrap in try/except for graceful degradation.
+
+**Micro-steps:**
+- Run TestPrioritizeContext — expect failures (TypeError: unexpected keyword arguments)
+- Update prioritize_context() signature to accept focal_symbols=None and max_files=20
+- Replace body: call g.prioritize_files(focal_symbols or [], max_files), transform results to {path, distance, reason} format, include focal_symbols_resolved in return dict
+- Run TestPrioritizeContext — expect all 6 tests pass
+
+**TDD:**
+- required: `true`
+- failingVerify:
+  - `PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestPrioritizeContext::test_returns_enabled_false_when_not_indexed -q`
+- passingVerify:
+  - `PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py::TestPrioritizeContext -q`
+
+**Verify:**
+```bash
+PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py -q
+```
+
+**Done when:** [Observable outcome]
+
+## Verification
+
+After all tasks:
+```bash
+PYTHONPATH=.cnogo python3 -m pytest tests/test_context_proximity.py -q
+PYTHONPATH=.cnogo python3 -m pytest tests/test_context_storage.py -q
+python3 -m py_compile .cnogo/scripts/context/phases/proximity.py
+python3 -m py_compile .cnogo/scripts/context/__init__.py
+python3 -m py_compile .cnogo/scripts/context/workflow.py
+```
+
+## Commit Message
+```
+feat(graph): implement BFS proximity ranking with prioritize_files() and updated prioritize_context()
+```
