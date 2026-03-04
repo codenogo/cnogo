@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "feature": "workflow-deepdive-v2",
+  "displayName": "Workflow Deep-Dive V2",
+  "decisions": [
+    {
+      "area": "scope",
+      "decision": "Fix 50 confirmed findings from 4-agent deep audit across scripts, commands, docs, and architecture",
+      "rationale": "Second systematic audit after workflow-audit-fixes; covers deeper structural and architectural issues"
+    },
+    {
+      "area": "phasing",
+      "decision": "Organize into 4-6 phases by risk: data integrity first, then state machine, then commands, then docs",
+      "rationale": "HIGH findings in memory engine and validation must land before cosmetic fixes"
+    },
+    {
+      "area": "architecture",
+      "decision": "Phase transition validation and state/phase unification are core improvements",
+      "rationale": "Current system allows nonsensical state combos and backward phase movement"
+    },
+    {
+      "area": "commands",
+      "decision": "Standardize Step 0 structure and add error recovery paths",
+      "rationale": "Inconsistent numbering and missing failure handling across discuss/plan/implement/review/ship"
+    }
+  ],
+  "constraints": [
+    "Python code is stdlib-only",
+    "Plans are max 3 tasks each",
+    "Must not break existing memory DB (migration required for schema changes)",
+    "Changes to commands/skills must pass workflow_validate.py",
+    "Agent team specialization fix must be config-only (no new agent files needed)"
+  ],
+  "openQuestions": [
+    "Should status column be deprecated in favor of state-only? (migration risk)",
+    "Should phase transitions be strict (enforced) or advisory (warned)?",
+    "How much CI/CD integration is in scope vs future work?",
+    "Should rollback/undo be a full feature or just phase revert?"
+  ],
+  "relatedCode": [
+    ".cnogo/scripts/workflow_validate_core.py",
+    ".cnogo/scripts/workflow_hooks.py",
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_checks_core.py",
+    ".cnogo/scripts/memory/__init__.py",
+    ".cnogo/scripts/memory/sync.py",
+    ".cnogo/scripts/memory/storage.py",
+    ".cnogo/scripts/memory/models.py",
+    ".cnogo/scripts/memory/graph.py",
+    ".cnogo/scripts/context/workflow.py",
+    ".claude/commands/discuss.md",
+    ".claude/commands/plan.md",
+    ".claude/commands/implement.md",
+    ".claude/commands/review.md",
+    ".claude/commands/ship.md",
+    ".claude/commands/team.md",
+    ".claude/commands/quick.md",
+    ".claude/commands/spawn.md",
+    ".claude/commands/context.md",
+    ".claude/skills/performance-review.md",
+    ".claude/agents/implementer.md",
+    "docs/planning/WORKFLOW.json",
+    "docs/planning/ROADMAP.md",
+    "docs/planning/PROJECT.md",
+    "CLAUDE.md"
+  ],
+  "findings": {
+    "high": 7,
+    "medium": 22,
+    "low": 21,
+    "total": 50
+  },
+  "timestamp": "2026-03-04T16:00:00Z"
+}
