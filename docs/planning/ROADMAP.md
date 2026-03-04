@@ -38,6 +38,20 @@ SQLite-backed memory engine and agent architecture redesign for reliable multi-a
 - [x] Skills library (8 domain playbooks)
 - [x] Template self-separation (docs/templates/ for installs, docs/planning/ for own docs)
 
+### Phase 4: Context Graph (v1.1)
+**Status:** ✅ Complete
+
+KuzuDB-based code graph for dependency analysis, proximity queries, and heritage tracking.
+
+- [x] Graph DB at `.cnogo/graph.db` (KuzuDB, gitignored)
+- [x] Storage layer — node/edge CRUD and bulk indexing (`.cnogo/scripts/context/phases/storage.py`)
+- [x] Proximity queries — nearest-neighbor and reachability in the call/import graph (`.cnogo/scripts/context/phases/proximity.py`)
+- [x] Heritage tracking — class hierarchy, mixin chains, interface implementation (`.cnogo/scripts/context/phases/heritage.py`)
+- [x] Flow analysis — data-flow and control-flow edges (`.cnogo/scripts/context/phases/flows.py`)
+- [x] Post-commit graph reindex hook (`workflow_hooks.py::post_commit_graph`)
+- [x] Dedicated venv for graph dependencies at `.cnogo/.venv` (kuzu, tree-sitter, tree-sitter-languages)
+- [x] Resolver agent (`.claude/agents/resolver.md`) — graph-aware symbol and dependency resolver (previously undocumented)
+
 ---
 
 ## Completed Features
