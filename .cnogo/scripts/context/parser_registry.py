@@ -8,8 +8,9 @@ from __future__ import annotations
 
 from .parser_base import LanguageParser
 
-# Cache for parser instances — reuse across calls
-_PARSER_CACHE: dict[str, LanguageParser] = {}
+# Cache for parser instances — reuse across calls.
+# None values indicate a language whose parser is unavailable (missing deps).
+_PARSER_CACHE: dict[str, LanguageParser | None] = {}
 
 
 def _create_parser(language: str) -> LanguageParser | None:
@@ -38,13 +39,14 @@ def _create_parser(language: str) -> LanguageParser | None:
 def get_parser(language: str) -> LanguageParser | None:
     """Get a parser for the given language identifier.
 
-    Returns a cached parser instance, or None if the language is not supported.
-    Language identifiers match walker.SUPPORTED_EXTENSIONS values.
+    Returns a cached parser instance, or None if the language is not supported
+    or its dependencies are unavailable (e.g. tree_sitter not installed).
     """
     if language not in _PARSER_CACHE:
-        parser = _create_parser(language)
-        if parser is None:
-            return None
+        try:
+            parser = _create_parser(language)
+        except ImportError:
+            parser = None
         _PARSER_CACHE[language] = parser
     return _PARSER_CACHE[language]
 

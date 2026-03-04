@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "005",
+  "slug": "incremental-edge-enum-heritage",
+  "goal": "Fix incremental reindex edge over-deletion (high) and enum heritage resolution (medium)",
+  "files": [
+    ".cnogo/scripts/context/storage.py",
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/context/phases/heritage.py"
+  ],
+  "verify": [
+    "python3 -m pytest tests/test_context_storage.py tests/test_context_storage_kuzu.py tests/test_context_heritage.py tests/test_context_pipeline.py -x -q"
+  ],
+  "timestamp": "2026-03-04T00:00:00Z"
+}

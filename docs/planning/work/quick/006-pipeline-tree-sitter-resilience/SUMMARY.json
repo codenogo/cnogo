@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "006",
+  "slug": "pipeline-tree-sitter-resilience",
+  "outcome": "Pipeline no longer crashes when tree-sitter is missing; all pre-existing test failures fixed",
+  "changes": [
+    {
+      "file": ".cnogo/scripts/context/parser_registry.py",
+      "description": "get_parser() now catches ImportError from _create_parser() and caches None for unavailable parsers"
+    },
+    {
+      "file": "tests/test_context_pipeline.py",
+      "description": "Added @needs_tree_sitter skip marker for 12 tests requiring parsed symbols; fixed query() result unpacking (returns GraphNode not tuples)"
+    },
+    {
+      "file": "tests/test_context_storage.py",
+      "description": "Fixed 6 pre-existing failures: get_callers->get_callers_with_confidence, remove_nodes_by_file return value, file_count vs FileHash confusion, stemming test updated for CONTAINS-based search"
+    }
+  ],
+  "verification": [
+    {"command": "pytest tests/test_context_storage.py tests/test_context_storage_kuzu.py tests/test_context_heritage.py tests/test_context_pipeline.py -q", "result": "78 passed, 12 skipped, 0 failures"}
+  ],
+  "commit": "pending",
+  "timestamp": "2026-03-04T00:00:00Z"
+}

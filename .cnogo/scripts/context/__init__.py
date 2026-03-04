@@ -168,9 +168,14 @@ class ContextGraph:
                     affected_parse_results[fp] = pr
 
             if affected_parse_results:
-                # Remove outgoing edges so re-run doesn't create duplicates
+                # Only remove edge types that will be rebuilt (preserve DEFINES/CONTAINS)
+                _rebuild_rel_types = [
+                    RelType.IMPORTS.value, RelType.CALLS.value,
+                    RelType.EXTENDS.value, RelType.IMPLEMENTS.value,
+                    RelType.USES_TYPE.value, RelType.EXPORTS.value,
+                ]
                 for fp in affected_parse_results:
-                    self._storage.remove_edges_from_file(fp)
+                    self._storage.remove_edges_from_file_by_types(fp, _rebuild_rel_types)
                 # Re-run edge-building phases only (nodes are already correct)
                 process_imports(affected_parse_results, self._storage)
                 process_calls(affected_parse_results, self._storage)
