@@ -432,7 +432,7 @@ class GraphStorage:
         placeholders = ", ".join(f"$f{i}" for i in range(len(file_paths)))
         result = conn.execute(
             f"MATCH (n:GraphNode)-[r:CodeRelation]->(m:GraphNode) "
-            f"WHERE m.file_path IN [{placeholders}] AND n.file_path NOT IN [{placeholders}] "
+            f"WHERE m.file_path IN [{placeholders}] AND NOT n.file_path IN [{placeholders}] "
             f"RETURN DISTINCT n.file_path",
             params,
         )

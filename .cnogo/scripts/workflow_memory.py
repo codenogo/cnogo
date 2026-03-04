@@ -666,7 +666,8 @@ def _graph_stats(graph: "ContextGraph") -> dict:
     """Get graph stats using available storage methods."""
     node_count = graph._storage.node_count()
     file_count = len(graph._storage.get_indexed_files())
-    return {"nodes": node_count, "files": file_count}
+    relationship_count = graph._storage.relationship_count()
+    return {"nodes": node_count, "files": file_count, "relationships": relationship_count}
 
 
 def cmd_graph_index(args: argparse.Namespace) -> int:
@@ -681,7 +682,7 @@ def cmd_graph_index(args: argparse.Namespace) -> int:
             if use_json:
                 print(json.dumps(stats))
             else:
-                print(f"Indexed: {stats['nodes']} nodes, {stats['files']} files")
+                print(f"Indexed: {stats['nodes']} nodes, {stats['files']} files, {stats['relationships']} relationships")
         else:
             cycle_count = [0]
 

@@ -1,0 +1,126 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/graph-release-fixes",
+  "feature": "graph-release-fixes",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [],
+  "performanceFindings": [],
+  "principleNotes": [],
+  "schemaVersion": 4,
+  "securityFindings": [],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "All 3 plan tasks implemented: P0 Kuzu syntax fix, P2 hook warning, P3 graph-stats relationships",
+        "Changed files match plan scope: storage.py, workflow_hooks.py, workflow_memory.py, test_context_storage.py",
+        "TDD contract honored for Task 1: RED (2 failing) then GREEN (3 passing)",
+        "Commit message matches plan commitMessage",
+        "01-SUMMARY.json exists with outcome=complete",
+        "Workflow validation passes"
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        {
+          "severity": "info",
+          "file": ".cnogo/scripts/workflow_memory.py",
+          "line": 685,
+          "message": "Long print line (108 chars) in text output format. Acceptable for a single-use format string."
+        }
+      ],
+      "evidence": [
+        "40/40 storage tests pass including 3 new regression tests",
+        "py_compile passes for all modified scripts",
+        "No new dependencies introduced (stdlib only)",
+        "Parameterized Cypher maintained (no raw string injection)",
+        "Hook still returns exit 0 on missing venv (non-blocking constraint preserved)"
+      ],
+      "notes": ""
+    }
+  ],
+  "timestamp": "2026-03-04T13:07:45Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "score": 13,
+  "maxScore": 14,
+  "axes": {
+    "correctness": 2,
+    "security": 2,
+    "contractCompliance": 2,
+    "testCoverage": 2,
+    "codeClarity": 2,
+    "scopeDiscipline": 2,
+    "operationalSafety": 1
+  },
+  "axisNotes": {
+    "operationalSafety": "P3 graph-stats adds relationship_count() call with no extra error handling, but follows existing node_count() pattern. Scored 1 for consistency."
+  },
+  "warnings": []
+}

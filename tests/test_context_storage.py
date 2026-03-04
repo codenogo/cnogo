@@ -440,3 +440,45 @@ def test_search_handles_special_characters(storage):
     # Should not crash on special characters
     results = storage.search("parentheses")
     assert len(results) >= 1
+
+
+# --- get_reverse_dependency_files ---
+
+
+def test_get_reverse_dependency_files(storage):
+    """get_reverse_dependency_files returns files with edges INTO the queried files."""
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py"),
+        _make_node("function:b.py:bar", name="bar", file_path="b.py"),
+        _make_node("function:c.py:baz", name="baz", file_path="c.py"),
+    ])
+    # a.py:foo calls b.py:bar, c.py:baz calls b.py:bar
+    storage.add_relationships([
+        GraphRelationship(id="r1", type=RelType.CALLS,
+                          source="function:a.py:foo", target="function:b.py:bar"),
+        GraphRelationship(id="r2", type=RelType.CALLS,
+                          source="function:c.py:baz", target="function:b.py:bar"),
+    ])
+    # Query: who depends on b.py (but is not b.py itself)?
+    result = storage.get_reverse_dependency_files(["b.py"])
+    assert sorted(result) == ["a.py", "c.py"]
+
+
+def test_get_reverse_dependency_files_excludes_queried(storage):
+    """get_reverse_dependency_files excludes the queried files from results."""
+    storage.add_nodes([
+        _make_node("function:a.py:foo", name="foo", file_path="a.py"),
+        _make_node("function:a.py:bar", name="bar", file_path="a.py"),
+    ])
+    # a.py:foo calls a.py:bar (self-file edge)
+    storage.add_relationships([
+        GraphRelationship(id="r1", type=RelType.CALLS,
+                          source="function:a.py:foo", target="function:a.py:bar"),
+    ])
+    result = storage.get_reverse_dependency_files(["a.py"])
+    assert result == []
+
+
+def test_get_reverse_dependency_files_empty_input(storage):
+    """get_reverse_dependency_files returns empty list for empty input."""
+    assert storage.get_reverse_dependency_files([]) == []

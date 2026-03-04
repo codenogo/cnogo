@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "feature": "graph-release-fixes",
+  "planNumber": "01",
+  "outcome": "complete",
+  "changes": [
+    {
+      "task": "Fix Kuzu NOT IN syntax + add regression test",
+      "files": [".cnogo/scripts/context/storage.py", "tests/test_context_storage.py"],
+      "description": "Changed 'n.file_path NOT IN [...]' to 'NOT n.file_path IN [...]' at storage.py:435. Added 3 regression tests for get_reverse_dependency_files()."
+    },
+    {
+      "task": "Improve post-commit hook skip warning",
+      "files": [".cnogo/scripts/workflow_hooks.py"],
+      "description": "Replaced minimal 'graph venv not found' message with actionable warning including venv creation and pip install instructions."
+    },
+    {
+      "task": "Add relationships count to _graph_stats()",
+      "files": [".cnogo/scripts/workflow_memory.py"],
+      "description": "Added relationship_count() call to _graph_stats() return dict and updated text output format to include relationship count."
+    }
+  ],
+  "verification": [
+    {"command": "PYTHONPATH=.cnogo python3 -m pytest tests/test_context_storage.py -q", "result": "40 passed"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_hooks.py", "result": "OK"},
+    {"command": "python3 -m py_compile .cnogo/scripts/workflow_memory.py", "result": "OK"}
+  ],
+  "commit": "86cc2ba",
+  "timestamp": "2026-03-04T00:00:00Z"
+}
