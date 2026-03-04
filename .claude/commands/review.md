@@ -27,13 +27,11 @@ git remote prune origin
 
 ### Step 1: Phase Check (Warn, Do Not Block)
 
-If memory is enabled and feature slug is known:
-
 ```bash
 python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
 
-Expected before `/review`: `implement` or `review`.
+Expected: `implement` or `review`.
 
 ### Step 2: Scope
 
@@ -57,20 +55,9 @@ If feature slug is unknown, omit the flag:
 python3 .cnogo/scripts/workflow_checks.py review
 ```
 
-If `WORKFLOW.json` has empty `packages[]`, the checker auto-runs:
-`python3 .cnogo/scripts/workflow_detect.py --write-workflow`
-then continues.
+Writes `REVIEW.md` + `REVIEW.json` (with token telemetry) to the feature directory, or `docs/planning/work/review/` if no feature inferred.
 
-This writes:
-- `docs/planning/work/features/<feature>/REVIEW.md`
-- `docs/planning/work/features/<feature>/REVIEW.json`
-- Includes token telemetry (`tokenTelemetry`) and compact output with optional `fullOutputPath` hints for failed checks.
-
-Or (if no feature inferred):
-- `docs/planning/work/review/<timestamp>-REVIEW.md`
-- `docs/planning/work/review/<timestamp>-REVIEW.json`
-
-Then validate workflow artifacts:
+Then validate:
 
 ```bash
 python3 .cnogo/scripts/workflow_validate.py --json --feature <feature-slug>

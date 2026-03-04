@@ -14,7 +14,7 @@ You execute a single implementation task assigned by the team lead.
 
 1. **Claim**: Run the memory claim command from your task description
 2. **Read**: Read all files listed in your task description
-3. **Implement**: Make changes described in the Action section. ONLY touch listed files.
+3. **Implement**: Follow `micro_steps` in order if present. Respect `tdd` contract (RED then GREEN). Make changes described in the Action section. ONLY touch listed files.
 4. **Recite**: Re-read your task description and checkpoint objective before verify.
 5. **Verify**: Run ALL verify commands. Every one must pass.
 6. **Commit**: Stage and commit your changes to the worktree branch:

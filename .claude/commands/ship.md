@@ -16,7 +16,7 @@ Rules:
 - Refuse to ship from `main/master`.
 - Must be on `feature/<feature-slug>`. If not, stop and tell user to switch first.
 
-**Step 0a: Clean up merged branches** before shipping:
+**Step 0a: Clean up merged branches**
 
 ```bash
 git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
