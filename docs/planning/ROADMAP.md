@@ -54,10 +54,18 @@ KuzuDB-based code graph for dependency analysis, proximity queries, and heritage
 
 ---
 
+## Current Work
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `workflow-deepdive-v2` | In Progress | Deep audit of workflow commands, skills, and scripts — 50 findings across 6 plans |
+
 ## Completed Features
 
 | Feature | Description |
 |---------|-------------|
+| `workflow-audit-fixes` | Workflow audit: graph integrity, heritage labels, blast-radius KeyError, context() neighborhood |
+| `graph-integrity-fixes` | Graph integrity: heritage label lookup, blast-radius KeyError, flows auto-index |
 | `team-implement-integration` | Bridge module, implementer agent, team/implement wiring |
 | `agent-architecture-redesign` | Ultra-lean agents, skills migration, CLAUDE.md restructure |
 | `install-template-sync` | Sync install.sh with redesigned architecture |
@@ -93,4 +101,4 @@ Ideas captured but not scheduled:
 - [ ] Workflow visualization
 
 ---
-*Last updated: 2026-02-14*
+*Last updated: 2026-03-04*

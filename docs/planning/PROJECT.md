@@ -22,7 +22,7 @@ cnogo gives any software project a structured development workflow out of the bo
 install.sh
     │
     ├── .claude/commands/       28 slash command definitions (Markdown)
-    ├── .claude/agents/         Team agent definitions (implementer, debugger)
+    ├── .claude/agents/         Team agent definitions (implementer, debugger, resolver)
     ├── .claude/skills/         Lazy-loaded domain expertise playbooks
     ├── .claude/settings.json   Hooks + permissions
     │
@@ -90,4 +90,4 @@ Things explicitly out of scope:
 | Pin Agent Teams to Claude Code >= 2.1 | Feature is experimental; version pinning prevents breakage | 2026-02 |
 
 ---
-*Last updated: 2026-02-14*
+*Last updated: 2026-03-04*

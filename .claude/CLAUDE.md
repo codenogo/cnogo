@@ -43,6 +43,11 @@ Key files:
 - `.cnogo/memory.db` — SQLite runtime (gitignored)
 - `.cnogo/issues.jsonl` — Git-tracked sync format
 
+### Phase Transitions
+
+Phases: `discuss` → `plan` → `implement` → `review` → `ship` (forward-only, advisory).
+Use `phase-get`/`phase-set` commands. Backward transitions emit stderr warnings but do not block.
+
 ## Planning Docs
 
 - Current state: memory engine (`prime()` for context summary)

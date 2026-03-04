@@ -567,8 +567,21 @@ def post_commit_graph(repo_root_override: Path | None = None) -> int:
         finally:
             graph.close()
         return 0
+    except ImportError:
+        print(
+            "[cnogo] Graph reindex skipped: missing dependencies.\n"
+            "  Install graph requirements:\n"
+            "    .cnogo/.venv/bin/pip install -r .cnogo/requirements-graph.txt",
+            file=sys.stderr,
+        )
+        return 0
     except Exception as exc:
-        print(f"Graph reindex skipped: {exc}", file=sys.stderr)
+        print(
+            f"[cnogo] Graph reindex warning: {type(exc).__name__}: {exc}\n"
+            "  Check graph DB at .cnogo/graph.db or re-run: "
+            "python3 .cnogo/scripts/workflow_hooks.py post_commit_graph",
+            file=sys.stderr,
+        )
         return 0
 
 
