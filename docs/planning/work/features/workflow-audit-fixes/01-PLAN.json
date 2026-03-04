@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 2,
+  "feature": "workflow-audit-fixes",
+  "planNumber": "01",
+  "goal": "Fix critical runtime bugs: venv path inconsistency, quick SUMMARY.json validation gap, and team.md epic_id derivation",
+  "tasks": [
+    {
+      "name": "Fix venv path inconsistency in workflow_memory.py",
+      "files": [".cnogo/scripts/workflow_memory.py"],
+      "microSteps": [
+        "Read _ensure_graph_venv() at line 71 — note it uses .venv instead of .cnogo/.venv",
+        "Change line 73 from _repo_root / '.venv' to _repo_root / '.cnogo' / '.venv'",
+        "Change line 74 from _repo_root / '.venv' to _repo_root / '.cnogo' / '.venv'",
+        "Update the error message at line 81 to reference .cnogo/.venv",
+        "Verify cmd_graph_status at line 929 already uses .cnogo/.venv (no change needed)",
+        "Run py_compile to verify no syntax errors"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Path constant fix — verified by py_compile and manual inspection against workflow_hooks.py which already uses .cnogo/.venv"
+      },
+      "action": "In _ensure_graph_venv() (line 71-86), change the venv path from `_repo_root / '.venv'` to `_repo_root / '.cnogo' / '.venv'` on lines 73-74 and update the error message at line 81. This aligns with workflow_hooks.py (line 537) and cmd_graph_status (line 929) which both use .cnogo/.venv.",
+      "verify": [
+        "python3 -m py_compile .cnogo/scripts/workflow_memory.py",
+        "grep -n '.cnogo.*\\.venv' .cnogo/scripts/workflow_memory.py | head -10"
+      ]
+    },
+    {
+      "name": "Add quick SUMMARY.json content validation",
+      "files": [".cnogo/scripts/workflow_validate_core.py"],
+      "microSteps": [
+        "Read existing _validate_quick_contract function (line 452) to understand the pattern",
+        "Create _validate_quick_summary function below it — validate schemaVersion, outcome, changes[], verification[]",
+        "In _validate_quick_tasks (line 1533-1536), add content validation call after existence check",
+        "Run py_compile to verify no syntax errors",
+        "Run workflow_validate.py to confirm no false positives on existing quick tasks"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Validation logic addition — verified by py_compile and running validator against existing artifacts to confirm no false positives"
+      },
+      "action": "Add a _validate_quick_summary() function (after _validate_quick_contract at line 467) that checks: schemaVersion present, outcome is string, changes is non-empty list, verification is non-empty list. Then in _validate_quick_tasks() at line 1535-1536, after the existence check, add content validation: load JSON, call _validate_quick_summary(), catch exceptions.",
+      "verify": [
+        "python3 -m py_compile .cnogo/scripts/workflow_validate_core.py",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "blockedBy": []
+    },
+    {
+      "name": "Fix team.md epic_id derivation",
+      "files": [".claude/commands/team.md"],
+      "microSteps": [
+        "Read step 12 at line 72-73 to see the <epic_id> placeholder",
+        "Add instruction before step 12 to capture epic_id from memory create output in step 8",
+        "Update the reconcile command to show how to derive epic_id from feature slug"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Documentation-only change in a markdown command file"
+      },
+      "action": "At line 72-73, replace the ambiguous `<epic_id>` in the reconcile command with an explicit derivation. Add a note above step 12 explaining how to get the epic_id: `python3 .cnogo/scripts/workflow_memory.py show-epic --feature <feature> --json` or by capturing the ID from the memory create output in the earlier step. Update the inline command to use the derived variable.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "blockedBy": []
+    }
+  ],
+  "planVerify": [
+    "python3 -m py_compile .cnogo/scripts/workflow_memory.py",
+    "python3 -m py_compile .cnogo/scripts/workflow_validate_core.py",
+    "python3 .cnogo/scripts/workflow_validate.py"
+  ],
+  "commitMessage": "fix(workflow): venv path consistency, quick summary validation, team epic_id derivation",
+  "timestamp": "2026-03-04T14:00:00Z"
+}
