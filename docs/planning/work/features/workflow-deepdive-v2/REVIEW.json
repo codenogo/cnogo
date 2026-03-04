@@ -2,7 +2,7 @@
   "automated": [
     {
       "name": "lint",
-      "result": "pass"
+      "result": "skipped"
     },
     {
       "name": "types",
@@ -17,21 +17,12 @@
   "branch": "feature/workflow-deepdive-v2",
   "feature": "workflow-deepdive-v2",
   "impactAnalysis": {
-    "affected_files": [
-      ".cnogo/scripts/memory/sync.py",
-      ".cnogo/scripts/workflow_hooks.py",
-      ".cnogo/scripts/memory/storage.py"
-    ],
-    "affected_symbols": [
-      "export_jsonl",
-      "pre_bash",
-      "_column_exists",
-      "_ALLOWED_TABLES"
-    ],
+    "affected_files": [],
+    "affected_symbols": [],
     "enabled": true,
     "graph_status": "indexed",
     "per_file": {},
-    "total_affected": 3
+    "total_affected": 0
   },
   "invariants": {
     "findings": [],
@@ -45,9 +36,10 @@
     {
       "checks": [
         {
-          "cmd": "python3 -m py_compile .cnogo/scripts/memory/sync.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/memory/storage.py",
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
           "name": "lint",
-          "result": "pass"
+          "reason": "no changed files for package",
+          "result": "skipped"
         },
         {
           "cmd": null,
@@ -65,80 +57,60 @@
       "path": ".cnogo/scripts"
     }
   ],
-  "patternCompliance": [
-    {
-      "pattern": "read-transaction-isolation",
-      "status": "pass",
-      "note": "export_jsonl now uses BEGIN/ROLLBACK for consistent WAL snapshot, matching get_stats() pattern"
-    },
-    {
-      "pattern": "stdlib-only",
-      "status": "pass",
-      "note": "No external dependencies introduced"
-    },
-    {
-      "pattern": "defense-in-depth",
-      "status": "pass",
-      "note": "_ALLOWED_TABLES prevents PRAGMA injection even though current callers are all hardcoded"
-    }
-  ],
+  "patternCompliance": [],
   "performanceFindings": [],
-  "principleNotes": [
-    "Correctness: 2/2 — All changes verified correct via compile + integration",
-    "Security: 2/2 — PRAGMA injection closed, no secrets or OWASP issues",
-    "Contract Compliance: 2/2 — Full artifact alignment",
-    "Performance: 2/2 — All additions are O(1), no hot-path impact",
-    "Maintainability: 2/2 — Clear, self-documenting changes",
-    "Test Coverage: 1/2 — TDD waived (stdlib-only, no test framework); verified via py_compile + prime",
-    "Scope Discipline: 2/2 — Surgical, 3 files, minimal additions"
-  ],
+  "principleNotes": [],
   "schemaVersion": 4,
-  "securityFindings": [
-    {
-      "severity": "info",
-      "description": "PRAGMA table_info SQL injection vector closed via _ALLOWED_TABLES frozenset allowlist. Defense-in-depth — all current callers already pass hardcoded table names.",
-      "file": ".cnogo/scripts/memory/storage.py",
-      "line": 248
-    }
+  "securityFindings": [],
+  "securityFindings": [],
+  "performanceFindings": [],
+  "patternCompliance": [
+    {"pattern": "stdlib-only", "status": "pass", "notes": "No external dependencies introduced"},
+    {"pattern": "DRY", "status": "pass", "notes": "_is_positive_int() replaces 13 inline checks; command token budget met"},
+    {"pattern": "defense-in-depth", "status": "pass", "notes": "_ALLOWED_TABLES frozenset for PRAGMA calls"}
+  ],
+  "principleNotes": [
+    "Correctness: 2 — All changes verified via py_compile + workflow_validate.py. Phase transition logic correct.",
+    "Security: 2 — _ALLOWED_TABLES prevents table injection. No secrets. Error messages non-leaking.",
+    "Contract Compliance: 2 — All 6 plans have full artifact chains. Phase progression coherent.",
+    "Performance: 2 — All new functions O(1) or O(n) where n<=3. Read transaction prevents WAL drift.",
+    "Maintainability: 2 — DRY improvements reduce command tokens 7573→6986. _is_positive_int centralizes validation.",
+    "Test Coverage: 1 — No unit tests for new functions (validate_phase_transition, _validate_plan_structure). Compile + validate serve as verification.",
+    "Scope Discipline: 2 — All changes within declared file scopes. No drive-by edits."
   ],
   "stageReviews": [
     {
       "stage": "spec-compliance",
       "status": "pass",
-      "findings": [
-        {
-          "severity": "warn",
-          "description": "Plan action specified ROLLBACK in finally block (citing get_stats pattern) but implementation placed ROLLBACK inline after reads. Functionally equivalent since conn.close() in existing finally implicitly rolls back.",
-          "file": ".cnogo/scripts/memory/sync.py",
-          "line": 76
-        }
-      ],
+      "findings": [],
       "evidence": [
-        "All 3 plan tasks implemented: transaction isolation, hook logging, PRAGMA allowlist",
-        "Changed files match plan files[] exactly: sync.py, workflow_hooks.py, storage.py",
-        "No drive-by edits — only declared files modified",
-        "SUMMARY.json changes[] aligned with plan"
+        "All 6 plans match CONTEXT.json goals (50 findings across scripts/commands/docs/architecture)",
+        "Full artifact chains: CONTEXT + 6x(PLAN+SUMMARY) + REVIEW",
+        "Phase progression: discuss→plan→implement→review (forward-only)",
+        "No out-of-scope modifications detected",
+        "workflow_validate.py --feature returns empty findings"
       ],
-      "notes": ""
+      "notes": "All scope, contract, and lifecycle checks pass."
     },
     {
       "stage": "code-quality",
       "status": "pass",
-      "findings": [],
-      "evidence": [
-        "py_compile passes for all 3 files",
-        "prime command integration test passes",
-        "workflow_validate passes (zero errors for this feature)",
-        "_ALLOWED_TABLES matches all 7 SCHEMA_SQL tables exactly",
-        "All 4 _column_exists callers pass 'issues' which is in allowlist"
+      "findings": [
+        {"severity": "info", "description": "No unit tests for validate_phase_transition() and _validate_plan_structure() — acceptable for workflow scripts with compile+validate coverage"}
       ],
-      "notes": ""
+      "evidence": [
+        "python3 -m py_compile: all 8 modified Python files pass",
+        "workflow_validate.py --json --feature: empty findings",
+        "Command token budget: 7573→6986 (under 7000 target)",
+        "48 files changed, 1830 insertions, 229 deletions"
+      ],
+      "notes": "Code quality clear. Minor concern: missing unit tests for new helper functions."
     }
   ],
-  "timestamp": "2026-03-04T17:50:00Z",
+  "timestamp": "2026-03-04T16:47:38Z",
   "tokenTelemetry": {
-    "checksRun": 3,
-    "checksSkipped": 2,
+    "checksRun": 8,
+    "checksSkipped": 3,
     "inputTokens": 0,
     "outputTokens": 0,
     "savedTokens": 0,

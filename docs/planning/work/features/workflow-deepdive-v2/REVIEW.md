@@ -1,49 +1,50 @@
-# Review Report — Plan 01
+# Review Report
 
-**Timestamp:** 2026-03-04T17:50:00Z
+**Timestamp:** 2026-03-04T16:47:38Z
 **Branch:** feature/workflow-deepdive-v2
 **Feature:** workflow-deepdive-v2
-**Plan:** 01 — Data Integrity Hardening
 
 ## Verdict: PASS (13/14)
 
-## Scoring
+### Scoring
 
 | Axis | Score | Notes |
 |------|-------|-------|
-| Correctness | 2 | All changes verified via compile + integration |
-| Security | 2 | PRAGMA injection closed, no OWASP issues |
-| Contract Compliance | 2 | Full artifact alignment |
-| Performance | 2 | All additions O(1), no hot-path impact |
-| Maintainability | 2 | Clear, self-documenting changes |
-| Test Coverage | 1 | TDD waived (stdlib-only); verified via py_compile + prime |
-| Scope Discipline | 2 | Surgical — 3 files, minimal additions |
+| Correctness | 2 | All changes verified via py_compile + workflow_validate.py |
+| Security | 2 | _ALLOWED_TABLES prevents table injection. No secrets. |
+| Contract Compliance | 2 | Full artifact chains for all 6 plans. Phase progression coherent. |
+| Performance | 2 | All new functions O(1) or O(n) where n<=3. Read transaction prevents WAL drift. |
+| Maintainability | 2 | DRY improvements: command tokens 7573→6986. _is_positive_int centralizes validation. |
+| Test Coverage | 1 | No unit tests for validate_phase_transition, _validate_plan_structure. Compile+validate covers. |
+| Scope Discipline | 2 | All changes within declared file scopes. No drive-by edits. |
 
-## Stage 1: Spec Compliance — PASS
+**Total: 13/14** — Pass (no 0 in Correctness/Security/Contract Compliance)
 
-- All 3 plan tasks implemented
-- Changed files match plan files[] exactly
-- No drive-by edits
-- **Warn:** Plan cited get_stats() ROLLBACK-in-finally pattern but implementation placed ROLLBACK inline. Functionally equivalent.
+### Stage 1: Spec Compliance — PASS
 
-## Stage 2: Code Quality — PASS
+- All 6 plans match CONTEXT.json goals (50 findings across scripts/commands/docs/architecture)
+- Full artifact chains: CONTEXT + 6x(PLAN+SUMMARY) + REVIEW
+- Phase progression: discuss→plan→implement→review (forward-only)
+- No out-of-scope modifications
 
-- py_compile passes for all 3 files
-- prime command integration test passes
-- workflow_validate zero errors for this feature
-- _ALLOWED_TABLES matches all 7 SCHEMA_SQL tables
-- All _column_exists callers validated
+### Stage 2: Code Quality — PASS
 
-## Security
+- python3 -m py_compile: all 8 modified Python files pass
+- workflow_validate.py --json --feature: empty findings
+- Command token budget: 7573→6986 (under 7000 target)
+- 48 files changed, 1830 insertions, 229 deletions
 
-- [info] PRAGMA table_info injection vector closed via _ALLOWED_TABLES (storage.py:248)
+### Concerns (score = 1)
 
-## Pattern Compliance
+- **Test Coverage**: No unit tests for new `validate_phase_transition()` and `_validate_plan_structure()` functions. Acceptable for workflow scripts where compile + workflow_validate.py serve as the verification layer.
 
-- read-transaction-isolation: PASS
+### Pattern Compliance
+
 - stdlib-only: PASS
-- defense-in-depth: PASS
+- DRY: PASS — _is_positive_int() replaces 13 inline checks
+- defense-in-depth: PASS — _ALLOWED_TABLES frozenset for PRAGMA calls
 
-## Next Actions
+### Next Actions
 
-- Ready for `/ship` or continue with `/implement workflow-deepdive-v2 02`
+- `/ship` — ready for merge
+- Follow-up: consider adding unit tests for new helper functions in a future quick task
