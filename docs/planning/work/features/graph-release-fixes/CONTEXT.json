@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "feature": "graph-release-fixes",
+  "displayName": "Graph Release Fixes (P0/P2/P3)",
+  "decisions": [
+    {
+      "area": "architecture",
+      "decision": "Fix Kuzu NOT IN syntax in get_reverse_dependency_files(): change 'n.file_path NOT IN [...]' to 'NOT n.file_path IN [...]'. Add regression test.",
+      "rationale": "P0 fix. Kuzu's Cypher dialect does not support postfix NOT IN. The NOT must precede the expression. Without this fix, incremental reindex on changed files crashes, breaking downstream graph-impact and workflow_checks features.",
+      "finding": "P0-kuzu-not-in-syntax"
+    },
+    {
+      "area": "operational",
+      "decision": "Keep hook exit 0 on missing venv, but improve the warning message to include actionable guidance (e.g. 'install graph deps with...').",
+      "rationale": "P2 fix. Hooks should not block commits when optional graph tooling is absent. But the current message ('graph venv not found') gives no remediation path. A louder, actionable warning helps users who didn't realize graph deps were missing.",
+      "finding": "P2-hook-silent-skip"
+    },
+    {
+      "area": "data-flow",
+      "decision": "Add 'relationships': graph._storage.relationship_count() to _graph_stats(). No edge type breakdown.",
+      "rationale": "P3 fix. Existing tests/consumers of graph-index --json expect a relationships key. The relationship_count() method already exists in storage. One-line addition restores the expected contract.",
+      "finding": "P3-graph-stats-relationships"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "Parameterized Cypher queries only",
+    "Max 3 tasks per plan",
+    "Hook must not block commits (exit 0 on missing deps)"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    ".cnogo/scripts/context/storage.py",
+    ".cnogo/scripts/context/__init__.py",
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow_hooks.py",
+    "tests/test_context_storage.py"
+  ],
+  "outOfScope": [
+    {
+      "id": "P1-prioritize-api-drift",
+      "reason": "Tracked in feature/graph-proximity (CONTEXT.json already exists)"
+    },
+    {
+      "id": "P1-proximity-not-implemented",
+      "reason": "Tracked in feature/graph-proximity (CONTEXT.json already exists)"
+    }
+  ],
+  "findings": {
+    "verified": [
+      {
+        "id": "P0-kuzu-not-in-syntax",
+        "priority": "P0",
+        "title": "Kuzu NOT IN syntax invalid in get_reverse_dependency_files()",
+        "status": "open",
+        "file": ".cnogo/scripts/context/storage.py",
+        "line": 435,
+        "description": "Kuzu rejects 'n.file_path NOT IN [...]'. Correct syntax is 'NOT n.file_path IN [...]'. This crashes incremental reindex for any repo with changed files."
+      },
+      {
+        "id": "P2-hook-silent-skip",
+        "priority": "P2",
+        "title": "Post-commit hook silently skips reindex with weak warning",
+        "status": "open",
+        "file": ".cnogo/scripts/workflow_hooks.py",
+        "lines": "545-547",
+        "description": "Hook prints minimal message to stderr and returns 0 when graph venv is absent. Warning should be more actionable."
+      },
+      {
+        "id": "P3-graph-stats-relationships",
+        "priority": "P3",
+        "title": "graph-index --json output missing relationships count",
+        "status": "open",
+        "file": ".cnogo/scripts/workflow_memory.py",
+        "lines": "665-669",
+        "description": "_graph_stats() returns {nodes, files} but consumers expect {nodes, files, relationships}. relationship_count() exists but isn't called."
+      }
+    ]
+  },
+  "timestamp": "2026-03-04T00:00:00Z"
+}
