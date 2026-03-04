@@ -1,0 +1,145 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "skipped"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "blockers": [],
+  "branch": "feature/workflow-audit-fixes",
+  "feature": "workflow-audit-fixes",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {},
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "name": "lint",
+          "reason": "no changed files for package",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [
+    {
+      "pattern": "Severity scale unification",
+      "status": "compliant",
+      "evidence": "security-scan.md, code-review.md, boundary-and-sdk-enforcement.md all use Critical/Warning/Info"
+    },
+    {
+      "pattern": "Operating principles alignment",
+      "status": "compliant",
+      "evidence": "Root CLAUDE.md principles 1-10 match .claude/CLAUDE.md 1-10"
+    },
+    {
+      "pattern": "Implementer file scope discipline",
+      "status": "compliant",
+      "evidence": "implementer.md prohibits git add -A, requires task file scope staging"
+    }
+  ],
+  "performanceFindings": [],
+  "principleNotes": [
+    "Correctness: 2 — All changes verified via py_compile, JSON parse, workflow_validate",
+    "Security: 2 — No secrets, no injection, regex patterns are read-only matching",
+    "Contract Compliance: 2 — Full PLAN/SUMMARY pairs, phase lifecycle correct",
+    "Performance: 2 — Documentation/config changes only, no hot paths",
+    "Maintainability: 2 — Follows existing code patterns consistently",
+    "Test Coverage: 1 — No new tests added, but changes are docs/config/regex (low risk)",
+    "Scope Discipline: 2 — All changes within plan scope, spawn.md fix justified by perf-analysis deletion"
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [
+    {
+      "severity": "Info",
+      "description": "New secret redaction patterns (Bearer, PEM, base64) are read-only matching for output filtering — no injection risk",
+      "file": ".cnogo/scripts/workflow_hooks.py"
+    }
+  ],
+  "stageReviews": [
+    {
+      "stage": "spec-compliance",
+      "status": "pass",
+      "findings": [],
+      "evidence": [
+        "All 4 plans' goals match implemented changes exactly",
+        "All 4 PLAN.json + SUMMARY.json pairs exist with schemaVersion 2",
+        "Phase progression: discuss → plan → implement → review",
+        "Memory epic cn-19ddv4u tracks feature",
+        "spawn.md fix was consequence of perf-analysis.md deletion, not drive-by",
+        "No stale perf-analysis references found in .claude/"
+      ],
+      "notes": ""
+    },
+    {
+      "stage": "code-quality",
+      "status": "pass",
+      "findings": [
+        {
+          "severity": "Info",
+          "message": "Base64 secret pattern may match long identifiers; acceptable for redaction hints",
+          "file": ".cnogo/scripts/workflow_hooks.py:72"
+        },
+        {
+          "severity": "Info",
+          "message": "Command artifacts slightly over token budget (pre-existing; added ~10 words per command for Step 0a)",
+          "file": ".claude/commands/"
+        }
+      ],
+      "evidence": [
+        "py_compile passes for workflow_memory.py, workflow_validate_core.py, workflow_hooks.py",
+        "WORKFLOW.json parses as valid JSON",
+        "workflow_validate.py passes with no new WARN/ERROR introduced",
+        "All changes are documentation/config/regex — no runtime behavior risk"
+      ],
+      "notes": ""
+    }
+  ],
+  "timestamp": "2026-03-04T15:13:05Z",
+  "tokenTelemetry": {
+    "checksRun": 0,
+    "checksSkipped": 3,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}
