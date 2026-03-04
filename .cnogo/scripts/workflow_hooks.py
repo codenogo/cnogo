@@ -544,13 +544,12 @@ def post_commit_graph(repo_root_override: Path | None = None) -> int:
             return result.returncode
         if not venv_python.exists():
             print(
-                "[cnogo] Graph reindex skipped: graph venv not found.\n"
-                "  To enable automatic graph reindexing after commits, run:\n"
+                "[cnogo] Graph venv not found, using current interpreter.\n"
+                "  For best results, create a dedicated venv:\n"
                 "    python3 -m venv .cnogo/.venv && "
                 ".cnogo/.venv/bin/pip install kuzu tree-sitter tree-sitter-languages",
                 file=sys.stderr,
             )
-            return 0
 
         if str(root) not in sys.path:
             sys.path.insert(0, str(root))
