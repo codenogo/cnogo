@@ -35,7 +35,7 @@ Apply `.claude/skills/code-review.md` sections:
 
 ### Step B2: Performance Deep-Dive
 
-Apply `.claude/skills/performance-review.md` performance checklist:
+Performance checklist:
 - Identify hotspot (profile or log timings)
 - Complexity check (watch for O(n^2) or worse)
 - IO patterns (DB queries, network calls, file reads)
