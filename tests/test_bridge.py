@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.memory.bridge import (
     TASK_DESC_SCHEMA_VERSION,
+    _is_already_closed,
     _make_skipped_desc,
     detect_file_conflicts,
     generate_implement_prompt,
@@ -298,7 +299,7 @@ class TestPlanToTaskDescriptions:
 
     def test_task_with_memory_id(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task B", "memoryId": "cn-xyz", "files": [], "verify": [], "action": "do B"},
+            {"name": "Task B", "memoryId": "cn-xyz", "files": ["b.py"], "verify": [], "action": "do B"},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False):
             results = plan_to_task_descriptions(plan_path, tmp_path)
@@ -311,7 +312,7 @@ class TestPlanToTaskDescriptions:
 
     def test_closed_task_is_skipped(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task C", "memoryId": "cn-closed", "files": [], "verify": [], "action": "do C"},
+            {"name": "Task C", "memoryId": "cn-closed", "files": ["c.py"], "verify": [], "action": "do C"},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=True):
             results = plan_to_task_descriptions(plan_path, tmp_path)
@@ -320,7 +321,7 @@ class TestPlanToTaskDescriptions:
 
     def test_blocked_by_validation_out_of_range(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task D", "files": [], "verify": [], "action": "", "blockedBy": [5]},
+            {"name": "Task D", "files": ["d.py"], "verify": [], "action": "do D", "blockedBy": [5]},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
              mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
@@ -329,7 +330,7 @@ class TestPlanToTaskDescriptions:
 
     def test_blocked_by_self_reference(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task E", "files": [], "verify": [], "action": "", "blockedBy": [0]},
+            {"name": "Task E", "files": ["e.py"], "verify": [], "action": "do E", "blockedBy": [0]},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
              mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
@@ -338,8 +339,8 @@ class TestPlanToTaskDescriptions:
 
     def test_multiple_tasks_indexed(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "T1", "files": ["a.py"], "verify": [], "action": ""},
-            {"name": "T2", "files": ["b.py"], "verify": [], "action": "", "blockedBy": [0]},
+            {"name": "T1", "files": ["a.py"], "verify": [], "action": "do T1"},
+            {"name": "T2", "files": ["b.py"], "verify": [], "action": "do T2", "blockedBy": [0]},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
              mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
@@ -372,3 +373,18 @@ class TestPlanToTaskDescriptions:
         desc = results[0]
         assert desc["micro_steps"] == ["write failing test", "run tests", "implement", "run tests"]
         assert desc["tdd"]["required"] is True
+
+
+@pytest.mark.parametrize(
+    ("status", "state"),
+    [
+        ("open", "done_by_worker"),
+        ("open", "verified"),
+        ("closed", "closed"),
+    ],
+)
+def test_is_already_closed_treats_completed_states_as_complete(tmp_path, status, state):
+    issue = mock.Mock(status=status, state=state)
+    with mock.patch("scripts.memory.is_initialized", return_value=True), \
+         mock.patch("scripts.memory.show", return_value=issue):
+        assert _is_already_closed(tmp_path, "cn-finished") is True

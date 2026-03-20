@@ -45,14 +45,16 @@ Key files:
 
 ### Phase Transitions
 
-Phases: `discuss` → `plan` → `implement` → `review` → `ship` (forward-only, advisory).
-Use `phase-get`/`phase-set` commands. Backward transitions emit stderr warnings but do not block.
+Feature phases: `discuss` → `plan` → `implement` → `review` → `ship` (forward-only, advisory).
+`/shape` is a persistent initiative workspace that lives before feature memory phases begin and can remain active while features branch into `discuss`.
+Use `phase-get`/`phase-set` commands once work enters `discuss`. Backward transitions emit stderr warnings but do not block.
 
 ## Planning Docs
 
 - Current state: memory engine (`prime()` for context summary)
 - Project vision: `docs/planning/PROJECT.md`
 - Roadmap: `docs/planning/ROADMAP.md`
+- Initiative shaping: `docs/planning/work/ideas/`
 - Feature work: `docs/planning/work/features/`
 - Quick tasks: `docs/planning/work/quick/`
 - Research: `docs/planning/work/research/`

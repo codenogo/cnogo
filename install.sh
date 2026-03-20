@@ -3,7 +3,7 @@
 # cnogo Installer v3
 # Usage: ./install.sh [OPTIONS] /path/to/your/project
 #   -y, --yes         Auto-accept merge with existing directories
-#   --update          Update an existing cnogo installation (managed files only)
+#   --update          Update an existing cnogo installation (including newly added managed files)
 #   --uninstall       Remove cnogo from a project (keeps seeded files)
 #   --force           Uninstall + fresh install
 #   --from <path>     Source cnogo repo (default: directory containing this script)
@@ -24,7 +24,7 @@ Usage: ./install.sh [OPTIONS] /path/to/your/project
 
 Options:
   -y, --yes         Auto-accept merge with existing directories
-  --update          Update an existing cnogo installation (managed files only)
+  --update          Update an existing cnogo installation (including newly added managed files)
   --uninstall       Remove cnogo from a project (keeps seeded files)
   --force           Uninstall + fresh install
   --from <path>     Source cnogo repo (default: directory containing this script)
@@ -138,6 +138,216 @@ with open(path, 'w') as f:
     f.write('\n')
 " "$settings_file" 2>/dev/null || echo -e "   ${YELLOW}⚠️  Could not clean settings.json hooks${NC}"
     fi
+}
+
+manifest_category_for_path() {
+    local path="$1"
+    case "$path" in
+        CLAUDE.md|CHANGELOG.md|docs/planning/PROJECT.md|docs/planning/ROADMAP.md)
+            echo "seeded"
+            ;;
+        .claude/settings.json|.gitignore)
+            echo "merged"
+            ;;
+        docs/planning/work/*/.gitkeep|docs/planning/archive/*/.gitkeep)
+            echo "scaffold"
+            ;;
+        *)
+            echo "managed"
+            ;;
+    esac
+}
+
+emit_manifest_paths_for_tree() {
+    local base="$1"
+
+    [ -f "$base/.claude/settings.json" ] && echo ".claude/settings.json"
+    for f in "$base/.claude/commands/"*.md; do
+        [ -f "$f" ] && echo ".claude/commands/$(basename "$f")"
+    done
+    for f in "$base/.claude/agents/"*.md; do
+        [ -f "$f" ] && echo ".claude/agents/$(basename "$f")"
+    done
+    [ -f "$base/.claude/agent-memory/.gitkeep" ] && echo ".claude/agent-memory/.gitkeep"
+
+    for f in "$base/.cnogo/scripts/"*.py; do
+        [ -f "$f" ] && echo ".cnogo/scripts/$(basename "$f")"
+    done
+    for f in "$base/.cnogo/scripts/memory/"*.py; do
+        [ -f "$f" ] && echo ".cnogo/scripts/memory/$(basename "$f")"
+    done
+    for f in "$base/.cnogo/scripts/context/"*.py; do
+        [ -f "$f" ] && echo ".cnogo/scripts/context/$(basename "$f")"
+    done
+    if [ -d "$base/.cnogo/scripts/context/phases" ]; then
+        for f in "$base/.cnogo/scripts/context/phases/"*.py; do
+            [ -f "$f" ] && echo ".cnogo/scripts/context/phases/$(basename "$f")"
+        done
+    fi
+    [ -f "$base/.cnogo/requirements-graph.txt" ] && echo ".cnogo/requirements-graph.txt"
+
+    [ -f "$base/.cnogo/hooks/_bootstrap.py" ] && echo ".cnogo/hooks/_bootstrap.py"
+    for f in "$base/.cnogo/hooks/"hook-*.sh "$base/.cnogo/hooks/"hook-*.py; do
+        [ -f "$f" ] && echo ".cnogo/hooks/$(basename "$f")"
+    done
+    [ -f "$base/.cnogo/hooks/install-githooks.sh" ] && echo ".cnogo/hooks/install-githooks.sh"
+
+    for f in "$base/.cnogo/templates/"*.md "$base/.cnogo/templates/"*.json; do
+        [ -f "$f" ] && echo ".cnogo/templates/$(basename "$f")"
+    done
+
+    [ -f "$base/.github/CODEOWNERS" ] && echo ".github/CODEOWNERS"
+    [ -f "$base/.github/PULL_REQUEST_TEMPLATE.md" ] && echo ".github/PULL_REQUEST_TEMPLATE.md"
+
+    for f in PROJECT.md ROADMAP.md WORKFLOW.json WORKFLOW.schema.json; do
+        [ -f "$base/docs/planning/$f" ] && echo "docs/planning/$f"
+    done
+    [ -f "$base/docs/planning/adr/ADR-TEMPLATE.md" ] && echo "docs/planning/adr/ADR-TEMPLATE.md"
+    [ -f "$base/docs/planning/work/features/CONTEXT-TEMPLATE.md" ] && echo "docs/planning/work/features/CONTEXT-TEMPLATE.md"
+    for dir in work/quick work/features work/debug work/background work/review work/research work/ideas archive/features; do
+        [ -f "$base/docs/planning/$dir/.gitkeep" ] && echo "docs/planning/$dir/.gitkeep"
+    done
+
+    [ -f "$base/CLAUDE.md" ] && echo "CLAUDE.md"
+    [ -f "$base/.claude/CLAUDE.md" ] && echo ".claude/CLAUDE.md"
+    [ -f "$base/CHANGELOG.md" ] && echo "CHANGELOG.md"
+
+    for f in "$base/.claude/skills/"*.md; do
+        [ -f "$f" ] && echo ".claude/skills/$(basename "$f")"
+    done
+    for skill_dir in "$base/.claude/skills/"*; do
+        [ -d "$skill_dir" ] || continue
+        [ -f "$skill_dir/SKILL.md" ] || continue
+        while IFS= read -r skill_file; do
+            echo "${skill_file#$base/}"
+        done < <(find "$skill_dir" -type f | sort)
+    done
+
+    [ -f "$base/.gitignore" ] && echo ".gitignore"
+}
+
+CNOGO_BLOCK="# >>> cnogo
+# Memory engine runtime (SQLite binary — not diffable)
+.cnogo/memory.db
+.cnogo/memory.db-wal
+.cnogo/memory.db-shm
+.cnogo/tee/
+.cnogo/command-usage.jsonl
+
+# Worktree session state (transient, contains absolute paths)
+.cnogo/worktree-session.json
+
+# Compaction checkpoint (runtime snapshot, not source)
+.cnogo/compaction-checkpoint.json
+
+# Validation baselines (per-branch runtime snapshots)
+.cnogo/validate-baseline.json
+.cnogo/validate-latest.json
+
+# Context graph (rebuild from source)
+.cnogo/graph.db
+
+# Graph venv (auto-managed, rebuild via install.sh)
+.cnogo/.venv/
+
+# Task description cache (generated, not source)
+.cnogo/task-descriptions-*.json
+.cnogo/prompt-*.md
+# <<< cnogo"
+
+gitignore_merge() {
+    local target_gitignore="$1"
+    local block_content="$2"
+
+    if [ ! -f "$target_gitignore" ]; then
+        echo "$block_content" > "$target_gitignore"
+        echo "   ✅ Created .gitignore with cnogo block"
+        return
+    fi
+
+    if grep -q '# >>> cnogo' "$target_gitignore"; then
+        sed -i '' '/^# >>> cnogo$/,/^# <<< cnogo$/d' "$target_gitignore" 2>/dev/null || \
+        sed -i '/^# >>> cnogo$/,/^# <<< cnogo$/d' "$target_gitignore"
+        sed -i '' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$target_gitignore" 2>/dev/null || true
+    fi
+
+    echo "" >> "$target_gitignore"
+    echo "$block_content" >> "$target_gitignore"
+    echo "   ✅ Updated .gitignore cnogo block"
+}
+
+generate_manifest() {
+    local target="$1"
+    local manifest_file="$target/.cnogo/manifest.json"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    echo '{'                                          > "$manifest_file"
+    echo '  "schemaVersion": 1,'                     >> "$manifest_file"
+    echo "  \"generatedAt\": \"$timestamp\","        >> "$manifest_file"
+    echo '  "files": ['                              >> "$manifest_file"
+
+    local first=true
+    for p in "${MANAGED_PATHS[@]}"; do
+        local full_path="$target/$p"
+        if [ ! -f "$full_path" ]; then
+            continue
+        fi
+
+        local category
+        category=$(manifest_category_for_path "$p")
+
+        local sha
+        sha=$(shasum -a 256 "$full_path" | awk '{print $1}')
+
+        if [ "$first" = true ]; then
+            first=false
+        else
+            echo ','                                 >> "$manifest_file"
+        fi
+        printf '    {"path": "%s", "category": "%s", "sha256": "%s"}' "$p" "$category" "$sha" >> "$manifest_file"
+    done
+
+    echo ''                                          >> "$manifest_file"
+    echo '  ]'                                       >> "$manifest_file"
+    echo '}'                                         >> "$manifest_file"
+
+    echo "   ✅ Generated .cnogo/manifest.json (${#MANAGED_PATHS[@]} files tracked)"
+}
+
+generate_version() {
+    local target="$1"
+    local source="$2"
+    local version_file="$target/.cnogo/version.json"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    local version="dev"
+    if command -v git &>/dev/null && [ -d "$source/.git" ]; then
+        version=$(git -C "$source" describe --tags --abbrev=0 2>/dev/null || echo "dev")
+    fi
+
+    local source_commit="unknown"
+    if command -v git &>/dev/null && [ -d "$source/.git" ]; then
+        source_commit=$(git -C "$source" rev-parse HEAD 2>/dev/null || echo "unknown")
+    fi
+
+    local source_url="local"
+    if command -v git &>/dev/null && [ -d "$source/.git" ]; then
+        source_url=$(git -C "$source" remote get-url origin 2>/dev/null || echo "local")
+    fi
+
+    cat > "$version_file" <<VEOF
+{
+  "schemaVersion": 1,
+  "version": "$version",
+  "sourceCommit": "$source_commit",
+  "source": "$source_url",
+  "installedAt": "$timestamp"
+}
+VEOF
+
+    echo "   ✅ Generated .cnogo/version.json (version: $version)"
 }
 
 # =============================================================================
@@ -259,61 +469,97 @@ do_update() {
     local updated=0
     local skipped=0
     local backed_up=0
+    local old_manifest_entries desired_manifest_entries
+    old_manifest_entries=$(mktemp)
+    desired_manifest_entries=$(mktemp)
 
-    while IFS= read -r line; do
-        local path category old_sha
-        path=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['path'])" 2>/dev/null) || continue
-        category=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['category'])" 2>/dev/null) || continue
-        old_sha=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['sha256'])" 2>/dev/null) || continue
-
-        local full_target="$target/$path"
-        local full_source="$source/$path"
-
-        # Only update managed files
-        if [ "$category" != "managed" ]; then
-            continue
-        fi
-
-        # Skip if source doesn't exist (file removed in new version)
-        if [ ! -f "$full_source" ]; then
-            if [ -f "$full_target" ]; then
-                mkdir -p "$backup_dir"
-                cp "$full_target" "$backup_dir/$path" 2>/dev/null || true
-                rm -f "$full_target"
-                echo "   🗑  $path (removed in new version, backed up)"
-                backed_up=$((backed_up + 1))
-            fi
-            continue
-        fi
-
-        # Check if user modified the file
-        if [ -f "$full_target" ]; then
-            local current_sha
-            current_sha=$(shasum -a 256 "$full_target" | awk '{print $1}')
-            if [ "$current_sha" != "$old_sha" ]; then
-                # User modified — backup before overwriting
-                mkdir -p "$backup_dir/$(dirname "$path")"
-                cp "$full_target" "$backup_dir/$path"
-                echo -e "   💾 $path ${YELLOW}(user-modified — backed up)${NC}"
-                backed_up=$((backed_up + 1))
-            fi
-        fi
-
-        # Copy new version
-        mkdir -p "$(dirname "$full_target")"
-        cp "$full_source" "$full_target"
-        # Restore executable bit for hooks
-        case "$path" in
-            .cnogo/hooks/*.sh) chmod +x "$full_target" ;;
-        esac
-        updated=$((updated + 1))
-    done < <(python3 -c "
+    python3 -c "
 import json, sys
 with open(sys.argv[1]) as f:
     data = json.load(f)
 for entry in data['files']:
-    print(json.dumps(entry))
-" "$manifest_file")
+    print(f\"{entry['path']}\t{entry['category']}\t{entry['sha256']}\")
+" "$manifest_file" > "$old_manifest_entries"
+
+    while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        printf '%s\t%s\n' "$path" "$(manifest_category_for_path "$path")" >> "$desired_manifest_entries"
+    done < <(emit_manifest_paths_for_tree "$source" | sort -u)
+
+    while IFS=$'\t' read -r path category; do
+        [ -n "$path" ] || continue
+
+        local full_target="$target/$path"
+        local full_source="$source/$path"
+        local old_sha
+        old_sha=$(awk -F '\t' -v p="$path" '$1==p {print $3; exit}' "$old_manifest_entries")
+
+        case "$category" in
+            merged)
+                continue
+                ;;
+            seeded|scaffold)
+                if [ ! -f "$full_target" ] && [ -f "$full_source" ]; then
+                    mkdir -p "$(dirname "$full_target")"
+                    cp "$full_source" "$full_target"
+                    echo "   ➕ $path (added)"
+                    updated=$((updated + 1))
+                else
+                    skipped=$((skipped + 1))
+                fi
+                continue
+                ;;
+        esac
+
+        if [ ! -f "$full_source" ]; then
+            continue
+        fi
+
+        local source_sha=""
+        source_sha=$(shasum -a 256 "$full_source" | awk '{print $1}')
+
+        if [ -f "$full_target" ]; then
+            local current_sha
+            current_sha=$(shasum -a 256 "$full_target" | awk '{print $1}')
+            if [ -n "$old_sha" ]; then
+                if [ "$current_sha" != "$old_sha" ]; then
+                    mkdir -p "$backup_dir/$(dirname "$path")"
+                    cp "$full_target" "$backup_dir/$path"
+                    echo -e "   💾 $path ${YELLOW}(user-modified — backed up)${NC}"
+                    backed_up=$((backed_up + 1))
+                fi
+            elif [ "$current_sha" != "$source_sha" ]; then
+                mkdir -p "$backup_dir/$(dirname "$path")"
+                cp "$full_target" "$backup_dir/$path"
+                echo -e "   💾 $path ${YELLOW}(pre-existing — backed up before cnogo takes ownership)${NC}"
+                backed_up=$((backed_up + 1))
+            fi
+        fi
+
+        mkdir -p "$(dirname "$full_target")"
+        cp "$full_source" "$full_target"
+        case "$path" in
+            .cnogo/hooks/*.sh) chmod +x "$full_target" ;;
+        esac
+        updated=$((updated + 1))
+    done < "$desired_manifest_entries"
+
+    while IFS=$'\t' read -r path category old_sha; do
+        [ -n "$path" ] || continue
+        [ "$category" = "managed" ] || continue
+        if awk -F '\t' -v p="$path" '$1==p {found=1; exit} END{exit !found}' "$desired_manifest_entries"; then
+            continue
+        fi
+
+        local full_target="$target/$path"
+        if [ -f "$full_target" ]; then
+            mkdir -p "$backup_dir/$(dirname "$path")"
+            cp "$full_target" "$backup_dir/$path" 2>/dev/null || true
+            rm -f "$full_target"
+            echo "   🗑  $path (removed in new version, backed up)"
+            backed_up=$((backed_up + 1))
+        fi
+    done < "$old_manifest_entries"
 
     # Re-merge settings.json and .gitignore
     echo ""
@@ -331,18 +577,9 @@ for entry in data['files']:
     echo "📋 Regenerating manifest & version..."
     # Reset MANAGED_PATHS and re-collect from source
     MANAGED_PATHS=()
-    # Re-scan what we just installed
-    while IFS= read -r line; do
-        local path
-        path=$(echo "$line" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['path'])" 2>/dev/null) || continue
-        MANAGED_PATHS+=("$path")
-    done < <(python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    data = json.load(f)
-for entry in data['files']:
-    print(json.dumps(entry))
-" "$manifest_file")
+    while IFS= read -r path; do
+        [ -n "$path" ] && MANAGED_PATHS+=("$path")
+    done < <(emit_manifest_paths_for_tree "$source" | sort -u)
     generate_manifest "$target"
     generate_version "$target" "$source"
 
@@ -364,6 +601,8 @@ for entry in data['files']:
         echo -e "${YELLOW}Backups saved to: $backup_dir${NC}"
     fi
     echo -e "${GREEN}Update complete: $updated files updated, $backed_up backed up${NC}"
+
+    rm -f "$old_manifest_entries" "$desired_manifest_entries"
 }
 
 # =============================================================================
@@ -467,6 +706,9 @@ if [ "$SELF_HOST" = true ]; then
         done
     fi
 
+    # .cnogo/requirements-graph.txt
+    [ -f "$TARGET_DIR/.cnogo/requirements-graph.txt" ] && track_managed_path ".cnogo/requirements-graph.txt"
+
     # .cnogo/hooks
     for f in "$TARGET_DIR/.cnogo/hooks/"*.py "$TARGET_DIR/.cnogo/hooks/"*.sh; do
         [ -f "$f" ] && track_managed_path ".cnogo/hooks/$(basename "$f")"
@@ -501,6 +743,14 @@ if [ "$SELF_HOST" = true ]; then
     # Skills
     for f in "$TARGET_DIR/.claude/skills/"*.md; do
         [ -f "$f" ] && track_managed_path ".claude/skills/$(basename "$f")"
+    done
+    for skill_dir in "$TARGET_DIR/.claude/skills/"*; do
+        [ -d "$skill_dir" ] || continue
+        [ -f "$skill_dir/SKILL.md" ] || continue
+        while IFS= read -r skill_file; do
+            rel="${skill_file#$TARGET_DIR/}"
+            track_managed_path "$rel"
+        done < <(find "$skill_dir" -type f | sort)
     done
 
     track_managed_path ".gitignore"
@@ -612,6 +862,13 @@ if [ -d "$SCRIPT_DIR/.cnogo/scripts/context/phases" ]; then
     done
 fi
 echo "   └── context/ (context graph package)"
+
+# Graph requirements file
+if [ -f "$SCRIPT_DIR/.cnogo/requirements-graph.txt" ]; then
+    cp "$SCRIPT_DIR/.cnogo/requirements-graph.txt" "$TARGET_DIR/.cnogo/"
+    echo "   └── requirements-graph.txt"
+    track_managed_path ".cnogo/requirements-graph.txt"
+fi
 
 # =============================================================================
 # .cnogo/hooks directory
@@ -802,6 +1059,19 @@ for skill in "$SCRIPT_DIR/.claude/skills/"*.md; do
         track_managed_path ".claude/skills/$(basename "$skill")"
     fi
 done
+for skill_dir in "$SCRIPT_DIR/.claude/skills/"*; do
+    [ -d "$skill_dir" ] || continue
+    [ -f "$skill_dir/SKILL.md" ] || continue
+    SKILL_NAME="$(basename "$skill_dir")"
+    mkdir -p "$TARGET_DIR/.claude/skills/$SKILL_NAME"
+    while IFS= read -r skill_file; do
+        rel="${skill_file#$skill_dir/}"
+        mkdir -p "$TARGET_DIR/.claude/skills/$SKILL_NAME/$(dirname "$rel")"
+        cp "$skill_file" "$TARGET_DIR/.claude/skills/$SKILL_NAME/$rel"
+        echo "   ├── $SKILL_NAME/$rel"
+        track_managed_path ".claude/skills/$SKILL_NAME/$rel"
+    done < <(find "$skill_dir" -type f | sort)
+done
 
 fi  # end SELF_HOST=false block
 
@@ -864,151 +1134,8 @@ echo ""
 echo "📄 .gitignore entries"
 GITIGNORE="$TARGET_DIR/.gitignore"
 
-CNOGO_BLOCK="# >>> cnogo
-# Memory engine runtime (SQLite binary — not diffable)
-.cnogo/memory.db
-.cnogo/memory.db-wal
-.cnogo/memory.db-shm
-.cnogo/tee/
-.cnogo/command-usage.jsonl
-
-# Worktree session state (transient, contains absolute paths)
-.cnogo/worktree-session.json
-
-# Compaction checkpoint (runtime snapshot, not source)
-.cnogo/compaction-checkpoint.json
-
-# Validation baselines (per-branch runtime snapshots)
-.cnogo/validate-baseline.json
-.cnogo/validate-latest.json
-
-# Context graph (rebuild from source)
-.cnogo/graph.db
-
-# Graph venv (auto-managed, rebuild via install.sh)
-.cnogo/.venv/
-
-# Task description cache (generated, not source)
-.cnogo/task-descriptions-*.json
-.cnogo/prompt-*.md
-# <<< cnogo"
-
-gitignore_merge() {
-    local target_gitignore="$1"
-    local block_content="$2"
-
-    if [ ! -f "$target_gitignore" ]; then
-        echo "$block_content" > "$target_gitignore"
-        echo "   ✅ Created .gitignore with cnogo block"
-        return
-    fi
-
-    # Remove existing cnogo block if present
-    if grep -q '# >>> cnogo' "$target_gitignore"; then
-        # Use sed to remove everything between markers (inclusive)
-        sed -i '' '/^# >>> cnogo$/,/^# <<< cnogo$/d' "$target_gitignore" 2>/dev/null || \
-        sed -i '/^# >>> cnogo$/,/^# <<< cnogo$/d' "$target_gitignore"
-        # Remove trailing blank lines
-        sed -i '' -e :a -e '/^\n*$/{$d;N;ba' -e '}' "$target_gitignore" 2>/dev/null || true
-    fi
-
-    # Append block
-    echo "" >> "$target_gitignore"
-    echo "$block_content" >> "$target_gitignore"
-    echo "   ✅ Updated .gitignore cnogo block"
-}
-
 gitignore_merge "$GITIGNORE" "$CNOGO_BLOCK"
 track_managed_path ".gitignore"
-
-# =============================================================================
-# Generate manifest.json and version.json
-# =============================================================================
-
-generate_manifest() {
-    local target="$1"
-    local manifest_file="$target/.cnogo/manifest.json"
-    local timestamp
-    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-    echo '{'                                          > "$manifest_file"
-    echo '  "schemaVersion": 1,'                     >> "$manifest_file"
-    echo "  \"generatedAt\": \"$timestamp\","        >> "$manifest_file"
-    echo '  "files": ['                              >> "$manifest_file"
-
-    local first=true
-    for p in "${MANAGED_PATHS[@]}"; do
-        local full_path="$target/$p"
-        if [ ! -f "$full_path" ]; then
-            continue
-        fi
-
-        # Assign ownership category based on path pattern
-        local category="managed"
-        case "$p" in
-            CLAUDE.md|CHANGELOG.md|docs/planning/PROJECT.md|docs/planning/ROADMAP.md)
-                category="seeded" ;;
-            .claude/settings.json|.gitignore)
-                category="merged" ;;
-            docs/planning/work/*/.gitkeep|docs/planning/archive/*/.gitkeep)
-                category="scaffold" ;;
-        esac
-
-        local sha
-        sha=$(shasum -a 256 "$full_path" | awk '{print $1}')
-
-        if [ "$first" = true ]; then
-            first=false
-        else
-            echo ','                                 >> "$manifest_file"
-        fi
-        printf '    {"path": "%s", "category": "%s", "sha256": "%s"}' "$p" "$category" "$sha" >> "$manifest_file"
-    done
-
-    echo ''                                          >> "$manifest_file"
-    echo '  ]'                                       >> "$manifest_file"
-    echo '}'                                         >> "$manifest_file"
-
-    echo "   ✅ Generated .cnogo/manifest.json (${#MANAGED_PATHS[@]} files tracked)"
-}
-
-generate_version() {
-    local target="$1"
-    local source="$2"
-    local version_file="$target/.cnogo/version.json"
-    local timestamp
-    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-    # Get version from git tag or default to 'dev'
-    local version="dev"
-    if command -v git &>/dev/null && [ -d "$source/.git" ]; then
-        version=$(git -C "$source" describe --tags --abbrev=0 2>/dev/null || echo "dev")
-    fi
-
-    # Get source commit
-    local source_commit="unknown"
-    if command -v git &>/dev/null && [ -d "$source/.git" ]; then
-        source_commit=$(git -C "$source" rev-parse HEAD 2>/dev/null || echo "unknown")
-    fi
-
-    # Get source URL
-    local source_url="local"
-    if command -v git &>/dev/null && [ -d "$source/.git" ]; then
-        source_url=$(git -C "$source" remote get-url origin 2>/dev/null || echo "local")
-    fi
-
-    cat > "$version_file" <<VEOF
-{
-  "schemaVersion": 1,
-  "version": "$version",
-  "sourceCommit": "$source_commit",
-  "source": "$source_url",
-  "installedAt": "$timestamp"
-}
-VEOF
-
-    echo "   ✅ Generated .cnogo/version.json (version: $version)"
-}
 
 echo ""
 echo "📋 Manifest & Version"
@@ -1032,7 +1159,7 @@ echo "  5. Run '/spawn' to view available subagents"
 echo ""
 echo "Commands installed (${COMMAND_COUNT}):"
 echo ""
-echo "  Core:     /discuss  /plan  /implement  /verify  /verify-ci  /review  /ship"
+echo "  Core:     /shape  /discuss  /plan  /implement  /verify  /verify-ci  /review  /ship"
 echo "  Fast:     /quick  /tdd"
 echo "  Session:  /status  /pause  /resume  /sync  /context"
 echo "  Debug:    /debug  /bug  /rollback"

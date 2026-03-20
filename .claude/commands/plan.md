@@ -1,118 +1,50 @@
 # Plan: $ARGUMENTS
 <!-- effort: medium -->
 
-Create implementation plans for a feature. Keep each plan small (max 3 tasks).
+Create small implementation plans for a feature.
 
 ## Your Task
 
-Break `$ARGUMENTS` into atomic, executable plans.
+`$ARGUMENTS` must be the feature slug matching `docs/planning/work/features/<feature-slug>/`. If the user gives only a display name, route through `/discuss` first.
 
-### Naming Rule
+## Steps
 
-- `$ARGUMENTS` must be the feature slug (`kebab-case`) matching `docs/planning/work/features/<feature-slug>/`.
-- If user gives a display name, route through `/discuss "<display name>"` first.
+1. **Branch**
+   - Check `git branch --show-current` and `git status --porcelain`.
+   - Planning must run on `feature/$ARGUMENTS`.
+   - If a switch is needed and the tree is dirty, stop and ask the user to stash or commit.
+   - If the branch is missing, stop and send the user to `/discuss` first.
+   - Optional cleanup: prune merged branches and remotes.
 
-### Step 0: Branch Verification (verify-only — do NOT create)
+2. **Load context**
+   - Run `python3 .cnogo/scripts/workflow_memory.py phase-get $ARGUMENTS`; expected phase is `discuss` or `plan`.
+   - Read `docs/planning/work/features/$ARGUMENTS/CONTEXT.json`.
+   - Run `python3 .cnogo/scripts/workflow_memory.py prime --limit 5`.
+   - Optional: `python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords "<keywords>" --files "<relatedCode>" --json` to help choose task `files[]`.
 
-Plan work must run on `feature/$ARGUMENTS`. The branch should already exist from `/discuss`.
+3. **Partition work**
+   Split by boundary, layer, or risk. Use `.claude/skills/workflow-contract-integrity.md` and `.claude/skills/artifact-token-budgeting.md`.
 
-```bash
-git branch --show-current
-git status --porcelain
-```
+4. **Write `NN-PLAN.json`**
+   - Create `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json` as source of truth.
+   - Required fields: `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`.
+   - `tasks.length <= 3`.
+   - Each task needs `files[]`, `action`, `verify[]`, `microSteps[]`, and `tdd`.
+   - `tdd` is either `required=true` with failing/passing verify commands or `required=false` with a reason.
+   - `blockedBy` uses zero-based task indices.
+   - `deletions` is optional; if used, it should leave a later task to absorb cleanup scope.
 
-Rules:
-- If already on `feature/$ARGUMENTS`, continue.
-- If `feature/$ARGUMENTS` exists locally but is not the current branch:
-  - If working tree is dirty, stop and ask user to commit/stash first.
-  - Else switch to it and pull latest: `git switch feature/$ARGUMENTS && git pull --ff-only`
-- If `feature/$ARGUMENTS` does **not** exist, stop and tell the user to run `/discuss $ARGUMENTS` first to create the branch.
+5. **Render `NN-PLAN.md`**
+   Run `python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`, then make only small readability edits in Markdown.
 
-**Step 0a: Clean up merged branches**
+6. **Optional memory**
+   If memory is initialized, run `python3 .cnogo/scripts/workflow_memory.py phase-set $ARGUMENTS plan`. Optionally create task issues with `python3 .cnogo/scripts/workflow_memory.py create ... --plan NN`.
 
-```bash
-git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
-git remote prune origin
-```
-
-Report deleted branches if any.
-
-### Step 1: Phase Check (Warn, Do Not Block)
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py phase-get $ARGUMENTS
-```
-
-Expected before `/plan`: `discuss` or `plan`.
-
-### Step 2: Load Minimal Context
-
-```bash
-cat docs/planning/work/features/$ARGUMENTS/CONTEXT.json
-python3 .cnogo/scripts/workflow_memory.py prime --limit 5
-```
-
-### Step 2b: Graph Scope Suggestions
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py graph-suggest-scope --keywords "<feature keywords from CONTEXT.json>" --files "<relatedCode from CONTEXT.json>" --json
-```
-
-Use suggestions when authoring task `files[]` arrays. Advisory only — graph failures don't block planning.
-
-### Step 3: Partition Work
-
-Split by boundaries:
-- service/component
-- layer (API/domain/data/UI)
-- risk (refactor vs behavior change)
-
-Apply:
-- `.claude/skills/workflow-contract-integrity.md` for contract/lifecycle correctness
-- `.claude/skills/artifact-token-budgeting.md` to keep plans concise
-
-### Step 4: Author `NN-PLAN.json` (Source of Truth)
-
-Write:
-- `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`
-
-Required constraints:
-- `schemaVersion: 2`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`
-- `tasks.length <= 3`; each has `files[]`, `action`, `verify[]`, `microSteps[]`, `tdd`
-- `tdd`: `required=true` with `failingVerify`/`passingVerify`, or `required=false` with `reason`
-- `blockedBy`: zero-based task indices (optional; empty = runnable immediately)
-- `deletions`: optional list of files deleted; bridge auto-expands next task's scope
-
-### Step 5: Render `NN-PLAN.md` from Contract
-
-```bash
-python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json
-```
-
-Then make any small human-readable edits needed (rationale/notes), while keeping JSON as source of truth.
-
-### Step 6: Optional Memory Tracking
-
-If memory is initialized, set feature phase and optionally create tracking issues:
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py phase-set $ARGUMENTS plan
-```
-
-Optional task issue creation example:
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py create "Task title" --type task --feature $ARGUMENTS --plan NN
-```
-
-### Step 7: Validate
-
-```bash
-python3 .cnogo/scripts/workflow_validate.py --feature $ARGUMENTS
-```
+7. **Validate**
+   Run `python3 .cnogo/scripts/workflow_validate.py --feature $ARGUMENTS`.
 
 ## Output
 
-- Plans created (`NN-PLAN.json` + `NN-PLAN.md`)
-- Execution order/dependencies
-- Which plans can run in parallel
+- plans created (`NN-PLAN.json` and `NN-PLAN.md`)
+- execution order and dependencies
+- which plans can run in parallel

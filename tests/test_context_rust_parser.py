@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import sys
 
+import pytest
+
 sys.path.insert(0, ".cnogo")
+
+pytest.importorskip("tree_sitter")
+pytest.importorskip("tree_sitter_rust")
 
 from scripts.context.parser_base import LanguageParser, ParseResult
 from scripts.context.parsers.rust_parser import RustParser

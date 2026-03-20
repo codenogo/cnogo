@@ -25,6 +25,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1873,7 +1874,7 @@ def _cmd_doctor(root: Path, wf: dict, json_output: bool = False) -> int:
     # Check 1: Workflow validation
     try:
         result = subprocess.run(
-            ["python3", "scripts/workflow_validate.py", "--json"],
+            [sys.executable, ".cnogo/scripts/workflow_validate.py", "--json"],
             capture_output=True, text=True, timeout=30, cwd=str(root)
         )
         if result.returncode == 0:

@@ -21,6 +21,7 @@ import sys
 
 _TASK_DONE_RE = re.compile(r"TASK_DONE:\s*\[([^\]]+)\]")
 _TASK_EVIDENCE_RE = re.compile(r"^TASK_EVIDENCE:\s*(\{.*\})\s*$")
+_SCOUT_REPORT_RE = re.compile(r"^SCOUT_REPORT:\s*(\{.*\})\s*$")
 
 
 def _extract_task_evidence(last_msg: str) -> dict | None:
@@ -41,6 +42,50 @@ def _extract_task_evidence(last_msg: str) -> dict | None:
     return None
 
 
+def _extract_scout_report(last_msg: str) -> tuple[dict | None, bool]:
+    """Extract SCOUT_REPORT JSON payload from the last assistant message."""
+    for raw_line in reversed(last_msg.splitlines()):
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = _SCOUT_REPORT_RE.match(line)
+        if not match:
+            continue
+        try:
+            parsed = json.loads(match.group(1))
+        except Exception:
+            print("[hook-subagent-stop] malformed SCOUT_REPORT JSON", file=sys.stderr)
+            return None, True
+        return parsed if isinstance(parsed, dict) else None, True
+    return None, False
+
+
+def _validate_scout_report(report: dict | None) -> bool:
+    """Validate minimal SCOUT_REPORT structure."""
+    if report is None:
+        print("[hook-subagent-stop] missing or malformed SCOUT_REPORT payload", file=sys.stderr)
+        return False
+
+    required_strings = ("kind", "question", "confidence", "summary", "implication")
+    valid = True
+    for key in required_strings:
+        value = report.get(key)
+        if not isinstance(value, str) or not value.strip():
+            print(f"[hook-subagent-stop] SCOUT_REPORT missing non-empty '{key}'", file=sys.stderr)
+            valid = False
+
+    sources = report.get("sources")
+    if not isinstance(sources, list) or not sources or not all(isinstance(item, str) and item.strip() for item in sources):
+        print("[hook-subagent-stop] SCOUT_REPORT sources should be a non-empty list of strings", file=sys.stderr)
+        valid = False
+
+    if valid:
+        kind = report["kind"].strip()
+        confidence = report["confidence"].strip()
+        print(f"[hook-subagent-stop] observed scout report: {kind} ({confidence})", file=sys.stderr)
+    return valid
+
+
 def main() -> int:
     try:
         raw = sys.stdin.read()
@@ -55,9 +100,13 @@ def main() -> int:
         last_msg: str = payload.get("last_assistant_message", "") or ""
         task_evidence = _extract_task_evidence(last_msg)
 
-        # Look for structured TASK_DONE footer
+        # Allow read-only scouts to report with SCOUT_REPORT instead of TASK_DONE.
         match = _TASK_DONE_RE.search(last_msg)
         if not match:
+            scout_report, has_scout_report = _extract_scout_report(last_msg)
+            if has_scout_report:
+                _validate_scout_report(scout_report)
+                return 0
             print("[hook-subagent-stop] no TASK_DONE footer found", file=sys.stderr)
             return 0
 

@@ -97,7 +97,7 @@ def plan_to_task_descriptions(
 
         title = task.get("name", f"Task {i + 1}")
 
-        # Skip already-closed tasks (duplicate prevention on resume)
+        # Skip already-completed tasks (duplicate prevention on resume)
         if memory_id and _is_already_closed(root, memory_id):
             results.append(_make_skipped_desc(i, title, memory_id, task))
             continue
@@ -477,13 +477,20 @@ def _make_skipped_desc(
 
 
 def _is_already_closed(root: Path, memory_id: str) -> bool:
-    """Check if a memory issue is already closed (for duplicate prevention)."""
+    """Check if a memory issue is already completed (for duplicate prevention)."""
     from . import is_initialized, show
 
     if not is_initialized(root):
         return False
     issue = show(memory_id, root=root)
-    return issue is not None and issue.status == "closed"
+    if issue is None:
+        return False
+    return issue.status == "closed" or issue.state in {
+        "done_by_worker",
+        "verified",
+        "closed",
+        "ready_to_close",
+    }
 
 
 def _load_cascade_patterns(root: Path) -> list[dict]:

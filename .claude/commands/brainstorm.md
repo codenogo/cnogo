@@ -1,7 +1,7 @@
 # Brainstorm: $ARGUMENTS
 <!-- effort: high -->
 
-Explore solution space before committing to implementation decisions.
+Compatibility wrapper for the canonical `/shape` workflow.
 
 ## Arguments
 
@@ -9,44 +9,23 @@ Explore solution space before committing to implementation decisions.
 
 ## Your Task
 
-1. Load constraints:
-- `docs/planning/PROJECT.md`
-- `docs/planning/WORKFLOW.json`
-- relevant skill files only when needed
+Follow the exact `/shape "$ARGUMENTS"` workflow.
 
-2. Ask focused narrowing questions (3-7 at a time):
-- user/job-to-be-done
-- success criteria
-- scope boundaries
-- constraints (time, infra, compliance)
-- major risks
+Use `/brainstorm` only as a backward-compatible entrypoint for users and repos that still reach for the old name.
 
-3. Generate 2-4 candidate directions with explicit tradeoffs:
-- who it serves
-- in-scope/out-of-scope
-- architecture sketch
-- top risks + mitigations
-- MVP slice
+1. Read any existing legacy `BRAINSTORM.*` artifact if present.
+2. Migrate forward into canonical `SHAPE.md` and `SHAPE.json`.
+3. Keep feature materialization behavior identical to `/shape`:
+- create `FEATURE.md` and `FEATURE.json` immediately for any `discuss-ready` candidate
+- do not create new legacy `BRAINSTORM.*` artifacts for fresh work
+- keep the workspace-first output contract identical to `/shape`: stay in shaping by default, offer `/discuss` only as an optional exit
 
-4. If uncertainty remains high (security, data, distributed systems), run `/research` and fold results in.
-
-5. Write artifacts:
-- `docs/planning/work/ideas/<slug>/BRAINSTORM.md`
-- `docs/planning/work/ideas/<slug>/BRAINSTORM.json`
-
-`BRAINSTORM.json` minimum fields:
-- `schemaVersion`, `topic`, `slug`, `timestamp`
-- `questionsAsked[]`, `constraints[]`
-- `candidates[]` (`name`, `summary`, `risks[]`, `mvp[]`)
-- `recommendation` (`primary`, `backup`)
-
-6. Validate:
+4. Validate:
 ```bash
 python3 .cnogo/scripts/workflow_validate.py --json
 ```
 
 ## Output
 
-- 1-3 strongest options
-- recommended option + why
-- exact next command: `/discuss "<chosen-option>"`
+- same workspace-first output contract as `/shape`
+- canonical exits remain optional `/discuss <feature-slug>` commands
