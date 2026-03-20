@@ -1,11 +1,7 @@
 # Quick: $ARGUMENTS
 <!-- effort: low -->
 
-Fast path for small fixes with full verification and artifacts.
-
-## When to Use
-
-Use for small, low-risk tasks (typically ≤1 hour, limited file set).
+Fast path for small, low-risk fixes with verification and artifacts.
 
 ## Your Task
 
@@ -20,7 +16,6 @@ git branch --show-current
 git status --porcelain
 ```
 
-Rules:
 - If already on `fix/<slug>`, pull latest: `git pull --ff-only` (ignore failure if no upstream yet), then continue.
 - If switching branches is needed and working tree is dirty, stop and ask user to commit/stash first.
 - If `fix/<slug>` exists locally, switch and sync: `git switch fix/<slug> && git pull --ff-only` (ignore failure if no upstream yet).
@@ -34,8 +29,6 @@ git switch -c fix/<slug>
 
 ### Step 1: Scope
 
-Identify likely files, expected behavior, and verification commands.
-
 **Escalation triggers** — stop and switch to `/discuss` + `/plan` if any:
 - Scope exceeds 5 files
 - Changes touch core data models or schemas
@@ -44,25 +37,10 @@ Identify likely files, expected behavior, and verification commands.
 
 ### Step 2: Write Quick Plan Contract
 
-Create:
 - `docs/planning/work/quick/NNN-<slug>/PLAN.json`
 
 Minimum fields:
 - `schemaVersion`, `id`, `slug`, `goal`, `files[]`, `verify[]`, `timestamp`
-
-Example:
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "001",
-  "slug": "fix-typo",
-  "goal": "What this accomplishes",
-  "files": ["path/to/file.ts"],
-  "verify": ["npm test --silent"],
-  "timestamp": "2026-01-24T00:00:00Z"
-}
-```
 
 Render markdown plan:
 
@@ -78,7 +56,6 @@ python3 .cnogo/scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/PL
 
 ### Step 4: Write Summary Contract
 
-Create:
 - `docs/planning/work/quick/NNN-<slug>/SUMMARY.json`
 
 Minimum fields:
@@ -92,17 +69,7 @@ python3 .cnogo/scripts/workflow_render.py docs/planning/work/quick/NNN-<slug>/SU
 
 ### Step 5: Optional Memory Tracking
 
-If memory is initialized:
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py create "$ARGUMENTS" --type quick --feature <feature-slug-if-known>
-```
-
-Then close when done:
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py close <issue-id> --reason completed
-```
+If memory is initialized, create a quick issue and close it when done.
 
 ### Step 6: Commit
 

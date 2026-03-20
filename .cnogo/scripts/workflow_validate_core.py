@@ -314,6 +314,10 @@ _RATIONALIZATION_PATTERNS = [
     re.compile(r"\blater\b", re.IGNORECASE),
     re.compile(r"\bmanual\s+only\b", re.IGNORECASE),
 ]
+_FAILURE_SCENARIO_RE = re.compile(
+    r"\b(error|fail|invalid|unauthori[sz]ed|forbidden|timeout|duplicate|conflict|nil|null|empty body|not found)\b",
+    re.IGNORECASE,
+)
 
 
 def _validate_memory_id(value: Any, field_name: str, findings: list[Finding], path: Path) -> None:
@@ -342,6 +346,7 @@ def _validate_plan_contract(
     path: Path,
     *,
     tdd_mode_level: str = "error",
+    operating_principles_level: str = "warn",
 ) -> None:
     if not isinstance(contract, dict):
         findings.append(Finding("ERROR", "Plan contract must be a JSON object.", str(path)))
@@ -483,6 +488,51 @@ def _validate_plan_contract(
                                 str(path),
                             )
                         )
+
+        if schema_version >= 3 and operating_principles_level != "off":
+            contract_level = _policy_level_to_finding(operating_principles_level)
+            context_links = t.get("contextLinks")
+            if not isinstance(context_links, list) or not context_links:
+                findings.append(
+                    Finding(
+                        contract_level,
+                        f"Task {i} schemaVersion>=3 requires non-empty 'contextLinks' array tracing back to CONTEXT.json constraints or decisions.",
+                        str(path),
+                    )
+                )
+            elif not all(isinstance(link, str) and link.strip() for link in context_links):
+                findings.append(
+                    Finding(
+                        contract_level,
+                        f"Task {i} contextLinks entries must be non-empty strings.",
+                        str(path),
+                    )
+                )
+
+            micro_steps = t.get("microSteps")
+            tdd = t.get("tdd")
+            if isinstance(tdd, dict) and tdd.get("required") is True:
+                scenario_texts: list[str] = []
+                if isinstance(micro_steps, list):
+                    scenario_texts.extend(
+                        step for step in micro_steps if isinstance(step, str) and step.strip()
+                    )
+                failing_verify = tdd.get("failingVerify")
+                if isinstance(failing_verify, list):
+                    scenario_texts.extend(
+                        cmd for cmd in failing_verify if isinstance(cmd, str) and cmd.strip()
+                    )
+                has_failure_scenario = any(
+                    _FAILURE_SCENARIO_RE.search(text) for text in scenario_texts
+                )
+                if not has_failure_scenario:
+                    findings.append(
+                        Finding(
+                            contract_level,
+                            f"Task {i} schemaVersion>=3 should name at least one explicit error-path scenario in microSteps[] or failingVerify[].",
+                            str(path),
+                        )
+                    )
 
     # Check if the last task has deletions with no subsequent task to receive auto-expanded caller cleanup scope
     if tasks:
@@ -893,6 +943,55 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         if wt_mode is not None:
             if isinstance(wt_mode, bool) or not isinstance(wt_mode, str) or wt_mode not in ("always", "off"):
                 findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.worktreeMode should be 'always' or 'off'.", str(cfg_path)))
+        default_compositions = agent_teams.get("defaultCompositions")
+        if default_compositions is not None and not isinstance(default_compositions, dict):
+            findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.defaultCompositions should be an object.", str(cfg_path)))
+        elif isinstance(default_compositions, dict):
+            agents_dir = root / ".claude" / "agents"
+            for composition_name, members in default_compositions.items():
+                if not isinstance(members, list) or not members:
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"WORKFLOW.json: agentTeams.defaultCompositions.{composition_name} should be a non-empty array of agent names.",
+                            str(cfg_path),
+                        )
+                    )
+                    continue
+                normalized_members: list[str] = []
+                for idx, member in enumerate(members, start=1):
+                    if not isinstance(member, str) or not member.strip():
+                        findings.append(
+                            Finding(
+                                "WARN",
+                                f"WORKFLOW.json: agentTeams.defaultCompositions.{composition_name}[{idx}] should be a non-empty string.",
+                                str(cfg_path),
+                            )
+                        )
+                        continue
+                    agent_name = member.strip()
+                    normalized_members.append(agent_name)
+                    if not (agents_dir / f"{agent_name}.md").exists():
+                        findings.append(
+                            Finding(
+                                "WARN",
+                                f"WORKFLOW.json: agentTeams.defaultCompositions.{composition_name}[{idx}] references missing agent {agent_name!r}.",
+                                str(cfg_path),
+                            )
+                        )
+                existing_unique_members = {
+                    agent_name
+                    for agent_name in normalized_members
+                    if (agents_dir / f"{agent_name}.md").exists()
+                }
+                if composition_name == "review" and len(existing_unique_members) < 2:
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            "WORKFLOW.json: agentTeams.defaultCompositions.review should use at least 2 distinct reviewer agents.",
+                            str(cfg_path),
+                        )
+                    )
 
     freshness = cfg.get("freshness")
     if freshness is not None and not isinstance(freshness, dict):
@@ -1211,6 +1310,7 @@ def _validate_features(
                         findings,
                         plan_json,
                         tdd_mode_level=tdd_mode_level,
+                        operating_principles_level=operating_principles_level,
                     )
 
                     if isinstance(contract, dict):
@@ -1311,6 +1411,21 @@ def _validate_features(
                                 findings.append(
                                     Finding("ERROR", "Summary contract must include outcome: complete|partial|failed", str(summary_json))
                                 )
+                            generated_from = s.get("generatedFrom")
+                            if generated_from is not None and not isinstance(generated_from, dict):
+                                findings.append(
+                                    Finding("WARN", "Summary generatedFrom should be an object if present.", str(summary_json))
+                                )
+                            notes = s.get("notes")
+                            if notes is not None:
+                                if not isinstance(notes, list):
+                                    findings.append(
+                                        Finding("WARN", "Summary notes should be an array of non-empty strings.", str(summary_json))
+                                    )
+                                elif not all(isinstance(note, str) and note.strip() for note in notes):
+                                    findings.append(
+                                        Finding("WARN", "Summary notes entries should be non-empty strings.", str(summary_json))
+                                    )
                     except Exception as e:
                         findings.append(Finding("ERROR", f"Failed to parse summary contract: {e}", str(summary_json)))
 
@@ -1380,6 +1495,16 @@ def _validate_ci_verification(
                                 )
                     if two_stage_review_level != "off":
                         stage_lvl = _policy_level_to_finding(two_stage_review_level)
+                        reviewers = r.get("reviewers")
+                        if reviewers is not None:
+                            if not isinstance(reviewers, list):
+                                findings.append(
+                                    Finding("WARN", "REVIEW.json reviewers should be an array of non-empty agent names.", str(review_json))
+                                )
+                            elif not all(isinstance(name, str) and name.strip() for name in reviewers):
+                                findings.append(
+                                    Finding("WARN", "REVIEW.json reviewers entries should be non-empty strings.", str(review_json))
+                                )
                         if not (
                             isinstance(schema_version, int)
                             and not isinstance(schema_version, bool)

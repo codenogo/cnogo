@@ -137,7 +137,7 @@
     "maxTakeoversPerTask": 2,
     "worktreeMode": "always",
     "defaultCompositions": {
-      "review": ["implementer", "implementer", "implementer"],
+      "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
       "fullstack": ["implementer", "debugger", "implementer", "implementer"],
       "debug": ["debugger", "debugger", "debugger"]
     }

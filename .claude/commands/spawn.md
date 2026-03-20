@@ -30,6 +30,9 @@ Specialization -> skill/agent mapping:
 - `shape-scout` -> `.claude/agents/shape-scout.md`
 - `architecture-scout` -> `.claude/agents/architecture-scout.md`
 - `risk-challenger` -> `.claude/agents/risk-challenger.md`
+- `code-reviewer` -> `.claude/agents/code-reviewer.md` + `.claude/skills/code-review.md`
+- `security-scanner` -> `.claude/agents/security-scanner.md` + `.claude/skills/security-scan.md`
+- `perf-analyzer` -> `.claude/agents/perf-analyzer.md` + `.claude/skills/performance-review.md`
 
 ## Your Task
 
@@ -40,6 +43,9 @@ Specialization -> skill/agent mapping:
 - `shape-scout` uses `subagent_type: shape-scout`
 - `architecture-scout` uses `subagent_type: architecture-scout`
 - `risk-challenger` uses `subagent_type: risk-challenger`
+- `code-reviewer` uses `subagent_type: code-reviewer`
+- `security-scanner` uses `subagent_type: security-scanner`
+- `perf-analyzer` uses `subagent_type: perf-analyzer`
 - all others use `subagent_type: general-purpose`
 4. Load only mapped skill/agent instructions (no unrelated skills).
 5. Spawn Task prompt with:
@@ -47,8 +53,8 @@ Specialization -> skill/agent mapping:
 - user task
 - expected output format (`SCOUT_REPORT` for shape scouts; otherwise findings/diffs/tests/risks)
 - explicit file references if provided by user
-6. For multi-skill specializations (for example `review`), apply checklists in order listed.
-7. Report launch status and track completion.
+6. For multi-skill specializations, apply checklists in listed order.
+7. Report launch status and completion handoff.
 
 ## Output
 

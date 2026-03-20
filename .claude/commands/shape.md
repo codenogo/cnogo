@@ -15,7 +15,7 @@ Treat `/shape` as the workspace for broad or multi-feature work. Keep cross-feat
 - `docs/planning/PROJECT.md`
 - `docs/planning/WORKFLOW.json`
 - existing `docs/planning/work/ideas/<initiative-slug>/SHAPE.json` when re-entering an initiative
-- only the needed skills and scout agents: `shape-facilitator`, `shape-feature-queue`, `shape-architecture-tradeoffs`, `shape-risk-challenge`, `context-handoff-engineering`, `shape-scout`, `architecture-scout`, `risk-challenger`
+- only the needed shaping skills and scouts
 
 2. Run an iterative shaping conversation:
 - clarify users, jobs-to-be-done, success criteria, scope boundaries, constraints, sequencing, and major risks
@@ -23,7 +23,7 @@ Treat `/shape` as the workspace for broad or multi-feature work. Keep cross-feat
 - accept natural-language follow-ups such as split, merge, compare, resequence, promote, park, or reopen
 - use `/research "$ARGUMENTS"` only for targeted uncertainty reduction
 - do not branch or create feature memory issues here
-- end a pass only after persisting workspace state plus next shape moves or optional exits
+- end a pass after persisting workspace state plus next moves or optional exits
 
 3. Persist the initiative source of truth:
 - `docs/planning/work/ideas/<initiative-slug>/SHAPE.md`
@@ -40,11 +40,12 @@ Treat `/shape` as the workspace for broad or multi-feature work. Keep cross-feat
 - for each `discuss-ready` candidate, create `docs/planning/work/features/<feature-slug>/FEATURE.md`
 - create matching `FEATURE.json` with `parentShape` linkage plus inherited outcome, scope, dependencies, risks, readiness, and handoff fields
 - do not create `CONTEXT.*` yet
-- leave those features as optional exits; do not imply they must be discussed next
+- leave those features as optional exits
 
 5. Optional scouts:
 - never use `/team` inside `/shape`
 - stay single-agent
+- use `shape-scout`, `architecture-scout`, and `risk-challenger` only as read-only scouts
 - spawn at most 3 read-only scouts total:
   - `/spawn shape-scout <question>` for fit
   - `/spawn architecture-scout <question>` for option comparison

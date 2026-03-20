@@ -12,8 +12,7 @@ Treat `$ARGUMENTS` as the display name unless the user gives a slug. Always deri
 1. **Branch**
    - Check `git branch --show-current` and `git status --porcelain`.
    - If a switch is needed and the tree is dirty, stop and ask the user to stash or commit.
-   - If `feature/<feature-slug>` exists, switch to it and run `git pull --ff-only` when possible.
-   - Otherwise switch to `main` or `master`, pull, and create `feature/<feature-slug>`.
+   - If `feature/<feature-slug>` exists, switch to it and run `git pull --ff-only` when possible; otherwise create it from `main` or `master`.
    - Report the final branch before writing artifacts.
 
 2. **Context**
@@ -24,9 +23,9 @@ Treat `$ARGUMENTS` as the display name unless the user gives a slug. Always deri
    - If no feature stub exists, continue as a direct single-feature fast path.
    - Run `python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>`.
    - Run `python3 .cnogo/scripts/workflow_memory.py prime --limit 5`.
-   - Search the repo for relevant code and optional graph context:
+   - Search the repo for relevant code and graph context:
      `python3 .cnogo/scripts/workflow_memory.py graph-enrich --keywords "<feature keywords>" --json`
-   - Only use `/research "$ARGUMENTS"` when unresolved risk is feature-local.
+   - Use `/research "$ARGUMENTS"` only for feature-local unresolved risk.
 
 3. **Decision conversation**
    - architecture / API shape
@@ -34,7 +33,7 @@ Treat `$ARGUMENTS` as the display name unless the user gives a slug. Always deri
    - UX / error behavior
    - operational risks, rollback, observability
    - do not restate initiative-wide truth that already lives in `SHAPE.json`
-   - if feature-local decisions imply initiative-level follow-up, record suggested feedback for a later `/shape` pass instead of editing `SHAPE.json`
+   - if feature-local decisions imply initiative follow-up, record suggested feedback for a later `/shape` pass instead of editing `SHAPE.json`
 
 4. **Persist source of truth**
    Create `CONTEXT.json` and `CONTEXT.md` under the feature directory.

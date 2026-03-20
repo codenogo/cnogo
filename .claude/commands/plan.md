@@ -27,12 +27,15 @@ Create small implementation plans for a feature.
 
 4. **Write `NN-PLAN.json`**
    - Create `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json` as source of truth.
-   - Required fields: `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`.
-   - `tasks.length <= 3`.
-   - Each task needs `files[]`, `action`, `verify[]`, `microSteps[]`, and `tdd`.
+   - New plans should use `schemaVersion: 3`.
+   - Required fields: `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`; keep `tasks.length <= 3`.
+   - Each task needs `name`, `files[]`, `action`, `verify[]`, `microSteps[]`, and `tdd`.
+   - For `schemaVersion >= 3`, each task also needs `contextLinks[]` pointing to the exact `CONTEXT.json` constraints or decisions it must satisfy.
    - `tdd` is either `required=true` with failing/passing verify commands or `required=false` with a reason.
+   - For `schemaVersion >= 3`, `microSteps[]` must name at least one explicit error-path scenario when `tdd.required=true`.
    - `blockedBy` uses zero-based task indices.
-   - `deletions` is optional; if used, it should leave a later task to absorb cleanup scope.
+   - `deletions` is optional; if used, leave a later task to absorb cleanup scope.
+   - Keep `planVerify[]` feature-level; package lint/typecheck/test gates are auto-appended during `/implement`.
 
 5. **Render `NN-PLAN.md`**
    Run `python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`, then make only small readability edits in Markdown.

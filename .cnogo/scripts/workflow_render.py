@@ -464,6 +464,14 @@ def render_plan(plan: dict[str, Any]) -> str:
             lines.append("**Files:** " + ", ".join(f"`{f}`" for f in files))
         else:
             lines.append("**Files:** `[add files]`")
+        context_links = t.get("contextLinks", [])
+        if isinstance(context_links, list) and context_links:
+            lines.append("**Context links:**")
+            for link in context_links:
+                lines.append(f"- {link}")
+        elif schema_version >= 3:
+            lines.append("**Context links:**")
+            lines.append("- [Relevant CONTEXT.json constraint or decision]")
         lines.append("**Action:**")
         lines.append(action or "[Specific instructions]")
         lines.append("")
@@ -542,6 +550,8 @@ def render_summary(summary: dict[str, Any]) -> str:
     changes = summary.get("changes", [])
     verification = summary.get("verification", [])
     commit = summary.get("commit", {})
+    generated_from = summary.get("generatedFrom", {})
+    notes = summary.get("notes", [])
 
     lines: list[str] = []
     lines.append(f"# Plan {pn} Summary")
@@ -564,10 +574,44 @@ def render_summary(summary: dict[str, Any]) -> str:
     lines.append("")
     if isinstance(verification, list) and verification:
         for v in verification:
-            lines.append(f"- {v}")
+            if isinstance(v, dict):
+                scope = str(v.get("scope") or "verification").strip()
+                name = str(v.get("name") or "[check]").strip()
+                result = str(v.get("result") or "").strip()
+                source = str(v.get("source") or "").strip()
+                timestamp = str(v.get("timestamp") or "").strip()
+                headline = f"{scope}: {name}"
+                if result:
+                    headline += f" — {result}"
+                if source:
+                    headline += f" [{source}]"
+                lines.append(f"- {headline}")
+                commands = v.get("commands")
+                if isinstance(commands, list) and commands:
+                    rendered_commands = ", ".join(f"`{cmd}`" for cmd in commands if isinstance(cmd, str) and cmd.strip())
+                    if rendered_commands:
+                        lines.append(f"  - commands: {rendered_commands}")
+                if timestamp:
+                    lines.append(f"  - timestamp: `{timestamp}`")
+            else:
+                lines.append(f"- {v}")
     else:
         lines.append("- [verification results]")
     lines.append("")
+    if isinstance(generated_from, dict) and generated_from:
+        lines.append("## Generated From")
+        lines.append("")
+        if generated_from.get("kind"):
+            lines.append(f"- Kind: `{generated_from.get('kind')}`")
+        if generated_from.get("planPath"):
+            lines.append(f"- Plan: `{generated_from.get('planPath')}`")
+        if generated_from.get("changedFilesSource"):
+            lines.append(f"- Changed files source: `{generated_from.get('changedFilesSource')}`")
+        if generated_from.get("taskEvidenceSource"):
+            lines.append(f"- Task evidence source: `{generated_from.get('taskEvidenceSource')}`")
+        if generated_from.get("generatedAt"):
+            lines.append(f"- Generated at: `{generated_from.get('generatedAt')}`")
+        lines.append("")
     lines.append("## Commit")
     if isinstance(commit, dict):
         h = commit.get("hash", "")
@@ -576,6 +620,12 @@ def render_summary(summary: dict[str, Any]) -> str:
     else:
         lines.append("`abc123f` - [commit message]")
     lines.append("")
+    if isinstance(notes, list) and notes:
+        lines.append("## Notes")
+        lines.append("")
+        for note in notes:
+            lines.append(f"- {note}")
+        lines.append("")
     return "\n".join(lines)
 
 

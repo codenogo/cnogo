@@ -113,6 +113,77 @@ def test_plan_v2_rationalized_tdd_exemption_is_rejected():
     assert any("appears rationalized" in m for m in msgs)
 
 
+def test_plan_v3_requires_context_links_and_failure_scenario():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "goal": "stricter planning",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "microSteps": ["implement handler", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py"],
+                    "passingVerify": ["pytest tests/test_a.py"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    msgs = _messages(findings)
+    assert any("requires non-empty 'contextLinks' array" in m for m in msgs)
+    assert any("should name at least one explicit error-path scenario" in m for m in msgs)
+
+
+def test_plan_v3_accepts_context_links_and_failure_scenario():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "goal": "stricter planning",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "contextLinks": ["Constraint: return 400 on invalid input"],
+                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    msgs = _messages(findings)
+    assert not any("contextLinks" in m for m in msgs)
+    assert not any("explicit error-path scenario" in m for m in msgs)
+
+
 def test_review_v4_requires_stage_reviews_when_enabled(tmp_path):
     feature_dir = tmp_path / "feature"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +261,51 @@ def test_workflow_config_rejects_invalid_task_ownership_and_max_takeovers(tmp_pa
     msgs = _messages(findings)
     assert any("enforcement.taskOwnership should be off|warn|error" in m for m in msgs)
     assert any("agentTeams.maxTakeoversPerTask should be an integer >= 0" in m for m in msgs)
+
+
+def test_workflow_config_accepts_review_default_composition_with_real_agents(tmp_path):
+    agents_dir = tmp_path / ".claude" / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("code-reviewer", "security-scanner", "perf-analyzer"):
+        (agents_dir / f"{name}.md").write_text("---\nname: test\n---\n", encoding="utf-8")
+
+    findings = []
+    cfg = {
+        "version": 1,
+        "repoShape": "auto",
+        "agentTeams": {
+            "defaultCompositions": {
+                "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
+            }
+        },
+        "packages": [],
+    }
+    core._validate_workflow_config(cfg, findings, tmp_path)
+    msgs = _messages(findings)
+    assert not any("defaultCompositions.review should use at least 2 distinct reviewer agents" in m for m in msgs)
+    assert not any("references missing agent" in m for m in msgs)
+
+
+def test_workflow_config_warns_on_homogeneous_or_missing_review_agents(tmp_path):
+    agents_dir = tmp_path / ".claude" / "agents"
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    (agents_dir / "implementer.md").write_text("---\nname: test\n---\n", encoding="utf-8")
+
+    findings = []
+    cfg = {
+        "version": 1,
+        "repoShape": "auto",
+        "agentTeams": {
+            "defaultCompositions": {
+                "review": ["implementer", "implementer", "missing-agent"],
+            }
+        },
+        "packages": [],
+    }
+    core._validate_workflow_config(cfg, findings, tmp_path)
+    msgs = _messages(findings)
+    assert any("references missing agent 'missing-agent'" in m for m in msgs)
+    assert any("should use at least 2 distinct reviewer agents" in m for m in msgs)
 
 
 def test_memory_runtime_accepts_tracked_issues_jsonl(tmp_path):
@@ -785,3 +901,102 @@ def test_validate_skills_warns_when_scout_mappings_load_shared_skills(tmp_path):
         "Scout specialization `shape-scout` should map only to a read-only agent" in m
         for m in _messages(findings)
     )
+
+
+def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "enforcement": {
+                    "twoStageReview": "error",
+                    "verificationBeforeCompletion": "error",
+                    "tddMode": "error",
+                },
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / "demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "01-PLAN.md").write_text("# Plan\n", encoding="utf-8")
+    (feature_dir / "01-PLAN.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 3,
+                "feature": "demo",
+                "planNumber": "01",
+                "goal": "demo",
+                "tasks": [
+                    {
+                        "name": "Add handler",
+                        "files": ["app.py"],
+                        "contextLinks": ["Constraint: return deterministic output"],
+                        "microSteps": ["write failure test", "implement handler", "run tests"],
+                        "action": "Update app.py",
+                        "verify": ["pytest -q"],
+                        "tdd": {
+                            "required": True,
+                            "failingVerify": ["pytest -q -k fail"],
+                            "passingVerify": ["pytest -q -k fail"],
+                        },
+                    }
+                ],
+                "planVerify": ["pytest -q"],
+                "commitMessage": "feat: demo",
+                "timestamp": _iso_now(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "01-SUMMARY.md").write_text("# Summary\n", encoding="utf-8")
+    (feature_dir / "01-SUMMARY.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 2,
+                "feature": "demo",
+                "planNumber": "01",
+                "outcome": "complete",
+                "changes": [{"file": "app.py", "change": "Add handler"}],
+                "verification": [{"scope": "task", "name": "Add handler", "result": "pass", "commands": ["pytest -q"]}],
+                "commit": {"hash": "abc123", "message": "feat: demo"},
+                "generatedFrom": {"kind": "workflow_checks.summarize"},
+                "notes": ["Generated automatically."],
+                "timestamp": _iso_now(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (feature_dir / "REVIEW.md").write_text("# Review\n", encoding="utf-8")
+    (feature_dir / "REVIEW.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 4,
+                "timestamp": _iso_now(),
+                "reviewers": ["code-reviewer", "security-scanner", "perf-analyzer"],
+                "stageReviews": [
+                    {"stage": "spec-compliance", "status": "pass", "findings": [], "evidence": ["plan + diff"]},
+                    {"stage": "code-quality", "status": "pass", "findings": [], "evidence": ["review agents"]},
+                ],
+                "securityFindings": [],
+                "performanceFindings": [],
+                "patternCompliance": [],
+                "verdict": "pass",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False, feature_filter="demo")
+    msgs = _messages(findings)
+
+    assert not any("Summary generatedFrom" in m for m in msgs)
+    assert not any("Summary notes" in m for m in msgs)
+    assert not any("REVIEW.json reviewers" in m for m in msgs)

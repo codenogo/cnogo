@@ -175,3 +175,77 @@ def test_render_research_preserves_sources_and_recommendation():
     assert "`repo`: Current project constraints (docs/planning/PROJECT.md)" in markdown
     assert "`web`: External spec (https://example.com/spec)" in markdown
     assert "Start Anthropic-only and revisit multi-provider later." in markdown
+
+
+def test_render_plan_shows_context_links_for_schema_v3_tasks():
+    markdown = render.render_plan(
+        {
+            "schemaVersion": 3,
+            "feature": "demo",
+            "planNumber": "01",
+            "goal": "Tighten auth handler behavior.",
+            "tasks": [
+                {
+                    "name": "Add auth validation",
+                    "files": ["internal/auth/handler.go"],
+                    "contextLinks": ["Constraint: return 401 on missing auth context"],
+                    "microSteps": ["write unauthorized failure test", "implement auth check", "run tests"],
+                    "action": "Implement missing auth guard.",
+                    "verify": ["go test ./..."],
+                    "tdd": {
+                        "required": True,
+                        "failingVerify": ["go test ./... -run TestUnauthorized"],
+                        "passingVerify": ["go test ./... -run TestUnauthorized"],
+                    },
+                }
+            ],
+        }
+    )
+
+    assert "**Context links:**" in markdown
+    assert "Constraint: return 401 on missing auth context" in markdown
+
+
+def test_render_summary_supports_structured_verification_and_generation_metadata():
+    markdown = render.render_summary(
+        {
+            "schemaVersion": 2,
+            "feature": "demo",
+            "planNumber": "01",
+            "outcome": "complete",
+            "changes": [{"file": "app.py", "change": "Add demo handler"}],
+            "verification": [
+                {
+                    "scope": "task",
+                    "name": "Add demo handler",
+                    "result": "pass",
+                    "commands": ["pytest -q tests/test_demo.py -k invalid"],
+                    "source": "task-evidence",
+                    "timestamp": "2026-03-20T11:59:00Z",
+                },
+                {
+                    "scope": "plan",
+                    "name": "planVerify",
+                    "result": "pass",
+                    "commands": ["pytest -q tests/test_demo.py"],
+                    "source": "plan-contract",
+                },
+            ],
+            "commit": {"hash": "abc123", "message": "feat: demo"},
+            "generatedFrom": {
+                "kind": "workflow_checks.summarize",
+                "planPath": "docs/planning/work/features/demo/01-PLAN.json",
+                "changedFilesSource": "git:HEAD",
+                "taskEvidenceSource": "task-evidence",
+                "generatedAt": "2026-03-20T12:00:00Z",
+            },
+            "notes": ["Generated automatically."],
+        }
+    )
+
+    assert "task: Add demo handler — pass [task-evidence]" in markdown
+    assert "commands: `pytest -q tests/test_demo.py -k invalid`" in markdown
+    assert "## Generated From" in markdown
+    assert "`workflow_checks.summarize`" in markdown
+    assert "## Notes" in markdown
+    assert "Generated automatically." in markdown

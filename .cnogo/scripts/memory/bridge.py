@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import time
 from pathlib import Path
 from typing import Any
 
 from . import storage as _st
 from .identity import generate_child_id as _child_id
+from ..workflow_utils import load_workflow
 
 _CNOGO_DIR = ".cnogo"
 _DB_NAME = "memory.db"
@@ -31,6 +33,120 @@ TASK_DESC_SCHEMA_VERSION = 2
 
 # Memory IDs must match: cn-<base36>[.<digits>]*  (e.g., cn-a3f8, cn-a3f8.1.2)
 _MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
+
+
+def _packages_from_workflow(root: Path) -> list[dict[str, Any]]:
+    cfg = load_workflow(root)
+    packages = cfg.get("packages")
+    if not isinstance(packages, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for package in packages:
+        if not isinstance(package, dict):
+            continue
+        path = package.get("path")
+        if isinstance(path, str) and path.strip():
+            out.append(package)
+    out.sort(key=lambda item: len(str(item.get("path") or "")), reverse=True)
+    return out
+
+
+def _normalize_pkg_path(path: str) -> str:
+    normalized = path.strip()
+    if normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized.strip("/")
+
+
+def _infer_task_package(
+    files: list[str],
+    packages: list[dict[str, Any]],
+    *,
+    cwd: str | None = None,
+) -> str | None:
+    if cwd and isinstance(cwd, str) and cwd.strip():
+        normalized_cwd = _normalize_pkg_path(cwd)
+        for package in packages:
+            package_path = package.get("path")
+            if isinstance(package_path, str) and _normalize_pkg_path(package_path) == normalized_cwd:
+                return package_path
+
+    if not files or not packages:
+        return None
+
+    matched: set[str] = set()
+    for file_path in files:
+        normalized_file = str(file_path).lstrip("./")
+        for package in packages:
+            package_path = package.get("path")
+            if not isinstance(package_path, str):
+                continue
+            base = _normalize_pkg_path(package_path)
+            if not base:
+                matched.add(package_path)
+                break
+            if normalized_file == base or normalized_file.startswith(base + "/"):
+                matched.add(package_path)
+                break
+        else:
+            matched.add("__outside__")
+    if len(matched) == 1:
+        only = next(iter(matched))
+        if only != "__outside__":
+            return only
+    return None
+
+
+def _scope_package_command(package_path: str, command: str) -> str:
+    normalized_path = _normalize_pkg_path(package_path)
+    if not normalized_path:
+        return command
+    return f"cd {shlex.quote(normalized_path)} && {command}"
+
+
+def _package_quality_gates(
+    root: Path,
+    files: list[str],
+    verify: list[str],
+    *,
+    cwd: str | None = None,
+) -> list[str]:
+    packages = _packages_from_workflow(root)
+    package_path = _infer_task_package(files, packages, cwd=cwd)
+    if not package_path:
+        return []
+
+    package_cfg = next(
+        (
+            package
+            for package in packages
+            if isinstance(package.get("path"), str) and package.get("path") == package_path
+        ),
+        None,
+    )
+    if not isinstance(package_cfg, dict):
+        return []
+
+    commands = package_cfg.get("commands")
+    if not isinstance(commands, dict):
+        return []
+
+    existing = {
+        str(command).strip()
+        for command in verify
+        if isinstance(command, str) and command.strip()
+    }
+    quality_gates: list[str] = []
+    for key in ("lint", "typecheck", "test"):
+        command = commands.get(key)
+        if not isinstance(command, str) or not command.strip():
+            continue
+        scoped = _scope_package_command(package_path, command.strip())
+        if scoped in existing:
+            continue
+        existing.add(scoped)
+        quality_gates.append(scoped)
+    return quality_gates
 
 
 def _validate_plan_structure(plan: dict[str, Any]) -> None:
@@ -63,12 +179,15 @@ def _validate_plan_structure(plan: dict[str, Any]) -> None:
 def plan_to_task_descriptions(
     plan_json_path: Path,
     root: Path,
+    *,
+    ensure_memory_issues: bool = True,
 ) -> list[dict[str, Any]]:
     """Read an NN-PLAN.json and generate TaskDesc V2 objects.
 
     For each task in the plan:
       - If ``memoryId`` is present, use it.
-      - If missing, create a memory issue under the plan's ``memoryEpicId``.
+      - If missing, create a memory issue under the plan's ``memoryEpicId``
+        when ``ensure_memory_issues`` is true.
 
     Returns a list of TaskDesc V2 dicts with keys:
       task_id, plan_task_index, title, action, file_scope, commands,
@@ -88,9 +207,10 @@ def plan_to_task_descriptions(
 
     for i, task in enumerate(tasks):
         memory_id = task.get("memoryId", "")
+        cwd = task.get("cwd") if isinstance(task.get("cwd"), str) and task.get("cwd").strip() else None
 
         # Ensure memory issue exists
-        if not memory_id and epic_id:
+        if not memory_id and epic_id and ensure_memory_issues:
             memory_id = _ensure_memory_issue(
                 root, epic_id, task, feature, plan_number
             )
@@ -104,6 +224,12 @@ def plan_to_task_descriptions(
 
         files = task.get("files", [])
         verify = task.get("verify", [])
+        package_verify = _package_quality_gates(root, files, verify, cwd=cwd)
+        combined_verify = [
+            str(command).strip()
+            for command in list(verify) + package_verify
+            if isinstance(command, str) and command.strip()
+        ]
         blocked_by = task.get("blockedBy", [])
         micro_steps = task.get("microSteps", [])
         tdd = task.get("tdd", {})
@@ -122,12 +248,20 @@ def plan_to_task_descriptions(
 
         # Build commands object — only non-derivable commands persisted.
         # claim/report_done/context are derived from task_id at render time.
-        commands: dict[str, Any] = {"verify": verify}
+        commands: dict[str, Any] = {"verify": combined_verify}
+        if isinstance(verify, list) and verify:
+            commands["task_verify"] = [
+                str(command).strip()
+                for command in verify
+                if isinstance(command, str) and command.strip()
+            ]
+        if package_verify:
+            commands["package_verify"] = package_verify
 
         # Build completion footer
         completion_footer = f"TASK_DONE: [{memory_id}]" if memory_id else ""
 
-        results.append({
+        task_desc = {
             "task_id": memory_id,
             "plan_task_index": i,
             "title": title,
@@ -142,7 +276,10 @@ def plan_to_task_descriptions(
             "micro_steps": micro_steps,
             "tdd": tdd,
             "skipped": False,
-        })
+        }
+        if cwd:
+            task_desc["cwd"] = cwd
+        results.append(task_desc)
 
     # Post-pass: cascade expansion for tasks with deletions
     cascade_patterns = _load_cascade_patterns(root)
@@ -218,11 +355,14 @@ def generate_implement_prompt(
     forbidden = file_scope.get("forbidden", [])
     commands = taskdesc.get("commands", {})
     verify = commands.get("verify", [])
+    task_verify = commands.get("task_verify", [])
+    package_verify = commands.get("package_verify", [])
     task_id = taskdesc.get("task_id", "")
     completion_footer = taskdesc.get("completion_footer", "")
     micro_steps = taskdesc.get("micro_steps", [])
     tdd = taskdesc.get("tdd", {})
     actor = (actor_name or "implementer").strip() or "implementer"
+    cwd = taskdesc.get("cwd", "")
 
     lines: list[str] = []
 
@@ -235,6 +375,10 @@ def generate_implement_prompt(
         lines.append("**Micro-steps (execute in order):**")
         for step in micro_steps:
             lines.append(f"- {step}")
+        lines.append("")
+
+    if isinstance(cwd, str) and cwd.strip():
+        lines.append(f"**Task CWD:** `{cwd.strip()}`")
         lines.append("")
 
     if paths:
@@ -254,10 +398,21 @@ def generate_implement_prompt(
         lines.append(", ".join(f"`{f}`" for f in forbidden))
         lines.append("")
 
-    if verify:
+    if isinstance(task_verify, list) and task_verify:
+        lines.append("**Task verify (must ALL pass):**")
+        for command in task_verify:
+            lines.append(f"- `{command}`")
+        lines.append("")
+    elif verify:
         lines.append("**Verify (must ALL pass):**")
-        for v in verify:
-            lines.append(f"- `{v}`")
+        for command in verify:
+            lines.append(f"- `{command}`")
+        lines.append("")
+
+    if isinstance(package_verify, list) and package_verify:
+        lines.append("**Package quality gates (auto-appended from WORKFLOW.json):**")
+        for command in package_verify:
+            lines.append(f"- `{command}`")
         lines.append("")
 
     if isinstance(tdd, dict) and tdd:
@@ -373,6 +528,65 @@ def detect_file_conflicts(
                 })
 
     return conflicts
+
+
+def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+    """Recommend whether a plan should default to team execution.
+
+    Team mode is recommended when there are 2+ tasks immediately runnable from
+    the dependency frontier and file scopes are conflict-free. Later blocked
+    tasks are allowed as long as they can stage behind that frontier.
+    """
+    non_skipped_tasks = [
+        (idx, task)
+        for idx, task in enumerate(tasks)
+        if not task.get("skipped", False)
+    ]
+    runnable_tasks = [
+        task.get("plan_task_index", idx)
+        for idx, task in non_skipped_tasks
+        if not task.get("blockedBy")
+    ]
+    if len(runnable_tasks) < 2:
+        return {
+            "recommended": False,
+            "reason": (
+                "Need at least 2 immediately runnable tasks before team mode pays off; "
+                "keep serial for single-task or fully chained plans."
+            ),
+            "runnableTasks": runnable_tasks,
+            "blockedTasks": [
+                task.get("plan_task_index", idx)
+                for idx, task in non_skipped_tasks
+                if task.get("blockedBy")
+            ],
+            "conflicts": [],
+        }
+
+    blocked_tasks = [
+        task.get("plan_task_index", idx)
+        for idx, task in non_skipped_tasks
+        if task.get("blockedBy")
+    ]
+    conflicts = detect_file_conflicts(tasks)
+    if conflicts:
+        return {
+            "recommended": False,
+            "reason": "Task file scopes overlap; keep serial unless the user explicitly asks for team mode.",
+            "runnableTasks": runnable_tasks,
+            "blockedTasks": blocked_tasks,
+            "conflicts": conflicts,
+        }
+    return {
+        "recommended": True,
+        "reason": (
+            "At least 2 tasks are runnable from the current dependency frontier, "
+            "remaining dependencies can stage later, and file scopes are disjoint."
+        ),
+        "runnableTasks": runnable_tasks,
+        "blockedTasks": blocked_tasks,
+        "conflicts": [],
+    }
 
 
 def generate_run_id(feature: str) -> str:

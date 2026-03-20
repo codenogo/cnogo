@@ -58,6 +58,9 @@ install.sh
 - Every planning artifact has a paired JSON contract (e.g., `CONTEXT.md` + `CONTEXT.json`)
 - Contracts have `schemaVersion`, `feature` (slug), `timestamp` at minimum
 - For `schemaVersion >= 2` plans, tasks require `microSteps[]` + `tdd` contract (no minute-based time boxes)
+- For `schemaVersion >= 3` plans, tasks also require `contextLinks[]` plus at least one explicit error-path scenario when TDD is required
+- `/implement` is the canonical execution entrypoint; it may auto-route into `/team implement` when the dependency frontier exposes safe parallel work
+- Feature summaries should be generated from recorded execution evidence via `workflow_checks.py summarize`, not handwritten from scratch
 - Review contracts use staged review structure (spec-compliance then code-quality) before ship
 - Validated by `python3 .cnogo/scripts/workflow_validate.py`
 

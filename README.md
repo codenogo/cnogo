@@ -61,10 +61,10 @@ optional exits: /discuss <feature>
 | Decisions | `/discuss "feature name"` | Creates `feature/<slug>` branch, `CONTEXT.json` + `CONTEXT.md`, memory epic |
 | Research | `/research "topic"` | Deep research artifact (`RESEARCH.json` + `RESEARCH.md`) — repo + optional web sources |
 | Planning | `/plan <feature-slug>` | Creates `NN-PLAN.json` + `NN-PLAN.md` (max 3 tasks per plan) |
-| Execution | `/implement <feature-slug> NN` | Executes plan tasks, writes `NN-SUMMARY.json` + `NN-SUMMARY.md`, closes memory tasks |
+| Execution | `/implement <feature-slug> NN` | Canonical execution entrypoint; auto-appends package lint/typecheck/test gates, auto-routes to team mode when tasks are safely parallel, and supports `--serial` as the explicit opt-out |
 | Verification | `/verify <feature-slug>` | Human acceptance testing (`VERIFICATION.json` + `VERIFICATION.md`) |
 | CI Verify | `/verify-ci <feature-slug>` | Non-interactive verification (CI-friendly) |
-| Review | `/review` | Two-stage gate: spec compliance first, then code quality + scoring rubric |
+| Review | `/review` | Two-stage gate with automated checks first, then configured adversarial reviewer agents plus final human verdict |
 | Ship | `/ship` | Commit, push, create PR via `gh`, requires `ship-ready` staged-review freshness gate |
 
 ### Quick Fixes (small changes)
@@ -172,7 +172,7 @@ Multi-agent coordination with shared task lists, direct messaging, and worktree 
 | `/research <topic>` | Deep research artifact |
 | `/brainstorm <idea>` | Compatibility alias for the `/shape` workspace |
 | `/plan <feature>` | Create implementation tasks (max 3 per plan) |
-| `/implement <feature> <plan>` | Execute a plan with per-task verification |
+| `/implement <feature> <plan>` | Execute a plan with per-task verification and automatic team-mode routing |
 | `/verify <feature>` | User acceptance testing |
 | `/verify-ci <feature>` | Non-interactive CI-friendly verification |
 | `/review` | Quality gates (automated checks + 14-point rubric) |
