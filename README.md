@@ -1,6 +1,6 @@
 # cnogo — Development Workflow Engine
 
-An artifact-driven development workflow for Claude Code. Small-batch planning, structured memory, automated verification, and multi-agent coordination — all stdlib Python, no external dependencies.
+An artifact-driven development workflow for Claude Code. Small-batch planning, structured memory, automated verification, and multi-agent coordination — with a stdlib-only core and optional graph/context extras.
 
 ## What It Does
 
@@ -33,11 +33,22 @@ cd /path/to/your/project && claude
 ### Prerequisites
 
 - **Claude Code** (`claude`)
-- **Python 3** (stdlib only — no pip installs)
+- **Python 3** for the core workflow (no required pip installs)
 - **Git**
 - **GitHub CLI** (`gh`) — optional, used by `/ship`
 
+Optional graph/context features install extra packages into `.cnogo/.venv` during `install.sh` unless you pass `--skip-graph`.
+
 ## The Workflow
+
+### Initiative Shaping
+
+```
+/shape ↺
+optional exits: /discuss <feature>
+```
+
+`/shape` is a persistent workspace for broad or multi-feature work. It can keep evolving while some features become `discuss-ready`; those ready features are optional exits, not the default next step.
 
 ### Feature Work (non-trivial changes)
 
@@ -50,10 +61,10 @@ cd /path/to/your/project && claude
 | Decisions | `/discuss "feature name"` | Creates `feature/<slug>` branch, `CONTEXT.json` + `CONTEXT.md`, memory epic |
 | Research | `/research "topic"` | Deep research artifact (`RESEARCH.json` + `RESEARCH.md`) — repo + optional web sources |
 | Planning | `/plan <feature-slug>` | Creates `NN-PLAN.json` + `NN-PLAN.md` (max 3 tasks per plan) |
-| Execution | `/implement <feature-slug> NN` | Executes plan tasks, writes `NN-SUMMARY.json` + `NN-SUMMARY.md`, closes memory tasks |
+| Execution | `/implement <feature-slug> NN` | Canonical execution entrypoint; auto-appends package lint/typecheck/test gates, auto-routes to team mode when tasks are safely parallel, and supports `--serial` as the explicit opt-out |
 | Verification | `/verify <feature-slug>` | Human acceptance testing (`VERIFICATION.json` + `VERIFICATION.md`) |
 | CI Verify | `/verify-ci <feature-slug>` | Non-interactive verification (CI-friendly) |
-| Review | `/review` | Two-stage gate: spec compliance first, then code quality + scoring rubric |
+| Review | `/review` | Two-stage gate with automated checks first, then configured adversarial reviewer agents plus final human verdict |
 | Ship | `/ship` | Commit, push, create PR via `gh`, requires `ship-ready` staged-review freshness gate |
 
 ### Quick Fixes (small changes)
@@ -121,13 +132,23 @@ Runtime DB: `.cnogo/memory.db` (gitignored). Sync format: `.cnogo/issues.jsonl` 
 
 Multi-agent coordination with shared task lists, direct messaging, and worktree isolation.
 
-### Agents (3)
+### Team Agents (3)
 
 | Agent | Purpose |
 |-------|---------|
 | `debugger` | Root cause analysis and systematic debugging |
 | `implementer` | Plan task execution with memory claim/report-done lifecycle |
 | `resolver` | Merge conflict resolution |
+
+### Shape Scouts (3)
+
+`/shape` stays single-agent by default, but can launch bounded read-only scouts when uncertainty is specific enough to delegate.
+
+| Scout | Purpose |
+|-------|---------|
+| `shape-scout` | Repo feasibility, precedent, and integration-point scan |
+| `architecture-scout` | Compare viable directions and sequencing impact |
+| `risk-challenger` | Pressure-test the favored direction for hidden risks |
 
 ### Team Commands
 
@@ -140,17 +161,18 @@ Multi-agent coordination with shared task lists, direct messaging, and worktree 
 
 `bridge.py` handles plan → task translation, file conflict detection, and deterministic command derivation from task IDs.
 
-## Commands (29)
+## Commands (30)
 
 ### Core Workflow
 
 | Command | Purpose |
 |---------|---------|
-| `/discuss <feature>` | Capture decisions before coding |
+| `/shape <initiative>` | Persistent workspace for broad or multi-feature work |
+| `/discuss <feature>` | Feature-local branch from shape or direct single-feature fast path |
 | `/research <topic>` | Deep research artifact |
-| `/brainstorm <idea>` | Narrow ideas via Q&A before `/discuss` |
+| `/brainstorm <idea>` | Compatibility alias for the `/shape` workspace |
 | `/plan <feature>` | Create implementation tasks (max 3 per plan) |
-| `/implement <feature> <plan>` | Execute a plan with per-task verification |
+| `/implement <feature> <plan>` | Execute a plan with per-task verification and automatic team-mode routing |
 | `/verify <feature>` | User acceptance testing |
 | `/verify-ci <feature>` | Non-interactive CI-friendly verification |
 | `/review` | Quality gates (automated checks + 14-point rubric) |
@@ -206,15 +228,14 @@ Multi-agent coordination with shared task lists, direct messaging, and worktree 
 | `/mcp` | Manage Model Context Protocol connections |
 | `/doctor` | Diagnose workflow health issues |
 
-## Skills (16)
+## Skills (21)
 
-Reusable domain expertise, lazy-loaded by commands from `.claude/skills/`:
+Reusable domain expertise, lazy-loaded by commands from `.claude/skills/` (flat files and directory-based `SKILL.md` both supported):
 
 | Skill | Purpose |
 |-------|---------|
 | `code-review` | Code quality and best-practice analysis |
 | `security-scan` | Vulnerability auditing (OWASP, secrets, auth) |
-| `perf-analysis` | Performance bottleneck analysis |
 | `api-review` | API design review (REST, contracts) |
 | `test-writing` | Test generation (unit, integration, edge cases) |
 | `debug-investigation` | Root cause analysis |
@@ -228,6 +249,12 @@ Reusable domain expertise, lazy-loaded by commands from `.claude/skills/`:
 | `memory-sync-reconciliation` | Fix memory sync/import issues |
 | `worktree-merge-recovery` | Recover from failed worktree merges |
 | `feature-lifecycle-closure` | Post-ship cleanup checklist |
+| `shape-facilitator` | Run bounded initiative-level shaping |
+| `shape-feature-queue` | Decompose initiatives into feature-ready queue entries |
+| `shape-architecture-tradeoffs` | Compare cross-feature architectural directions |
+| `shape-risk-challenge` | Run a contrarian risk pass inside the shape workspace |
+| `context-handoff-engineering` | Keep `shape -> discuss` inheritance compact and drift-aware |
+| `research-evidence-synthesis` | Run evidence-first research with source ranking and routing |
 
 ## Hooks
 
@@ -270,6 +297,8 @@ All artifacts are written as JSON (source of truth) + markdown (human-readable):
 
 | Artifact | Location |
 |----------|----------|
+| Initiative shape workspace | `docs/planning/work/ideas/<slug>/SHAPE.json` |
+| Feature stub | `docs/planning/work/features/<slug>/FEATURE.json` |
 | Feature context | `docs/planning/work/features/<slug>/CONTEXT.json` |
 | Plans | `docs/planning/work/features/<slug>/NN-PLAN.json` |
 | Summaries | `docs/planning/work/features/<slug>/NN-SUMMARY.json` |
@@ -289,7 +318,7 @@ Runtime policy knobs:
 - **`performance`** — post-edit formatting, output compaction, token telemetry, hook optimization
 - **`freshness`** — stale artifact detection (context, plan, summary age limits)
 - **`invariants`** — max file lines, max line length, TODO-requires-ticket, forbidden imports
-- **`tokenBudgets`** — per-artifact word limits (command, context, plan, summary, review, research)
+- **`tokenBudgets`** — per-artifact word limits (command, shape, context, plan, summary, review, research)
 - **`packages`** — monorepo package definitions with per-package commands
 - **`agentTeams`** — team settings (worktree mode, stale indicator, delegate mode, `maxTakeoversPerTask`)
 - **`research`** — research mode (`auto`/`local`/`web`/`mcp`), min sources
@@ -308,9 +337,9 @@ Auto-detects packages and populates `WORKFLOW.json`. Then plan verify commands s
 your-project/
 ├── .claude/
 │   ├── settings.json           # Permissions + hooks
-│   ├── commands/               # 29 slash commands
+│   ├── commands/               # 30 slash commands
 │   ├── agents/                 # 3 agent definitions (debugger, implementer, resolver)
-│   └── skills/                 # 16 reusable skills
+│   └── skills/                 # 21 reusable skills
 ├── .cnogo/
 │   ├── memory.db               # SQLite runtime (gitignored)
 │   └── issues.jsonl            # Git-tracked sync format

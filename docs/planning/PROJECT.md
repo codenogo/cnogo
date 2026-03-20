@@ -22,7 +22,7 @@ cnogo gives any software project a structured development workflow out of the bo
 install.sh
     │
     ├── .claude/commands/       28 slash command definitions (Markdown)
-    ├── .claude/agents/         Team agent definitions (implementer, debugger, resolver)
+    ├── .claude/agents/         Team agents plus shape scouts
     ├── .claude/skills/         Lazy-loaded domain expertise playbooks
     ├── .claude/settings.json   Hooks + permissions
     │
@@ -41,7 +41,7 @@ install.sh
 |-------|------------|-------|
 | Scripts | Python 3.10+ (stdlib only) | workflow_validate.py, workflow_checks.py, workflow_detect.py, etc. |
 | Memory | SQLite via Python sqlite3 | .cnogo/memory.db (runtime), .cnogo/issues.jsonl (git-tracked sync) |
-| Commands | Markdown | 28 slash commands in .claude/commands/ |
+| Commands | Markdown | 30 slash commands in .claude/commands/ |
 | Installer | Bash | install.sh — single entry point |
 | Hooks | Bash + Python | PreToolUse, PostToolUse, PreCommit, PostCommit |
 
@@ -51,12 +51,16 @@ install.sh
 - Scripts in `.cnogo/scripts/` — flat structure, `workflow_` prefix for top-level scripts
 - Memory engine in `.cnogo/scripts/memory/` — Python package with `__init__.py` public API
 - Commands in `.claude/commands/` — one Markdown file per command
-- Feature work in `docs/planning/work/features/<slug>/` — CONTEXT, PLANs, SUMMARYs, REVIEWs
+- Initiative shaping in `docs/planning/work/ideas/<slug>/` — persistent SHAPE workspace (legacy BRAINSTORM supported)
+- Feature work in `docs/planning/work/features/<slug>/` — FEATURE stub, CONTEXT, PLANs, SUMMARYs, REVIEWs
 
 ### Workflow Contracts
 - Every planning artifact has a paired JSON contract (e.g., `CONTEXT.md` + `CONTEXT.json`)
 - Contracts have `schemaVersion`, `feature` (slug), `timestamp` at minimum
 - For `schemaVersion >= 2` plans, tasks require `microSteps[]` + `tdd` contract (no minute-based time boxes)
+- For `schemaVersion >= 3` plans, tasks also require `contextLinks[]` plus at least one explicit error-path scenario when TDD is required
+- `/implement` is the canonical execution entrypoint; it may auto-route into `/team implement` when the dependency frontier exposes safe parallel work
+- Feature summaries should be generated from recorded execution evidence via `workflow_checks.py summarize`, not handwritten from scratch
 - Review contracts use staged review structure (spec-compliance then code-quality) before ship
 - Validated by `python3 .cnogo/scripts/workflow_validate.py`
 

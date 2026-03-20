@@ -81,4 +81,4 @@ python3 .cnogo/scripts/workflow_validate.py
 
 - Memory epic and issues closed
 - Whether artifacts were archived
-- Next recommended action (`/brainstorm`, `/discuss`, or `/quick`)
+- Next recommended action (`/shape`, `/discuss`, or `/quick`)

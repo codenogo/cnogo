@@ -46,6 +46,7 @@
       "summaryWordMax": 900,
       "reviewWordMax": 1400,
       "researchWordMax": 2200,
+      "shapeWordMax": 1600,
       "brainstormWordMax": 1400
     }
   },

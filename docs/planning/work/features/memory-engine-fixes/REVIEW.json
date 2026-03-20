@@ -137,6 +137,9 @@
     }
   ],
   "schemaVersion": 4,
+  "securityFindings": [],
+  "performanceFindings": [],
+  "patternCompliance": [],
   "timestamp": "2026-02-16T01:06:30Z",
   "verdict": "warn",
   "warnings": [

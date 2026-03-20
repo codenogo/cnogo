@@ -50,7 +50,7 @@ __all__ = [
     "create_session", "save_session", "get_conflict_context",
     # Bridge (plan → task descriptions)
     "plan_to_task_descriptions", "generate_implement_prompt",
-    "detect_file_conflicts", "generate_run_id",
+    "detect_file_conflicts", "recommend_team_mode", "generate_run_id",
     # Reconcile (compaction recovery)
     "reconcile_session",
     # Cost tracking
@@ -1408,6 +1408,14 @@ def detect_file_conflicts(
     """Check for file overlaps across tasks (advisory)."""
     from .bridge import detect_file_conflicts as _dfc
     return _dfc(tasks)
+
+
+def recommend_team_mode(
+    tasks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Suggest whether a plan should default to team execution."""
+    from .bridge import recommend_team_mode as _rtm
+    return _rtm(tasks)
 
 
 def generate_run_id(feature: str) -> str:

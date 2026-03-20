@@ -103,6 +103,9 @@
     }
   ],
   "schemaVersion": 4,
+  "securityFindings": [],
+  "performanceFindings": [],
+  "patternCompliance": [],
   "security": {
     "inputValidation": "pass \u2014 _ALLOWED_FIELDS whitelist, actor_role enum, state machine enforcement",
     "authorization": "pass \u2014 role enforcement on close/report_done/verify_and_close, hook ownership fixed",

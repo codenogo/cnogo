@@ -66,3 +66,35 @@ def test_main_warns_on_duplicate_ids_and_missing_evidence(monkeypatch, capsys):
     err = capsys.readouterr().err
     assert "duplicate TASK_DONE ids detected" in err
     assert "missing or malformed TASK_EVIDENCE payload" in err
+
+
+def test_main_accepts_scout_report_without_task_done(monkeypatch, capsys):
+    mod = _load_hook_module()
+    payload = {
+        "last_assistant_message": (
+            "summary\n"
+            'SCOUT_REPORT: {"kind":"shape-scout","question":"What patterns exist?","confidence":"medium",'
+            '"summary":"Repo has two relevant patterns.","implication":"Keep the feature split.",'
+            '"sources":["README.md","docs/planning/PROJECT.md"]}'
+        )
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    rc = mod.main()
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "observed scout report: shape-scout (medium)" in err
+    assert "no TASK_DONE footer found" not in err
+
+
+def test_main_warns_on_malformed_scout_report(monkeypatch, capsys):
+    mod = _load_hook_module()
+    payload = {
+        "last_assistant_message": 'SCOUT_REPORT: {"kind":"shape-scout"}'
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    rc = mod.main()
+    assert rc == 0
+    err = capsys.readouterr().err
+    assert "SCOUT_REPORT missing non-empty 'question'" in err
+    assert "SCOUT_REPORT sources should be a non-empty list of strings" in err
+    assert "no TASK_DONE footer found" not in err

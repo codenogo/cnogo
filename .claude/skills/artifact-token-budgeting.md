@@ -1,7 +1,7 @@
 ---
 name: artifact-token-budgeting
 tags: [workflow, quality, performance]
-appliesTo: [review, plan, spawn]
+appliesTo: [shape, brainstorm, discuss, review, plan, spawn]
 ---
 # Artifact Token Budgeting
 
@@ -21,6 +21,7 @@ Minimize context cost while preserving correctness and operator clarity.
 - prefer short imperative steps
 - avoid repeated examples and duplicate prose
 - include only fields needed for execution
+- keep initiative-wide truth in `SHAPE.json`; keep feature-local deltas in `CONTEXT.json`
 
 3. Budget enforcement:
 - keep artifacts under `WORKFLOW.json.performance.tokenBudgets`

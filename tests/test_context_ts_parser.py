@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 
 sys.path.insert(0, ".cnogo")
@@ -10,6 +11,18 @@ from scripts.context.parser_base import LanguageParser, ParseResult
 from scripts.context.parsers.typescript_parser import TypeScriptParser
 from scripts.context.parsers.javascript_parser import JavaScriptParser
 from scripts.context.parser_registry import get_parser, supported_languages, clear_cache
+
+
+_OPTIONAL_LANGUAGE_MODULES = {
+    "go": "tree_sitter_go",
+    "rust": "tree_sitter_rust",
+    "java": "tree_sitter_java",
+}
+
+
+def _parser_dependency_available(language: str) -> bool:
+    module_name = _OPTIONAL_LANGUAGE_MODULES.get(language)
+    return module_name is None or importlib.util.find_spec(module_name) is not None
 
 
 # --- TypeScript: functions ---
@@ -335,22 +348,31 @@ def test_registry_caches_instances():
 def test_registry_get_go():
     clear_cache()
     parser = get_parser("go")
-    assert parser is not None
-    assert isinstance(parser, LanguageParser)
+    if _parser_dependency_available("go"):
+        assert parser is not None
+        assert isinstance(parser, LanguageParser)
+    else:
+        assert parser is None
 
 
 def test_registry_get_rust():
     clear_cache()
     parser = get_parser("rust")
-    assert parser is not None
-    assert isinstance(parser, LanguageParser)
+    if _parser_dependency_available("rust"):
+        assert parser is not None
+        assert isinstance(parser, LanguageParser)
+    else:
+        assert parser is None
 
 
 def test_registry_get_java():
     clear_cache()
     parser = get_parser("java")
-    assert parser is not None
-    assert isinstance(parser, LanguageParser)
+    if _parser_dependency_available("java"):
+        assert parser is not None
+        assert isinstance(parser, LanguageParser)
+    else:
+        assert parser is None
 
 
 def test_registry_supported_languages():
@@ -368,6 +390,9 @@ def test_registry_parsers_produce_parse_result():
     clear_cache()
     for lang in supported_languages():
         parser = get_parser(lang)
+        if not _parser_dependency_available(lang):
+            assert parser is None
+            continue
         assert parser is not None
         result = parser.parse("", "test.x")
         assert isinstance(result, ParseResult)

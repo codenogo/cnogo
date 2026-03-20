@@ -29,9 +29,11 @@ from typing import Any, Callable, Iterable
 
 try:
     from workflow_utils import load_json as _load_json
+    from workflow_utils import iter_skill_paths as _iter_skill_paths
     from workflow_utils import parse_skill_frontmatter as _parse_skill_frontmatter
 except ModuleNotFoundError:
     from .workflow_utils import load_json as _load_json  # type: ignore
+    from .workflow_utils import iter_skill_paths as _iter_skill_paths  # type: ignore
     from .workflow_utils import parse_skill_frontmatter as _parse_skill_frontmatter  # type: ignore
 
 
@@ -53,6 +55,7 @@ DEFAULT_TOKEN_BUDGETS = {
     "summaryWordMax": 900,
     "reviewWordMax": 1400,
     "researchWordMax": 2200,
+    "shapeWordMax": 1600,
     "brainstormWordMax": 1400,
 }
 DEFAULT_BOOTSTRAP_CONTEXT = {
@@ -61,6 +64,7 @@ DEFAULT_BOOTSTRAP_CONTEXT = {
     "workflowClaudeWordMax": 450,
     "commandSetWordMax": 7000,
 }
+SHAPE_CANDIDATE_STATUSES = {"draft", "discuss-ready", "blocked", "parked"}
 
 
 def _repo_root(start: Path) -> Path:
@@ -118,6 +122,25 @@ def _require(path: Path, findings: list[Finding], msg: str) -> None:
         findings.append(Finding("ERROR", msg, str(path)))
 
 
+def _validate_memory_runtime(root: Path, findings: list[Finding]) -> None:
+    """Treat tracked memory sync data as sufficient for source validation."""
+    memory_db = root / ".cnogo" / "memory.db"
+    issues_jsonl = root / ".cnogo" / "issues.jsonl"
+    if memory_db.exists() or issues_jsonl.exists():
+        return
+    findings.append(
+        Finding(
+            "WARN",
+            (
+                "Memory runtime is not initialized locally. "
+                "Run: python3 .cnogo/scripts/workflow_memory.py init "
+                "to enable memory commands."
+            ),
+            str(memory_db),
+        )
+    )
+
+
 def _validate_feature_slug(name: str, findings: list[Finding], path: Path) -> None:
     if not FEATURE_SLUG_RE.match(name):
         findings.append(
@@ -127,6 +150,28 @@ def _validate_feature_slug(name: str, findings: list[Finding], path: Path) -> No
                 str(path),
             )
         )
+
+
+def _is_nonempty_str(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _resolve_contract_ref(root: Path, raw_path: str) -> Path:
+    candidate = Path(raw_path)
+    if candidate.is_absolute():
+        return candidate
+    return root / candidate
+
+
+def _linked_artifact_time(root: Path, raw_path: str) -> datetime | None:
+    resolved = _resolve_contract_ref(root, raw_path)
+    if resolved.suffix == ".json":
+        md_path = resolved.with_suffix(".md")
+        return _artifact_time(md_path if md_path.exists() else resolved, resolved)
+    if resolved.suffix == ".md":
+        json_path = resolved.with_suffix(".json")
+        return _artifact_time(resolved, json_path if json_path.exists() else None)
+    return _artifact_time(resolved, None)
 
 
 def _utc_now() -> datetime:
@@ -220,6 +265,7 @@ def _token_budgets_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
         "summaryWordMax",
         "reviewWordMax",
         "researchWordMax",
+        "shapeWordMax",
         "brainstormWordMax",
     ):
         val = raw.get(key)
@@ -268,6 +314,10 @@ _RATIONALIZATION_PATTERNS = [
     re.compile(r"\blater\b", re.IGNORECASE),
     re.compile(r"\bmanual\s+only\b", re.IGNORECASE),
 ]
+_FAILURE_SCENARIO_RE = re.compile(
+    r"\b(error|fail|invalid|unauthori[sz]ed|forbidden|timeout|duplicate|conflict|nil|null|empty body|not found)\b",
+    re.IGNORECASE,
+)
 
 
 def _validate_memory_id(value: Any, field_name: str, findings: list[Finding], path: Path) -> None:
@@ -296,6 +346,7 @@ def _validate_plan_contract(
     path: Path,
     *,
     tdd_mode_level: str = "error",
+    operating_principles_level: str = "warn",
 ) -> None:
     if not isinstance(contract, dict):
         findings.append(Finding("ERROR", "Plan contract must be a JSON object.", str(path)))
@@ -437,6 +488,51 @@ def _validate_plan_contract(
                                 str(path),
                             )
                         )
+
+        if schema_version >= 3 and operating_principles_level != "off":
+            contract_level = _policy_level_to_finding(operating_principles_level)
+            context_links = t.get("contextLinks")
+            if not isinstance(context_links, list) or not context_links:
+                findings.append(
+                    Finding(
+                        contract_level,
+                        f"Task {i} schemaVersion>=3 requires non-empty 'contextLinks' array tracing back to CONTEXT.json constraints or decisions.",
+                        str(path),
+                    )
+                )
+            elif not all(isinstance(link, str) and link.strip() for link in context_links):
+                findings.append(
+                    Finding(
+                        contract_level,
+                        f"Task {i} contextLinks entries must be non-empty strings.",
+                        str(path),
+                    )
+                )
+
+            micro_steps = t.get("microSteps")
+            tdd = t.get("tdd")
+            if isinstance(tdd, dict) and tdd.get("required") is True:
+                scenario_texts: list[str] = []
+                if isinstance(micro_steps, list):
+                    scenario_texts.extend(
+                        step for step in micro_steps if isinstance(step, str) and step.strip()
+                    )
+                failing_verify = tdd.get("failingVerify")
+                if isinstance(failing_verify, list):
+                    scenario_texts.extend(
+                        cmd for cmd in failing_verify if isinstance(cmd, str) and cmd.strip()
+                    )
+                has_failure_scenario = any(
+                    _FAILURE_SCENARIO_RE.search(text) for text in scenario_texts
+                )
+                if not has_failure_scenario:
+                    findings.append(
+                        Finding(
+                            contract_level,
+                            f"Task {i} schemaVersion>=3 should name at least one explicit error-path scenario in microSteps[] or failingVerify[].",
+                            str(path),
+                        )
+                    )
 
     # Check if the last task has deletions with no subsequent task to receive auto-expanded caller cleanup scope
     if tasks:
@@ -652,6 +748,7 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
                 "summaryWordMax",
                 "reviewWordMax",
                 "researchWordMax",
+                "shapeWordMax",
                 "brainstormWordMax",
             ):
                 val = budgets.get(key)
@@ -846,6 +943,55 @@ def _validate_workflow_config(cfg: dict[str, Any], findings: list[Finding], root
         if wt_mode is not None:
             if isinstance(wt_mode, bool) or not isinstance(wt_mode, str) or wt_mode not in ("always", "off"):
                 findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.worktreeMode should be 'always' or 'off'.", str(cfg_path)))
+        default_compositions = agent_teams.get("defaultCompositions")
+        if default_compositions is not None and not isinstance(default_compositions, dict):
+            findings.append(Finding("WARN", "WORKFLOW.json: agentTeams.defaultCompositions should be an object.", str(cfg_path)))
+        elif isinstance(default_compositions, dict):
+            agents_dir = root / ".claude" / "agents"
+            for composition_name, members in default_compositions.items():
+                if not isinstance(members, list) or not members:
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"WORKFLOW.json: agentTeams.defaultCompositions.{composition_name} should be a non-empty array of agent names.",
+                            str(cfg_path),
+                        )
+                    )
+                    continue
+                normalized_members: list[str] = []
+                for idx, member in enumerate(members, start=1):
+                    if not isinstance(member, str) or not member.strip():
+                        findings.append(
+                            Finding(
+                                "WARN",
+                                f"WORKFLOW.json: agentTeams.defaultCompositions.{composition_name}[{idx}] should be a non-empty string.",
+                                str(cfg_path),
+                            )
+                        )
+                        continue
+                    agent_name = member.strip()
+                    normalized_members.append(agent_name)
+                    if not (agents_dir / f"{agent_name}.md").exists():
+                        findings.append(
+                            Finding(
+                                "WARN",
+                                f"WORKFLOW.json: agentTeams.defaultCompositions.{composition_name}[{idx}] references missing agent {agent_name!r}.",
+                                str(cfg_path),
+                            )
+                        )
+                existing_unique_members = {
+                    agent_name
+                    for agent_name in normalized_members
+                    if (agents_dir / f"{agent_name}.md").exists()
+                }
+                if composition_name == "review" and len(existing_unique_members) < 2:
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            "WORKFLOW.json: agentTeams.defaultCompositions.review should use at least 2 distinct reviewer agents.",
+                            str(cfg_path),
+                        )
+                    )
 
     freshness = cfg.get("freshness")
     if freshness is not None and not isinstance(freshness, dict):
@@ -1074,29 +1220,77 @@ def _validate_features(
         plan_files_by_num: dict[str, set[str]] = {}
         summary_change_files_by_num: dict[str, set[str]] = {}
 
+        feature_md = feature_dir / "FEATURE.md"
+        feature_json = feature_dir / "FEATURE.json"
+        if feature_md.exists():
+            _require(feature_json, findings, "Missing FEATURE.json contract for FEATURE.md")
+        if feature_json.exists():
+            try:
+                feature_contract = _load_json(feature_json)
+                _validate_feature_stub_contract(root, feature_dir, feature_contract, findings, feature_json)
+            except Exception as e:
+                findings.append(Finding("ERROR", f"Failed to parse FEATURE.json: {e}", str(feature_json)))
+
         context_md = feature_dir / "CONTEXT.md"
         context_json = feature_dir / "CONTEXT.json"
         if context_md.exists():
             _require(context_json, findings, "Missing CONTEXT.json contract for CONTEXT.md")
-            if context_json.exists():
-                try:
-                    c = _load_json(context_json)
-                    if not isinstance(c, dict):
-                        findings.append(Finding("ERROR", "CONTEXT.json must be a JSON object.", str(context_json)))
-                    else:
-                        if "schemaVersion" not in c:
-                            findings.append(Finding("WARN", "CONTEXT.json missing schemaVersion (recommended).", str(context_json)))
-                        c_feature = c.get("feature")
-                        if isinstance(c_feature, str) and c_feature.strip() and c_feature != feature_dir.name:
-                            findings.append(
-                                Finding(
-                                    "WARN",
-                                    f"CONTEXT.json feature {c_feature!r} does not match directory slug {feature_dir.name!r}.",
-                                    str(context_json),
-                                )
+        if context_json.exists():
+            try:
+                c = _load_json(context_json)
+                if not isinstance(c, dict):
+                    findings.append(Finding("ERROR", "CONTEXT.json must be a JSON object.", str(context_json)))
+                else:
+                    if "schemaVersion" not in c:
+                        findings.append(Finding("WARN", "CONTEXT.json missing schemaVersion (recommended).", str(context_json)))
+                    c_feature = c.get("feature")
+                    if isinstance(c_feature, str) and c_feature.strip() and c_feature != feature_dir.name:
+                        findings.append(
+                            Finding(
+                                "WARN",
+                                f"CONTEXT.json feature {c_feature!r} does not match directory slug {feature_dir.name!r}.",
+                                str(context_json),
                             )
-                except Exception as e:
-                    findings.append(Finding("ERROR", f"Failed to parse CONTEXT.json: {e}", str(context_json)))
+                        )
+                    _validate_shape_feedback(c.get("shapeFeedback"), findings, context_json)
+                    parent_shape = c.get("parentShape")
+                    if parent_shape is not None:
+                        _validate_contract_link(
+                            root,
+                            parent_shape,
+                            findings,
+                            context_json,
+                            field_name="parentShape",
+                            required_timestamp=True,
+                        )
+                        _warn_if_link_stale(
+                            root,
+                            parent_shape,
+                            findings,
+                            context_json,
+                            field_name="parentShape",
+                            target_label="SHAPE artifact",
+                        )
+                    feature_stub_link = c.get("featureStub")
+                    if feature_stub_link is not None:
+                        _validate_contract_link(
+                            root,
+                            feature_stub_link,
+                            findings,
+                            context_json,
+                            field_name="featureStub",
+                            required_timestamp=True,
+                        )
+                        _warn_if_link_stale(
+                            root,
+                            feature_stub_link,
+                            findings,
+                            context_json,
+                            field_name="featureStub",
+                            target_label="FEATURE artifact",
+                        )
+            except Exception as e:
+                findings.append(Finding("ERROR", f"Failed to parse CONTEXT.json: {e}", str(context_json)))
 
         for p in feature_dir.iterdir():
             if not p.is_file():
@@ -1116,6 +1310,7 @@ def _validate_features(
                         findings,
                         plan_json,
                         tdd_mode_level=tdd_mode_level,
+                        operating_principles_level=operating_principles_level,
                     )
 
                     if isinstance(contract, dict):
@@ -1216,6 +1411,21 @@ def _validate_features(
                                 findings.append(
                                     Finding("ERROR", "Summary contract must include outcome: complete|partial|failed", str(summary_json))
                                 )
+                            generated_from = s.get("generatedFrom")
+                            if generated_from is not None and not isinstance(generated_from, dict):
+                                findings.append(
+                                    Finding("WARN", "Summary generatedFrom should be an object if present.", str(summary_json))
+                                )
+                            notes = s.get("notes")
+                            if notes is not None:
+                                if not isinstance(notes, list):
+                                    findings.append(
+                                        Finding("WARN", "Summary notes should be an array of non-empty strings.", str(summary_json))
+                                    )
+                                elif not all(isinstance(note, str) and note.strip() for note in notes):
+                                    findings.append(
+                                        Finding("WARN", "Summary notes entries should be non-empty strings.", str(summary_json))
+                                    )
                     except Exception as e:
                         findings.append(Finding("ERROR", f"Failed to parse summary contract: {e}", str(summary_json)))
 
@@ -1285,6 +1495,16 @@ def _validate_ci_verification(
                                 )
                     if two_stage_review_level != "off":
                         stage_lvl = _policy_level_to_finding(two_stage_review_level)
+                        reviewers = r.get("reviewers")
+                        if reviewers is not None:
+                            if not isinstance(reviewers, list):
+                                findings.append(
+                                    Finding("WARN", "REVIEW.json reviewers should be an array of non-empty agent names.", str(review_json))
+                                )
+                            elif not all(isinstance(name, str) and name.strip() for name in reviewers):
+                                findings.append(
+                                    Finding("WARN", "REVIEW.json reviewers entries should be non-empty strings.", str(review_json))
+                                )
                         if not (
                             isinstance(schema_version, int)
                             and not isinstance(schema_version, bool)
@@ -1586,25 +1806,405 @@ def _validate_research(root: Path, findings: list[Finding], touched) -> None:
                     findings.append(Finding("ERROR", f"Failed to parse RESEARCH.json: {e}", str(rjson)))
 
 
-def _validate_brainstorm(root: Path, findings: list[Finding], touched) -> None:
-    """Validate brainstorm/ideas artifact directories."""
+def _validate_shape_artifacts(root: Path, findings: list[Finding], touched) -> None:
+    """Validate initiative-level shape artifacts, including legacy brainstorms."""
     for idir in _iter_ideas_dirs(root):
         if not touched(idir):
             continue
+
+        shape_md = idir / "SHAPE.md"
+        shape_json = idir / "SHAPE.json"
+        if shape_md.exists():
+            _require(shape_json, findings, "Missing SHAPE.json contract for SHAPE.md")
+        if shape_json.exists():
+            try:
+                shape_contract = _load_json(shape_json)
+                _validate_shape_contract(root, idir, shape_contract, findings, shape_json)
+            except Exception as e:
+                findings.append(Finding("ERROR", f"Failed to parse SHAPE.json: {e}", str(shape_json)))
+
         bmd = idir / "BRAINSTORM.md"
         bjson = idir / "BRAINSTORM.json"
         if bmd.exists():
             _require(bjson, findings, "Missing BRAINSTORM.json contract for BRAINSTORM.md")
-            if bjson.exists():
-                try:
-                    b = _load_json(bjson)
-                    if not isinstance(b, dict):
-                        findings.append(Finding("ERROR", "BRAINSTORM.json must be a JSON object.", str(bjson)))
-                    else:
-                        if "schemaVersion" not in b:
-                            findings.append(Finding("WARN", "BRAINSTORM.json missing schemaVersion (recommended).", str(bjson)))
-                except Exception as e:
-                    findings.append(Finding("ERROR", f"Failed to parse BRAINSTORM.json: {e}", str(bjson)))
+        if bjson.exists():
+            try:
+                legacy_contract = _load_json(bjson)
+                _validate_legacy_brainstorm_contract(legacy_contract, findings, bjson)
+            except Exception as e:
+                findings.append(Finding("ERROR", f"Failed to parse BRAINSTORM.json: {e}", str(bjson)))
+
+
+def _validate_shape_contract(
+    root: Path,
+    idea_dir: Path,
+    contract: Any,
+    findings: list[Finding],
+    path: Path,
+) -> None:
+    if not isinstance(contract, dict):
+        findings.append(Finding("ERROR", "SHAPE.json must be a JSON object.", str(path)))
+        return
+
+    if "schemaVersion" not in contract:
+        findings.append(Finding("WARN", "SHAPE.json missing schemaVersion (recommended).", str(path)))
+
+    slug = contract.get("slug")
+    if _is_nonempty_str(slug):
+        slug = slug.strip()
+        if slug != idea_dir.name:
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"SHAPE.json slug {slug!r} does not match directory slug {idea_dir.name!r}.",
+                    str(path),
+                )
+            )
+        if not FEATURE_SLUG_RE.match(slug):
+            findings.append(Finding("WARN", "SHAPE.json slug should be kebab-case.", str(path)))
+    else:
+        findings.append(Finding("WARN", "SHAPE.json should include non-empty slug.", str(path)))
+
+    for field in ("initiative", "problem"):
+        if not _is_nonempty_str(contract.get(field)):
+            findings.append(Finding("WARN", f"SHAPE.json should include non-empty {field}.", str(path)))
+
+    for field in ("constraints", "globalDecisions", "researchRefs", "openQuestions"):
+        val = contract.get(field)
+        if val is not None and not isinstance(val, list):
+            findings.append(Finding("WARN", f"SHAPE.json: {field} should be an array.", str(path)))
+    _validate_decision_log(contract.get("decisionLog"), findings, path)
+    _validate_shape_threads(contract.get("shapeThreads"), findings, path)
+    _validate_next_shape_moves(contract.get("nextShapeMoves"), findings, path)
+
+    candidate_features = contract.get("candidateFeatures")
+    if candidate_features is not None and not isinstance(candidate_features, list):
+        findings.append(Finding("WARN", "SHAPE.json: candidateFeatures should be an array.", str(path)))
+        candidate_features = []
+
+    seen_feature_slugs: set[str] = set()
+    if isinstance(candidate_features, list):
+        for idx, candidate in enumerate(candidate_features, start=1):
+            label = f"candidateFeatures[{idx}]"
+            if not isinstance(candidate, dict):
+                findings.append(Finding("ERROR", f"SHAPE.json: {label} should be an object.", str(path)))
+                continue
+
+            candidate_slug = candidate.get("slug")
+            if not _is_nonempty_str(candidate_slug):
+                findings.append(Finding("ERROR", f"SHAPE.json: {label}.slug should be a non-empty string.", str(path)))
+                continue
+            candidate_slug = candidate_slug.strip()
+            if not FEATURE_SLUG_RE.match(candidate_slug):
+                findings.append(Finding("ERROR", f"SHAPE.json: {label}.slug should be kebab-case.", str(path)))
+            if candidate_slug in seen_feature_slugs:
+                findings.append(Finding("ERROR", f"SHAPE.json: duplicate candidate feature slug {candidate_slug!r}.", str(path)))
+            seen_feature_slugs.add(candidate_slug)
+
+            for field in ("displayName", "userOutcome", "scopeSummary", "readinessReason", "handoffSummary"):
+                if not _is_nonempty_str(candidate.get(field)):
+                    findings.append(Finding("WARN", f"SHAPE.json: {label}.{field} should be a non-empty string.", str(path)))
+            for field in ("dependencies", "risks"):
+                if not isinstance(candidate.get(field), list):
+                    findings.append(Finding("WARN", f"SHAPE.json: {label}.{field} should be an array.", str(path)))
+
+            status = candidate.get("status")
+            if status not in SHAPE_CANDIDATE_STATUSES:
+                findings.append(
+                    Finding(
+                        "ERROR",
+                        f"SHAPE.json: {label}.status should be one of {sorted(SHAPE_CANDIDATE_STATUSES)}.",
+                        str(path),
+                    )
+                )
+            elif status == "discuss-ready":
+                stub_md = root / "docs" / "planning" / "work" / "features" / candidate_slug / "FEATURE.md"
+                stub_json = root / "docs" / "planning" / "work" / "features" / candidate_slug / "FEATURE.json"
+                if not stub_md.exists():
+                    findings.append(
+                        Finding(
+                            "ERROR",
+                            (
+                                f"SHAPE.json candidate {candidate_slug!r} is discuss-ready but missing feature stub "
+                                f"{stub_md.relative_to(root)}."
+                            ),
+                            str(path),
+                        )
+                    )
+                if not stub_json.exists():
+                    findings.append(
+                        Finding(
+                            "ERROR",
+                            (
+                                f"SHAPE.json candidate {candidate_slug!r} is discuss-ready but missing feature stub "
+                                f"{stub_json.relative_to(root)}."
+                            ),
+                            str(path),
+                        )
+                    )
+
+    recommended_sequence = contract.get("recommendedSequence")
+    if recommended_sequence is not None:
+        if not isinstance(recommended_sequence, list):
+            findings.append(Finding("WARN", "SHAPE.json: recommendedSequence should be an array.", str(path)))
+        else:
+            for idx, slug_value in enumerate(recommended_sequence, start=1):
+                if not _is_nonempty_str(slug_value):
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"SHAPE.json: recommendedSequence[{idx}] should be a non-empty string.",
+                            str(path),
+                        )
+                    )
+                    continue
+                if seen_feature_slugs and slug_value.strip() not in seen_feature_slugs:
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"SHAPE.json: recommendedSequence references unknown candidate slug {slug_value!r}.",
+                            str(path),
+                        )
+                    )
+
+
+def _validate_legacy_brainstorm_contract(contract: Any, findings: list[Finding], path: Path) -> None:
+    if not isinstance(contract, dict):
+        findings.append(Finding("ERROR", "BRAINSTORM.json must be a JSON object.", str(path)))
+        return
+
+    if "schemaVersion" not in contract:
+        findings.append(Finding("WARN", "BRAINSTORM.json missing schemaVersion (recommended).", str(path)))
+    if contract.get("candidates") is not None and not isinstance(contract.get("candidates"), list):
+        findings.append(Finding("WARN", "BRAINSTORM.json: candidates should be an array.", str(path)))
+    if contract.get("recommendation") is not None and not isinstance(contract.get("recommendation"), dict):
+        findings.append(Finding("WARN", "BRAINSTORM.json: recommendation should be an object.", str(path)))
+
+
+def _validate_decision_log(entries: Any, findings: list[Finding], path: Path) -> None:
+    if entries is None:
+        return
+    if not isinstance(entries, list):
+        findings.append(Finding("WARN", "SHAPE.json: decisionLog should be an array.", str(path)))
+        return
+    for idx, entry in enumerate(entries, start=1):
+        label = f"decisionLog[{idx}]"
+        if not isinstance(entry, dict):
+            findings.append(Finding("WARN", f"SHAPE.json: {label} should be an object.", str(path)))
+            continue
+        for field in ("title", "decision"):
+            if not _is_nonempty_str(entry.get(field)):
+                findings.append(Finding("WARN", f"SHAPE.json: {label}.{field} should be a non-empty string.", str(path)))
+        rationale = entry.get("rationale")
+        if rationale is not None and not _is_nonempty_str(rationale):
+            findings.append(Finding("WARN", f"SHAPE.json: {label}.rationale should be a non-empty string.", str(path)))
+
+
+def _validate_shape_threads(entries: Any, findings: list[Finding], path: Path) -> None:
+    if entries is None:
+        return
+    if not isinstance(entries, list):
+        findings.append(Finding("WARN", "SHAPE.json: shapeThreads should be an array.", str(path)))
+        return
+    for idx, entry in enumerate(entries, start=1):
+        label = f"shapeThreads[{idx}]"
+        if not isinstance(entry, dict):
+            findings.append(Finding("WARN", f"SHAPE.json: {label} should be an object.", str(path)))
+            continue
+        for field in ("title", "summary", "status"):
+            if not _is_nonempty_str(entry.get(field)):
+                findings.append(Finding("WARN", f"SHAPE.json: {label}.{field} should be a non-empty string.", str(path)))
+        related_features = entry.get("relatedFeatures")
+        if related_features is not None and not isinstance(related_features, list):
+            findings.append(Finding("WARN", f"SHAPE.json: {label}.relatedFeatures should be an array.", str(path)))
+        elif isinstance(related_features, list):
+            for rf_idx, value in enumerate(related_features, start=1):
+                if not _is_nonempty_str(value):
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"SHAPE.json: {label}.relatedFeatures[{rf_idx}] should be a non-empty string.",
+                            str(path),
+                        )
+                    )
+
+
+def _validate_next_shape_moves(entries: Any, findings: list[Finding], path: Path) -> None:
+    if entries is None:
+        return
+    if not isinstance(entries, list):
+        findings.append(Finding("WARN", "SHAPE.json: nextShapeMoves should be an array.", str(path)))
+        return
+    for idx, value in enumerate(entries, start=1):
+        if not _is_nonempty_str(value):
+            findings.append(Finding("WARN", f"SHAPE.json: nextShapeMoves[{idx}] should be a non-empty string.", str(path)))
+
+
+def _validate_shape_feedback(entries: Any, findings: list[Finding], path: Path) -> None:
+    if entries is None:
+        return
+    if not isinstance(entries, list):
+        findings.append(Finding("WARN", "CONTEXT.json: shapeFeedback should be an array.", str(path)))
+        return
+    for idx, entry in enumerate(entries, start=1):
+        label = f"shapeFeedback[{idx}]"
+        if isinstance(entry, str):
+            if not entry.strip():
+                findings.append(Finding("WARN", f"CONTEXT.json: {label} should be a non-empty string.", str(path)))
+            continue
+        if not isinstance(entry, dict):
+            findings.append(Finding("WARN", f"CONTEXT.json: {label} should be an object or non-empty string.", str(path)))
+            continue
+        if not _is_nonempty_str(entry.get("summary")):
+            findings.append(Finding("WARN", f"CONTEXT.json: {label}.summary should be a non-empty string.", str(path)))
+        suggested_action = entry.get("suggestedAction")
+        if suggested_action is not None and not _is_nonempty_str(suggested_action):
+            findings.append(Finding("WARN", f"CONTEXT.json: {label}.suggestedAction should be a non-empty string.", str(path)))
+        affected_features = entry.get("affectedFeatures")
+        if affected_features is not None and not isinstance(affected_features, list):
+            findings.append(Finding("WARN", f"CONTEXT.json: {label}.affectedFeatures should be an array.", str(path)))
+        elif isinstance(affected_features, list):
+            for af_idx, value in enumerate(affected_features, start=1):
+                if not _is_nonempty_str(value):
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"CONTEXT.json: {label}.affectedFeatures[{af_idx}] should be a non-empty string.",
+                            str(path),
+                        )
+                    )
+
+
+def _validate_feature_stub_contract(
+    root: Path,
+    feature_dir: Path,
+    contract: Any,
+    findings: list[Finding],
+    path: Path,
+) -> None:
+    if not isinstance(contract, dict):
+        findings.append(Finding("ERROR", "FEATURE.json must be a JSON object.", str(path)))
+        return
+
+    if "schemaVersion" not in contract:
+        findings.append(Finding("WARN", "FEATURE.json missing schemaVersion (recommended).", str(path)))
+
+    feature = contract.get("feature")
+    if _is_nonempty_str(feature):
+        if feature != feature_dir.name:
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"FEATURE.json feature {feature!r} does not match directory slug {feature_dir.name!r}.",
+                    str(path),
+                )
+            )
+    else:
+        findings.append(Finding("WARN", "FEATURE.json should include non-empty feature.", str(path)))
+
+    for field in ("displayName", "userOutcome", "scopeSummary", "readinessReason", "handoffSummary"):
+        if not _is_nonempty_str(contract.get(field)):
+            findings.append(Finding("WARN", f"FEATURE.json should include non-empty {field}.", str(path)))
+    for field in ("dependencies", "risks"):
+        if not isinstance(contract.get(field), list):
+            findings.append(Finding("WARN", f"FEATURE.json: {field} should be an array.", str(path)))
+
+    status = contract.get("status")
+    if status not in SHAPE_CANDIDATE_STATUSES:
+        findings.append(
+            Finding(
+                "ERROR",
+                f"FEATURE.json status should be one of {sorted(SHAPE_CANDIDATE_STATUSES)}.",
+                str(path),
+            )
+        )
+
+    parent_shape = contract.get("parentShape")
+    if parent_shape is not None:
+        _validate_contract_link(root, parent_shape, findings, path, field_name="parentShape", required_timestamp=True)
+        _warn_if_link_stale(root, parent_shape, findings, path, field_name="parentShape", target_label="SHAPE artifact")
+
+
+def _validate_contract_link(
+    root: Path,
+    link: Any,
+    findings: list[Finding],
+    contract_path: Path,
+    *,
+    field_name: str,
+    required_timestamp: bool,
+) -> None:
+    if not isinstance(link, dict):
+        findings.append(Finding("WARN", f"{contract_path.name}: {field_name} should be an object.", str(contract_path)))
+        return
+
+    raw_path = link.get("path")
+    if not _is_nonempty_str(raw_path):
+        findings.append(Finding("WARN", f"{contract_path.name}: {field_name}.path should be a non-empty string.", str(contract_path)))
+    else:
+        resolved = _resolve_contract_ref(root, raw_path.strip())
+        if not resolved.exists():
+            findings.append(
+                Finding(
+                    "WARN",
+                    f"{contract_path.name}: {field_name}.path not found: {raw_path}",
+                    str(contract_path),
+                )
+            )
+
+    raw_timestamp = link.get("timestamp")
+    if required_timestamp and _parse_ts(raw_timestamp) is None:
+        findings.append(
+            Finding(
+                "WARN",
+                f"{contract_path.name}: {field_name}.timestamp should be an ISO-8601 string.",
+                str(contract_path),
+            )
+        )
+
+    schema_version = link.get("schemaVersion")
+    if schema_version is not None and not isinstance(schema_version, int):
+        findings.append(
+            Finding(
+                "WARN",
+                f"{contract_path.name}: {field_name}.schemaVersion should be an integer.",
+                str(contract_path),
+            )
+        )
+
+
+def _warn_if_link_stale(
+    root: Path,
+    link: Any,
+    findings: list[Finding],
+    contract_path: Path,
+    *,
+    field_name: str,
+    target_label: str,
+) -> None:
+    if not isinstance(link, dict):
+        return
+    raw_path = link.get("path")
+    raw_timestamp = link.get("timestamp")
+    if not _is_nonempty_str(raw_path):
+        return
+    recorded_ts = _parse_ts(raw_timestamp)
+    if recorded_ts is None:
+        return
+    actual_ts = _linked_artifact_time(root, raw_path.strip())
+    if actual_ts is None:
+        return
+    if actual_ts > recorded_ts:
+        findings.append(
+            Finding(
+                "WARN",
+                (
+                    f"{contract_path.name}: {field_name} is stale; linked {target_label} changed "
+                    "after this artifact was last refreshed."
+                ),
+                str(contract_path),
+            )
+        )
 
 
 def _validate_worktree_session(root: Path, findings: list[Finding]) -> None:
@@ -1676,6 +2276,12 @@ def _validate_token_budgets(
     summary_word_max = int(budgets.get("summaryWordMax", DEFAULT_TOKEN_BUDGETS["summaryWordMax"]))
     review_word_max = int(budgets.get("reviewWordMax", DEFAULT_TOKEN_BUDGETS["reviewWordMax"]))
     research_word_max = int(budgets.get("researchWordMax", DEFAULT_TOKEN_BUDGETS["researchWordMax"]))
+    shape_word_max = int(
+        budgets.get(
+            "shapeWordMax",
+            budgets.get("brainstormWordMax", DEFAULT_TOKEN_BUDGETS["shapeWordMax"]),
+        )
+    )
     brainstorm_word_max = int(budgets.get("brainstormWordMax", DEFAULT_TOKEN_BUDGETS["brainstormWordMax"]))
 
     word_cache: dict[Path, int] = {}
@@ -1735,6 +2341,7 @@ def _validate_token_budgets(
     for fdir in _iter_feature_dirs(root):
         if not touched(fdir):
             continue
+        check_path(fdir / "FEATURE.md", context_word_max, "Feature stub artifact")
         check_path(fdir / "CONTEXT.md", context_word_max, "Feature CONTEXT artifact")
         check_path(fdir / "REVIEW.md", review_word_max, "Feature REVIEW artifact")
         for plan in fdir.glob("*-PLAN.md"):
@@ -1761,6 +2368,7 @@ def _validate_token_budgets(
     for idir in _iter_ideas_dirs(root):
         if not touched(idir):
             continue
+        check_path(idir / "SHAPE.md", shape_word_max, "Shape artifact")
         check_path(idir / "BRAINSTORM.md", brainstorm_word_max, "Brainstorm artifact")
 
 
@@ -1817,6 +2425,8 @@ def _validate_bootstrap_context(
 
 
 _SKILL_REF_RE = re.compile(r"`?\.claude/skills/([^`\s]+\.md)`?")
+_AGENT_REF_RE = re.compile(r"`?\.claude/agents/([^`\s]+\.md)`?")
+_SPAWN_SCOUT_LINE_RE = re.compile(r"^- `(?P<name>shape-scout|architecture-scout|risk-challenger)` -> (?P<mapping>.+)$", re.MULTILINE)
 
 
 def _validate_skills(
@@ -1824,24 +2434,37 @@ def _validate_skills(
     findings: list[Finding],
     touched: Callable[[Path], bool],
 ) -> None:
-    """Validate skill frontmatter and command cross-references."""
+    """Validate skill/agent frontmatter and command cross-references."""
     skills_dir = root / ".claude" / "skills"
-    if not skills_dir.is_dir():
-        return
-
-    # (1) Check all skill files have valid frontmatter (name field)
-    for md_path in sorted(skills_dir.glob("*.md")):
-        if not touched(md_path):
-            continue
-        info = _parse_skill_frontmatter(md_path)
-        if info["name"] is None:
-            findings.append(
-                Finding(
-                    "WARN",
-                    f"Skill file missing frontmatter 'name' field.",
-                    str(md_path),
+    if skills_dir.is_dir():
+        # (1) Check all skill files have valid frontmatter (name field)
+        for md_path in _iter_skill_paths(skills_dir):
+            if not touched(md_path):
+                continue
+            info = _parse_skill_frontmatter(md_path)
+            if info["name"] is None:
+                findings.append(
+                    Finding(
+                        "WARN",
+                        f"Skill file missing frontmatter 'name' field.",
+                        str(md_path),
+                    )
                 )
-            )
+
+    agents_dir = root / ".claude" / "agents"
+    if agents_dir.is_dir():
+        for md_path in sorted(agents_dir.glob("*.md")):
+            if not touched(md_path):
+                continue
+            info = _parse_skill_frontmatter(md_path)
+            if info["name"] is None:
+                findings.append(
+                    Finding(
+                        "WARN",
+                        "Agent file missing frontmatter 'name' field.",
+                        str(md_path),
+                    )
+                )
 
     # (2) Check command skill references resolve to existing files
     cmd_dir = root / ".claude" / "commands"
@@ -1865,6 +2488,36 @@ def _validate_skills(
                         str(cmd_path),
                     )
                 )
+        for m in _AGENT_REF_RE.finditer(text):
+            agent_file = m.group(1)
+            agent_path = root / ".claude" / "agents" / agent_file
+            if not agent_path.exists():
+                findings.append(
+                    Finding(
+                        "WARN",
+                        f"Agent reference '.claude/agents/{agent_file}' not found.",
+                        str(cmd_path),
+                    )
+                )
+        if cmd_path.name == "spawn.md":
+            for match in _SPAWN_SCOUT_LINE_RE.finditer(text):
+                mapping = match.group("mapping")
+                if ".claude/skills/" in mapping:
+                    findings.append(
+                        Finding(
+                            "WARN",
+                            f"Scout specialization `{match.group('name')}` should map only to a read-only agent, not shared skills.",
+                            str(cmd_path),
+                        )
+                    )
+        if cmd_path.name == "shape.md" and "/spawn research <task>" in text:
+            findings.append(
+                Finding(
+                    "WARN",
+                    "Shape workspace should use `/research` directly instead of `/spawn research <task>` to preserve a single-writer flow.",
+                    str(cmd_path),
+                )
+            )
 
 
 def validate_repo(
@@ -1890,7 +2543,7 @@ def validate_repo(
 
     # Core files
     _require(root / "docs" / "planning" / "PROJECT.md", findings, "Missing planning doc PROJECT.md")
-    _require(root / ".cnogo" / "memory.db", findings, "Memory engine not initialized — run: python3 .cnogo/scripts/workflow_memory.py init")
+    _validate_memory_runtime(root, findings)
     _require(root / "docs" / "planning" / "ROADMAP.md", findings, "Missing planning doc ROADMAP.md")
 
     if staged_only:
@@ -1943,7 +2596,7 @@ def validate_repo(
     if feature_filter is None:
         _validate_quick_tasks(root, findings, touched)
         _validate_research(root, findings, touched)
-        _validate_brainstorm(root, findings, touched)
+        _validate_shape_artifacts(root, findings, touched)
         _validate_worktree_session(root, findings)
         _validate_token_budgets(root, findings, touched, token_budgets_cfg)
         _validate_bootstrap_context(root, findings, bootstrap_context_cfg)

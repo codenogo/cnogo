@@ -101,3 +101,46 @@ def test_ship_ready_passes_when_stages_complete_and_fresh(tmp_path):
     )
     rc = checks._cmd_ship_ready(tmp_path, feature, json_output=True)
     assert rc == 0
+
+
+def test_write_review_starts_pending_final_verdict_but_preserves_automated_failure(tmp_path):
+    feature = "demo"
+    workflow_path = tmp_path / "docs" / "planning" / "WORKFLOW.json"
+    workflow_path.parent.mkdir(parents=True, exist_ok=True)
+    workflow_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "packages": [],
+                "agentTeams": {
+                    "enabled": True,
+                    "defaultCompositions": {
+                        "review": ["code-reviewer", "security-scanner", "perf-analyzer"]
+                    },
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    rc = checks.write_review(
+        tmp_path,
+        feature,
+        per_pkg=[
+            {
+                "name": "api",
+                "path": ".",
+                "checks": [
+                    {"name": "lint", "result": "fail"},
+                    {"name": "test", "result": "pass"},
+                ],
+            }
+        ],
+        invariant_findings=[],
+    )
+
+    review_path = tmp_path / "docs" / "planning" / "work" / "features" / feature / "REVIEW.json"
+    review_data = json.loads(review_path.read_text(encoding="utf-8"))
+    assert review_data["automatedVerdict"] == "fail"
+    assert review_data["verdict"] == "pending"
+    assert review_data["reviewers"] == ["code-reviewer", "security-scanner", "perf-analyzer"]
+    assert rc == 1

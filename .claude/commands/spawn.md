@@ -23,6 +23,16 @@ Specialization -> skill/agent mapping:
 - `boundary` -> `.claude/skills/boundary-and-sdk-enforcement.md`
 - `lifecycle` -> `.claude/skills/feature-lifecycle-closure.md`
 - `release` -> `.claude/skills/release-readiness.md`
+- `shape` -> `.claude/skills/shape-facilitator/SKILL.md` + `.claude/skills/shape-feature-queue/SKILL.md`
+- `architecture` -> `.claude/skills/shape-architecture-tradeoffs/SKILL.md`
+- `handoff` -> `.claude/skills/context-handoff-engineering/SKILL.md`
+- `research` -> `.claude/skills/research-evidence-synthesis/SKILL.md`
+- `shape-scout` -> `.claude/agents/shape-scout.md`
+- `architecture-scout` -> `.claude/agents/architecture-scout.md`
+- `risk-challenger` -> `.claude/agents/risk-challenger.md`
+- `code-reviewer` -> `.claude/agents/code-reviewer.md` + `.claude/skills/code-review.md`
+- `security-scanner` -> `.claude/agents/security-scanner.md` + `.claude/skills/security-scan.md`
+- `perf-analyzer` -> `.claude/agents/perf-analyzer.md` + `.claude/skills/performance-review.md`
 
 ## Your Task
 
@@ -30,15 +40,21 @@ Specialization -> skill/agent mapping:
 2. Validate specialization against the mapping above. If invalid, return supported values and do not spawn.
 3. Resolve execution mode:
 - `debug` uses `subagent_type: debugger`
+- `shape-scout` uses `subagent_type: shape-scout`
+- `architecture-scout` uses `subagent_type: architecture-scout`
+- `risk-challenger` uses `subagent_type: risk-challenger`
+- `code-reviewer` uses `subagent_type: code-reviewer`
+- `security-scanner` uses `subagent_type: security-scanner`
+- `perf-analyzer` uses `subagent_type: perf-analyzer`
 - all others use `subagent_type: general-purpose`
 4. Load only mapped skill/agent instructions (no unrelated skills).
 5. Spawn Task prompt with:
 - selected specialization contract
 - user task
-- expected output format (findings/diffs/tests/risks)
+- expected output format (`SCOUT_REPORT` for shape scouts; otherwise findings/diffs/tests/risks)
 - explicit file references if provided by user
-6. For multi-skill specializations (for example `review`), apply checklists in order listed.
-7. Report launch status and track completion.
+6. For multi-skill specializations, apply checklists in listed order.
+7. Report launch status and completion handoff.
 
 ## Output
 

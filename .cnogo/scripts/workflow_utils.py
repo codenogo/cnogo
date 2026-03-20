@@ -102,14 +102,27 @@ def parse_skill_frontmatter(path: Path) -> dict[str, Any]:
     return result
 
 
-def discover_skills(skills_dir: Path) -> list[dict[str, Any]]:
-    """Scan a directory for .md skill files and parse their frontmatter."""
+def iter_skill_paths(skills_dir: Path) -> list[Path]:
+    """Return flat skill markdown files plus directory-based SKILL.md files."""
     if not skills_dir.is_dir():
         return []
-    results = []
-    for p in sorted(skills_dir.glob("*.md")):
-        results.append(parse_skill_frontmatter(p))
+
+    results: list[Path] = []
+    for path in sorted(skills_dir.iterdir()):
+        if path.is_file() and path.suffix == ".md":
+            results.append(path)
+            continue
+        if not path.is_dir():
+            continue
+        skill_md = path / "SKILL.md"
+        if skill_md.is_file():
+            results.append(skill_md)
     return results
+
+
+def discover_skills(skills_dir: Path) -> list[dict[str, Any]]:
+    """Scan a directory for flat or directory-based skills and parse frontmatter."""
+    return [parse_skill_frontmatter(path) for path in iter_skill_paths(skills_dir)]
 
 
 def load_workflow(root: Path | None = None) -> dict[str, Any]:

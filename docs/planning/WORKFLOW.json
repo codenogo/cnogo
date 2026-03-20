@@ -46,6 +46,7 @@
       "summaryWordMax": 900,
       "reviewWordMax": 1400,
       "researchWordMax": 2200,
+      "shapeWordMax": 1600,
       "brainstormWordMax": 1400
     }
   },
@@ -136,7 +137,7 @@
     "maxTakeoversPerTask": 2,
     "worktreeMode": "always",
     "defaultCompositions": {
-      "review": ["implementer", "implementer", "implementer"],
+      "review": ["code-reviewer", "security-scanner", "perf-analyzer"],
       "fullstack": ["implementer", "debugger", "implementer", "implementer"],
       "debug": ["debugger", "debugger", "debugger"]
     }

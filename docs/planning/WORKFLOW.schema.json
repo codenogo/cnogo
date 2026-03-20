@@ -32,6 +32,7 @@
             "summaryWordMax": { "type": "integer", "minimum": 1 },
             "reviewWordMax": { "type": "integer", "minimum": 1 },
             "researchWordMax": { "type": "integer", "minimum": 1 },
+            "shapeWordMax": { "type": "integer", "minimum": 1 },
             "brainstormWordMax": { "type": "integer", "minimum": 1 }
           }
         },

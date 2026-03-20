@@ -1,5 +1,8 @@
 {
   "schemaVersion": 4,
+  "securityFindings": [],
+  "performanceFindings": [],
+  "patternCompliance": [],
   "timestamp": "2026-02-21T10:12:00Z",
   "branch": "feature/compaction-resilience",
   "feature": "compaction-resilience",

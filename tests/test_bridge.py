@@ -12,11 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.memory.bridge import (
     TASK_DESC_SCHEMA_VERSION,
+    _is_already_closed,
     _make_skipped_desc,
     detect_file_conflicts,
     generate_implement_prompt,
     generate_run_id,
     plan_to_task_descriptions,
+    recommend_team_mode,
 )
 
 
@@ -78,6 +80,20 @@ class TestGenerateImplementPrompt:
         assert "`a.py`" in prompt
         assert "`b.py`" in prompt
         assert "**Files (ONLY touch these):**" in prompt
+
+    def test_cwd_and_package_verify_sections(self):
+        desc = _make_desc(
+            cwd="services/api",
+            commands={
+                "verify": ["pytest -q", "cd services/api && mypy ."],
+                "task_verify": ["pytest -q"],
+                "package_verify": ["cd services/api && mypy ."],
+            },
+        )
+        prompt = generate_implement_prompt(desc)
+        assert "**Task CWD:** `services/api`" in prompt
+        assert "**Task verify (must ALL pass):**" in prompt
+        assert "**Package quality gates (auto-appended from WORKFLOW.json):**" in prompt
 
     def test_forbidden_section(self):
         desc = _make_desc(file_scope={"paths": [], "forbidden": ["core.py"]})
@@ -265,6 +281,14 @@ class TestMakeSkippedDesc:
 
 
 class TestPlanToTaskDescriptions:
+    def _write_workflow(self, tmp_path, packages):
+        workflow_path = tmp_path / "docs" / "planning" / "WORKFLOW.json"
+        workflow_path.parent.mkdir(parents=True, exist_ok=True)
+        workflow_path.write_text(
+            json.dumps({"version": 1, "packages": packages}),
+            encoding="utf-8",
+        )
+
     def _write_plan(self, tmp_path, tasks, **extra):
         plan = {
             "schemaVersion": 1,
@@ -296,9 +320,69 @@ class TestPlanToTaskDescriptions:
         # No derived commands persisted
         assert "claim" not in desc["commands"]
 
+    def test_package_quality_gates_are_auto_appended(self, tmp_path):
+        self._write_workflow(
+            tmp_path,
+            [
+                {
+                    "name": "service",
+                    "path": "services/api",
+                    "commands": {
+                        "lint": "golangci-lint run ./...",
+                        "test": "go test ./... -race",
+                    },
+                }
+            ],
+        )
+        plan_path = self._write_plan(
+            tmp_path,
+            [
+                {
+                    "name": "Task A",
+                    "files": ["services/api/handler.go"],
+                    "verify": ["go test ./services/api/... -run TestHandler"],
+                    "action": "do A",
+                }
+            ],
+        )
+        with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
+             mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
+            results = plan_to_task_descriptions(plan_path, tmp_path)
+
+        desc = results[0]
+        assert desc["commands"]["task_verify"] == ["go test ./services/api/... -run TestHandler"]
+        assert desc["commands"]["package_verify"] == [
+            "cd services/api && golangci-lint run ./...",
+            "cd services/api && go test ./... -race",
+        ]
+        assert desc["commands"]["verify"] == [
+            "go test ./services/api/... -run TestHandler",
+            "cd services/api && golangci-lint run ./...",
+            "cd services/api && go test ./... -race",
+        ]
+
+    def test_explicit_cwd_is_preserved(self, tmp_path):
+        plan_path = self._write_plan(
+            tmp_path,
+            [
+                {
+                    "name": "Task A",
+                    "files": ["services/api/handler.go"],
+                    "verify": ["go test ./services/api/..."],
+                    "action": "do A",
+                    "cwd": "services/api",
+                }
+            ],
+        )
+        with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
+             mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
+            results = plan_to_task_descriptions(plan_path, tmp_path)
+
+        assert results[0]["cwd"] == "services/api"
+
     def test_task_with_memory_id(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task B", "memoryId": "cn-xyz", "files": [], "verify": [], "action": "do B"},
+            {"name": "Task B", "memoryId": "cn-xyz", "files": ["b.py"], "verify": [], "action": "do B"},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False):
             results = plan_to_task_descriptions(plan_path, tmp_path)
@@ -309,9 +393,24 @@ class TestPlanToTaskDescriptions:
         # Still no derived commands in dict
         assert "claim" not in desc["commands"]
 
+    def test_can_skip_memory_issue_creation_for_read_only_consumers(self, tmp_path):
+        plan_path = self._write_plan(
+            tmp_path,
+            [
+                {"name": "Task A", "files": ["a.py"], "verify": ["pytest -q"], "action": "do A"},
+            ],
+            memoryEpicId="cn-epic",
+        )
+        with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
+             mock.patch("scripts.memory.bridge._ensure_memory_issue") as ensure_issue:
+            results = plan_to_task_descriptions(plan_path, tmp_path, ensure_memory_issues=False)
+
+        ensure_issue.assert_not_called()
+        assert results[0]["task_id"] == ""
+
     def test_closed_task_is_skipped(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task C", "memoryId": "cn-closed", "files": [], "verify": [], "action": "do C"},
+            {"name": "Task C", "memoryId": "cn-closed", "files": ["c.py"], "verify": [], "action": "do C"},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=True):
             results = plan_to_task_descriptions(plan_path, tmp_path)
@@ -320,7 +419,7 @@ class TestPlanToTaskDescriptions:
 
     def test_blocked_by_validation_out_of_range(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task D", "files": [], "verify": [], "action": "", "blockedBy": [5]},
+            {"name": "Task D", "files": ["d.py"], "verify": [], "action": "do D", "blockedBy": [5]},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
              mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
@@ -329,7 +428,7 @@ class TestPlanToTaskDescriptions:
 
     def test_blocked_by_self_reference(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "Task E", "files": [], "verify": [], "action": "", "blockedBy": [0]},
+            {"name": "Task E", "files": ["e.py"], "verify": [], "action": "do E", "blockedBy": [0]},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
              mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
@@ -338,8 +437,8 @@ class TestPlanToTaskDescriptions:
 
     def test_multiple_tasks_indexed(self, tmp_path):
         plan_path = self._write_plan(tmp_path, [
-            {"name": "T1", "files": ["a.py"], "verify": [], "action": ""},
-            {"name": "T2", "files": ["b.py"], "verify": [], "action": "", "blockedBy": [0]},
+            {"name": "T1", "files": ["a.py"], "verify": [], "action": "do T1"},
+            {"name": "T2", "files": ["b.py"], "verify": [], "action": "do T2", "blockedBy": [0]},
         ])
         with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
              mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
@@ -372,3 +471,60 @@ class TestPlanToTaskDescriptions:
         desc = results[0]
         assert desc["micro_steps"] == ["write failing test", "run tests", "implement", "run tests"]
         assert desc["tdd"]["required"] is True
+
+
+@pytest.mark.parametrize(
+    ("status", "state"),
+    [
+        ("open", "done_by_worker"),
+        ("open", "verified"),
+        ("closed", "closed"),
+    ],
+)
+def test_is_already_closed_treats_completed_states_as_complete(tmp_path, status, state):
+    issue = mock.Mock(status=status, state=state)
+    with mock.patch("scripts.memory.is_initialized", return_value=True), \
+         mock.patch("scripts.memory.show", return_value=issue):
+        assert _is_already_closed(tmp_path, "cn-finished") is True
+
+
+def test_recommend_team_mode_prefers_independent_tasks():
+    tasks = [
+        _make_desc(plan_task_index=0, file_scope={"paths": ["a.py"], "forbidden": []}, blockedBy=[]),
+        _make_desc(plan_task_index=1, file_scope={"paths": ["b.py"], "forbidden": []}, blockedBy=[]),
+    ]
+    recommendation = recommend_team_mode(tasks)
+    assert recommendation["recommended"] is True
+    assert recommendation["blockedTasks"] == []
+
+
+def test_recommend_team_mode_rejects_blocked_tasks():
+    tasks = [
+        _make_desc(plan_task_index=0, file_scope={"paths": ["a.py"], "forbidden": []}, blockedBy=[]),
+        _make_desc(plan_task_index=1, file_scope={"paths": ["b.py"], "forbidden": []}, blockedBy=[0]),
+    ]
+    recommendation = recommend_team_mode(tasks)
+    assert recommendation["recommended"] is False
+    assert recommendation["blockedTasks"] == [1]
+
+
+def test_recommend_team_mode_accepts_mixed_frontier_with_blocked_tail():
+    tasks = [
+        _make_desc(plan_task_index=0, file_scope={"paths": ["a.py"], "forbidden": []}, blockedBy=[]),
+        _make_desc(plan_task_index=1, file_scope={"paths": ["b.py"], "forbidden": []}, blockedBy=[]),
+        _make_desc(plan_task_index=2, file_scope={"paths": ["c.py"], "forbidden": []}, blockedBy=[0]),
+    ]
+    recommendation = recommend_team_mode(tasks)
+    assert recommendation["recommended"] is True
+    assert recommendation["runnableTasks"] == [0, 1]
+    assert recommendation["blockedTasks"] == [2]
+
+
+def test_recommend_team_mode_rejects_overlapping_file_scope():
+    tasks = [
+        _make_desc(plan_task_index=0, file_scope={"paths": ["shared.py"], "forbidden": []}, blockedBy=[]),
+        _make_desc(plan_task_index=1, file_scope={"paths": ["shared.py"], "forbidden": []}, blockedBy=[]),
+    ]
+    recommendation = recommend_team_mode(tasks)
+    assert recommendation["recommended"] is False
+    assert recommendation["conflicts"][0]["file"] == "shared.py"

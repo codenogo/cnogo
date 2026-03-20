@@ -5,6 +5,7 @@ Package-aware check runner for this workflow pack.
 Reads docs/planning/WORKFLOW.json packages[].commands and runs checks per package:
 - verify-ci: writes VERIFICATION-CI.md/json under a feature folder
 - review: writes REVIEW.md/json under feature folder if inferable from memory, else under work/review/
+- summarize: writes NN-SUMMARY.md/json from plan + execution evidence
 - ship-ready: validates staged-review completeness + freshness for /ship
 - entropy: scans for invariant drift and can write background cleanup tasks
 - discover: analyzes hook telemetry for missed token-savings opportunities
@@ -25,6 +26,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -1315,6 +1317,313 @@ def write_verify_ci(
     return 1 if has_pkg_fail or inv["fail"] > 0 else 0
 
 
+def _normalize_plan_number(value: Any) -> str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return f"{value:02d}"
+    text = str(value or "").strip()
+    return text.zfill(2) if text.isdigit() and len(text) < 2 else text
+
+
+def _load_plan_contract_for_summary(root: Path, feature: str, plan_number: str) -> tuple[Path, dict[str, Any]]:
+    normalized = _normalize_plan_number(plan_number)
+    plan_path = root / "docs" / "planning" / "work" / "features" / feature / f"{normalized}-PLAN.json"
+    plan = load_json(plan_path)
+    if not isinstance(plan, dict):
+        raise ValueError(f"Plan contract must be a JSON object: {plan_path}")
+    return plan_path, plan
+
+
+def _head_commit_metadata(root: Path) -> dict[str, str]:
+    rc_hash, commit_hash = run_shell("git rev-parse --short HEAD", cwd=root, timeout_sec=30)
+    if rc_hash != 0:
+        return {}
+    rc_msg, message = run_shell("git log -1 --pretty=%s", cwd=root, timeout_sec=30)
+    return {
+        "hash": commit_hash.strip(),
+        "message": message.strip() if rc_msg == 0 else "",
+    }
+
+
+def _summary_changed_files(root: Path) -> tuple[list[str], str]:
+    changed = sorted(set(_git_name_only(root, "git diff-tree --no-commit-id --name-only --diff-filter=ACMR -r HEAD")))
+    if changed:
+        return changed, "git:HEAD"
+    fallback = sorted(_changed_relpaths(root, fallback="head"))
+    if fallback:
+        return fallback, "git:working-tree"
+    return [], "git:none"
+
+
+def _load_memory_task_issues(root: Path, feature: str, plan_number: str) -> list[Any]:
+    normalized = _normalize_plan_number(plan_number)
+    try:
+        import sys
+
+        sys.path.insert(0, str(root))
+        from scripts.memory import is_initialized, list_issues
+
+        if not is_initialized(root):
+            return []
+        issues = list_issues(issue_type="task", feature_slug=feature, limit=1000, root=root)
+        return [
+            issue
+            for issue in issues
+            if _normalize_plan_number(getattr(issue, "plan_number", "")) == normalized
+        ]
+    except Exception:
+        return []
+
+
+def _task_outputs(issue: Any) -> dict[str, Any]:
+    metadata = getattr(issue, "metadata", {})
+    if not isinstance(metadata, dict):
+        return {}
+    outputs = metadata.get("outputs")
+    return outputs if isinstance(outputs, dict) else {}
+
+
+def _task_verification_payload(issue: Any) -> dict[str, Any] | None:
+    outputs = _task_outputs(issue)
+    verification = outputs.get("verification") or outputs.get("verificationEvidence")
+    return verification if isinstance(verification, dict) else None
+
+
+def _build_task_verification_entries(
+    root: Path,
+    feature: str,
+    plan_number: str,
+    plan_path: Path,
+) -> tuple[list[dict[str, Any]], str]:
+    try:
+        import sys
+
+        sys.path.insert(0, str(root))
+        from scripts.memory.bridge import plan_to_task_descriptions
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load bridge helpers for summary generation: {exc}") from exc
+
+    taskdescs = plan_to_task_descriptions(plan_path, root, ensure_memory_issues=False)
+    issues = _load_memory_task_issues(root, feature, plan_number)
+    issues_by_id = {getattr(issue, "id", ""): issue for issue in issues if getattr(issue, "id", "")}
+    issues_by_title: dict[str, list[Any]] = {}
+    for issue in issues:
+        title = str(getattr(issue, "title", "") or "").strip()
+        if title:
+            issues_by_title.setdefault(title, []).append(issue)
+
+    entries: list[dict[str, Any]] = []
+    evidence_sources: set[str] = set()
+
+    for task in taskdescs:
+        title = str(task.get("title") or f"Task {task.get('plan_task_index', '?')}").strip()
+        issue = None
+        task_id = str(task.get("task_id") or "").strip()
+        if task_id and task_id in issues_by_id:
+            issue = issues_by_id.pop(task_id)
+            bucket = issues_by_title.get(title) or []
+            if issue in bucket:
+                bucket.remove(issue)
+        else:
+            bucket = issues_by_title.get(title) or []
+            if bucket:
+                issue = bucket.pop(0)
+
+        verification = _task_verification_payload(issue) if issue is not None else None
+        commands = task.get("commands", {}).get("verify", [])
+        if isinstance(verification, dict):
+            raw_commands = verification.get("commands")
+            if isinstance(raw_commands, list) and raw_commands:
+                commands = [str(cmd).strip() for cmd in raw_commands if isinstance(cmd, str) and cmd.strip()]
+        timestamp = ""
+        if isinstance(verification, dict):
+            raw_timestamp = verification.get("timestamp")
+            if isinstance(raw_timestamp, str) and raw_timestamp.strip():
+                timestamp = raw_timestamp.strip()
+        if not timestamp and issue is not None:
+            raw_updated = getattr(issue, "updated_at", "")
+            if isinstance(raw_updated, str) and raw_updated.strip():
+                timestamp = raw_updated.strip()
+
+        if isinstance(verification, dict):
+            source = "task-evidence"
+        elif issue is not None:
+            source = "memory"
+        else:
+            source = "plan-contract"
+        evidence_sources.add(source)
+
+        issue_state = str(getattr(issue, "state", "") or "").strip()
+        issue_status = str(getattr(issue, "status", "") or "").strip()
+        if issue is not None and issue_state not in {"", "done_by_worker", "verified", "closed", "ready_to_close"} and issue_status != "closed":
+            result = "pending"
+        else:
+            result = "pass"
+
+        entry = {
+            "scope": "task",
+            "name": title,
+            "result": result,
+            "commands": commands if isinstance(commands, list) else [],
+            "source": source,
+        }
+        if timestamp:
+            entry["timestamp"] = timestamp
+        if task_id:
+            entry["taskId"] = task_id
+        entries.append(entry)
+
+    if not evidence_sources:
+        return entries, "plan-contract"
+    if len(evidence_sources) == 1:
+        return entries, next(iter(evidence_sources))
+    return entries, "mixed"
+
+
+def _build_plan_verification_entries(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    plan_verify = plan.get("planVerify")
+    commands = [
+        str(cmd).strip()
+        for cmd in plan_verify
+        if isinstance(cmd, str) and cmd.strip()
+    ] if isinstance(plan_verify, list) else []
+    if not commands:
+        return []
+    return [
+        {
+            "scope": "plan",
+            "name": "planVerify",
+            "result": "pass",
+            "commands": commands,
+            "source": "plan-contract",
+        }
+    ]
+
+
+def _build_summary_changes(changed_files: list[str], plan: dict[str, Any]) -> list[dict[str, str]]:
+    task_file_map: dict[str, list[str]] = {}
+    tasks = plan.get("tasks")
+    if isinstance(tasks, list):
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            title = str(task.get("name") or "").strip()
+            files = task.get("files")
+            if not title or not isinstance(files, list):
+                continue
+            for file_path in files:
+                if isinstance(file_path, str) and file_path.strip():
+                    task_file_map.setdefault(file_path.strip(), []).append(title)
+
+    changes: list[dict[str, str]] = []
+    for file_path in changed_files:
+        owners = sorted(set(task_file_map.get(file_path, [])))
+        change = "; ".join(owners) if owners else "Updated during plan execution."
+        changes.append({"file": file_path, "change": change})
+    return changes
+
+
+def _resolve_summary_outcome(
+    requested: str,
+    *,
+    changed_files: list[str],
+    commit: dict[str, str],
+    verification: list[dict[str, Any]],
+) -> str:
+    if requested in {"complete", "partial", "failed"}:
+        return requested
+    if any(entry.get("result") == "fail" for entry in verification if isinstance(entry, dict)):
+        return "failed"
+    if any(entry.get("result") == "pending" for entry in verification if isinstance(entry, dict)):
+        return "partial"
+    if not changed_files and not commit.get("hash"):
+        return "partial"
+    return "complete"
+
+
+def write_summary(
+    root: Path,
+    feature: str,
+    plan_number: str,
+    *,
+    outcome: str = "auto",
+    notes: list[str] | None = None,
+) -> dict[str, Any]:
+    normalized_plan = _normalize_plan_number(plan_number)
+    plan_path, plan = _load_plan_contract_for_summary(root, feature, normalized_plan)
+    timestamp = now_iso()
+    changed_files, changed_files_source = _summary_changed_files(root)
+    commit = _head_commit_metadata(root)
+    task_entries, task_evidence_source = _build_task_verification_entries(root, feature, normalized_plan, plan_path)
+    plan_entries = _build_plan_verification_entries(plan)
+    verification = task_entries + plan_entries
+    notes_list = [
+        str(note).strip()
+        for note in (notes or [])
+        if isinstance(note, str) and note.strip()
+    ]
+    contract = {
+        "schemaVersion": 2,
+        "feature": feature,
+        "planNumber": normalized_plan,
+        "outcome": _resolve_summary_outcome(
+            outcome,
+            changed_files=changed_files,
+            commit=commit,
+            verification=verification,
+        ),
+        "changes": _build_summary_changes(changed_files, plan),
+        "verification": verification,
+        "commit": commit,
+        "generatedFrom": {
+            "kind": "workflow_checks.summarize",
+            "planPath": _relative_display_path(plan_path, root),
+            "changedFilesSource": changed_files_source,
+            "taskEvidenceSource": task_evidence_source,
+            "generatedAt": timestamp,
+        },
+        "notes": notes_list,
+        "timestamp": timestamp,
+    }
+
+    feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    summary_json = feature_dir / f"{normalized_plan}-SUMMARY.json"
+    summary_md = feature_dir / f"{normalized_plan}-SUMMARY.md"
+    write_json(summary_json, contract)
+    try:
+        from workflow_render import render_summary
+    except ModuleNotFoundError:
+        from .workflow_render import render_summary  # type: ignore
+
+    write_text(summary_md, render_summary(contract))
+    return contract
+
+
+def _configured_reviewers(root: Path) -> list[str]:
+    wf = load_workflow(root)
+    teams = wf.get("agentTeams")
+    if not isinstance(teams, dict):
+        return []
+    if teams.get("enabled") is False:
+        return []
+    compositions = teams.get("defaultCompositions")
+    if not isinstance(compositions, dict):
+        return []
+    reviewers = compositions.get("review")
+    if not isinstance(reviewers, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for reviewer in reviewers:
+        if not isinstance(reviewer, str) or not reviewer.strip():
+            continue
+        name = reviewer.strip()
+        if name in seen:
+            continue
+        seen.add(name)
+        out.append(name)
+    return out
+
+
 def _graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict[str, Any]:
     """Compute blast-radius impact analysis via context graph.
 
@@ -1348,12 +1657,13 @@ def write_review(
     agg = summarize_checksets(per_pkg)
     inv = summarize_invariants(invariant_findings)
     tokens = summarize_token_telemetry(per_pkg)
+    reviewers = _configured_reviewers(root)
 
-    verdict = "pass"
+    automated_verdict = "pass"
     if "fail" in agg.values() or inv["fail"] > 0:
-        verdict = "fail"
+        automated_verdict = "fail"
     elif any(v == "skipped" for v in agg.values()) or inv["warn"] > 0:
-        verdict = "warn"
+        automated_verdict = "warn"
 
     blockers = [
         {
@@ -1404,6 +1714,7 @@ def write_review(
         },
         "tokenTelemetry": tokens,
         "impactAnalysis": _graph_impact_section(root, _changed_relpaths(root)),
+        "reviewers": reviewers,
         "securityFindings": [],
         "performanceFindings": [],
         "patternCompliance": [],
@@ -1424,7 +1735,8 @@ def write_review(
             },
         ],
         "principleNotes": [],
-        "verdict": verdict,
+        "automatedVerdict": automated_verdict,
+        "verdict": "pending",
         "blockers": blockers[:100],
         "warnings": warnings[:200],
     }
@@ -1452,11 +1764,11 @@ def write_review(
         f"- Tests: **{agg['tests']}**",
         f"- Invariants: **{inv['fail']} fail / {inv['warn']} warn**",
         (
-            f"- Token savings: **{tokens['savedTokens']} tokens** "
-            f"({tokens['savingsPct']}%, {tokens['checksRun']} checks)"
-        ),
-        "",
-        "## Per-Package Results",
+        f"- Token savings: **{tokens['savedTokens']} tokens** "
+        f"({tokens['savingsPct']}%, {tokens['checksRun']} checks)"
+    ),
+    "",
+    "## Per-Package Results",
         "",
     ]
     for pkg in per_pkg:
@@ -1487,7 +1799,14 @@ def write_review(
         if len(invariant_findings) > 100:
             md_lines.append(f"- ... {len(invariant_findings) - 100} more")
         md_lines.append("")
-    md_lines.append(f"## Verdict\n\n**{verdict.upper()}**\n")
+    if reviewers:
+        md_lines.append("## Reviewer Agents")
+        md_lines.append("")
+        for reviewer in reviewers:
+            md_lines.append(f"- `{reviewer}`")
+        md_lines.append("")
+    md_lines.append(f"## Automated Gate\n\n**{automated_verdict.upper()}**\n")
+    md_lines.append("## Final Verdict\n\n**PENDING**\n")
 
     md_lines.append("## Manual Review")
     md_lines.append("")
@@ -1500,7 +1819,7 @@ def write_review(
 
     write_text(md_path, "\n".join(md_lines).strip() + "\n")
 
-    return 1 if verdict == "fail" else 0
+    return 1 if automated_verdict == "fail" else 0
 
 
 def _parse_iso_ts(raw: Any) -> datetime | None:
@@ -1714,6 +2033,24 @@ def _cmd_ship_ready(root: Path, feature: str, *, json_output: bool = False) -> i
     return 1 if has_fail else 0
 
 
+def _cmd_summarize(
+    root: Path,
+    feature: str,
+    plan_number: str,
+    *,
+    outcome: str = "auto",
+    notes: list[str] | None = None,
+    json_output: bool = False,
+) -> int:
+    contract = write_summary(root, feature, plan_number, outcome=outcome, notes=notes or [])
+    summary_path = root / "docs" / "planning" / "work" / "features" / feature / f"{_normalize_plan_number(plan_number)}-SUMMARY.json"
+    if json_output:
+        print(json.dumps(contract, indent=2, sort_keys=True))
+    else:
+        print(f"Wrote {summary_path}")
+    return 0
+
+
 def _slugify(text: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
     return s or "cleanup"
@@ -1873,7 +2210,7 @@ def _cmd_doctor(root: Path, wf: dict, json_output: bool = False) -> int:
     # Check 1: Workflow validation
     try:
         result = subprocess.run(
-            ["python3", "scripts/workflow_validate.py", "--json"],
+            [sys.executable, ".cnogo/scripts/workflow_validate.py", "--json"],
             capture_output=True, text=True, timeout=30, cwd=str(root)
         )
         if result.returncode == 0:
@@ -2042,6 +2379,21 @@ def main() -> int:
     r = sub.add_parser("review", help="Run review checks and write REVIEW artifacts.")
     r.add_argument("--feature", help="Feature slug (overrides memory inference).")
 
+    s = sub.add_parser(
+        "summarize",
+        help="Generate NN-SUMMARY artifacts from a plan contract and recorded execution evidence.",
+    )
+    s.add_argument("--feature", required=True, help="Feature slug (docs/planning/work/features/<feature>/)")
+    s.add_argument("--plan", required=True, help="Plan number (NN).")
+    s.add_argument(
+        "--outcome",
+        choices=["auto", "complete", "partial", "failed"],
+        default="auto",
+        help="Override summary outcome; defaults to auto.",
+    )
+    s.add_argument("--note", action="append", default=[], help="Optional note to include in SUMMARY.json.")
+    s.add_argument("--json", action="store_true", dest="json_output", help="Output the generated summary contract as JSON.")
+
     sr = sub.add_parser(
         "ship-ready",
         help="Validate staged review completion and evidence freshness before /ship.",
@@ -2116,6 +2468,16 @@ def main() -> int:
 
     if args.cmd == "doctor":
         return _cmd_doctor(root, wf, json_output=getattr(args, 'json_output', False))
+
+    if args.cmd == "summarize":
+        return _cmd_summarize(
+            root,
+            args.feature,
+            args.plan,
+            outcome=args.outcome,
+            notes=list(args.note or []),
+            json_output=getattr(args, "json_output", False),
+        )
 
     if args.cmd == "ship-ready":
         return _cmd_ship_ready(
