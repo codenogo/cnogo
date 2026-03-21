@@ -40,6 +40,34 @@ def validate_workflow_config(
             )
         )
 
+    formulas = cfg.get("formulas")
+    if formulas is not None and not isinstance(formulas, dict):
+        findings.append(finding_type("WARN", "WORKFLOW.json: 'formulas' should be an object.", str(cfg_path)))
+    elif isinstance(formulas, dict):
+        default_name = formulas.get("default")
+        if default_name is not None and (not isinstance(default_name, str) or not default_name.strip()):
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: formulas.default should be a non-empty string.", str(cfg_path))
+            )
+        catalog_path = formulas.get("catalogPath")
+        if catalog_path is not None and (not isinstance(catalog_path, str) or not catalog_path.strip()):
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: formulas.catalogPath should be a non-empty string.",
+                    str(cfg_path),
+                )
+            )
+        allow_plan_override = formulas.get("allowPlanOverride")
+        if allow_plan_override is not None and not isinstance(allow_plan_override, bool):
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: formulas.allowPlanOverride should be boolean.",
+                    str(cfg_path),
+                )
+            )
+
     perf = cfg.get("performance")
     if perf is not None and not isinstance(perf, dict):
         findings.append(finding_type("WARN", "WORKFLOW.json: 'performance' should be an object.", str(cfg_path)))

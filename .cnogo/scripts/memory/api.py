@@ -463,6 +463,7 @@ def create_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    formula: dict[str, Any] | None = None,
     root: Path | None = None,
 ) -> DeliveryRun:
     return _create_delivery_run_impl(
@@ -476,6 +477,7 @@ def create_delivery_run(
         started_by=started_by,
         branch=branch,
         recommendation=recommendation,
+        formula=formula,
     )
 
 
@@ -490,6 +492,7 @@ def ensure_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    formula: dict[str, Any] | None = None,
     resume_latest: bool = True,
     root: Path | None = None,
 ) -> DeliveryRun:
@@ -504,6 +507,7 @@ def ensure_delivery_run(
         started_by=started_by,
         branch=branch,
         recommendation=recommendation,
+        formula=formula,
         resume_latest=resume_latest,
     )
 

@@ -197,6 +197,38 @@ def validate_delivery_runs(
                     finding_type("WARN", "Delivery run recommendation should be an object.", str(run_path))
                 )
 
+            formula = contract.get("formula")
+            if formula is not None:
+                if not isinstance(formula, dict):
+                    findings.append(
+                        finding_type("WARN", "Delivery run formula should be an object.", str(run_path))
+                    )
+                else:
+                    name = formula.get("name")
+                    if not isinstance(name, str) or not name.strip():
+                        findings.append(
+                            finding_type("WARN", "Delivery run formula.name should be non-empty.", str(run_path))
+                        )
+                    version = formula.get("version")
+                    if version is not None and not isinstance(version, str):
+                        findings.append(
+                            finding_type("WARN", "Delivery run formula.version should be a string.", str(run_path))
+                        )
+                    source = formula.get("source")
+                    if source is not None and not isinstance(source, str):
+                        findings.append(
+                            finding_type("WARN", "Delivery run formula.source should be a string.", str(run_path))
+                        )
+                    resolved_policy = formula.get("resolvedPolicy")
+                    if resolved_policy is not None and not isinstance(resolved_policy, dict):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run formula.resolvedPolicy should be an object.",
+                                str(run_path),
+                            )
+                        )
+
             integration = contract.get("integration")
             if integration is not None:
                 if not isinstance(integration, dict):
@@ -531,6 +563,44 @@ def validate_delivery_runs(
                                 str(run_path),
                             )
                         )
+
+    formulas_root = root / ".cnogo" / "formulas"
+    if formulas_root.is_dir() and touched(formulas_root):
+        for formula_path in sorted(formulas_root.glob("*.json")):
+            if not touched(formula_path):
+                continue
+            try:
+                contract = load_json(formula_path)
+            except Exception as exc:
+                findings.append(
+                    finding_type("ERROR", f"Failed to parse formula contract: {exc}", str(formula_path))
+                )
+                continue
+            if not isinstance(contract, dict):
+                findings.append(
+                    finding_type("ERROR", "Formula contract must be a JSON object.", str(formula_path))
+                )
+                continue
+            schema_version = contract.get("schemaVersion")
+            if schema_version is not None and not isinstance(schema_version, int):
+                findings.append(
+                    finding_type("WARN", "Formula contract schemaVersion should be an integer.", str(formula_path))
+                )
+            name = contract.get("name")
+            if not isinstance(name, str) or not name.strip():
+                findings.append(
+                    finding_type("WARN", "Formula contract should include non-empty name.", str(formula_path))
+                )
+            version = contract.get("version")
+            if version is not None and not isinstance(version, str):
+                findings.append(
+                    finding_type("WARN", "Formula contract version should be a string.", str(formula_path))
+                )
+            defaults = contract.get("defaults")
+            if defaults is not None and not isinstance(defaults, dict):
+                findings.append(
+                    finding_type("WARN", "Formula contract defaults should be an object.", str(formula_path))
+                )
 
     session_path = root / ".cnogo" / "worktree-session.json"
     if session_path.exists():

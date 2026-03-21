@@ -83,6 +83,33 @@ def test_create_delivery_run_persists_and_sets_initial_frontier(tmp_path):
     assert loaded.review_path.endswith("REVIEW.json")
 
 
+def test_create_delivery_run_persists_formula(tmp_path):
+    plan_path = tmp_path / "docs" / "planning" / "work" / "features" / "demo" / "01-PLAN.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text("{}", encoding="utf-8")
+
+    run = create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="serial",
+        run_id="demo-formula",
+        formula={
+            "name": "migration-rollout",
+            "version": "1.0.0",
+            "source": "builtin",
+            "resolvedPolicy": {"execution": {"modePreference": "serial"}},
+        },
+    )
+
+    assert run.formula["name"] == "migration-rollout"
+    loaded = load_delivery_run(tmp_path, "demo", "demo-formula")
+    assert loaded is not None
+    assert loaded.formula["name"] == "migration-rollout"
+
+
 def test_update_delivery_task_status_promotes_blocked_tasks_and_advances_run(tmp_path):
     plan_path = tmp_path / "demo" / "01-PLAN.json"
     plan_path.parent.mkdir(parents=True, exist_ok=True)
@@ -310,3 +337,38 @@ def test_ship_state_progresses_from_ready_to_completed_and_failed(tmp_path):
     assert run.ship["status"] == "completed"
     assert run.ship["commit"] == "abc123"
     assert run.ship["prUrl"] == "https://example.test/pr/1"
+
+
+def test_complete_ship_requires_pr_metadata_when_formula_demands_it(tmp_path):
+    plan_path = tmp_path / "demo" / "01-PLAN.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text("{}", encoding="utf-8")
+
+    run = create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="serial",
+        run_id="demo-ship-policy",
+        formula={
+            "name": "feature-delivery",
+            "version": "1.0.0",
+            "source": "builtin",
+            "resolvedPolicy": {"ship": {"requireTracking": True, "requirePullRequest": True}},
+        },
+    )
+
+    run = update_delivery_task_status(run, task_index=0, status="merged")
+    run = record_plan_verification(run, passed=True, commands=["pytest -q"])
+    run.review["status"] = "completed"
+    run.review["finalVerdict"] = "pass"
+
+    run = start_ship(run)
+    try:
+        complete_ship(run, commit="abc123", branch="feature/demo")
+    except ValueError as exc:
+        assert "PR URL" in str(exc)
+    else:
+        raise AssertionError("expected formula PR requirement to block completion")

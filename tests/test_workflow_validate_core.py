@@ -184,6 +184,76 @@ def test_plan_v3_accepts_context_links_and_failure_scenario():
     assert not any("explicit error-path scenario" in m for m in msgs)
 
 
+def test_plan_formula_accepts_string_or_named_object():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "formula": {"name": "feature-delivery"},
+        "goal": "stricter planning",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "contextLinks": ["Constraint: return 400 on invalid input"],
+                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    assert not any("Plan contract formula" in m for m in _messages(findings))
+
+
+def test_plan_formula_warns_on_invalid_shape():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "formula": [],
+        "goal": "stricter planning",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "contextLinks": ["Constraint: return 400 on invalid input"],
+                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    assert any("Plan contract formula should be a string or object with name." in m for m in _messages(findings))
+
+
 def test_review_v4_requires_stage_reviews_when_enabled(tmp_path):
     feature_dir = tmp_path / "feature"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -1042,6 +1112,11 @@ def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path
             {
                 "version": 1,
                 "repoShape": "auto",
+                "formulas": {
+                    "default": "feature-delivery",
+                    "catalogPath": ".cnogo/formulas",
+                    "allowPlanOverride": True,
+                },
                 "enforcement": {
                     "twoStageReview": "error",
                     "verificationBeforeCompletion": "error",
@@ -1137,7 +1212,14 @@ def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
     (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
     (planning_dir / "WORKFLOW.json").write_text(
-        json.dumps({"version": 1, "repoShape": "auto", "packages": []}),
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "formulas": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
+                "packages": [],
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -1193,6 +1275,12 @@ def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
                 "planPath": "docs/planning/work/features/demo/01-PLAN.json",
                 "summaryPath": "docs/planning/work/features/demo/01-SUMMARY.json",
                 "reviewPath": "docs/planning/work/features/demo/REVIEW.json",
+                "formula": {
+                    "name": "feature-delivery",
+                    "version": "1.0.0",
+                    "source": "builtin",
+                    "resolvedPolicy": {"execution": {"modePreference": "auto"}},
+                },
                 "recommendation": {"recommended": True},
                 "integration": {
                     "status": "awaiting_merge",
@@ -1315,7 +1403,14 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
     (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
     (planning_dir / "WORKFLOW.json").write_text(
-        json.dumps({"version": 1, "repoShape": "auto", "packages": []}),
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "formulas": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
+                "packages": [],
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -1334,6 +1429,12 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
                 "planNumber": "",
                 "mode": "invalid",
                 "status": "mystery",
+                "formula": {
+                    "name": "",
+                    "version": 1,
+                    "source": [],
+                    "resolvedPolicy": [],
+                },
                 "integration": {
                     "status": "mystery",
                     "mergedTaskIndices": "bad",
@@ -1398,8 +1499,10 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     msgs = _messages(findings)
 
     assert any("Delivery run schemaVersion should be an integer." in msg for msg in msgs)
+    assert any("WORKFLOW.json: formulas.default should be a non-empty string." in msg for msg in msgs)
     assert any("Delivery run mode should be serial|team." in msg for msg in msgs)
     assert any("Delivery run status should be one of" in msg for msg in msgs)
+    assert any("Delivery run formula.name should be non-empty." in msg for msg in msgs)
     assert any("Delivery run integration.status should be one of" in msg for msg in msgs)
     assert any("Delivery run reviewReadiness.status should be one of" in msg for msg in msgs)
     assert any("Delivery run review.status should be one of" in msg for msg in msgs)

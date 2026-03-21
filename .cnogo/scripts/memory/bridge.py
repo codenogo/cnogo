@@ -25,6 +25,11 @@ from . import storage as _st
 from .identity import generate_child_id as _child_id
 from ..workflow.shared.config import load_workflow_config
 from ..workflow.shared.config import workflow_packages
+from ..workflow.shared.formulas import (
+    formula_mode_preference,
+    formula_require_package_checks,
+    formula_required_package_commands,
+)
 from ..workflow.shared.packages import infer_task_package as _shared_infer_task_package
 from ..workflow.shared.packages import scope_package_command
 
@@ -56,7 +61,10 @@ def _package_quality_gates(
     verify: list[str],
     *,
     cwd: str | None = None,
+    formula: dict[str, Any] | None = None,
 ) -> list[str]:
+    if not formula_require_package_checks(formula):
+        return []
     packages = _packages_from_workflow(root)
     package_path = _infer_task_package(files, packages, cwd=cwd)
     if not package_path:
@@ -83,7 +91,7 @@ def _package_quality_gates(
         if isinstance(command, str) and command.strip()
     }
     quality_gates: list[str] = []
-    for key in ("lint", "typecheck", "test"):
+    for key in formula_required_package_commands(formula):
         command = commands.get(key)
         if not isinstance(command, str) or not command.strip():
             continue
@@ -127,6 +135,7 @@ def plan_to_task_descriptions(
     root: Path,
     *,
     ensure_memory_issues: bool = True,
+    formula: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Read an NN-PLAN.json and generate TaskDesc V2 objects.
 
@@ -170,7 +179,7 @@ def plan_to_task_descriptions(
 
         files = task.get("files", [])
         verify = task.get("verify", [])
-        package_verify = _package_quality_gates(root, files, verify, cwd=cwd)
+        package_verify = _package_quality_gates(root, files, verify, cwd=cwd, formula=formula)
         combined_verify = [
             str(command).strip()
             for command in list(verify) + package_verify
@@ -476,7 +485,11 @@ def detect_file_conflicts(
     return conflicts
 
 
-def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+def recommend_team_mode(
+    tasks: list[dict[str, Any]],
+    *,
+    formula: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Recommend whether a plan should default to team execution.
 
     Team mode is recommended when there are 2+ tasks immediately runnable from
@@ -493,6 +506,22 @@ def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
         for idx, task in non_skipped_tasks
         if not task.get("blockedBy")
     ]
+    mode_preference = formula_mode_preference(formula)
+
+    if mode_preference == "serial":
+        return {
+            "recommended": False,
+            "reason": "Formula prefers serial execution for this kind of work.",
+            "runnableTasks": runnable_tasks,
+            "blockedTasks": [
+                task.get("plan_task_index", idx)
+                for idx, task in non_skipped_tasks
+                if task.get("blockedBy")
+            ],
+            "conflicts": [],
+            "formulaModePreference": mode_preference,
+        }
+
     if len(runnable_tasks) < 2:
         return {
             "recommended": False,
@@ -507,6 +536,7 @@ def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
                 if task.get("blockedBy")
             ],
             "conflicts": [],
+            "formulaModePreference": mode_preference,
         }
 
     blocked_tasks = [
@@ -518,20 +548,30 @@ def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     if conflicts:
         return {
             "recommended": False,
-            "reason": "Task file scopes overlap; keep serial unless the user explicitly asks for team mode.",
+            "reason": (
+                "Task file scopes overlap; keep serial unless the user explicitly asks for team mode."
+                if mode_preference != "team"
+                else "Formula prefers team mode, but task file scopes overlap so serial is safer."
+            ),
             "runnableTasks": runnable_tasks,
             "blockedTasks": blocked_tasks,
             "conflicts": conflicts,
+            "formulaModePreference": mode_preference,
         }
     return {
         "recommended": True,
         "reason": (
-            "At least 2 tasks are runnable from the current dependency frontier, "
-            "remaining dependencies can stage later, and file scopes are disjoint."
+            "Formula prefers team execution and the runnable frontier is safe."
+            if mode_preference == "team"
+            else (
+                "At least 2 tasks are runnable from the current dependency frontier, "
+                "remaining dependencies can stage later, and file scopes are disjoint."
+            )
         ),
         "runnableTasks": runnable_tasks,
         "blockedTasks": blocked_tasks,
         "conflicts": [],
+        "formulaModePreference": mode_preference,
     }
 
 

@@ -15,11 +15,7 @@ Rules:
 - Must be on `feature/<feature-slug>`. Otherwise stop.
 
 **Step 0a: Clean merged branches**
-
-```bash
-git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
-git remote prune origin
-```
+Optional.
 
 ### Step 1: Phase Check + Preflight
 
@@ -29,6 +25,7 @@ python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 
 Warn if not in `ship` phase.
 - Load the latest Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-show <feature-slug> --json`.
+- Treat the run's resolved formula as ship policy context; record required tracking fields.
 - Stop unless `ship.status == ready`, unless the Delivery Run already has `ship.status == in_progress|completed`.
 - Run the staged review/freshness gate:
 ```bash
@@ -81,7 +78,7 @@ python3 .cnogo/scripts/workflow_memory.py run-ship-fail <feature-slug> --error "
 ```bash
 python3 .cnogo/scripts/workflow_memory.py sync
 ```
-If feature IDs are known, close shipped issues and update phase.
+Close shipped issues and update phase when IDs are known.
 
 ### Step 6: Feature Lifecycle Closure
 
@@ -89,7 +86,7 @@ Apply `.claude/skills/feature-lifecycle-closure.md` checklist before final hando
 
 ### Step 7: Local Cleanup
 
-Optional cleanup.
+Optional.
 
 ## Output
 

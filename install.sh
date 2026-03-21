@@ -190,6 +190,12 @@ emit_manifest_paths_for_tree() {
             echo "$rel"
         done < <(find "$base/.cnogo/scripts/workflow" -type f -name '*.py' | sort)
     fi
+    if [ -d "$base/.cnogo/formulas" ]; then
+        while IFS= read -r f; do
+            rel="${f#$base/}"
+            echo "$rel"
+        done < <(find "$base/.cnogo/formulas" -type f -name '*.json' | sort)
+    fi
     [ -f "$base/.cnogo/requirements-graph.txt" ] && echo ".cnogo/requirements-graph.txt"
 
     [ -f "$base/.cnogo/hooks/_bootstrap.py" ] && echo ".cnogo/hooks/_bootstrap.py"

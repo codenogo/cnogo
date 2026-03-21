@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.formulas import formula_watch_thresholds
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
 
 from .delivery_run import (
@@ -123,6 +124,8 @@ def summarize_delivery_run(
         "planNumber": run.plan_number,
         "mode": run.mode,
         "status": run.status,
+        "formulaName": str(run.formula.get("name", "")).strip() if isinstance(run.formula, dict) else "",
+        "formulaVersion": str(run.formula.get("version", "")).strip() if isinstance(run.formula, dict) else "",
         "branch": run.branch,
         "integrationStatus": run.integration.get("status", "pending"),
         "reviewReadiness": run.review_readiness.get("status", "pending"),
@@ -227,6 +230,13 @@ def watch_delivery_runs(
     summaries = [summarize_delivery_run(run, root=root, session=session, now=now) for run in runs]
 
     for run, summary in zip(runs, summaries):
+        thresholds = formula_watch_thresholds(
+            run.formula if isinstance(getattr(run, "formula", None), dict) else {},
+            stale_minutes=stale_minutes,
+            review_stale_minutes=review_stale_minutes,
+        )
+        run_stale_minutes = thresholds["staleMinutes"]
+        run_review_stale_minutes = thresholds["reviewStaleMinutes"]
         minutes_since_update = summary.get("minutesSinceUpdate")
         integration_status = run.integration.get("status", "pending")
         review_status = run.review_readiness.get("status", "pending")
@@ -249,7 +259,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if minutes_since_update is not None and minutes_since_update >= stale_minutes and run.status in {"active", "blocked"}:
+        if minutes_since_update is not None and minutes_since_update >= run_stale_minutes and run.status in {"active", "blocked"}:
             findings.append(
                 _finding(
                     kind="stale_active_run",
@@ -262,7 +272,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if integration_status == "awaiting_merge" and minutes_since_update is not None and minutes_since_update >= stale_minutes:
+        if integration_status == "awaiting_merge" and minutes_since_update is not None and minutes_since_update >= run_stale_minutes:
             findings.append(
                 _finding(
                     kind="awaiting_merge_stale",
@@ -276,7 +286,7 @@ def watch_delivery_runs(
             )
 
         if integration_status == "conflicted":
-            severity = "fail" if minutes_since_update is not None and minutes_since_update >= stale_minutes else "warn"
+            severity = "fail" if minutes_since_update is not None and minutes_since_update >= run_stale_minutes else "warn"
             conflict_task = run.integration.get("conflictTaskIndex")
             findings.append(
                 _finding(
@@ -290,7 +300,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if review_status == "awaiting_verification" and minutes_since_update is not None and minutes_since_update >= stale_minutes:
+        if review_status == "awaiting_verification" and minutes_since_update is not None and minutes_since_update >= run_stale_minutes:
             findings.append(
                 _finding(
                     kind="awaiting_verification_stale",
@@ -303,7 +313,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if review_status == "ready" and review_state == "ready" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if review_status == "ready" and review_state == "ready" and minutes_since_update is not None and minutes_since_update >= run_review_stale_minutes:
             findings.append(
                 _finding(
                     kind="ready_for_review_stale",
@@ -316,7 +326,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if review_state == "in_progress" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if review_state == "in_progress" and minutes_since_update is not None and minutes_since_update >= run_review_stale_minutes:
             findings.append(
                 _finding(
                     kind="review_in_progress_stale",
@@ -329,7 +339,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if review_state == "completed" and review_verdict == "fail" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if review_state == "completed" and review_verdict == "fail" and minutes_since_update is not None and minutes_since_update >= run_review_stale_minutes:
             findings.append(
                 _finding(
                     kind="review_failed_followup_stale",
@@ -342,7 +352,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if ship_state == "ready" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if ship_state == "ready" and minutes_since_update is not None and minutes_since_update >= run_review_stale_minutes:
             findings.append(
                 _finding(
                     kind="ready_to_ship_stale",
@@ -355,7 +365,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if ship_state == "in_progress" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if ship_state == "in_progress" and minutes_since_update is not None and minutes_since_update >= run_review_stale_minutes:
             findings.append(
                 _finding(
                     kind="ship_in_progress_stale",
@@ -368,7 +378,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if ship_state == "failed" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if ship_state == "failed" and minutes_since_update is not None and minutes_since_update >= run_review_stale_minutes:
             findings.append(
                 _finding(
                     kind="ship_failed_stale",

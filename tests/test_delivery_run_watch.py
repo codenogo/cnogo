@@ -143,6 +143,32 @@ def test_watch_delivery_runs_detects_ready_for_review_staleness(tmp_path):
     assert ready_findings[0]["runId"] == "demo-review"
 
 
+def test_watch_delivery_runs_uses_formula_thresholds(tmp_path):
+    plan_path = _write_plan(tmp_path, "demo", "01")
+    run = create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="team",
+        run_id="demo-formula-watch",
+        formula={
+            "name": "migration-rollout",
+            "version": "1.0.0",
+            "source": "builtin",
+            "resolvedPolicy": {"watch": {"staleMinutes": 5, "reviewStaleMinutes": 15}},
+        },
+    )
+    _force_updated_at(tmp_path, "demo", "demo-formula-watch", "2020-01-01T00:00:00Z")
+
+    report = watch_delivery_runs(tmp_path, stale_minutes=120, review_stale_minutes=120)
+    findings = [finding for finding in report["findings"] if finding["runId"] == "demo-formula-watch"]
+
+    assert any(finding["kind"] == "team_run_missing_session" for finding in findings)
+    assert any(finding["kind"] == "stale_active_run" for finding in findings)
+
+
 def test_watch_delivery_runs_detects_review_in_progress_and_failed_followup(tmp_path):
     plan_path = _write_plan(tmp_path, "demo", "01")
     run = create_delivery_run(

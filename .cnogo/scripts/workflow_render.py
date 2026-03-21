@@ -531,6 +531,7 @@ def render_plan(plan: dict[str, Any]) -> str:
     feature = plan.get("feature", "[feature]")
     pn = plan.get("planNumber", "NN")
     goal = plan.get("goal", "")
+    formula = plan.get("formula")
     schema_version_raw = plan.get("schemaVersion", 1)
     schema_version = schema_version_raw if isinstance(schema_version_raw, int) and not isinstance(schema_version_raw, bool) else 1
     tasks = plan.get("tasks", []) if isinstance(plan.get("tasks"), list) else []
@@ -543,6 +544,13 @@ def render_plan(plan: dict[str, Any]) -> str:
     lines.append("## Goal")
     lines.append(goal or "[One sentence: what this plan delivers]")
     lines.append("")
+    if formula is not None:
+        formula_name = formula if isinstance(formula, str) else formula.get("name", "") if isinstance(formula, dict) else ""
+        formula_name = str(formula_name).strip()
+        if formula_name:
+            lines.append("## Formula")
+            lines.append(f"`{formula_name}`")
+            lines.append("")
     lines.append("## Tasks")
     lines.append("")
     for i, t in enumerate(tasks, start=1):

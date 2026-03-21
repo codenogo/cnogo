@@ -54,6 +54,11 @@
     "mode": "auto",
     "minSources": 3
   },
+  "formulas": {
+    "default": "feature-delivery",
+    "catalogPath": ".cnogo/formulas",
+    "allowPlanOverride": true
+  },
   "enforcement": {
     "monorepoVerifyScope": "warn",
     "operatingPrinciples": "warn",

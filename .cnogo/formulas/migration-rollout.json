@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "migration-rollout",
+  "version": "1.0.0",
+  "description": "Safer rollout profile for schema, backfill, and data-moving changes that should bias toward serial execution and explicit review evidence.",
+  "defaults": {
+    "execution": {
+      "modePreference": "serial",
+      "preferTeamWhenSafe": false
+    },
+    "verify": {
+      "requirePackageChecks": true,
+      "requiredPackageCommands": ["lint", "typecheck", "test"]
+    },
+    "review": {
+      "autoSpawnConfiguredReviewers": true,
+      "requiredReviewers": ["code-reviewer", "security-scanner"]
+    },
+    "ship": {
+      "requireTracking": true,
+      "requirePullRequest": true
+    },
+    "watch": {
+      "staleMinutes": 5,
+      "reviewStaleMinutes": 30
+    }
+  }
+}

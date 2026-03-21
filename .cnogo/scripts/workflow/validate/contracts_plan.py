@@ -74,6 +74,30 @@ def validate_plan_contract(
     if parallelizable is not None and not isinstance(parallelizable, bool):
         findings.append(finding_type("WARN", "Plan contract: 'parallelizable' should be a boolean if present.", str(path)))
 
+    formula = contract.get("formula")
+    if formula is not None:
+        if isinstance(formula, str):
+            if not formula.strip():
+                findings.append(finding_type("WARN", "Plan contract formula should be a non-empty string.", str(path)))
+        elif isinstance(formula, dict):
+            name = formula.get("name")
+            if not isinstance(name, str) or not name.strip():
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        "Plan contract formula object should include non-empty 'name'.",
+                        str(path),
+                    )
+                )
+        else:
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "Plan contract formula should be a string or object with name.",
+                    str(path),
+                )
+            )
+
     tasks = contract.get("tasks")
     if not isinstance(tasks, list):
         findings.append(finding_type("ERROR", "Plan contract must include 'tasks' array.", str(path)))

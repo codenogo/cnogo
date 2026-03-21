@@ -9,6 +9,10 @@ from typing import Any
 
 from scripts.workflow.orchestration.delivery_run import latest_delivery_run
 from scripts.workflow.shared.config import enforcement_level, load_workflow_config
+from scripts.workflow.shared.formulas import (
+    formula_ship_require_pull_request,
+    formula_ship_require_tracking,
+)
 
 
 def parse_iso_ts(raw: Any) -> datetime | None:
@@ -236,10 +240,14 @@ def cmd_ship_ready(
         review_readiness = linked_run.review_readiness if isinstance(getattr(linked_run, "review_readiness", None), dict) else {}
         integration = linked_run.integration if isinstance(getattr(linked_run, "integration", None), dict) else {}
         ship_state = linked_run.ship if isinstance(getattr(linked_run, "ship", None), dict) else {}
+        run_formula = linked_run.formula if isinstance(getattr(linked_run, "formula", None), dict) else {}
+        require_tracking = formula_ship_require_tracking(run_formula)
+        require_pull_request = formula_ship_require_pull_request(run_formula)
         delivery_run_summary = {
             "runId": linked_run.run_id,
             "planNumber": linked_run.plan_number,
             "status": linked_run.status,
+            "formulaName": run_formula.get("name", ""),
             "integrationStatus": integration.get("status", "pending"),
             "reviewReadiness": review_readiness.get("status", "pending"),
             "reviewStatus": review_state.get("status", "pending"),
@@ -249,6 +257,12 @@ def cmd_ship_ready(
             "shipPrUrl": ship_state.get("prUrl", ""),
             "reviewPath": linked_run.review_path,
         }
+        add_check(
+            "delivery_run_formula_tracking",
+            not require_tracking or bool(linked_run.run_id),
+            "This formula requires tracked ship lifecycle on a Delivery Run.",
+            "error",
+        )
         add_check(
             "delivery_run_review_ready",
             review_readiness.get("status") == "ready",
@@ -291,6 +305,18 @@ def cmd_ship_ready(
             "delivery_run_ship_ready",
             ship_state.get("status") in {"ready", "in_progress", "completed"},
             "Latest Delivery Run ship status must be ready, in_progress, or completed before /ship.",
+            "error",
+        )
+        add_check(
+            "delivery_run_ship_tracking_fields",
+            (
+                ship_state.get("status") != "completed"
+                or (
+                    (not require_tracking or bool(str(ship_state.get("branch", "")).strip()))
+                    and (not require_pull_request or bool(str(ship_state.get("prUrl", "")).strip()))
+                )
+            ),
+            "Completed ship state must include formula-required tracking metadata (branch / PR URL).",
             "error",
         )
 

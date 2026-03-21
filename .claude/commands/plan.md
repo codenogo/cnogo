@@ -29,6 +29,7 @@ Create small implementation plans for a feature.
    - Create `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json` as source of truth.
    - New plans should use `schemaVersion: 3`.
    - Required fields: `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`; keep `tasks.length <= 3`.
+   - Optional top-level `formula` selects the delivery policy for later `/implement`, `/review`, and `/ship`; use a string or `{ "name": "feature-delivery" }`.
    - Each task needs `name`, `files[]`, `action`, `verify[]`, `microSteps[]`, and `tdd`.
    - For `schemaVersion >= 3`, each task also needs `contextLinks[]` pointing to the exact `CONTEXT.json` constraints or decisions it must satisfy.
    - `tdd` is either `required=true` with failing/passing verify commands or `required=false` with a reason.

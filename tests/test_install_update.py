@@ -28,8 +28,10 @@ def test_update_adds_new_managed_files_missing_from_older_manifest(tmp_path):
     missing_paths = {
         ".claude/commands/shape.md",
         ".claude/skills/shape-facilitator/SKILL.md",
+        ".cnogo/formulas/feature-delivery.json",
         ".cnogo/scripts/memory/runtime.py",
         ".cnogo/scripts/workflow/shared/config.py",
+        ".cnogo/scripts/workflow/shared/formulas.py",
         ".cnogo/scripts/workflow/orchestration/delivery_run.py",
         ".cnogo/scripts/workflow/orchestration/integration.py",
         ".cnogo/scripts/workflow/orchestration/ship.py",

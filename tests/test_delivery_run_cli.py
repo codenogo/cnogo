@@ -53,6 +53,13 @@ def _write_plan(root: Path, *, feature: str, plan_number: str, blocked_tail: boo
 
 def test_run_create_and_show_cli(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps({"version": 1, "repoShape": "single", "formulas": {"default": "migration-rollout"}}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
     _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
 
     created = _run_cli("run-create", "demo", "01", "--json", cwd=tmp_path)
@@ -60,13 +67,15 @@ def test_run_create_and_show_cli(tmp_path):
     run = json.loads(created.stdout)
     assert run["feature"] == "demo"
     assert run["planNumber"] == "01"
-    assert run["mode"] == "team"
+    assert run["mode"] == "serial"
+    assert run["formula"]["name"] == "migration-rollout"
     assert [task["status"] for task in run["tasks"]] == ["ready", "ready"]
 
     shown = _run_cli("run-show", "demo", "--json", cwd=tmp_path)
     assert shown.returncode == 0, shown.stderr + shown.stdout
     shown_run = json.loads(shown.stdout)
     assert shown_run["runId"] == run["runId"]
+    assert shown_run["formula"]["name"] == "migration-rollout"
 
 
 def test_run_task_set_promotes_blocked_tail(tmp_path):
@@ -213,11 +222,47 @@ def test_run_plan_verify_records_review_readiness(tmp_path):
 def test_run_review_commands_update_delivery_run_review_state(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     feature = "demo"
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "single",
+                "agentTeams": {
+                    "enabled": True,
+                    "defaultCompositions": {"review": ["code-reviewer", "perf-analyzer"]},
+                },
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    formulas_dir = tmp_path / ".cnogo" / "formulas"
+    formulas_dir.mkdir(parents=True, exist_ok=True)
+    (formulas_dir / "custom.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "name": "custom-review",
+                "defaults": {"review": {"requiredReviewers": ["security-scanner"]}},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
     feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / feature
+    plan_path = feature_dir / "01-PLAN.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["formula"] = "custom-review"
+    plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
 
     created = _run_cli("run-create", feature, "01", "--json", cwd=tmp_path)
     run = json.loads(created.stdout)
+    assert run["formula"]["name"] == "custom-review"
 
     _run_cli("run-task-set", feature, "0", "merged", "--json", cwd=tmp_path)
     _run_cli("run-task-set", feature, "1", "merged", "--json", cwd=tmp_path)
@@ -242,6 +287,7 @@ def test_run_review_commands_update_delivery_run_review_state(tmp_path):
     assert review_md.exists()
     review_contract = json.loads(review_json.read_text(encoding="utf-8"))
     assert review_contract["automatedVerdict"] == "warn"
+    assert review_contract["reviewers"] == ["code-reviewer", "perf-analyzer", "security-scanner"]
     assert review_contract["stageReviews"][0]["status"] == "pending"
 
     stage_one = _run_cli(
@@ -406,6 +452,7 @@ def test_run_list_and_run_watch_cli(tmp_path):
     listed = json.loads(run_list.stdout)
     assert listed[0]["runId"] == run["runId"]
     assert listed[0]["feature"] == "demo"
+    assert "formulaName" in listed[0]
     assert listed[0]["reviewStatus"] == "pending"
     assert listed[0]["reviewVerdict"] == "pending"
 

@@ -167,6 +167,11 @@ from scripts.workflow.orchestration import (
     DELIVERY_REVIEW_VERDICTS,
     DELIVERY_TASK_STATUSES,
 )
+from scripts.workflow.shared.formulas import (
+    formula_auto_spawn_configured_reviewers,
+    formula_required_reviewers,
+    resolve_formula,
+)
 from scripts.workflow.shared.plans import normalize_plan_number
 
 
@@ -213,6 +218,12 @@ def _print_run(run) -> None:
     print(f"Plan: {run.plan_number}")
     print(f"Mode: {run.mode}")
     print(f"Status: {run.status}")
+    formula = run.formula if isinstance(getattr(run, "formula", None), dict) else {}
+    if formula:
+        formula_name = str(formula.get("name", "")).strip() or "unknown"
+        formula_version = str(formula.get("version", "")).strip()
+        version_suffix = f" v{formula_version}" if formula_version else ""
+        print(f"Formula: {formula_name}{version_suffix}")
     if run.branch:
         print(f"Branch: {run.branch}")
     integration = run.integration if isinstance(getattr(run, "integration", None), dict) else {}
@@ -282,6 +293,7 @@ def _print_run_list(entries: list[dict]) -> None:
         print(
             f"{entry['feature']} {entry['runId']} "
             f"[{entry['status']}/{entry['mode']}] "
+            f"formula={entry.get('formulaName', 'unknown')} "
             f"integration={entry['integrationStatus']} "
             f"review={entry['reviewReadiness']} "
             f"review_state={entry.get('reviewStatus', 'pending')} "
@@ -920,11 +932,15 @@ def cmd_run_create(args: argparse.Namespace) -> int:
         print(f"Plan contract not found: {plan_path}", file=sys.stderr)
         return 1
     try:
-        taskdescs = plan_to_task_descriptions(plan_path, root)
+        plan_contract = json.loads(plan_path.read_text(encoding="utf-8"))
+        if not isinstance(plan_contract, dict):
+            raise ValueError("plan contract must be a JSON object")
+        formula = resolve_formula(root, plan_contract=plan_contract)
+        taskdescs = plan_to_task_descriptions(plan_path, root, formula=formula)
     except Exception as exc:
         print(f"Error: failed to load plan tasks: {exc}", file=sys.stderr)
         return 1
-    recommendation = recommend_team_mode(taskdescs)
+    recommendation = recommend_team_mode(taskdescs, formula=formula)
     mode = args.mode
     if mode == "auto":
         mode = "team" if recommendation.get("recommended") else "serial"
@@ -938,6 +954,7 @@ def cmd_run_create(args: argparse.Namespace) -> int:
         started_by=args.actor,
         branch=args.branch or _git_branch(root),
         recommendation=recommendation,
+        formula=formula,
         resume_latest=not args.no_resume_latest,
         root=root,
     )
@@ -1105,9 +1122,34 @@ def cmd_run_review_start(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
+    formula_reviewers = (
+        formula_required_reviewers(run.formula)
+        if isinstance(getattr(run, "formula", None), dict)
+        else []
+    )
+    configured_formula_reviewers: list[str] = []
+    if formula_auto_spawn_configured_reviewers(
+        run.formula if isinstance(getattr(run, "formula", None), dict) else {}
+    ):
+        try:
+            from scripts.workflow.checks.review import configured_reviewers
+
+            configured_formula_reviewers = configured_reviewers(root)
+        except Exception:
+            configured_formula_reviewers = []
+    merged_reviewers: list[str] = []
+    seen_reviewers: set[str] = set()
+    for reviewer in [*configured_formula_reviewers, *(args.reviewer or []), *formula_reviewers]:
+        if not isinstance(reviewer, str) or not reviewer.strip():
+            continue
+        value = reviewer.strip()
+        if value in seen_reviewers:
+            continue
+        seen_reviewers.add(value)
+        merged_reviewers.append(value)
     run = start_delivery_run_review(
         run,
-        reviewers=list(args.reviewer or []),
+        reviewers=merged_reviewers,
         automated_verdict=args.automated_verdict,
         note=args.note,
         root=root,

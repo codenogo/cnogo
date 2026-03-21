@@ -334,3 +334,64 @@ def test_ship_ready_fails_when_delivery_run_ship_state_failed(tmp_path):
     run = fail_delivery_run_ship(run, error="push failed", root=tmp_path)
 
     assert checks._cmd_ship_ready(tmp_path, feature, json_output=True) == 1
+
+
+def test_ship_ready_fails_when_formula_requires_pr_metadata(tmp_path):
+    feature = "demo"
+    feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / feature
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    plan_path = feature_dir / "01-PLAN.json"
+    plan_path.write_text("{}", encoding="utf-8")
+    _write_json(feature_dir / "01-SUMMARY.json", {"timestamp": "2026-02-25T09:00:00Z"})
+
+    run = create_delivery_run(
+        tmp_path,
+        feature=feature,
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[
+            {
+                "task_id": "cn-demo-0",
+                "plan_task_index": 0,
+                "title": "Task 0",
+                "action": "Do work",
+                "file_scope": {"paths": ["app.py"], "forbidden": []},
+                "commands": {"verify": ["pytest -q"], "package_verify": []},
+                "micro_steps": ["write test", "implement", "verify"],
+                "tdd": {"required": True},
+            }
+        ],
+        mode="serial",
+        run_id="demo-ship-pr-required",
+        formula={
+            "name": "feature-delivery",
+            "version": "1.0.0",
+            "source": "builtin",
+            "resolvedPolicy": {"ship": {"requireTracking": True, "requirePullRequest": True}},
+        },
+    )
+    run = update_delivery_task_status(run, task_index=0, status="merged")
+    run = record_plan_verification(run, passed=True, commands=["pytest -q"])
+    run = start_delivery_run_review(run, reviewers=["code-reviewer"], automated_verdict="pass", root=tmp_path)
+    run = update_delivery_run_review_stage(
+        run,
+        stage="spec-compliance",
+        status="pass",
+        evidence=["plan checked"],
+        root=tmp_path,
+    )
+    run = update_delivery_run_review_stage(
+        run,
+        stage="code-quality",
+        status="pass",
+        evidence=["tests"],
+        root=tmp_path,
+    )
+    run = set_delivery_run_review_verdict(run, verdict="pass", root=tmp_path)
+    run.ship["status"] = "completed"
+    run.ship["commit"] = "abc123"
+    run.ship["branch"] = "feature/demo"
+    run.ship["prUrl"] = ""
+    save_delivery_run(run, tmp_path)
+
+    assert checks._cmd_ship_ready(tmp_path, feature, json_output=True) == 1

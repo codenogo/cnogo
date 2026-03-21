@@ -68,10 +68,12 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     resume = _read(".claude/commands/resume.md")
 
     assert "Each task needs `name`" in plan
+    assert "Optional top-level `formula`" in plan
     assert "`contextLinks[]`" in plan
     assert "explicit error-path scenario" in plan
     assert "[--serial]" in implement
     assert "recommend_team_mode(taskdescs)" in implement
+    assert "Resolve the plan formula" in implement
     assert "Delivery Run" in implement
     assert ".cnogo/runs/<feature>/<run-id>.json" in implement
     assert "workflow_memory.py run-create <feature-slug> <NN>" in implement
@@ -106,6 +108,7 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "reviewReadiness.status == ready" in review
     assert "must stop if there is no linked Delivery Run" in review
     assert "review.status = in_progress" in review
+    assert "formula-required reviewers" in review
     assert "workflow_memory.py run-show <feature-slug> --json" in review
     assert "auto-syncs the linked Delivery Run" in review
     assert "workflow_memory.py run-review-sync <feature-slug>" in review
@@ -126,6 +129,7 @@ def test_ship_command_uses_delivery_run_ship_lifecycle():
 
     assert "run-show <feature-slug> --json" in ship
     assert "ship.status == ready" in ship
+    assert "resolved formula as ship policy context" in ship
     assert "workflow_checks.py ship-ready --feature <feature-slug>" in ship
     assert "workflow_memory.py run-ship-start <feature-slug>" in ship
     assert "ship.status = in_progress" in ship

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "feature-delivery",
+  "version": "1.0.0",
+  "description": "Default feature flow for product work with team execution when safe, adversarial review, and tracked ship completion.",
+  "defaults": {
+    "execution": {
+      "modePreference": "auto",
+      "preferTeamWhenSafe": true
+    },
+    "verify": {
+      "requirePackageChecks": true,
+      "requiredPackageCommands": ["lint", "typecheck", "test"]
+    },
+    "review": {
+      "autoSpawnConfiguredReviewers": true,
+      "requiredReviewers": ["code-reviewer", "security-scanner", "perf-analyzer"]
+    },
+    "ship": {
+      "requireTracking": true,
+      "requirePullRequest": true
+    },
+    "watch": {
+      "staleMinutes": 10,
+      "reviewStaleMinutes": 60
+    }
+  }
+}

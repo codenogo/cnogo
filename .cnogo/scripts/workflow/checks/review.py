@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from scripts.workflow.shared.config import load_workflow_config
+from scripts.workflow.shared.formulas import (
+    formula_auto_spawn_configured_reviewers,
+    formula_required_reviewers,
+)
 from scripts.workflow.orchestration.review_artifacts import write_review_artifact
 
 
@@ -33,6 +37,21 @@ def configured_reviewers(root: Path) -> list[str]:
             continue
         seen.add(name)
         out.append(name)
+    return out
+
+
+def _merge_reviewers(*reviewer_lists: list[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for reviewers in reviewer_lists:
+        for reviewer in reviewers:
+            if not isinstance(reviewer, str) or not reviewer.strip():
+                continue
+            value = reviewer.strip()
+            if value in seen:
+                continue
+            seen.add(value)
+            out.append(value)
     return out
 
 
@@ -146,11 +165,19 @@ def write_review(
     agg = summarize_checksets(per_pkg)
     inv = summarize_invariants(invariant_findings)
     tokens = summarize_token_telemetry(per_pkg)
-    reviewers = configured_reviewers(root)
     linked_run, gating_error = _resolve_review_delivery_run(root, feature=feature)
     if gating_error:
         print(gating_error, file=sys.stderr)
         return 1
+    run_formula = (
+        linked_run.formula
+        if linked_run is not None and isinstance(getattr(linked_run, "formula", None), dict)
+        else {}
+    )
+    reviewers = _merge_reviewers(
+        configured_reviewers(root) if formula_auto_spawn_configured_reviewers(run_formula) else [],
+        formula_required_reviewers(run_formula),
+    )
 
     automated_verdict = "pass"
     if "fail" in agg.values() or inv["fail"] > 0:

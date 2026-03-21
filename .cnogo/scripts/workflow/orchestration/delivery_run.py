@@ -154,6 +154,7 @@ class DeliveryRun:
     plan_path: str = ""
     summary_path: str = ""
     review_path: str = ""
+    formula: dict[str, Any] = field(default_factory=dict)
     recommendation: dict[str, Any] = field(default_factory=dict)
     integration: dict[str, Any] = field(default_factory=dict)
     review_readiness: dict[str, Any] = field(default_factory=dict)
@@ -177,6 +178,7 @@ class DeliveryRun:
             "planPath": self.plan_path,
             "summaryPath": self.summary_path,
             "reviewPath": self.review_path,
+            "formula": self.formula,
             "recommendation": self.recommendation,
             "integration": self.integration,
             "reviewReadiness": self.review_readiness,
@@ -202,6 +204,9 @@ class DeliveryRun:
             plan_path=str(data.get("planPath", "")),
             summary_path=str(data.get("summaryPath", "")),
             review_path=str(data.get("reviewPath", "")),
+            formula=dict(data.get("formula", {}))
+            if isinstance(data.get("formula"), dict)
+            else {},
             recommendation=dict(data.get("recommendation", {}))
             if isinstance(data.get("recommendation"), dict)
             else {},
@@ -338,6 +343,7 @@ def create_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    formula: dict[str, Any] | None = None,
 ) -> DeliveryRun:
     if mode not in {"serial", "team"}:
         raise ValueError(f"Unsupported delivery run mode: {mode!r}")
@@ -358,6 +364,7 @@ def create_delivery_run(
         plan_path=str(plan_path),
         summary_path=str(plan_path.with_name(f"{plan_path.stem.replace('-PLAN', '')}-SUMMARY.json")),
         review_path=str(plan_path.with_name("REVIEW.json")),
+        formula=formula or {},
         recommendation=recommendation or {},
         integration={},
         review_readiness={},
@@ -385,6 +392,7 @@ def ensure_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    formula: dict[str, Any] | None = None,
     resume_latest: bool = True,
 ) -> DeliveryRun:
     if run_id:
@@ -406,6 +414,7 @@ def ensure_delivery_run(
         started_by=started_by,
         branch=branch,
         recommendation=recommendation,
+        formula=formula,
     )
 
 
