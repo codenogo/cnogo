@@ -18,6 +18,11 @@ from scripts.workflow.orchestration.delivery_run import (  # noqa: E402
     update_delivery_task_status,
 )
 from scripts.workflow.orchestration.integration import record_plan_verification  # noqa: E402
+from scripts.workflow.orchestration.ship import (  # noqa: E402
+    complete_ship,
+    fail_ship,
+    start_ship,
+)
 
 
 def _task_desc(
@@ -264,3 +269,44 @@ def test_conflicts_block_review_readiness(tmp_path):
     assert run.integration["status"] == "conflicted"
     assert run.integration["conflictTaskIndex"] == 0
     assert run.review_readiness["status"] == "blocked"
+
+
+def test_ship_state_progresses_from_ready_to_completed_and_failed(tmp_path):
+    plan_path = tmp_path / "demo" / "01-PLAN.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text("{}", encoding="utf-8")
+
+    run = create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="serial",
+        run_id="demo-ship-1",
+    )
+
+    run = update_delivery_task_status(run, task_index=0, status="merged")
+    run = record_plan_verification(run, passed=True, commands=["pytest -q"])
+    run.review["status"] = "completed"
+    run.review["finalVerdict"] = "pass"
+
+    run = start_ship(run, note="shipping started")
+    assert run.ship["status"] == "in_progress"
+    assert run.ship["attempts"] == 1
+
+    run = fail_ship(run, error="push failed", note="retry needed")
+    assert run.ship["status"] == "failed"
+    assert run.ship["lastError"] == "push failed"
+
+    run = start_ship(run, note="retry")
+    run = complete_ship(
+        run,
+        commit="abc123",
+        branch="feature/demo",
+        pr_url="https://example.test/pr/1",
+        note="shipped",
+    )
+    assert run.ship["status"] == "completed"
+    assert run.ship["commit"] == "abc123"
+    assert run.ship["prUrl"] == "https://example.test/pr/1"

@@ -1244,6 +1244,19 @@ def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
                     "notes": [],
                     "updatedAt": _iso_now(),
                 },
+                "ship": {
+                    "status": "pending",
+                    "attempts": 0,
+                    "startedAt": "",
+                    "completedAt": "",
+                    "failedAt": "",
+                    "commit": "",
+                    "branch": "",
+                    "prUrl": "",
+                    "lastError": "",
+                    "notes": [],
+                    "updatedAt": _iso_now(),
+                },
                 "tasks": [
                     {
                         "taskIndex": 0,
@@ -1350,6 +1363,13 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
                     "artifactPath": [],
                     "notes": "bad",
                 },
+                "ship": {
+                    "status": "mystery",
+                    "attempts": -1,
+                    "startedAt": 123,
+                    "prUrl": [],
+                    "notes": "bad",
+                },
                 "tasks": [{"taskIndex": "0", "title": "", "status": "mystery"}],
             }
         ),
@@ -1384,6 +1404,8 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     assert any("Delivery run reviewReadiness.status should be one of" in msg for msg in msgs)
     assert any("Delivery run review.status should be one of" in msg for msg in msgs)
     assert any("Delivery run review.automatedVerdict should be one of" in msg for msg in msgs)
+    assert any("Delivery run ship.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run ship.attempts should be an integer >= 0" in msg for msg in msgs)
     assert any("Delivery run review.stages[0].stage should be 'spec-compliance'." in msg for msg in msgs)
     assert any("worktree-session.json references runId that does not exist" in msg for msg in msgs)
 

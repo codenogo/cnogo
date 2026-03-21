@@ -11,6 +11,7 @@ from typing import Any
 
 from .integration import ensure_run_coordination_state, sync_integration_state
 from .review import ensure_run_review_state, sync_review_state
+from .ship import ensure_run_ship_state, sync_ship_state
 
 DELIVERY_RUN_SCHEMA_VERSION = 1
 
@@ -157,6 +158,7 @@ class DeliveryRun:
     integration: dict[str, Any] = field(default_factory=dict)
     review_readiness: dict[str, Any] = field(default_factory=dict)
     review: dict[str, Any] = field(default_factory=dict)
+    ship: dict[str, Any] = field(default_factory=dict)
     tasks: list[DeliveryTask] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=_now_iso)
@@ -179,6 +181,7 @@ class DeliveryRun:
             "integration": self.integration,
             "reviewReadiness": self.review_readiness,
             "review": self.review,
+            "ship": self.ship,
             "tasks": [task.to_dict() for task in self.tasks],
             "notes": self.notes,
             "createdAt": self.created_at,
@@ -211,6 +214,9 @@ class DeliveryRun:
             review=dict(data.get("review", {}))
             if isinstance(data.get("review"), dict)
             else {},
+            ship=dict(data.get("ship", {}))
+            if isinstance(data.get("ship"), dict)
+            else {},
             tasks=[
                 DeliveryTask.from_dict(task)
                 for task in data.get("tasks", [])
@@ -234,6 +240,8 @@ def save_delivery_run(run: DeliveryRun, root: Path) -> Path:
     ensure_run_coordination_state(run)
     ensure_run_review_state(run)
     sync_review_state(run)
+    ensure_run_ship_state(run)
+    sync_ship_state(run)
     run.updated_at = _now_iso()
     if not run.created_at:
         run.created_at = run.updated_at
@@ -254,6 +262,8 @@ def load_delivery_run(root: Path, feature: str, run_id: str) -> DeliveryRun | No
     ensure_run_coordination_state(run)
     ensure_run_review_state(run)
     sync_review_state(run)
+    ensure_run_ship_state(run)
+    sync_ship_state(run)
     return run
 
 
@@ -273,6 +283,8 @@ def latest_delivery_run(root: Path, feature: str) -> DeliveryRun | None:
             ensure_run_coordination_state(run)
             ensure_run_review_state(run)
             sync_review_state(run)
+            ensure_run_ship_state(run)
+            sync_ship_state(run)
             return run
     return None
 
@@ -297,6 +309,7 @@ def _derive_run_status(tasks: list[DeliveryTask]) -> str:
 def refresh_task_frontier(run: DeliveryRun) -> DeliveryRun:
     ensure_run_coordination_state(run)
     ensure_run_review_state(run)
+    ensure_run_ship_state(run)
     by_index = {task.task_index: task for task in run.tasks}
     for task in run.tasks:
         if task.status in {"pending", "blocked"}:
@@ -309,7 +322,8 @@ def refresh_task_frontier(run: DeliveryRun) -> DeliveryRun:
     run.status = _derive_run_status(run.tasks)
     run.updated_at = _now_iso()
     sync_integration_state(run)
-    return sync_review_state(run)
+    sync_review_state(run)
+    return sync_ship_state(run)
 
 
 def create_delivery_run(
@@ -348,10 +362,12 @@ def create_delivery_run(
         integration={},
         review_readiness={},
         review={},
+        ship={},
         tasks=tasks,
     )
     ensure_run_coordination_state(run)
     ensure_run_review_state(run)
+    ensure_run_ship_state(run)
     refresh_task_frontier(run)
     save_delivery_run(run, root)
     return run

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -52,6 +53,53 @@ def graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict[str, An
         return {"enabled": False, "error": str(exc)}
 
 
+def _review_ready_or_started(run: Any) -> bool:
+    review_readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    return review_readiness.get("status") == "ready" or review_state.get("status") in {"in_progress", "completed"}
+
+
+def _resolve_review_delivery_run(root: Path, *, feature: str | None) -> tuple[Any | None, str | None]:
+    if not feature:
+        return None, None
+    try:
+        from scripts.memory import latest_delivery_run
+    except Exception as exc:
+        return None, f"Unable to load Delivery Run support for review: {exc}"
+
+    run = latest_delivery_run(feature, root=root)
+    if run is None:
+        return None, (
+            f"Review requires a Delivery Run for feature {feature!r}. "
+            "Create or resume one with `python3 .cnogo/scripts/workflow_memory.py run-create "
+            f"{feature} <NN>` or `/implement {feature} <NN>`."
+        )
+    if not _review_ready_or_started(run):
+        readiness = run.review_readiness.get("status", "pending") if isinstance(getattr(run, "review_readiness", None), dict) else "pending"
+        review_status = run.review.get("status", "pending") if isinstance(getattr(run, "review", None), dict) else "pending"
+        return None, (
+            "Review cannot start until the linked Delivery Run is review-ready "
+            f"(reviewReadiness.status={readiness!r}, review.status={review_status!r})."
+        )
+    return run, None
+
+
+def _delivery_run_snapshot(run: Any) -> dict[str, Any]:
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    review_readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    integration = run.integration if isinstance(getattr(run, "integration", None), dict) else {}
+    return {
+        "runId": getattr(run, "run_id", ""),
+        "planNumber": getattr(run, "plan_number", ""),
+        "mode": getattr(run, "mode", ""),
+        "status": getattr(run, "status", ""),
+        "integrationStatus": integration.get("status", "pending"),
+        "reviewReadiness": review_readiness.get("status", "pending"),
+        "reviewStatus": review_state.get("status", "pending"),
+        "reviewVerdict": review_state.get("finalVerdict", "pending"),
+    }
+
+
 def _sync_linked_delivery_run(
     root: Path,
     *,
@@ -99,6 +147,10 @@ def write_review(
     inv = summarize_invariants(invariant_findings)
     tokens = summarize_token_telemetry(per_pkg)
     reviewers = configured_reviewers(root)
+    linked_run, gating_error = _resolve_review_delivery_run(root, feature=feature)
+    if gating_error:
+        print(gating_error, file=sys.stderr)
+        return 1
 
     automated_verdict = "pass"
     if "fail" in agg.values() or inv["fail"] > 0:
@@ -156,6 +208,7 @@ def write_review(
         "tokenTelemetry": tokens,
         "impactAnalysis": graph_impact_section(root, changed_relpaths(root)),
         "reviewers": reviewers,
+        "deliveryRun": _delivery_run_snapshot(linked_run) if linked_run is not None else None,
         "securityFindings": [],
         "performanceFindings": [],
         "patternCompliance": [],

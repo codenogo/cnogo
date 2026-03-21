@@ -16,7 +16,8 @@ Quality gate before merge.
 
 2. **Automated review**
    - Run `python3 .cnogo/scripts/workflow_checks.py review --feature <feature-slug>`.
-   - This writes `REVIEW.md` and `REVIEW.json` with `automatedVerdict` and `verdict: pending`, and auto-syncs the linked Delivery Run.
+   - This must stop if there is no linked Delivery Run, or if the latest run is not review-ready.
+   - On a review-ready run, it writes `REVIEW.md` and `REVIEW.json` with `automatedVerdict` and `verdict: pending`, and auto-syncs the linked Delivery Run into `review.status = in_progress`.
    - Validate with `python3 .cnogo/scripts/workflow_validate.py --json --feature <feature-slug>`.
 
 3. **Stage 1: spec compliance**

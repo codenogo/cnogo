@@ -13,10 +13,13 @@ from ..workflow.orchestration import (
     DELIVERY_REVIEW_STATUSES,
     DELIVERY_REVIEW_VERDICTS,
     DeliveryRun,
+    complete_ship as _complete_ship_impl,
     create_delivery_run as _create_delivery_run_impl,
     ensure_run_coordination_state as _ensure_run_coordination_state_impl,
     ensure_run_review_state as _ensure_run_review_state_impl,
+    ensure_run_ship_state as _ensure_run_ship_state_impl,
     ensure_delivery_run as _ensure_delivery_run_impl,
+    fail_ship as _fail_ship_impl,
     latest_delivery_run as _latest_delivery_run_impl,
     list_delivery_runs as _list_delivery_runs_impl,
     load_delivery_run as _load_delivery_run_impl,
@@ -31,8 +34,10 @@ from ..workflow.orchestration import (
     sync_review_from_contract as _sync_review_from_contract_impl,
     sync_review_readiness as _sync_review_readiness_impl,
     sync_review_state as _sync_review_state_impl,
+    sync_ship_state as _sync_ship_state_impl,
     sync_run_with_worktree_session as _sync_run_with_worktree_session_impl,
     start_review as _start_review_impl,
+    start_ship as _start_ship_impl,
     update_delivery_task_status as _update_delivery_task_status_impl,
     watch_delivery_runs as _watch_delivery_runs_impl,
 )
@@ -508,8 +513,10 @@ def load_delivery_run(feature: str, run_id: str, *, root: Path | None = None) ->
     if loaded is not None:
         _ensure_run_coordination_state_impl(loaded)
         _ensure_run_review_state_impl(loaded)
+        _ensure_run_ship_state_impl(loaded)
         _sync_review_readiness_impl(loaded)
         _sync_review_state_impl(loaded)
+        _sync_ship_state_impl(loaded)
     return loaded
 
 
@@ -518,15 +525,19 @@ def latest_delivery_run(feature: str, *, root: Path | None = None) -> DeliveryRu
     if loaded is not None:
         _ensure_run_coordination_state_impl(loaded)
         _ensure_run_review_state_impl(loaded)
+        _ensure_run_ship_state_impl(loaded)
         _sync_review_readiness_impl(loaded)
         _sync_review_state_impl(loaded)
+        _sync_ship_state_impl(loaded)
     return loaded
 
 
 def save_delivery_run(run: DeliveryRun, *, root: Path | None = None) -> Path:
     _ensure_run_coordination_state_impl(run)
     _ensure_run_review_state_impl(run)
+    _ensure_run_ship_state_impl(run)
     _sync_review_state_impl(run)
+    _sync_ship_state_impl(run)
     return _save_delivery_run_impl(run, _resolve_root(root))
 
 
@@ -652,6 +663,49 @@ def set_delivery_run_review_verdict(
 ) -> DeliveryRun:
     updated = _set_review_verdict_impl(run, verdict=verdict, note=note)
     return _save_delivery_run_with_review_artifact(updated, root=root)
+
+
+def start_delivery_run_ship(
+    run: DeliveryRun,
+    *,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _start_ship_impl(run, note=note)
+    _save_delivery_run_impl(updated, _resolve_root(root))
+    return updated
+
+
+def complete_delivery_run_ship(
+    run: DeliveryRun,
+    *,
+    commit: str,
+    branch: str = "",
+    pr_url: str = "",
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _complete_ship_impl(
+        run,
+        commit=commit,
+        branch=branch,
+        pr_url=pr_url,
+        note=note,
+    )
+    _save_delivery_run_impl(updated, _resolve_root(root))
+    return updated
+
+
+def fail_delivery_run_ship(
+    run: DeliveryRun,
+    *,
+    error: str = "",
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _fail_ship_impl(run, error=error, note=note)
+    _save_delivery_run_impl(updated, _resolve_root(root))
+    return updated
 
 
 def sync_delivery_run_review(

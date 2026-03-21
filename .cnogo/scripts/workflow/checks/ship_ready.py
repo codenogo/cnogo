@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.orchestration.delivery_run import latest_delivery_run
 from scripts.workflow.shared.config import enforcement_level, load_workflow_config
 
 
@@ -49,6 +50,20 @@ def latest_summary_timestamp(
     return latest
 
 
+def _review_stage_statuses(value: Any) -> dict[str, str]:
+    if not isinstance(value, list):
+        return {}
+    out: dict[str, str] = {}
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        stage = item.get("stage")
+        status = item.get("status")
+        if isinstance(stage, str) and stage.strip() and isinstance(status, str) and status.strip():
+            out[stage.strip()] = status.strip()
+    return out
+
+
 def cmd_ship_ready(
     root: Path,
     feature: str,
@@ -58,10 +73,12 @@ def cmd_ship_ready(
     json_output: bool = False,
 ) -> int:
     feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    review_json = feature_dir / "REVIEW.json"
     wf = load_workflow_config(root)
     two_stage_level = enforcement_level(wf, "twoStageReview", default="error")
     verify_level = enforcement_level(wf, "verificationBeforeCompletion", default="error")
     checks: list[dict[str, str]] = []
+    delivery_run_summary: dict[str, Any] | None = None
 
     def add_check(name: str, ok: bool, details: str, level: str = "error") -> None:
         if ok:
@@ -103,11 +120,10 @@ def cmd_ship_ready(
     except Exception:
         checks.append({"name": "phase_check", "status": "pass", "details": "skipped (memory unavailable)"})
 
-    review_json = feature_dir / "REVIEW.json"
     add_check("review_contract_exists", review_json.exists(), "Missing REVIEW.json contract.", "error")
     if not review_json.exists():
         if json_output:
-            print(json.dumps({"feature": feature, "checks": checks}, indent=2))
+            print(json.dumps({"feature": feature, "checks": checks, "deliveryRun": delivery_run_summary}, indent=2))
         else:
             print(f"ship-ready: missing REVIEW.json for `{feature}`")
         return 1
@@ -122,7 +138,7 @@ def cmd_ship_ready(
     except Exception as exc:
         checks.append({"name": "review_contract_parse", "status": "fail", "details": str(exc)})
         if json_output:
-            print(json.dumps({"feature": feature, "checks": checks}, indent=2))
+            print(json.dumps({"feature": feature, "checks": checks, "deliveryRun": delivery_run_summary}, indent=2))
         else:
             print(f"ship-ready: invalid REVIEW.json: {exc}")
         return 1
@@ -208,9 +224,79 @@ def cmd_ship_ready(
         verify_level,
     )
 
+    linked_run = latest_delivery_run(root, feature)
+    add_check(
+        "delivery_run_exists",
+        linked_run is not None,
+        "No Delivery Run found for this feature; legacy feature can still ship, but run-native review alignment is unavailable.",
+        "warn",
+    )
+    if linked_run is not None:
+        review_state = linked_run.review if isinstance(getattr(linked_run, "review", None), dict) else {}
+        review_readiness = linked_run.review_readiness if isinstance(getattr(linked_run, "review_readiness", None), dict) else {}
+        integration = linked_run.integration if isinstance(getattr(linked_run, "integration", None), dict) else {}
+        ship_state = linked_run.ship if isinstance(getattr(linked_run, "ship", None), dict) else {}
+        delivery_run_summary = {
+            "runId": linked_run.run_id,
+            "planNumber": linked_run.plan_number,
+            "status": linked_run.status,
+            "integrationStatus": integration.get("status", "pending"),
+            "reviewReadiness": review_readiness.get("status", "pending"),
+            "reviewStatus": review_state.get("status", "pending"),
+            "reviewVerdict": review_state.get("finalVerdict", "pending"),
+            "shipStatus": ship_state.get("status", "pending"),
+            "shipCommit": ship_state.get("commit", ""),
+            "shipPrUrl": ship_state.get("prUrl", ""),
+            "reviewPath": linked_run.review_path,
+        }
+        add_check(
+            "delivery_run_review_ready",
+            review_readiness.get("status") == "ready",
+            "Latest Delivery Run must report reviewReadiness.status == ready before ship.",
+            "error",
+        )
+        add_check(
+            "delivery_run_review_completed",
+            review_state.get("status") == "completed",
+            "Latest Delivery Run must have completed review state before ship.",
+            "error",
+        )
+        expected_review_path = str(review_json.relative_to(root))
+        actual_review_path = str(review_state.get("artifactPath", "") or linked_run.review_path or "")
+        add_check(
+            "delivery_run_review_path_aligned",
+            actual_review_path in {expected_review_path, str(review_json)},
+            "Latest Delivery Run review artifact path must point at this feature's REVIEW.json.",
+            "error",
+        )
+        add_check(
+            "delivery_run_review_timestamp_aligned",
+            str(review_state.get("artifactTimestamp", "") or "") == str(review_data.get("timestamp", "") or ""),
+            "Latest Delivery Run review artifact timestamp must match REVIEW.json timestamp.",
+            "error",
+        )
+        add_check(
+            "delivery_run_review_verdict_aligned",
+            str(review_state.get("finalVerdict", "pending")) == str(review_data.get("verdict", "pending")),
+            "Latest Delivery Run final review verdict must match REVIEW.json verdict.",
+            "error",
+        )
+        add_check(
+            "delivery_run_review_stages_aligned",
+            _review_stage_statuses(review_state.get("stages")) == _review_stage_statuses(review_data.get("stageReviews")),
+            "Latest Delivery Run stage review statuses must match REVIEW.json stageReviews.",
+            "error",
+        )
+        add_check(
+            "delivery_run_ship_ready",
+            ship_state.get("status") in {"ready", "in_progress", "completed"},
+            "Latest Delivery Run ship status must be ready, in_progress, or completed before /ship.",
+            "error",
+        )
+
     has_fail = any(check["status"] == "fail" for check in checks)
     if json_output:
-        print(json.dumps({"feature": feature, "checks": checks}, indent=2))
+        print(json.dumps({"feature": feature, "checks": checks, "deliveryRun": delivery_run_summary}, indent=2))
     else:
         icons = {"pass": "✅", "warn": "⚠️", "fail": "❌"}
         print(f"ship-ready checks for `{feature}`")

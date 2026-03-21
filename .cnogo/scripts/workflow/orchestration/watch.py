@@ -18,6 +18,7 @@ from .delivery_run import (
 )
 from .integration import ensure_run_coordination_state, sync_review_readiness
 from .review import ensure_run_review_state, sync_review_state
+from .ship import ensure_run_ship_state, sync_ship_state
 
 _RUNS_DIR = Path(".cnogo") / "runs"
 _SESSION_FILE = Path(".cnogo") / "worktree-session.json"
@@ -72,8 +73,10 @@ def list_delivery_runs(
             continue
         ensure_run_coordination_state(run)
         ensure_run_review_state(run)
+        ensure_run_ship_state(run)
         sync_review_readiness(run)
         sync_review_state(run)
+        sync_ship_state(run)
         if not include_terminal and run.status in TERMINAL_DELIVERY_RUN_STATUSES:
             continue
         if statuses and run.status not in statuses:
@@ -98,8 +101,10 @@ def summarize_delivery_run(
     """Build a compact operator-facing summary for a single delivery run."""
     ensure_run_coordination_state(run)
     ensure_run_review_state(run)
+    ensure_run_ship_state(run)
     sync_review_readiness(run)
     sync_review_state(run)
+    sync_ship_state(run)
     now = now or _now_utc()
     updated_at = parse_iso_timestamp(run.updated_at)
     minutes_since_update = None
@@ -123,6 +128,10 @@ def summarize_delivery_run(
         "reviewReadiness": run.review_readiness.get("status", "pending"),
         "reviewStatus": run.review.get("status", "pending"),
         "reviewVerdict": run.review.get("finalVerdict", "pending"),
+        "shipStatus": run.ship.get("status", "pending"),
+        "shipAttempts": run.ship.get("attempts", 0),
+        "shipCommit": run.ship.get("commit", ""),
+        "shipPrUrl": run.ship.get("prUrl", ""),
         "planVerifyPassed": run.review_readiness.get("planVerifyPassed"),
         "updatedAt": run.updated_at,
         "minutesSinceUpdate": minutes_since_update,
@@ -167,6 +176,7 @@ def _finding(
                 "reviewReadiness": run.review_readiness.get("status", "pending"),
                 "reviewStatus": run.review.get("status", "pending"),
                 "reviewVerdict": run.review.get("finalVerdict", "pending"),
+                "shipStatus": run.ship.get("status", "pending"),
                 "path": str(path or (delivery_run_dir(Path.cwd(), run.feature) / f"{run.run_id}.json")),
             }
         )
@@ -175,6 +185,26 @@ def _finding(
     if minutes_stale is not None:
         payload["minutesStale"] = minutes_stale
     return payload
+
+
+def _load_review_artifact(root: Path, run: DeliveryRun) -> tuple[dict[str, Any] | None, Path | None]:
+    review_path = str(getattr(run, "review_path", "") or "")
+    artifact_path = ""
+    if isinstance(getattr(run, "review", None), dict):
+        artifact_path = str(run.review.get("artifactPath", "") or "")
+    resolved = artifact_path or review_path
+    if not resolved:
+        return None, None
+    review_file = Path(resolved)
+    if not review_file.is_absolute():
+        review_file = root / review_file
+    if not review_file.exists():
+        return None, review_file
+    try:
+        payload = json.loads(review_file.read_text(encoding="utf-8"))
+    except Exception:
+        return None, review_file
+    return payload if isinstance(payload, dict) else None, review_file
 
 
 def watch_delivery_runs(
@@ -202,7 +232,9 @@ def watch_delivery_runs(
         review_status = run.review_readiness.get("status", "pending")
         review_state = run.review.get("status", "pending") if isinstance(getattr(run, "review", None), dict) else "pending"
         review_verdict = run.review.get("finalVerdict", "pending") if isinstance(getattr(run, "review", None), dict) else "pending"
+        ship_state = run.ship.get("status", "pending") if isinstance(getattr(run, "ship", None), dict) else "pending"
         session_linked = bool(summary.get("sessionLinked"))
+        review_contract, review_file = _load_review_artifact(root, run)
 
         if run.mode == "team" and run.status in {"active", "blocked"} and integration_status not in {"merged", "cleaned"} and not session_linked:
             findings.append(
@@ -309,6 +341,87 @@ def watch_delivery_runs(
                     path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
                 )
             )
+
+        if ship_state == "ready" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+            findings.append(
+                _finding(
+                    kind="ready_to_ship_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Run has been ready to ship for {minutes_since_update:.1f} minutes.",
+                    next_action=f"Continue with `/ship {run.feature}` or start ship tracking with `python3 .cnogo/scripts/workflow_memory.py run-ship-start {run.feature} --run-id {run.run_id}`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if ship_state == "in_progress" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+            findings.append(
+                _finding(
+                    kind="ship_in_progress_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Ship has been in progress without movement for {minutes_since_update:.1f} minutes.",
+                    next_action=f"Finish with `python3 .cnogo/scripts/workflow_memory.py run-ship-complete {run.feature} <commit>` or record failure with `run-ship-fail`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if ship_state == "failed" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+            findings.append(
+                _finding(
+                    kind="ship_failed_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Ship failed {minutes_since_update:.1f} minutes ago and still needs follow-up.",
+                    next_action=f"Retry with `/ship {run.feature}` or restart tracking via `python3 .cnogo/scripts/workflow_memory.py run-ship-start {run.feature} --run-id {run.run_id}`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if review_state in {"in_progress", "completed"}:
+            if review_file is None:
+                findings.append(
+                    _finding(
+                        kind="review_artifact_missing",
+                        severity="fail" if review_state == "completed" else "warn",
+                        run=run,
+                        message="Delivery Run review state exists, but there is no linked REVIEW.json artifact.",
+                        next_action=f"Recreate or sync review artifacts with `python3 .cnogo/scripts/workflow_memory.py run-review-sync {run.feature} --run-id {run.run_id}`.",
+                        minutes_stale=minutes_since_update,
+                        path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                    )
+                )
+            elif review_contract is None:
+                findings.append(
+                    _finding(
+                        kind="review_artifact_unreadable",
+                        severity="fail" if review_state == "completed" else "warn",
+                        run=run,
+                        message="Linked REVIEW.json exists but could not be read as a JSON object.",
+                        next_action=f"Repair {review_file} and re-sync the Delivery Run review state.",
+                        minutes_stale=minutes_since_update,
+                        path=str(review_file),
+                    )
+                )
+            else:
+                contract_verdict = str(review_contract.get("verdict", "pending"))
+                contract_timestamp = str(review_contract.get("timestamp", "") or "")
+                run_timestamp = str(run.review.get("artifactTimestamp", "") or "")
+                if contract_verdict != str(review_verdict) or (run_timestamp and contract_timestamp != run_timestamp):
+                    findings.append(
+                        _finding(
+                            kind="review_artifact_drift",
+                            severity="fail" if review_state == "completed" else "warn",
+                            run=run,
+                            message="Delivery Run review state is out of sync with the linked REVIEW.json artifact.",
+                            next_action=f"Sync with `python3 .cnogo/scripts/workflow_memory.py run-review-sync {run.feature} --run-id {run.run_id}` or rewrite the review artifact from the run state.",
+                            minutes_stale=minutes_since_update,
+                            path=str(review_file),
+                        )
+                    )
 
     if session is not None:
         session_feature = session.get("feature")

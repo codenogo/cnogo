@@ -32,6 +32,7 @@ def test_update_adds_new_managed_files_missing_from_older_manifest(tmp_path):
         ".cnogo/scripts/workflow/shared/config.py",
         ".cnogo/scripts/workflow/orchestration/delivery_run.py",
         ".cnogo/scripts/workflow/orchestration/integration.py",
+        ".cnogo/scripts/workflow/orchestration/ship.py",
         ".cnogo/scripts/workflow/orchestration/watch.py",
     }
 

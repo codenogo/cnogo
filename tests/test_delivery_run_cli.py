@@ -334,6 +334,66 @@ def test_run_review_sync_reads_review_contract(tmp_path):
     assert payload["review"]["reviewers"] == ["code-reviewer", "security-scanner"]
 
 
+def test_run_ship_commands_update_delivery_run_ship_state(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    feature = "demo"
+    _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
+
+    _run_cli("run-create", feature, "01", "--json", cwd=tmp_path)
+    _run_cli("run-task-set", feature, "0", "merged", "--json", cwd=tmp_path)
+    _run_cli("run-task-set", feature, "1", "merged", "--json", cwd=tmp_path)
+    _run_cli("run-plan-verify", feature, "pass", "--command", "pytest -q", "--json", cwd=tmp_path)
+    _run_cli("run-review-start", feature, "--reviewer", "code-reviewer", "--json", cwd=tmp_path)
+    _run_cli(
+        "run-review-stage-set",
+        feature,
+        "spec-compliance",
+        "pass",
+        "--evidence",
+        "plan",
+        "--json",
+        cwd=tmp_path,
+    )
+    _run_cli(
+        "run-review-stage-set",
+        feature,
+        "code-quality",
+        "warn",
+        "--evidence",
+        "tests",
+        "--json",
+        cwd=tmp_path,
+    )
+    _run_cli("run-review-verdict", feature, "warn", "--json", cwd=tmp_path)
+
+    started = _run_cli("run-ship-start", feature, "--json", cwd=tmp_path)
+    assert started.returncode == 0, started.stderr + started.stdout
+    started_payload = json.loads(started.stdout)
+    assert started_payload["ship"]["status"] == "in_progress"
+
+    failed = _run_cli("run-ship-fail", feature, "--error", "push failed", "--json", cwd=tmp_path)
+    assert failed.returncode == 0, failed.stderr + failed.stdout
+    failed_payload = json.loads(failed.stdout)
+    assert failed_payload["ship"]["status"] == "failed"
+
+    completed = _run_cli(
+        "run-ship-complete",
+        feature,
+        "abc123",
+        "--branch",
+        "feature/demo",
+        "--pr-url",
+        "https://example.test/pr/1",
+        "--json",
+        cwd=tmp_path,
+    )
+    assert completed.returncode == 0, completed.stderr + completed.stdout
+    payload = json.loads(completed.stdout)
+    assert payload["ship"]["status"] == "completed"
+    assert payload["ship"]["commit"] == "abc123"
+    assert payload["ship"]["prUrl"] == "https://example.test/pr/1"
+
+
 def test_run_list_and_run_watch_cli(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)

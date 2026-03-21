@@ -43,6 +43,9 @@ Commands:
     run-review-stage-set Update one review stage on a delivery run
     run-review-verdict  Set the final review verdict on a delivery run
     run-review-sync     Sync a delivery run from REVIEW.json
+    run-ship-start      Start ship state for a delivery run
+    run-ship-complete   Record successful ship completion on a delivery run
+    run-ship-fail       Record a failed ship attempt on a delivery run
     run-sync-session    Sync a delivery run from worktree-session state
     graph <feature>     Show dependency graph
     session-status      Show active worktree session status
@@ -108,10 +111,12 @@ from scripts.memory import (  # noqa: E402
     claim,
     cleanup_session,
     close,
+    complete_delivery_run_ship,
     create,
     ensure_delivery_run,
     dep_add,
     dep_remove,
+    fail_delivery_run_ship,
     export_jsonl,
     get_cost_summary,
     import_jsonl,
@@ -143,6 +148,7 @@ from scripts.memory import (  # noqa: E402
     show,
     show_graph,
     stalled_tasks,
+    start_delivery_run_ship,
     start_delivery_run_review,
     stats,
     set_phase,
@@ -249,6 +255,16 @@ def _print_run(run) -> None:
                 f"(findings={len(stage.get('findings', [])) if isinstance(stage.get('findings'), list) else 0}, "
                 f"evidence={len(stage.get('evidence', [])) if isinstance(stage.get('evidence'), list) else 0})"
             )
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    if ship_state:
+        print(
+            "Ship: "
+            f"{ship_state.get('status', 'pending')} "
+            f"(attempts={ship_state.get('attempts', 0)}, "
+            f"commit={ship_state.get('commit', '') or 'n/a'})"
+        )
+        if ship_state.get("prUrl"):
+            print(f"Ship PR: {ship_state.get('prUrl')}")
     if status_counts:
         print(f"Task status counts: {status_counts}")
     for task in run.tasks:
@@ -269,6 +285,7 @@ def _print_run_list(entries: list[dict]) -> None:
             f"integration={entry['integrationStatus']} "
             f"review={entry['reviewReadiness']} "
             f"review_state={entry.get('reviewStatus', 'pending')} "
+            f"ship={entry.get('shipStatus', 'pending')} "
             f"updated={updated_label}"
         )
 
@@ -1070,6 +1087,11 @@ def _review_ready_or_started(run) -> bool:
     return review_readiness.get("status") == "ready" or review_state.get("status") in {"in_progress", "completed"}
 
 
+def _ship_ready_or_started(run) -> bool:
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    return ship_state.get("status") in {"ready", "in_progress", "completed", "failed"}
+
+
 def cmd_run_review_start(args: argparse.Namespace) -> int:
     root = _root()
     run = _resolve_run(root, args.feature, args.run_id)
@@ -1090,6 +1112,98 @@ def cmd_run_review_start(args: argparse.Namespace) -> int:
         note=args.note,
         root=root,
     )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_ship_start(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    if ship_state.get("status") not in {"ready", "failed", "in_progress"}:
+        print(
+            "Ship cannot start until the Delivery Run is ship-ready "
+            f"(current ship.status={ship_state.get('status', 'pending')!r}, "
+            f"review.status={run.review.get('status', 'pending')!r}).",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = start_delivery_run_ship(
+            run,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_ship_complete(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if not _ship_ready_or_started(run):
+        print(
+            "Ship completion requires a ship-ready or already-started Delivery Run.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = complete_delivery_run_ship(
+            run,
+            commit=args.commit,
+            branch=args.branch or _git_branch(root),
+            pr_url=args.pr_url or "",
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_ship_fail(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    if ship_state.get("status") not in {"ready", "in_progress", "failed"}:
+        print(
+            "Ship failure can only be recorded after ship is ready or in progress.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = fail_delivery_run_ship(
+            run,
+            error=args.error or "",
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     if args.json:
         _print_json(run.to_dict())
     else:
@@ -2186,6 +2300,31 @@ def main() -> int:
     p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
     p.add_argument("--json", action="store_true")
 
+    # run-ship-start
+    p = sub.add_parser("run-ship-start", help="Start ship state for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
+    # run-ship-complete
+    p = sub.add_parser("run-ship-complete", help="Record successful ship completion on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("commit", help="Commit SHA shipped by this run")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--branch", help="Branch shipped for this run")
+    p.add_argument("--pr-url", help="PR URL created for this ship")
+    p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
+    # run-ship-fail
+    p = sub.add_parser("run-ship-fail", help="Record a failed ship attempt on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--error", help="Error message or summary for the failed ship")
+    p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
     # run-sync-session
     p = sub.add_parser("run-sync-session", help="Sync a delivery run from the active worktree session")
     p.add_argument("feature", help="Feature slug")
@@ -2403,6 +2542,9 @@ def main() -> int:
         "run-review-stage-set": cmd_run_review_stage_set,
         "run-review-verdict": cmd_run_review_verdict,
         "run-review-sync": cmd_run_review_sync,
+        "run-ship-start": cmd_run_ship_start,
+        "run-ship-complete": cmd_run_ship_complete,
+        "run-ship-fail": cmd_run_ship_fail,
         "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
         "session-status": cmd_session_status,

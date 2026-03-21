@@ -13,6 +13,7 @@ from scripts.workflow.orchestration import (
     DELIVERY_REVIEW_STAGES,
     DELIVERY_REVIEW_VERDICTS,
     DELIVERY_RUN_STATUSES,
+    DELIVERY_SHIP_STATUSES,
     DELIVERY_TASK_STATUSES,
 )
 
@@ -424,7 +425,62 @@ def validate_delivery_runs(
             if notes is not None and not isinstance(notes, list):
                 findings.append(
                     finding_type("WARN", "Delivery run notes should be an array.", str(run_path))
-                )
+                                    )
+
+            ship_state = contract.get("ship")
+            if ship_state is not None:
+                if not isinstance(ship_state, dict):
+                    findings.append(
+                        finding_type("WARN", "Delivery run ship should be an object.", str(run_path))
+                    )
+                else:
+                    status_value = ship_state.get("status")
+                    if status_value not in DELIVERY_SHIP_STATUSES:
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run ship.status should be one of "
+                                f"{sorted(DELIVERY_SHIP_STATUSES)}.",
+                                str(run_path),
+                            )
+                        )
+                    attempts = ship_state.get("attempts")
+                    if attempts is not None and (not isinstance(attempts, int) or isinstance(attempts, bool) or attempts < 0):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run ship.attempts should be an integer >= 0 when present.",
+                                str(run_path),
+                            )
+                        )
+                    notes = ship_state.get("notes")
+                    if notes is not None and not isinstance(notes, list):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run ship.notes should be an array.",
+                                str(run_path),
+                            )
+                        )
+                    for field in (
+                        "startedAt",
+                        "completedAt",
+                        "failedAt",
+                        "commit",
+                        "branch",
+                        "prUrl",
+                        "lastError",
+                        "updatedAt",
+                    ):
+                        value = ship_state.get(field)
+                        if value is not None and not isinstance(value, str):
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run ship.{field} should be a string when present.",
+                                    str(run_path),
+                                )
+                            )
 
             tasks = contract.get("tasks")
             if not isinstance(tasks, list):

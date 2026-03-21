@@ -104,6 +104,8 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "always spawn" in review
     assert "REVIEW.json.reviewers[]" in review
     assert "reviewReadiness.status == ready" in review
+    assert "must stop if there is no linked Delivery Run" in review
+    assert "review.status = in_progress" in review
     assert "workflow_memory.py run-show <feature-slug> --json" in review
     assert "auto-syncs the linked Delivery Run" in review
     assert "workflow_memory.py run-review-sync <feature-slug>" in review
@@ -117,3 +119,15 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "correctness and contract reviewer" in code_reviewer
     assert "security reviewer" in security_scanner
     assert "performance and reliability reviewer" in perf_analyzer
+
+
+def test_ship_command_uses_delivery_run_ship_lifecycle():
+    ship = _read(".claude/commands/ship.md")
+
+    assert "run-show <feature-slug> --json" in ship
+    assert "ship.status == ready" in ship
+    assert "workflow_checks.py ship-ready --feature <feature-slug>" in ship
+    assert "workflow_memory.py run-ship-start <feature-slug>" in ship
+    assert "ship.status = in_progress" in ship
+    assert "workflow_memory.py run-ship-complete <feature-slug> <commit-sha>" in ship
+    assert "workflow_memory.py run-ship-fail <feature-slug>" in ship
