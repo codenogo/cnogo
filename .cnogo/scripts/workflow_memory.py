@@ -68,6 +68,7 @@ Commands:
     run-ship-start      Start ship state for a delivery run
     run-ship-complete   Record successful ship completion on a delivery run
     run-ship-fail       Record a failed ship attempt on a delivery run
+    run-ship-draft      Compute ship draft for a feature (commit surface, PR body, etc.)
     run-sync-session    Sync a delivery run from worktree-session state
     graph <feature>     Show dependency graph
     session-status      Show active worktree session status
@@ -216,6 +217,7 @@ from scripts.workflow.orchestration.initiative_rollup import (
     current_initiative_rollup,
     list_initiatives,
 )
+from scripts.workflow.orchestration.ship_draft import build_ship_draft
 from scripts.workflow.orchestration import (
     DELIVERY_REVIEW_STAGE_STATUSES,
     DELIVERY_REVIEW_STAGES,
@@ -2155,9 +2157,39 @@ def cmd_run_ship_start(args: argparse.Namespace) -> int:
 
 def cmd_run_ship_complete(args: argparse.Namespace) -> int:
     root = _root()
-    run = _resolve_run(root, args.feature, args.run_id)
+    commit = args.commit
+    feature = args.feature
+
+    # Auto-infer commit and branch when not provided
+    if commit is None:
+        branch = _git_branch(root)
+        expected_branch = f"feature/{feature}"
+        if branch != expected_branch:
+            print(
+                f"Auto-infer failed: current branch is '{branch}', expected '{expected_branch}'.\n"
+                f"Pass commit SHA explicitly: run-ship-complete {feature} <commit-sha>",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, cwd=str(root),
+            )
+            if result.returncode != 0:
+                print("Auto-infer failed: git rev-parse HEAD failed.", file=sys.stderr)
+                return 1
+            commit = result.stdout.strip()
+        except Exception:
+            print("Auto-infer failed: could not run git rev-parse HEAD.", file=sys.stderr)
+            return 1
+        if not commit:
+            print("Auto-infer failed: empty commit SHA from git rev-parse HEAD.", file=sys.stderr)
+            return 1
+
+    run = _resolve_run(root, feature, args.run_id)
     if run is None:
-        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        print(f"No delivery run found for feature {feature!r}", file=sys.stderr)
         return 1
     if not _ship_ready_or_started(run):
         print(
@@ -2168,7 +2200,7 @@ def cmd_run_ship_complete(args: argparse.Namespace) -> int:
     try:
         run = complete_delivery_run_ship(
             run,
-            commit=args.commit,
+            commit=commit,
             branch=args.branch or _git_branch(root),
             pr_url=args.pr_url or "",
             note=args.note,
@@ -2211,6 +2243,36 @@ def cmd_run_ship_fail(args: argparse.Namespace) -> int:
         _print_json(run.to_dict())
     else:
         _print_run(run)
+    return 0
+
+
+def cmd_run_ship_draft(args: argparse.Namespace) -> int:
+    root = _root()
+    feature = args.feature
+    draft = build_ship_draft(root, feature)
+    if getattr(args, "json", False):
+        _print_json(draft)
+        return 0
+    # Compact table output
+    print(f"## Ship Draft: {feature}")
+    print(f"\nCommit message: {draft.get('commitMessage', '(none)')}")
+    print(f"PR title: {draft.get('prTitle', '(none)')}")
+    print(f"Branch: {draft.get('branch', '(none)')}")
+    surface = draft.get("commitSurface", [])
+    print(f"\nCommit surface ({len(surface)} files):")
+    for f in surface:
+        print(f"  {f}")
+    excluded = draft.get("excludedFiles", [])
+    if excluded:
+        print(f"\nExcluded ({len(excluded)} files):")
+        for f in excluded:
+            print(f"  {f}")
+    warnings = draft.get("warnings", [])
+    if warnings:
+        print("\nWarnings:")
+        for w in warnings:
+            print(f"  \u26a0 {w}")
+    print(f"\n{draft.get('gitAddCommand', '')}")
     return 0
 
 
@@ -3618,11 +3680,16 @@ def main() -> int:
     # run-ship-complete
     p = sub.add_parser("run-ship-complete", help="Record successful ship completion on a delivery run")
     p.add_argument("feature", help="Feature slug")
-    p.add_argument("commit", help="Commit SHA shipped by this run")
+    p.add_argument("commit", nargs="?", default=None, help="Commit SHA (auto-inferred from HEAD if omitted)")
     p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
     p.add_argument("--branch", help="Branch shipped for this run")
     p.add_argument("--pr-url", help="PR URL created for this ship")
     p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
+    # run-ship-draft
+    p = sub.add_parser("run-ship-draft", help="Compute ship draft for a feature (commit surface, PR body, etc.)")
+    p.add_argument("feature", help="Feature slug")
     p.add_argument("--json", action="store_true")
 
     # run-ship-fail
@@ -3851,6 +3918,7 @@ def main() -> int:
         "initiative-show",
         "initiative-list",
         "initiative-current",
+        "run-ship-draft",
         "session-status",
         "session-cleanup",
     }
@@ -3927,6 +3995,7 @@ def main() -> int:
         "run-ship-start": cmd_run_ship_start,
         "run-ship-complete": cmd_run_ship_complete,
         "run-ship-fail": cmd_run_ship_fail,
+        "run-ship-draft": cmd_run_ship_draft,
         "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
         "session-status": cmd_session_status,

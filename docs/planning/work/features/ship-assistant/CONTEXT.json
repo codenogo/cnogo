@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 3,
+  "feature": "ship-assistant",
+  "displayName": "Ship Assistant",
+  "decisions": [
+    {
+      "id": "D1",
+      "title": "Hardcoded baseline exclude patterns",
+      "decision": "Use a hardcoded SHIP_EXCLUDE_PATTERNS list in the module. Ship safety should not depend on repo-specific ignore config. Runtime paths: .cnogo/runs/, .cnogo/work-orders/ (except .gitkeep), .cnogo/feature-phases.json, .cnogo/watch/, .cnogo/worktree-session.json. Additive config may come later but the baseline is not replaceable.",
+      "rationale": "Some runtime files are operational even if they exist in the repo. Safety baseline must be hardcoded."
+    },
+    {
+      "id": "D2",
+      "title": "Commit message from plan contract",
+      "decision": "Read the plan's commitMessage field as source of truth. If multiple plans, use the latest. If missing, derive from conventional commit prefix + feature slug + plan goal. No LLM re-summarization at ship time.",
+      "rationale": "Commit messages are authored during /plan when context is fresh. Re-generating at ship time risks drift."
+    },
+    {
+      "id": "D3",
+      "title": "Terse deterministic PR body",
+      "decision": "PR body format: ## Summary (bullets from plan goals), ## Test Plan (from SUMMARY.json verification), ## Review (verdict + reviewer names from REVIEW.json), ## Planning References (repo-relative artifact paths). Add ## Follow-ups section only when review verdict is warn or there are open items. No tables, no LLM prose, no GitHub artifact links in v1.",
+      "rationale": "Deterministic output is reviewable and reproducible. GitHub links add coupling too early."
+    },
+    {
+      "id": "D4",
+      "title": "Auto-infer on run-ship-complete by default",
+      "decision": "run-ship-complete auto-infers branch and commit SHA by default. Fails closed unless: current branch is exactly feature/<feature>, git rev-parse HEAD succeeds, and there is no ambiguity about the target run. If any guard fails, require explicit args.",
+      "rationale": "Reduces manual copy-paste friction while maintaining safety through strict guards."
+    },
+    {
+      "id": "D5",
+      "title": "New module in orchestration package",
+      "decision": "Code lives in .cnogo/scripts/workflow/orchestration/ship_draft.py. Public API: build_ship_draft(root, feature) -> dict, compute_commit_surface(root, feature) -> list, generate_pr_body(root, feature) -> str, generate_commit_message(root, feature) -> str. CLI: run-ship-draft subcommand in workflow_memory.py.",
+      "rationale": "Ship draft is above the ship state machine — it reads plans, summaries, and reviews to compose outputs."
+    },
+    {
+      "id": "D6",
+      "title": "Update /ship command to use ship draft",
+      "decision": "Replace manual commit/push/PR steps in ship.md with run-ship-draft --json output driving git add, git commit, git push, gh pr create, and run-ship-complete. Still show each step explicitly but with pre-computed values.",
+      "rationale": "Guided ship path reduces errors while keeping each step visible and auditable."
+    },
+    {
+      "id": "D7",
+      "title": "Work Orders are runtime, not shipped source",
+      "decision": "Keep .cnogo/work-orders/*.json gitignored and excluded from ship. Only .gitkeep is tracked. If auditable published state is needed later, create a separate explicit artifact.",
+      "rationale": "Work Orders are operational state derived from delivery runs. Committing them creates noise and merge conflicts."
+    },
+    {
+      "id": "D8",
+      "title": "Commit surface output includes convenience command",
+      "decision": "run-ship-draft returns both commitSurface[] (canonical file list, source of truth) and gitAddCommand (convenience string for operator). The file list is authoritative; the command is just help.",
+      "rationale": "Operators need both: the list for review, the command for execution."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no external dependencies",
+    "No git operations in the module — compute surfaces from file state and plan contracts, let /ship do git calls",
+    "Plan commitMessage is source of truth — no LLM re-summarization",
+    "Backward compatible — /ship still works manually if run-ship-draft is not used",
+    "SHIP_EXCLUDE_PATTERNS baseline is hardcoded and not replaceable"
+  ],
+  "openQuestions": [],
+  "relatedCode": [
+    {
+      "path": ".cnogo/scripts/workflow/orchestration/ship.py",
+      "description": "Ship state machine — start_ship, complete_ship, fail_ship, sync_ship_state"
+    },
+    {
+      "path": ".cnogo/scripts/workflow/orchestration/work_order.py",
+      "description": "Work Order model — _ship_summary, _derive_status, build_work_order"
+    },
+    {
+      "path": ".cnogo/scripts/workflow/orchestration/delivery_run.py",
+      "description": "DeliveryRun model — ship dict, plan_path, tasks with filePaths"
+    },
+    {
+      "path": ".cnogo/scripts/workflow/checks/ship_ready.py",
+      "description": "Ship readiness gate — 20 checks for review, profile, and delivery run state"
+    },
+    {
+      "path": ".cnogo/scripts/workflow_memory.py",
+      "description": "CLI entrypoint — run-ship-start, run-ship-complete, run-ship-fail; will host run-ship-draft"
+    },
+    {
+      "path": ".claude/commands/ship.md",
+      "description": "Ship command definition — manual commit/push/PR steps to be replaced with draft-driven flow"
+    },
+    {
+      "path": ".cnogo/scripts/workflow_render.py",
+      "description": "Rendering engine — may inform PR body generation patterns"
+    },
+    {
+      "path": ".gitignore",
+      "description": "Current runtime exclusions — memory.db, worktree-session, watch/, scheduler/"
+    }
+  ],
+  "memoryEpicId": "cn-186gte9",
+  "timestamp": "2026-03-21T14:00:00Z"
+}
