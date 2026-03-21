@@ -58,7 +58,12 @@ Use the draft output to stage and commit:
 ```bash
 # Stage only the computed commit surface (from draft gitAddCommand)
 <gitAddCommand from draft>
-git commit -m "<commitMessage from draft>"
+git commit -m "$(cat <<'EOF'
+<commitMessage from draft>
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+EOF
+)"
 git push -u origin $(git branch --show-current)
 ```
 

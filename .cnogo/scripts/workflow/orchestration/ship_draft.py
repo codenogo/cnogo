@@ -162,7 +162,7 @@ def compute_commit_surface(root: Path, feature: str) -> list[str]:
     Strategy:
     1. Collect task files[] from all plan JSONs for this feature.
     2. Add planning artifacts (docs/planning/work/features/<slug>/).
-    3. Add .cnogo/issues.jsonl if modified.
+    3. Add .cnogo/issues.jsonl if present (memory sync artifact).
     4. Fallback: union with git diff --name-only main...HEAD.
     5. Filter through SHIP_EXCLUDE_PATTERNS.
     6. Only include files that actually exist on disk.
@@ -275,13 +275,19 @@ def generate_pr_body(root: Path, feature: str) -> str:
         if isinstance(verifications, list) and verifications:
             for entry in verifications:
                 if isinstance(entry, dict):
-                    cmd = str(entry.get("command", "")).strip()
+                    cmds = entry.get("commands", [])
+                    # Fall back to singular "command" for legacy summaries
+                    if not cmds:
+                        legacy = str(entry.get("command", "")).strip()
+                        cmds = [legacy] if legacy else []
                     result = str(entry.get("result", "")).strip()
-                    if cmd:
-                        item = f"- `{cmd}`"
-                        if result:
-                            item += f" — {result}"
-                        lines.append(item)
+                    for cmd in cmds:
+                        cmd = str(cmd).strip()
+                        if cmd:
+                            item = f"- `{cmd}`"
+                            if result:
+                                item += f" — {result}"
+                            lines.append(item)
                 elif isinstance(entry, str) and entry.strip():
                     lines.append(f"- {entry.strip()}")
         else:
