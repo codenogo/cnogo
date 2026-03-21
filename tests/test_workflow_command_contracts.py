@@ -103,6 +103,10 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "verdict: pending" in review
     assert "always spawn" in review
     assert "REVIEW.json.reviewers[]" in review
+    assert "reviewReadiness.status == ready" in review
+    assert "workflow_memory.py run-show <feature-slug> --json" in review
+    assert "auto-syncs the linked Delivery Run" in review
+    assert "workflow_memory.py run-review-sync <feature-slug>" in review
     assert "code-reviewer" in review
     assert "security-scanner" in review
     assert "perf-analyzer" in review

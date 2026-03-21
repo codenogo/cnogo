@@ -9,9 +9,13 @@ from typing import Any
 from ..workflow.orchestration import (
     DELIVERY_INTEGRATION_STATUSES,
     DELIVERY_REVIEW_READINESS_STATUSES,
+    DELIVERY_REVIEW_STAGE_STATUSES,
+    DELIVERY_REVIEW_STATUSES,
+    DELIVERY_REVIEW_VERDICTS,
     DeliveryRun,
     create_delivery_run as _create_delivery_run_impl,
     ensure_run_coordination_state as _ensure_run_coordination_state_impl,
+    ensure_run_review_state as _ensure_run_review_state_impl,
     ensure_delivery_run as _ensure_delivery_run_impl,
     latest_delivery_run as _latest_delivery_run_impl,
     list_delivery_runs as _list_delivery_runs_impl,
@@ -19,12 +23,21 @@ from ..workflow.orchestration import (
     record_plan_verification as _record_plan_verification_impl,
     refresh_task_frontier as _refresh_task_frontier_impl,
     save_delivery_run as _save_delivery_run_impl,
+    set_review_stage as _set_review_stage_impl,
+    set_review_verdict as _set_review_verdict_impl,
     summarize_delivery_run as _summarize_delivery_run_impl,
     sync_integration_state as _sync_integration_state_impl,
+    sync_review_from_artifact as _sync_review_from_artifact_impl,
+    sync_review_from_contract as _sync_review_from_contract_impl,
     sync_review_readiness as _sync_review_readiness_impl,
+    sync_review_state as _sync_review_state_impl,
     sync_run_with_worktree_session as _sync_run_with_worktree_session_impl,
+    start_review as _start_review_impl,
     update_delivery_task_status as _update_delivery_task_status_impl,
     watch_delivery_runs as _watch_delivery_runs_impl,
+)
+from ..workflow.orchestration.review_artifacts import (
+    persist_review_artifact_from_run as _persist_review_artifact_from_run_impl,
 )
 from ..workflow.shared.config import agent_team_settings as _agent_team_settings_cfg
 from ..workflow.shared.config import load_workflow_config as _load_workflow_config
@@ -494,7 +507,9 @@ def load_delivery_run(feature: str, run_id: str, *, root: Path | None = None) ->
     loaded = _load_delivery_run_impl(_resolve_root(root), feature, run_id)
     if loaded is not None:
         _ensure_run_coordination_state_impl(loaded)
+        _ensure_run_review_state_impl(loaded)
         _sync_review_readiness_impl(loaded)
+        _sync_review_state_impl(loaded)
     return loaded
 
 
@@ -502,12 +517,16 @@ def latest_delivery_run(feature: str, *, root: Path | None = None) -> DeliveryRu
     loaded = _latest_delivery_run_impl(_resolve_root(root), feature)
     if loaded is not None:
         _ensure_run_coordination_state_impl(loaded)
+        _ensure_run_review_state_impl(loaded)
         _sync_review_readiness_impl(loaded)
+        _sync_review_state_impl(loaded)
     return loaded
 
 
 def save_delivery_run(run: DeliveryRun, *, root: Path | None = None) -> Path:
     _ensure_run_coordination_state_impl(run)
+    _ensure_run_review_state_impl(run)
+    _sync_review_state_impl(run)
     return _save_delivery_run_impl(run, _resolve_root(root))
 
 
@@ -574,6 +593,84 @@ def record_delivery_run_plan_verification(
 ) -> DeliveryRun:
     updated = _record_plan_verification_impl(run, passed=passed, commands=commands, note=note)
     _save_delivery_run_impl(updated, _resolve_root(root))
+    return updated
+
+
+def _save_delivery_run_with_review_artifact(run: DeliveryRun, *, root: Path | None = None) -> DeliveryRun:
+    resolved_root = _resolve_root(root)
+    contract, review_json_path, _ = _persist_review_artifact_from_run_impl(resolved_root, run)
+    rel_path = str(review_json_path.relative_to(resolved_root))
+    _sync_review_from_contract_impl(run, contract, review_path=rel_path)
+    _save_delivery_run_impl(run, resolved_root)
+    return run
+
+
+def start_delivery_run_review(
+    run: DeliveryRun,
+    *,
+    reviewers: list[str] | None = None,
+    automated_verdict: str | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _start_review_impl(
+        run,
+        reviewers=reviewers,
+        automated_verdict=automated_verdict,
+        note=note,
+    )
+    return _save_delivery_run_with_review_artifact(updated, root=root)
+
+
+def update_delivery_run_review_stage(
+    run: DeliveryRun,
+    *,
+    stage: str,
+    status: str,
+    findings: list[Any] | None = None,
+    evidence: list[Any] | None = None,
+    notes: list[str] | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _set_review_stage_impl(
+        run,
+        stage=stage,
+        status=status,
+        findings=findings,
+        evidence=evidence,
+        notes=notes,
+    )
+    return _save_delivery_run_with_review_artifact(updated, root=root)
+
+
+def set_delivery_run_review_verdict(
+    run: DeliveryRun,
+    *,
+    verdict: str,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _set_review_verdict_impl(run, verdict=verdict, note=note)
+    return _save_delivery_run_with_review_artifact(updated, root=root)
+
+
+def sync_delivery_run_review(
+    run: DeliveryRun,
+    *,
+    review_contract: dict[str, Any] | None = None,
+    review_path: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    resolved_root = _resolve_root(root)
+    if review_contract is None:
+        updated = _sync_review_from_artifact_impl(run, root=resolved_root)
+    else:
+        updated = _sync_review_from_contract_impl(
+            run,
+            review_contract,
+            review_path=review_path or "",
+        )
+    _save_delivery_run_impl(updated, resolved_root)
     return updated
 
 

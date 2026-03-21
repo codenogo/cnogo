@@ -39,6 +39,10 @@ Commands:
     run-refresh         Refresh task frontier for a delivery run
     run-task-set        Update a delivery-run task state
     run-plan-verify     Record plan verification outcome for a delivery run
+    run-review-start    Start or resume review state for a delivery run
+    run-review-stage-set Update one review stage on a delivery run
+    run-review-verdict  Set the final review verdict on a delivery run
+    run-review-sync     Sync a delivery run from REVIEW.json
     run-sync-session    Sync a delivery run from worktree-session state
     graph <feature>     Show dependency graph
     session-status      Show active worktree session status
@@ -132,22 +136,31 @@ from scripts.memory import (  # noqa: E402
     release,
     reopen,
     report_done,
+    set_delivery_run_review_verdict,
     sync_delivery_run_integration,
+    sync_delivery_run_review,
     sync_delivery_run_with_session,
     show,
     show_graph,
     stalled_tasks,
+    start_delivery_run_review,
     stats,
     set_phase,
     summarize_delivery_run,
     sync,
     takeover_task,
     update,
+    update_delivery_run_review_stage,
     update_delivery_task_status,
     verify_and_close,
     watch_delivery_runs,
 )
-from scripts.workflow.orchestration import DELIVERY_TASK_STATUSES
+from scripts.workflow.orchestration import (
+    DELIVERY_REVIEW_STAGE_STATUSES,
+    DELIVERY_REVIEW_STAGES,
+    DELIVERY_REVIEW_VERDICTS,
+    DELIVERY_TASK_STATUSES,
+)
 from scripts.workflow.shared.plans import normalize_plan_number
 
 
@@ -217,6 +230,25 @@ def _print_run(run) -> None:
             f"{review.get('status', 'pending')} "
             f"(plan_verify={review.get('planVerifyPassed')})"
         )
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    if review_state:
+        print(
+            "Review: "
+            f"{review_state.get('status', 'pending')} "
+            f"(automated={review_state.get('automatedVerdict', 'pending')}, "
+            f"final={review_state.get('finalVerdict', 'pending')})"
+        )
+        reviewers = review_state.get("reviewers", [])
+        if isinstance(reviewers, list) and reviewers:
+            print(f"Reviewers: {reviewers}")
+        for stage in review_state.get("stages", []) if isinstance(review_state.get("stages"), list) else []:
+            if not isinstance(stage, dict):
+                continue
+            print(
+                f"  - {stage.get('stage')}: {stage.get('status', 'pending')} "
+                f"(findings={len(stage.get('findings', [])) if isinstance(stage.get('findings'), list) else 0}, "
+                f"evidence={len(stage.get('evidence', [])) if isinstance(stage.get('evidence'), list) else 0})"
+            )
     if status_counts:
         print(f"Task status counts: {status_counts}")
     for task in run.tasks:
@@ -236,6 +268,7 @@ def _print_run_list(entries: list[dict]) -> None:
             f"[{entry['status']}/{entry['mode']}] "
             f"integration={entry['integrationStatus']} "
             f"review={entry['reviewReadiness']} "
+            f"review_state={entry.get('reviewStatus', 'pending')} "
             f"updated={updated_label}"
         )
 
@@ -729,6 +762,7 @@ def cmd_session_status(args: argparse.Namespace) -> int:
     if linked_run:
         integration = linked_run.integration if isinstance(linked_run.integration, dict) else {}
         review = linked_run.review_readiness if isinstance(linked_run.review_readiness, dict) else {}
+        review_state = linked_run.review if isinstance(getattr(linked_run, "review", None), dict) else {}
         if integration:
             print(
                 "Integration: "
@@ -741,6 +775,13 @@ def cmd_session_status(args: argparse.Namespace) -> int:
                 "Review readiness: "
                 f"{review.get('status', 'pending')} "
                 f"(plan_verify={review.get('planVerifyPassed')})"
+            )
+        if review_state:
+            print(
+                "Review: "
+                f"{review_state.get('status', 'pending')} "
+                f"(automated={review_state.get('automatedVerdict', 'pending')}, "
+                f"final={review_state.get('finalVerdict', 'pending')})"
             )
     print(f"Progress: {done}/{total}")
     for wt in session.worktrees:
@@ -1016,6 +1057,123 @@ def cmd_run_plan_verify(args: argparse.Namespace) -> int:
         note=args.note,
         root=root,
     )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def _review_ready_or_started(run) -> bool:
+    review_readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    return review_readiness.get("status") == "ready" or review_state.get("status") in {"in_progress", "completed"}
+
+
+def cmd_run_review_start(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if not _review_ready_or_started(run):
+        print(
+            "Review cannot start until reviewReadiness.status == ready "
+            f"(current={run.review_readiness.get('status', 'pending')!r}).",
+            file=sys.stderr,
+        )
+        return 1
+    run = start_delivery_run_review(
+        run,
+        reviewers=list(args.reviewer or []),
+        automated_verdict=args.automated_verdict,
+        note=args.note,
+        root=root,
+    )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_stage_set(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if not _review_ready_or_started(run):
+        print(
+            "Review stages cannot be updated until review is ready or already started.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = update_delivery_run_review_stage(
+            run,
+            stage=args.stage,
+            status=args.status,
+            findings=list(args.finding or []),
+            evidence=list(args.evidence or []),
+            notes=list(args.note or []),
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_verdict(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    stages = run.review.get("stages", []) if isinstance(getattr(run, "review", None), dict) else []
+    if args.verdict != "pending":
+        if not isinstance(stages, list) or any(
+            not isinstance(stage, dict) or stage.get("status") not in {"pass", "warn", "fail"}
+            for stage in stages
+        ):
+            print(
+                "Final review verdict requires both stage reviews to be completed first.",
+                file=sys.stderr,
+            )
+            return 1
+    try:
+        run = set_delivery_run_review_verdict(
+            run,
+            verdict=args.verdict,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_sync(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        run = sync_delivery_run_review(run, root=root)
+    except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     if args.json:
         _print_json(run.to_dict())
     else:
@@ -1994,6 +2152,40 @@ def main() -> int:
     p.add_argument("--note", help="Optional note to store with verification state")
     p.add_argument("--json", action="store_true")
 
+    # run-review-start
+    p = sub.add_parser("run-review-start", help="Start or resume review state for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--reviewer", action="append", default=[], help="Reviewer agent/user to record")
+    p.add_argument("--automated-verdict", choices=sorted(DELIVERY_REVIEW_VERDICTS - {'pending'}))
+    p.add_argument("--note", help="Optional note to attach to review state")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-stage-set
+    p = sub.add_parser("run-review-stage-set", help="Update one review stage on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("stage", choices=list(DELIVERY_REVIEW_STAGES))
+    p.add_argument("status", choices=sorted(DELIVERY_REVIEW_STAGE_STATUSES))
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--finding", action="append", default=[], help="Finding entry to store on the stage")
+    p.add_argument("--evidence", action="append", default=[], help="Evidence entry to store on the stage")
+    p.add_argument("--note", action="append", default=[], help="Stage note to store")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-verdict
+    p = sub.add_parser("run-review-verdict", help="Set the final review verdict on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("verdict", choices=sorted(DELIVERY_REVIEW_VERDICTS))
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--note", help="Optional note to append to review state")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-sync
+    p = sub.add_parser("run-review-sync", help="Sync a delivery run from REVIEW.json")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
     # run-sync-session
     p = sub.add_parser("run-sync-session", help="Sync a delivery run from the active worktree session")
     p.add_argument("feature", help="Feature slug")
@@ -2207,6 +2399,10 @@ def main() -> int:
         "run-refresh": cmd_run_refresh,
         "run-task-set": cmd_run_task_set,
         "run-plan-verify": cmd_run_plan_verify,
+        "run-review-start": cmd_run_review_start,
+        "run-review-stage-set": cmd_run_review_stage_set,
+        "run-review-verdict": cmd_run_review_verdict,
+        "run-review-sync": cmd_run_review_sync,
         "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
         "session-status": cmd_session_status,

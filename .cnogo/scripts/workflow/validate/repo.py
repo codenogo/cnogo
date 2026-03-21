@@ -8,6 +8,10 @@ from typing import Any, Callable
 from scripts.workflow.orchestration import (
     DELIVERY_INTEGRATION_STATUSES,
     DELIVERY_REVIEW_READINESS_STATUSES,
+    DELIVERY_REVIEW_STAGE_STATUSES,
+    DELIVERY_REVIEW_STATUSES,
+    DELIVERY_REVIEW_STAGES,
+    DELIVERY_REVIEW_VERDICTS,
     DELIVERY_RUN_STATUSES,
     DELIVERY_TASK_STATUSES,
 )
@@ -290,6 +294,131 @@ def validate_delivery_runs(
                                     str(run_path),
                                 )
                             )
+
+            review_state = contract.get("review")
+            if review_state is not None:
+                if not isinstance(review_state, dict):
+                    findings.append(
+                        finding_type("WARN", "Delivery run review should be an object.", str(run_path))
+                    )
+                else:
+                    review_status = review_state.get("status")
+                    if review_status not in DELIVERY_REVIEW_STATUSES:
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run review.status should be one of "
+                                f"{sorted(DELIVERY_REVIEW_STATUSES)}.",
+                                str(run_path),
+                            )
+                        )
+                    for field in ("automatedVerdict", "finalVerdict"):
+                        value = review_state.get(field)
+                        if value not in DELIVERY_REVIEW_VERDICTS:
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run review.{field} should be one of {sorted(DELIVERY_REVIEW_VERDICTS)}.",
+                                    str(run_path),
+                                )
+                            )
+                    reviewers = review_state.get("reviewers")
+                    if reviewers is not None and not isinstance(reviewers, list):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run review.reviewers should be an array.",
+                                str(run_path),
+                            )
+                        )
+                    stages = review_state.get("stages")
+                    if stages is not None:
+                        if not isinstance(stages, list):
+                            findings.append(
+                                finding_type("WARN", "Delivery run review.stages should be an array.", str(run_path))
+                            )
+                        else:
+                            expected_stages = list(DELIVERY_REVIEW_STAGES)
+                            if len(stages) < len(expected_stages):
+                                findings.append(
+                                    finding_type(
+                                        "WARN",
+                                        "Delivery run review.stages should include spec-compliance and code-quality.",
+                                        str(run_path),
+                                    )
+                                )
+                            for index, expected_stage in enumerate(expected_stages):
+                                if index >= len(stages):
+                                    break
+                                stage = stages[index]
+                                if not isinstance(stage, dict):
+                                    findings.append(
+                                        finding_type(
+                                            "WARN",
+                                            f"Delivery run review.stages[{index}] should be an object.",
+                                            str(run_path),
+                                        )
+                                    )
+                                    continue
+                                if stage.get("stage") != expected_stage:
+                                    findings.append(
+                                        finding_type(
+                                            "WARN",
+                                            f"Delivery run review.stages[{index}].stage should be {expected_stage!r}.",
+                                            str(run_path),
+                                        )
+                                    )
+                                if stage.get("status") not in DELIVERY_REVIEW_STAGE_STATUSES:
+                                    findings.append(
+                                        finding_type(
+                                            "WARN",
+                                            f"Delivery run review.stages[{index}].status should be one of "
+                                            f"{sorted(DELIVERY_REVIEW_STAGE_STATUSES)}.",
+                                            str(run_path),
+                                        )
+                                    )
+                                for list_field in ("findings", "evidence", "notes"):
+                                    value = stage.get(list_field)
+                                    if value is not None and not isinstance(value, list):
+                                        findings.append(
+                                            finding_type(
+                                                "WARN",
+                                                f"Delivery run review.stages[{index}].{list_field} should be an array.",
+                                                str(run_path),
+                                            )
+                                        )
+                                updated_at = stage.get("updatedAt")
+                                if updated_at is not None and not isinstance(updated_at, str):
+                                    findings.append(
+                                        finding_type(
+                                            "WARN",
+                                            f"Delivery run review.stages[{index}].updatedAt should be a string when present.",
+                                            str(run_path),
+                                        )
+                                    )
+                    for field in (
+                        "reviewStartedAt",
+                        "reviewCompletedAt",
+                        "artifactTimestamp",
+                        "artifactUpdatedAt",
+                        "artifactPath",
+                        "syncedAt",
+                        "updatedAt",
+                    ):
+                        value = review_state.get(field)
+                        if value is not None and not isinstance(value, str):
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run review.{field} should be a string when present.",
+                                    str(run_path),
+                                )
+                            )
+                    notes = review_state.get("notes")
+                    if notes is not None and not isinstance(notes, list):
+                        findings.append(
+                            finding_type("WARN", "Delivery run review.notes should be an array.", str(run_path))
+                        )
 
             notes = contract.get("notes")
             if notes is not None and not isinstance(notes, list):

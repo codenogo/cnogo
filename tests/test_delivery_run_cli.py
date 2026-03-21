@@ -210,6 +210,130 @@ def test_run_plan_verify_records_review_readiness(tmp_path):
     assert payload["integration"]["status"] == "merged"
 
 
+def test_run_review_commands_update_delivery_run_review_state(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    feature = "demo"
+    _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
+    feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / feature
+
+    created = _run_cli("run-create", feature, "01", "--json", cwd=tmp_path)
+    run = json.loads(created.stdout)
+
+    _run_cli("run-task-set", feature, "0", "merged", "--json", cwd=tmp_path)
+    _run_cli("run-task-set", feature, "1", "merged", "--json", cwd=tmp_path)
+    _run_cli("run-plan-verify", feature, "pass", "--command", "pytest -q", "--json", cwd=tmp_path)
+
+    started = _run_cli(
+        "run-review-start",
+        feature,
+        "--reviewer",
+        "code-reviewer",
+        "--automated-verdict",
+        "warn",
+        "--json",
+        cwd=tmp_path,
+    )
+    assert started.returncode == 0, started.stderr + started.stdout
+    started_payload = json.loads(started.stdout)
+    review_json = feature_dir / "REVIEW.json"
+    review_md = feature_dir / "REVIEW.md"
+    assert started_payload["review"]["status"] == "in_progress"
+    assert review_json.exists()
+    assert review_md.exists()
+    review_contract = json.loads(review_json.read_text(encoding="utf-8"))
+    assert review_contract["automatedVerdict"] == "warn"
+    assert review_contract["stageReviews"][0]["status"] == "pending"
+
+    stage_one = _run_cli(
+        "run-review-stage-set",
+        feature,
+        "spec-compliance",
+        "pass",
+        "--evidence",
+        "checked plan",
+        "--json",
+        cwd=tmp_path,
+    )
+    assert stage_one.returncode == 0, stage_one.stderr + stage_one.stdout
+    review_contract = json.loads(review_json.read_text(encoding="utf-8"))
+    assert review_contract["stageReviews"][0]["status"] == "pass"
+    assert review_contract["stageReviews"][0]["evidence"] == ["checked plan"]
+
+    stage_two = _run_cli(
+        "run-review-stage-set",
+        feature,
+        "code-quality",
+        "warn",
+        "--finding",
+        "minor issue",
+        "--evidence",
+        "pytest -q",
+        "--json",
+        cwd=tmp_path,
+    )
+    assert stage_two.returncode == 0, stage_two.stderr + stage_two.stdout
+
+    verdict = _run_cli("run-review-verdict", feature, "warn", "--json", cwd=tmp_path)
+    assert verdict.returncode == 0, verdict.stderr + verdict.stdout
+    payload = json.loads(verdict.stdout)
+    review_contract = json.loads(review_json.read_text(encoding="utf-8"))
+    assert payload["review"]["status"] == "completed"
+    assert payload["review"]["finalVerdict"] == "warn"
+    assert review_contract["verdict"] == "warn"
+    assert review_contract["stageReviews"][1]["status"] == "warn"
+    assert "## Final Verdict" in review_md.read_text(encoding="utf-8")
+
+
+def test_run_review_sync_reads_review_contract(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    feature = "demo"
+    feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / feature
+    _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
+
+    created = _run_cli("run-create", feature, "01", "--json", cwd=tmp_path)
+    run = json.loads(created.stdout)
+
+    _run_cli("run-task-set", feature, "0", "merged", "--json", cwd=tmp_path)
+    _run_cli("run-task-set", feature, "1", "merged", "--json", cwd=tmp_path)
+    _run_cli("run-plan-verify", feature, "pass", "--command", "pytest -q", "--json", cwd=tmp_path)
+
+    (feature_dir / "REVIEW.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 4,
+                "timestamp": "2026-03-21T11:00:00Z",
+                "reviewers": ["code-reviewer", "security-scanner"],
+                "automatedVerdict": "pass",
+                "verdict": "pass",
+                "stageReviews": [
+                    {
+                        "stage": "spec-compliance",
+                        "status": "pass",
+                        "findings": [],
+                        "evidence": ["plan"],
+                        "notes": "ok",
+                    },
+                    {
+                        "stage": "code-quality",
+                        "status": "pass",
+                        "findings": [],
+                        "evidence": ["tests"],
+                        "notes": "ok",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    synced = _run_cli("run-review-sync", feature, "--run-id", run["runId"], "--json", cwd=tmp_path)
+    assert synced.returncode == 0, synced.stderr + synced.stdout
+    payload = json.loads(synced.stdout)
+    assert payload["review"]["status"] == "completed"
+    assert payload["review"]["finalVerdict"] == "pass"
+    assert payload["review"]["reviewers"] == ["code-reviewer", "security-scanner"]
+
+
 def test_run_list_and_run_watch_cli(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
@@ -222,6 +346,8 @@ def test_run_list_and_run_watch_cli(tmp_path):
     listed = json.loads(run_list.stdout)
     assert listed[0]["runId"] == run["runId"]
     assert listed[0]["feature"] == "demo"
+    assert listed[0]["reviewStatus"] == "pending"
+    assert listed[0]["reviewVerdict"] == "pending"
 
     watch = _run_cli("run-watch", "--stale-minutes", "0", "--json", cwd=tmp_path)
     assert watch.returncode == 0, watch.stderr + watch.stdout

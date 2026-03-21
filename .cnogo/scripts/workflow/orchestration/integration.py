@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from .review import sync_review_state
+
 DELIVERY_INTEGRATION_STATUSES = frozenset(
     {
         "pending",
@@ -117,7 +119,7 @@ def sync_review_readiness(run: Any) -> Any:
         run.status = "ready_for_review"
     elif plan_verify_passed is False:
         run.status = "failed"
-    return run
+    return sync_review_state(run)
 
 
 def sync_integration_state(

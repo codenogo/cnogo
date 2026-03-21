@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from scripts.workflow.shared.config import load_workflow_config
+from scripts.workflow.orchestration.review_artifacts import write_review_artifact
 
 
 def configured_reviewers(root: Path) -> list[str]:
@@ -49,6 +50,31 @@ def graph_impact_section(root: Path, changed_relpaths: set[str]) -> dict[str, An
             graph.close()
     except Exception as exc:
         return {"enabled": False, "error": str(exc)}
+
+
+def _sync_linked_delivery_run(
+    root: Path,
+    *,
+    feature: str | None,
+    contract: dict[str, Any],
+    review_json_path: Path | None,
+) -> None:
+    if not feature or review_json_path is None:
+        return
+    try:
+        from scripts.memory import latest_delivery_run, sync_delivery_run_review
+
+        run = latest_delivery_run(feature, root=root)
+        if run is None:
+            return
+        sync_delivery_run_review(
+            run,
+            review_contract=contract,
+            review_path=str(review_json_path.relative_to(root)),
+            root=root,
+        )
+    except Exception:
+        return
 
 
 def write_review(
@@ -156,83 +182,30 @@ def write_review(
         "warnings": warnings[:200],
     }
 
+    review_json_path: Path | None = None
+    review_md_path: Path | None = None
     if feature:
         out_base = root / "docs" / "planning" / "work" / "features" / feature
-        write_json(out_base / "REVIEW.json", contract)
-        md_path = out_base / "REVIEW.md"
+        review_json_path = out_base / "REVIEW.json"
+        review_md_path = out_base / "REVIEW.md"
     else:
         out_base = root / "docs" / "planning" / "work" / "review"
-        write_json(out_base / f"{ts}-REVIEW.json", contract)
-        md_path = out_base / f"{ts}-REVIEW.md"
+        review_json_path = out_base / f"{ts}-REVIEW.json"
+        review_md_path = out_base / f"{ts}-REVIEW.md"
 
-    md_lines = [
-        "# Review Report",
-        "",
-        f"**Timestamp:** {ts}",
-        f"**Branch:** {branch or '[unknown]'}",
-        f"**Feature:** {feature or '[none]'}",
-        "",
-        "## Automated Checks (Package-Aware)",
-        "",
-        f"- Lint: **{agg['lint']}**",
-        f"- Types: **{agg['typecheck']}**",
-        f"- Tests: **{agg['tests']}**",
-        f"- Invariants: **{inv['fail']} fail / {inv['warn']} warn**",
-        (
-            f"- Token savings: **{tokens['savedTokens']} tokens** "
-            f"({tokens['savingsPct']}%, {tokens['checksRun']} checks)"
-        ),
-        "",
-        "## Per-Package Results",
-        "",
-    ]
-    for pkg in per_pkg:
-        md_lines.append(f"### {pkg['name']} (`{pkg['path']}`)")
-        for check in pkg.get("checks", []):
-            suffix = ""
-            if check.get("cmd"):
-                cwd = check.get("cwd")
-                cwd_part = f", cwd `{cwd}`" if isinstance(cwd, str) and cwd else ""
-                suffix = f" (`{check.get('cmd')}`{cwd_part})"
-            md_lines.append(f"- {check.get('name')}: **{check.get('result')}**{suffix}")
-            token_telemetry = check.get("tokenTelemetry")
-            if isinstance(token_telemetry, dict) and check.get("result") != "skipped":
-                md_lines.append(
-                    f"  - tokenTelemetry: in={token_telemetry.get('inputTokens', 0)} "
-                    f"out={token_telemetry.get('outputTokens', 0)} "
-                    f"saved={token_telemetry.get('savedTokens', 0)} "
-                    f"({token_telemetry.get('savingsPct', 0.0)}%)"
-                )
-            full = check.get("fullOutputPath")
-            if isinstance(full, str) and full:
-                md_lines.append(f"  - full output: `{full}`")
-        md_lines.append("")
-
-    if invariant_findings:
-        md_lines.append("## Invariant Findings")
-        md_lines.append("")
-        for finding in invariant_findings[:100]:
-            md_lines.append(f"- [{finding.severity}] `{finding.file}:{finding.line}` {finding.message} ({finding.rule})")
-        if len(invariant_findings) > 100:
-            md_lines.append(f"- ... {len(invariant_findings) - 100} more")
-        md_lines.append("")
-    if reviewers:
-        md_lines.append("## Reviewer Agents")
-        md_lines.append("")
-        for reviewer in reviewers:
-            md_lines.append(f"- `{reviewer}`")
-        md_lines.append("")
-    md_lines.append(f"## Automated Gate\n\n**{automated_verdict.upper()}**\n")
-    md_lines.append("## Final Verdict\n\n**PENDING**\n")
-
-    md_lines.append("## Manual Review")
-    md_lines.append("")
-    md_lines.append("> Review criteria: see `.claude/skills/code-review.md`")
-    md_lines.append(">")
-    md_lines.append("> Fill stage reviews in order: `stageReviews[0]=spec-compliance`, then `stageReviews[1]=code-quality`.")
-    md_lines.append(">")
-    md_lines.append("> Fill `securityFindings[]`, `performanceFindings[]`, `patternCompliance[]` in REVIEW.json.")
-    md_lines.append("")
-
-    write_text(md_path, "\n".join(md_lines).strip() + "\n")
+    if review_json_path is None or review_md_path is None:
+        raise ValueError("Unable to resolve review artifact paths.")
+    write_review_artifact(
+        review_json_path,
+        review_md_path,
+        contract,
+        write_json_fn=write_json,
+        write_text_fn=write_text,
+    )
+    _sync_linked_delivery_run(
+        root,
+        feature=feature,
+        contract=contract,
+        review_json_path=review_json_path,
+    )
     return 1 if automated_verdict == "fail" else 0

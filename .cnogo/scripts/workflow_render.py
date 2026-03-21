@@ -7,6 +7,7 @@ Supported:
 - ideas/<initiative>/BRAINSTORM.json -> BRAINSTORM.md (legacy)
 - features/<feature>/FEATURE.json -> FEATURE.md
 - features/<feature>/CONTEXT.json -> CONTEXT.md
+- features/<feature>/REVIEW.json -> REVIEW.md
 - features/<feature>/<NN>-PLAN.json -> <NN>-PLAN.md (regenerates tasks section)
 - features/<feature>/<NN>-SUMMARY.json -> <NN>-SUMMARY.md (regenerates tables)
 - work/research/<slug>/RESEARCH.json -> RESEARCH.md
@@ -431,6 +432,101 @@ def render_research(research: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_review(review: dict[str, Any]) -> str:
+    feature = str(review.get("feature") or "[none]").strip()
+    branch = str(review.get("branch") or "[unknown]").strip()
+    timestamp = str(review.get("timestamp") or "").strip()
+    automated = review.get("automated", [])
+    reviewers = review.get("reviewers", [])
+    stage_reviews = review.get("stageReviews", [])
+    blockers = review.get("blockers", [])
+    warnings = review.get("warnings", [])
+    automated_verdict = str(review.get("automatedVerdict") or "pending").strip()
+    final_verdict = str(review.get("verdict") or "pending").strip()
+
+    lines: list[str] = []
+    lines.append("# Review Report")
+    lines.append("")
+    lines.append(f"**Timestamp:** {timestamp or '[timestamp]'}")
+    lines.append(f"**Branch:** {branch}")
+    lines.append(f"**Feature:** {feature}")
+    lines.append("")
+    lines.append("## Automated Checks")
+    if isinstance(automated, list) and automated:
+        for item in automated:
+            if not isinstance(item, dict):
+                continue
+            lines.append(f"- {item.get('name', '[check]')}: **{item.get('result', 'unknown')}**")
+    else:
+        lines.append("- [No automated checks recorded]")
+    lines.append("")
+    if isinstance(reviewers, list) and reviewers:
+        lines.append("## Reviewers")
+        for reviewer in reviewers:
+            lines.append(f"- `{reviewer}`")
+        lines.append("")
+    lines.append("## Automated Gate")
+    lines.append(f"**{automated_verdict.upper()}**")
+    lines.append("")
+    lines.append("## Stage Reviews")
+    if isinstance(stage_reviews, list) and stage_reviews:
+        for stage in stage_reviews:
+            if not isinstance(stage, dict):
+                continue
+            stage_name = str(stage.get("stage") or "[stage]").strip()
+            status = str(stage.get("status") or "pending").strip()
+            lines.append(f"### {stage_name}")
+            lines.append(f"- Status: `{status}`")
+            findings = stage.get("findings", [])
+            evidence = stage.get("evidence", [])
+            notes = stage.get("notes")
+            lines.append("- Findings:")
+            if isinstance(findings, list) and findings:
+                for finding in findings:
+                    lines.append(f"  - {finding}")
+            else:
+                lines.append("  - [None]")
+            lines.append("- Evidence:")
+            if isinstance(evidence, list) and evidence:
+                for entry in evidence:
+                    lines.append(f"  - {entry}")
+            else:
+                lines.append("  - [None]")
+            lines.append("- Notes:")
+            if isinstance(notes, list) and notes:
+                for note in notes:
+                    lines.append(f"  - {note}")
+            elif isinstance(notes, str) and notes.strip():
+                for line in notes.splitlines():
+                    lines.append(f"  - {line}")
+            else:
+                lines.append("  - [None]")
+            lines.append("")
+    else:
+        lines.append("- [No stage review state recorded]")
+        lines.append("")
+    if isinstance(blockers, list) and blockers:
+        lines.append("## Blockers")
+        for blocker in blockers:
+            if isinstance(blocker, dict):
+                lines.append(f"- `{blocker.get('file', '')}:{blocker.get('line', '')}` {blocker.get('issue', '')}")
+            else:
+                lines.append(f"- {blocker}")
+        lines.append("")
+    if isinstance(warnings, list) and warnings:
+        lines.append("## Warnings")
+        for warning in warnings:
+            if isinstance(warning, dict):
+                lines.append(f"- `{warning.get('file', '')}:{warning.get('line', '')}` {warning.get('issue', '')}")
+            else:
+                lines.append(f"- {warning}")
+        lines.append("")
+    lines.append("## Final Verdict")
+    lines.append(f"**{final_verdict.upper()}**")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def render_plan(plan: dict[str, Any]) -> str:
     feature = plan.get("feature", "[feature]")
     pn = plan.get("planNumber", "NN")
@@ -757,6 +853,11 @@ def main() -> int:
         write(md, render_context(data))
         print(f"✅ Rendered {md}")
         return 0
+    if jf.name == "REVIEW.json":
+        md = jf.with_name("REVIEW.md")
+        write(md, render_review(data))
+        print(f"✅ Rendered {md}")
+        return 0
     if jf.name == "RESEARCH.json":
         md = jf.with_name("RESEARCH.md")
         write(md, render_research(data))
@@ -766,7 +867,7 @@ def main() -> int:
     raise SystemExit(
         (
             "Unsupported contract type. Use SHAPE.json, BRAINSTORM.json, FEATURE.json, CONTEXT.json, "
-            "RESEARCH.json, *-PLAN.json, *-SUMMARY.json, PLAN.json, or SUMMARY.json."
+            "REVIEW.json, RESEARCH.json, *-PLAN.json, *-SUMMARY.json, PLAN.json, or SUMMARY.json."
         )
     )
 

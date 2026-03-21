@@ -16,6 +16,11 @@ from scripts.workflow.orchestration.delivery_run import (  # noqa: E402
     update_delivery_task_status,
 )
 from scripts.workflow.orchestration.integration import record_plan_verification  # noqa: E402
+from scripts.workflow.orchestration.review import (  # noqa: E402
+    set_review_stage,
+    set_review_verdict,
+    start_review,
+)
 from scripts.workflow.orchestration.watch import (  # noqa: E402
     list_delivery_runs,
     watch_delivery_runs,
@@ -129,6 +134,59 @@ def test_watch_delivery_runs_detects_ready_for_review_staleness(tmp_path):
 
     assert ready_findings
     assert ready_findings[0]["runId"] == "demo-review"
+
+
+def test_watch_delivery_runs_detects_review_in_progress_and_failed_followup(tmp_path):
+    plan_path = _write_plan(tmp_path, "demo", "01")
+    run = create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="team",
+        run_id="demo-review-progress",
+    )
+    run = sync_run_with_worktree_session(
+        run,
+        {
+            "phase": "merged",
+            "mergedSoFar": [0],
+            "worktrees": [{"taskIndex": 0, "status": "merged"}],
+        },
+    )
+    run = record_plan_verification(run, passed=True, commands=["pytest -q"])
+    run = start_review(run, reviewers=["code-reviewer"], automated_verdict="warn")
+    save_delivery_run(run, tmp_path)
+    _force_updated_at(tmp_path, "demo", "demo-review-progress", "2020-01-01T00:00:00Z")
+
+    report = watch_delivery_runs(tmp_path, stale_minutes=10, review_stale_minutes=30)
+    kinds = {finding["kind"] for finding in report["findings"]}
+    assert "review_in_progress_stale" in kinds
+
+    run = set_review_stage(
+        run,
+        stage="spec-compliance",
+        status="pass",
+        findings=[],
+        evidence=["plan"],
+        notes=["ok"],
+    )
+    run = set_review_stage(
+        run,
+        stage="code-quality",
+        status="fail",
+        findings=["blocker"],
+        evidence=["tests"],
+        notes=["fix needed"],
+    )
+    run = set_review_verdict(run, verdict="fail")
+    save_delivery_run(run, tmp_path)
+    _force_updated_at(tmp_path, "demo", "demo-review-progress", "2020-01-01T00:00:00Z")
+
+    report = watch_delivery_runs(tmp_path, stale_minutes=10, review_stale_minutes=30)
+    kinds = {finding["kind"] for finding in report["findings"]}
+    assert "review_failed_followup_stale" in kinds
 
 
 def test_watch_delivery_runs_detects_session_missing_run(tmp_path):

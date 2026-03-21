@@ -177,6 +177,48 @@ def test_render_research_preserves_sources_and_recommendation():
     assert "Start Anthropic-only and revisit multi-provider later." in markdown
 
 
+def test_render_review_includes_stage_state_and_final_verdict():
+    markdown = render.render_review(
+        {
+            "timestamp": "2026-03-21T12:00:00Z",
+            "branch": "feature/demo",
+            "feature": "demo",
+            "automated": [
+                {"name": "lint", "result": "pass"},
+                {"name": "tests", "result": "warn"},
+            ],
+            "reviewers": ["code-reviewer", "perf-analyzer"],
+            "automatedVerdict": "warn",
+            "verdict": "pass",
+            "stageReviews": [
+                {
+                    "stage": "spec-compliance",
+                    "status": "pass",
+                    "findings": [],
+                    "evidence": ["plan checked"],
+                    "notes": "ok",
+                },
+                {
+                    "stage": "code-quality",
+                    "status": "warn",
+                    "findings": ["minor issue"],
+                    "evidence": ["pytest -q"],
+                    "notes": "watch later",
+                },
+            ],
+        }
+    )
+
+    assert "# Review Report" in markdown
+    assert "## Stage Reviews" in markdown
+    assert "### spec-compliance" in markdown
+    assert "- Status: `pass`" in markdown
+    assert "### code-quality" in markdown
+    assert "minor issue" in markdown
+    assert "## Final Verdict" in markdown
+    assert "**PASS**" in markdown
+
+
 def test_render_plan_shows_context_links_for_schema_v3_tasks():
     markdown = render.render_plan(
         {

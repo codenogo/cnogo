@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .integration import ensure_run_coordination_state, sync_integration_state
+from .review import ensure_run_review_state, sync_review_state
 
 DELIVERY_RUN_SCHEMA_VERSION = 1
 
@@ -155,6 +156,7 @@ class DeliveryRun:
     recommendation: dict[str, Any] = field(default_factory=dict)
     integration: dict[str, Any] = field(default_factory=dict)
     review_readiness: dict[str, Any] = field(default_factory=dict)
+    review: dict[str, Any] = field(default_factory=dict)
     tasks: list[DeliveryTask] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     created_at: str = field(default_factory=_now_iso)
@@ -176,6 +178,7 @@ class DeliveryRun:
             "recommendation": self.recommendation,
             "integration": self.integration,
             "reviewReadiness": self.review_readiness,
+            "review": self.review,
             "tasks": [task.to_dict() for task in self.tasks],
             "notes": self.notes,
             "createdAt": self.created_at,
@@ -205,6 +208,9 @@ class DeliveryRun:
             review_readiness=dict(data.get("reviewReadiness", {}))
             if isinstance(data.get("reviewReadiness"), dict)
             else {},
+            review=dict(data.get("review", {}))
+            if isinstance(data.get("review"), dict)
+            else {},
             tasks=[
                 DeliveryTask.from_dict(task)
                 for task in data.get("tasks", [])
@@ -225,6 +231,9 @@ def delivery_run_path(root: Path, feature: str, run_id: str) -> Path:
 
 
 def save_delivery_run(run: DeliveryRun, root: Path) -> Path:
+    ensure_run_coordination_state(run)
+    ensure_run_review_state(run)
+    sync_review_state(run)
     run.updated_at = _now_iso()
     if not run.created_at:
         run.created_at = run.updated_at
@@ -241,7 +250,11 @@ def load_delivery_run(root: Path, feature: str, run_id: str) -> DeliveryRun | No
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"Delivery run at {path} must be a JSON object")
-    return DeliveryRun.from_dict(data)
+    run = DeliveryRun.from_dict(data)
+    ensure_run_coordination_state(run)
+    ensure_run_review_state(run)
+    sync_review_state(run)
+    return run
 
 
 def latest_delivery_run(root: Path, feature: str) -> DeliveryRun | None:
@@ -256,7 +269,11 @@ def latest_delivery_run(root: Path, feature: str) -> DeliveryRun | None:
     for path in candidates:
         data = json.loads(path.read_text(encoding="utf-8"))
         if isinstance(data, dict):
-            return DeliveryRun.from_dict(data)
+            run = DeliveryRun.from_dict(data)
+            ensure_run_coordination_state(run)
+            ensure_run_review_state(run)
+            sync_review_state(run)
+            return run
     return None
 
 
@@ -279,6 +296,7 @@ def _derive_run_status(tasks: list[DeliveryTask]) -> str:
 
 def refresh_task_frontier(run: DeliveryRun) -> DeliveryRun:
     ensure_run_coordination_state(run)
+    ensure_run_review_state(run)
     by_index = {task.task_index: task for task in run.tasks}
     for task in run.tasks:
         if task.status in {"pending", "blocked"}:
@@ -290,7 +308,8 @@ def refresh_task_frontier(run: DeliveryRun) -> DeliveryRun:
                 task.updated_at = _now_iso()
     run.status = _derive_run_status(run.tasks)
     run.updated_at = _now_iso()
-    return sync_integration_state(run)
+    sync_integration_state(run)
+    return sync_review_state(run)
 
 
 def create_delivery_run(
@@ -328,9 +347,11 @@ def create_delivery_run(
         recommendation=recommendation or {},
         integration={},
         review_readiness={},
+        review={},
         tasks=tasks,
     )
     ensure_run_coordination_state(run)
+    ensure_run_review_state(run)
     refresh_task_frontier(run)
     save_delivery_run(run, root)
     return run
@@ -402,11 +423,13 @@ def update_delivery_task_status(
 
 def sync_run_with_worktree_session(run: DeliveryRun, session: Any) -> DeliveryRun:
     ensure_run_coordination_state(run)
+    ensure_run_review_state(run)
     worktrees = getattr(session, "worktrees", None)
     if worktrees is None and isinstance(session, dict):
         worktrees = session.get("worktrees")
     if not isinstance(worktrees, list):
-        return sync_integration_state(run, session=session)
+        sync_integration_state(run, session=session)
+        return sync_review_state(run)
 
     by_index = {task.task_index: task for task in run.tasks}
     for worktree in worktrees:
@@ -435,4 +458,5 @@ def sync_run_with_worktree_session(run: DeliveryRun, session: Any) -> DeliveryRu
 
     run.updated_at = _now_iso()
     run.status = _derive_run_status(run.tasks)
-    return sync_integration_state(run, session=session)
+    sync_integration_state(run, session=session)
+    return sync_review_state(run)

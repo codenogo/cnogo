@@ -1212,6 +1212,38 @@ def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
                     "notes": [],
                     "updatedAt": _iso_now(),
                 },
+                "review": {
+                    "status": "pending",
+                    "reviewers": [],
+                    "automatedVerdict": "pending",
+                    "finalVerdict": "pending",
+                    "stages": [
+                        {
+                            "stage": "spec-compliance",
+                            "status": "pending",
+                            "findings": [],
+                            "evidence": [],
+                            "notes": [],
+                            "updatedAt": _iso_now(),
+                        },
+                        {
+                            "stage": "code-quality",
+                            "status": "pending",
+                            "findings": [],
+                            "evidence": [],
+                            "notes": [],
+                            "updatedAt": _iso_now(),
+                        },
+                    ],
+                    "reviewStartedAt": "",
+                    "reviewCompletedAt": "",
+                    "artifactTimestamp": "",
+                    "artifactUpdatedAt": "",
+                    "artifactPath": "",
+                    "syncedAt": "",
+                    "notes": [],
+                    "updatedAt": _iso_now(),
+                },
                 "tasks": [
                     {
                         "taskIndex": 0,
@@ -1299,6 +1331,25 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
                     "planVerifyPassed": "yes",
                     "verifiedCommands": "pytest -q",
                 },
+                "review": {
+                    "status": "mystery",
+                    "reviewers": "code-reviewer",
+                    "automatedVerdict": "maybe",
+                    "finalVerdict": "later",
+                    "stages": [
+                        {
+                            "stage": "wrong-stage",
+                            "status": "mystery",
+                            "findings": "bad",
+                            "evidence": "bad",
+                            "notes": "bad",
+                            "updatedAt": 123,
+                        }
+                    ],
+                    "reviewStartedAt": 123,
+                    "artifactPath": [],
+                    "notes": "bad",
+                },
                 "tasks": [{"taskIndex": "0", "title": "", "status": "mystery"}],
             }
         ),
@@ -1331,6 +1382,9 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     assert any("Delivery run status should be one of" in msg for msg in msgs)
     assert any("Delivery run integration.status should be one of" in msg for msg in msgs)
     assert any("Delivery run reviewReadiness.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run review.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run review.automatedVerdict should be one of" in msg for msg in msgs)
+    assert any("Delivery run review.stages[0].stage should be 'spec-compliance'." in msg for msg in msgs)
     assert any("worktree-session.json references runId that does not exist" in msg for msg in msgs)
 
 

@@ -17,6 +17,7 @@ from .delivery_run import (
     load_delivery_run,
 )
 from .integration import ensure_run_coordination_state, sync_review_readiness
+from .review import ensure_run_review_state, sync_review_state
 
 _RUNS_DIR = Path(".cnogo") / "runs"
 _SESSION_FILE = Path(".cnogo") / "worktree-session.json"
@@ -70,7 +71,9 @@ def list_delivery_runs(
         if run is None:
             continue
         ensure_run_coordination_state(run)
+        ensure_run_review_state(run)
         sync_review_readiness(run)
+        sync_review_state(run)
         if not include_terminal and run.status in TERMINAL_DELIVERY_RUN_STATUSES:
             continue
         if statuses and run.status not in statuses:
@@ -94,7 +97,9 @@ def summarize_delivery_run(
 ) -> dict[str, Any]:
     """Build a compact operator-facing summary for a single delivery run."""
     ensure_run_coordination_state(run)
+    ensure_run_review_state(run)
     sync_review_readiness(run)
+    sync_review_state(run)
     now = now or _now_utc()
     updated_at = parse_iso_timestamp(run.updated_at)
     minutes_since_update = None
@@ -116,6 +121,8 @@ def summarize_delivery_run(
         "branch": run.branch,
         "integrationStatus": run.integration.get("status", "pending"),
         "reviewReadiness": run.review_readiness.get("status", "pending"),
+        "reviewStatus": run.review.get("status", "pending"),
+        "reviewVerdict": run.review.get("finalVerdict", "pending"),
         "planVerifyPassed": run.review_readiness.get("planVerifyPassed"),
         "updatedAt": run.updated_at,
         "minutesSinceUpdate": minutes_since_update,
@@ -158,7 +165,9 @@ def _finding(
                 "status": run.status,
                 "integrationStatus": run.integration.get("status", "pending"),
                 "reviewReadiness": run.review_readiness.get("status", "pending"),
-        "path": str(path or (delivery_run_dir(Path.cwd(), run.feature) / f"{run.run_id}.json")),
+                "reviewStatus": run.review.get("status", "pending"),
+                "reviewVerdict": run.review.get("finalVerdict", "pending"),
+                "path": str(path or (delivery_run_dir(Path.cwd(), run.feature) / f"{run.run_id}.json")),
             }
         )
     elif path:
@@ -191,6 +200,8 @@ def watch_delivery_runs(
         minutes_since_update = summary.get("minutesSinceUpdate")
         integration_status = run.integration.get("status", "pending")
         review_status = run.review_readiness.get("status", "pending")
+        review_state = run.review.get("status", "pending") if isinstance(getattr(run, "review", None), dict) else "pending"
+        review_verdict = run.review.get("finalVerdict", "pending") if isinstance(getattr(run, "review", None), dict) else "pending"
         session_linked = bool(summary.get("sessionLinked"))
 
         if run.mode == "team" and run.status in {"active", "blocked"} and integration_status not in {"merged", "cleaned"} and not session_linked:
@@ -260,7 +271,7 @@ def watch_delivery_runs(
                 )
             )
 
-        if review_status == "ready" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+        if review_status == "ready" and review_state == "ready" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
             findings.append(
                 _finding(
                     kind="ready_for_review_stale",
@@ -268,6 +279,32 @@ def watch_delivery_runs(
                     run=run,
                     message=f"Run has been ready for review for {minutes_since_update:.1f} minutes.",
                     next_action=f"Continue with `/review {run.feature}` or inspect `REVIEW.json` generation inputs.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if review_state == "in_progress" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+            findings.append(
+                _finding(
+                    kind="review_in_progress_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Review has been in progress without movement for {minutes_since_update:.1f} minutes.",
+                    next_action=f"Resume `/review {run.feature}` or sync latest artifact state with `python3 .cnogo/scripts/workflow_memory.py run-review-sync {run.feature} --run-id {run.run_id}`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if review_state == "completed" and review_verdict == "fail" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+            findings.append(
+                _finding(
+                    kind="review_failed_followup_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Review failed {minutes_since_update:.1f} minutes ago and still needs follow-up implementation work.",
+                    next_action=f"Address review blockers, then update the run via `python3 .cnogo/scripts/workflow_memory.py run-review-stage-set {run.feature} <stage> <status>` and `run-review-verdict`.",
                     minutes_stale=minutes_since_update,
                     path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
                 )
