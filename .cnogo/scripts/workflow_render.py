@@ -531,6 +531,7 @@ def render_plan(plan: dict[str, Any]) -> str:
     feature = plan.get("feature", "[feature]")
     pn = plan.get("planNumber", "NN")
     goal = plan.get("goal", "")
+    profile = plan.get("profile")
     formula = plan.get("formula")
     schema_version_raw = plan.get("schemaVersion", 1)
     schema_version = schema_version_raw if isinstance(schema_version_raw, int) and not isinstance(schema_version_raw, bool) else 1
@@ -544,12 +545,13 @@ def render_plan(plan: dict[str, Any]) -> str:
     lines.append("## Goal")
     lines.append(goal or "[One sentence: what this plan delivers]")
     lines.append("")
-    if formula is not None:
-        formula_name = formula if isinstance(formula, str) else formula.get("name", "") if isinstance(formula, dict) else ""
-        formula_name = str(formula_name).strip()
-        if formula_name:
-            lines.append("## Formula")
-            lines.append(f"`{formula_name}`")
+    profile_value = formula if formula is not None else profile
+    if profile_value is not None:
+        profile_name = profile_value if isinstance(profile_value, str) else profile_value.get("name", "") if isinstance(profile_value, dict) else ""
+        profile_name = str(profile_name).strip()
+        if profile_name:
+            lines.append("## Formula" if formula is not None else "## Profile")
+            lines.append(f"`{profile_name}`")
             lines.append("")
     lines.append("## Tasks")
     lines.append("")

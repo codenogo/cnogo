@@ -14,7 +14,7 @@ from scripts.workflow_utils import load_workflow as _load_workflow_util
 
 DEFAULT_TOKEN_BUDGETS = {
     "enabled": True,
-    "commandWordMax": 400,
+    "commandWordMax": 430,
     "commandsTotalWordMax": 8000,
     "contextWordMax": 1300,
     "planWordMax": 1200,
@@ -29,7 +29,28 @@ DEFAULT_BOOTSTRAP_CONTEXT = {
     "enabled": True,
     "rootClaudeWordMax": 500,
     "workflowClaudeWordMax": 450,
-    "commandSetWordMax": 7000,
+    "commandSetWordMax": 7300,
+}
+
+DEFAULT_WATCH_SETTINGS = {
+    "enabled": True,
+    "patrolIntervalMinutes": 15,
+    "historyLimit": 25,
+    "attentionLimit": 50,
+}
+
+DEFAULT_SCHEDULER_SETTINGS = {
+    "enabled": True,
+    "mode": "hybrid",
+    "tickIntervalMinutes": 15,
+    "opportunisticCommands": [
+        "session-status",
+        "run-list",
+        "run-attention",
+        "work-list",
+        "work-show",
+        "work-next",
+    ],
 }
 
 
@@ -140,6 +161,54 @@ def bootstrap_context_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
         val = raw.get(key)
         if _is_positive_int(val):
             out[key] = val
+    return out
+
+
+def watch_settings_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
+    raw = cfg.get("watch")
+    if not isinstance(raw, dict):
+        return dict(DEFAULT_WATCH_SETTINGS)
+
+    out = dict(DEFAULT_WATCH_SETTINGS)
+    enabled = raw.get("enabled")
+    if isinstance(enabled, bool):
+        out["enabled"] = enabled
+    for key in ("patrolIntervalMinutes", "historyLimit", "attentionLimit"):
+        value = raw.get(key)
+        if _is_positive_int(value):
+            out[key] = value
+    return out
+
+
+def scheduler_settings_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
+    raw = cfg.get("scheduler")
+    if not isinstance(raw, dict):
+        return dict(DEFAULT_SCHEDULER_SETTINGS)
+
+    out = dict(DEFAULT_SCHEDULER_SETTINGS)
+    enabled = raw.get("enabled")
+    if isinstance(enabled, bool):
+        out["enabled"] = enabled
+    mode = raw.get("mode")
+    if mode in {"hybrid", "supervisor"}:
+        out["mode"] = mode
+    tick = raw.get("tickIntervalMinutes")
+    if _is_positive_int(tick):
+        out["tickIntervalMinutes"] = tick
+    commands = raw.get("opportunisticCommands")
+    if isinstance(commands, list):
+        parsed = []
+        seen: set[str] = set()
+        for value in commands:
+            if not isinstance(value, str) or not value.strip():
+                continue
+            command = value.strip()
+            if command in seen:
+                continue
+            seen.add(command)
+            parsed.append(command)
+        if parsed:
+            out["opportunisticCommands"] = parsed
     return out
 
 

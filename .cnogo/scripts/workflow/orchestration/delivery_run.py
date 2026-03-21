@@ -154,7 +154,7 @@ class DeliveryRun:
     plan_path: str = ""
     summary_path: str = ""
     review_path: str = ""
-    formula: dict[str, Any] = field(default_factory=dict)
+    profile: dict[str, Any] = field(default_factory=dict)
     recommendation: dict[str, Any] = field(default_factory=dict)
     integration: dict[str, Any] = field(default_factory=dict)
     review_readiness: dict[str, Any] = field(default_factory=dict)
@@ -178,7 +178,8 @@ class DeliveryRun:
             "planPath": self.plan_path,
             "summaryPath": self.summary_path,
             "reviewPath": self.review_path,
-            "formula": self.formula,
+            "profile": self.profile,
+            "formula": self.profile,
             "recommendation": self.recommendation,
             "integration": self.integration,
             "reviewReadiness": self.review_readiness,
@@ -192,6 +193,11 @@ class DeliveryRun:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "DeliveryRun":
+        profile = {}
+        if isinstance(data.get("profile"), dict):
+            profile = dict(data.get("profile", {}))
+        elif isinstance(data.get("formula"), dict):
+            profile = dict(data.get("formula", {}))
         return cls(
             schema_version=int(data.get("schemaVersion", DELIVERY_RUN_SCHEMA_VERSION)),
             run_id=str(data.get("runId", "")),
@@ -204,9 +210,7 @@ class DeliveryRun:
             plan_path=str(data.get("planPath", "")),
             summary_path=str(data.get("summaryPath", "")),
             review_path=str(data.get("reviewPath", "")),
-            formula=dict(data.get("formula", {}))
-            if isinstance(data.get("formula"), dict)
-            else {},
+            profile=profile,
             recommendation=dict(data.get("recommendation", {}))
             if isinstance(data.get("recommendation"), dict)
             else {},
@@ -231,6 +235,14 @@ class DeliveryRun:
             created_at=str(data.get("createdAt", _now_iso())),
             updated_at=str(data.get("updatedAt", _now_iso())),
         )
+
+    @property
+    def formula(self) -> dict[str, Any]:
+        return self.profile
+
+    @formula.setter
+    def formula(self, value: dict[str, Any] | None) -> None:
+        self.profile = dict(value) if isinstance(value, dict) else {}
 
 
 def delivery_run_dir(root: Path, feature: str) -> Path:
@@ -343,6 +355,7 @@ def create_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
     formula: dict[str, Any] | None = None,
 ) -> DeliveryRun:
     if mode not in {"serial", "team"}:
@@ -353,6 +366,7 @@ def create_delivery_run(
         DeliveryTask.from_task_desc(task_desc, fallback_index=index)
         for index, task_desc in enumerate(task_descriptions)
     ]
+    resolved_profile = profile if isinstance(profile, dict) else formula if isinstance(formula, dict) else {}
     run = DeliveryRun(
         run_id=run_id,
         feature=feature,
@@ -364,7 +378,7 @@ def create_delivery_run(
         plan_path=str(plan_path),
         summary_path=str(plan_path.with_name(f"{plan_path.stem.replace('-PLAN', '')}-SUMMARY.json")),
         review_path=str(plan_path.with_name("REVIEW.json")),
-        formula=formula or {},
+        profile=resolved_profile,
         recommendation=recommendation or {},
         integration={},
         review_readiness={},
@@ -392,6 +406,7 @@ def ensure_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
     formula: dict[str, Any] | None = None,
     resume_latest: bool = True,
 ) -> DeliveryRun:
@@ -414,6 +429,7 @@ def ensure_delivery_run(
         started_by=started_by,
         branch=branch,
         recommendation=recommendation,
+        profile=profile,
         formula=formula,
     )
 

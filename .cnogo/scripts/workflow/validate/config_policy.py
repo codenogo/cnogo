@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from ..shared.profiles import load_profile_catalog
+
 
 _SKILL_REF_RE = re.compile(r"`?\.claude/skills/([^`\s]+\.md)`?")
 _AGENT_REF_RE = re.compile(r"`?\.claude/agents/([^`\s]+\.md)`?")
@@ -40,15 +42,63 @@ def validate_workflow_config(
             )
         )
 
+    profiles = cfg.get("profiles")
+    if profiles is not None and not isinstance(profiles, dict):
+        findings.append(finding_type("WARN", "WORKFLOW.json: 'profiles' should be an object.", str(cfg_path)))
+    elif isinstance(profiles, dict):
+        default_name = profiles.get("default")
+        if default_name is not None and (not isinstance(default_name, str) or not default_name.strip()):
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: profiles.default should be a non-empty string.", str(cfg_path))
+            )
+        elif isinstance(default_name, str) and default_name.strip():
+            catalog = load_profile_catalog(root, cfg=cfg)
+            if default_name.strip() not in catalog:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"WORKFLOW.json: profiles.default refers to unknown profile {default_name!r}.",
+                        str(cfg_path),
+                    )
+                )
+        catalog_path = profiles.get("catalogPath")
+        if catalog_path is not None and (not isinstance(catalog_path, str) or not catalog_path.strip()):
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: profiles.catalogPath should be a non-empty string.",
+                    str(cfg_path),
+                )
+            )
+        allow_plan_override = profiles.get("allowPlanOverride")
+        if allow_plan_override is not None and not isinstance(allow_plan_override, bool):
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: profiles.allowPlanOverride should be boolean.",
+                    str(cfg_path),
+                )
+            )
+
     formulas = cfg.get("formulas")
     if formulas is not None and not isinstance(formulas, dict):
-        findings.append(finding_type("WARN", "WORKFLOW.json: 'formulas' should be an object.", str(cfg_path)))
+        findings.append(finding_type("WARN", "WORKFLOW.json: legacy 'formulas' should be an object when present.", str(cfg_path)))
     elif isinstance(formulas, dict):
         default_name = formulas.get("default")
         if default_name is not None and (not isinstance(default_name, str) or not default_name.strip()):
             findings.append(
                 finding_type("WARN", "WORKFLOW.json: formulas.default should be a non-empty string.", str(cfg_path))
             )
+        elif isinstance(default_name, str) and default_name.strip():
+            catalog = load_profile_catalog(root, cfg=cfg)
+            if default_name.strip() not in catalog:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"WORKFLOW.json: formulas.default refers to unknown formula {default_name!r}.",
+                        str(cfg_path),
+                    )
+                )
         catalog_path = formulas.get("catalogPath")
         if catalog_path is not None and (not isinstance(catalog_path, str) or not catalog_path.strip()):
             findings.append(
@@ -67,6 +117,63 @@ def validate_workflow_config(
                     str(cfg_path),
                 )
             )
+        findings.append(
+            finding_type(
+                "WARN",
+                "WORKFLOW.json: legacy 'formulas' is deprecated; use 'profiles' instead.",
+                str(cfg_path),
+            )
+        )
+
+    scheduler = cfg.get("scheduler")
+    if scheduler is not None and not isinstance(scheduler, dict):
+        findings.append(finding_type("WARN", "WORKFLOW.json: 'scheduler' should be an object.", str(cfg_path)))
+    elif isinstance(scheduler, dict):
+        enabled = scheduler.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: scheduler.enabled should be boolean.", str(cfg_path))
+            )
+        mode = scheduler.get("mode")
+        if mode is not None and mode not in {"hybrid", "supervisor"}:
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: scheduler.mode should be hybrid|supervisor.", str(cfg_path))
+            )
+        tick = scheduler.get("tickIntervalMinutes")
+        if tick is not None and not is_positive_int(tick):
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: scheduler.tickIntervalMinutes should be an integer > 0.", str(cfg_path))
+            )
+        commands = scheduler.get("opportunisticCommands")
+        if commands is not None:
+            if not isinstance(commands, list) or not all(isinstance(value, str) and value.strip() for value in commands):
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        "WORKFLOW.json: scheduler.opportunisticCommands should be an array of non-empty strings.",
+                        str(cfg_path),
+                    )
+                )
+
+    watch = cfg.get("watch")
+    if watch is not None and not isinstance(watch, dict):
+        findings.append(finding_type("WARN", "WORKFLOW.json: 'watch' should be an object.", str(cfg_path)))
+    elif isinstance(watch, dict):
+        enabled = watch.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: watch.enabled should be boolean.", str(cfg_path))
+            )
+        for key in ("patrolIntervalMinutes", "historyLimit", "attentionLimit"):
+            value = watch.get(key)
+            if value is not None and not is_positive_int(value):
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"WORKFLOW.json: watch.{key} should be an integer > 0.",
+                        str(cfg_path),
+                    )
+                )
 
     perf = cfg.get("performance")
     if perf is not None and not isinstance(perf, dict):

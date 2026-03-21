@@ -264,6 +264,22 @@ def test_render_plan_shows_formula_when_present():
     assert "`migration-rollout`" in markdown
 
 
+def test_render_plan_shows_profile_when_present():
+    markdown = render.render_plan(
+        {
+            "schemaVersion": 3,
+            "feature": "demo",
+            "planNumber": "01",
+            "profile": "migration-rollout",
+            "goal": "Tighten auth handler behavior.",
+            "tasks": [],
+        }
+    )
+
+    assert "## Profile" in markdown
+    assert "`migration-rollout`" in markdown
+
+
 def test_render_summary_supports_structured_verification_and_generation_metadata():
     markdown = render.render_summary(
         {

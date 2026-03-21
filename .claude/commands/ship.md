@@ -24,8 +24,9 @@ python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>
 ```
 
 Warn if not in `ship` phase.
+- Load the feature-level Work Order with `python3 .cnogo/scripts/workflow_memory.py work-show <feature-slug> --json`.
 - Load the latest Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-show <feature-slug> --json`.
-- Treat the run's resolved formula as ship policy context; record required tracking fields.
+- Treat the run's resolved profile as ship policy context.
 - Stop unless `ship.status == ready`, unless the Delivery Run already has `ship.status == in_progress|completed`.
 - Run the staged review/freshness gate:
 ```bash
@@ -67,6 +68,12 @@ Include summary, testing, and planning links.
 python3 .cnogo/scripts/workflow_memory.py run-ship-complete <feature-slug> <commit-sha> --branch <branch> --pr-url <pr-url>
 ```
 
+Then confirm the Work Order rolled up to shipped state:
+
+```bash
+python3 .cnogo/scripts/workflow_memory.py work-next <feature-slug> --json
+```
+
 If commit, push, or PR creation fails, record it with:
 
 ```bash
@@ -92,5 +99,6 @@ Optional.
 
 - PR URL
 - commit(s) shipped
+- Work Order completion state
 - verification summary
 - any remaining follow-up actions

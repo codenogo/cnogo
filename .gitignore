@@ -30,6 +30,12 @@ build/
 .cnogo/validate-baseline.json
 .cnogo/validate-latest.json
 
+# Watch patrol state (operational inbox snapshots, not source)
+.cnogo/watch/
+
+# Scheduler runtime (local supervisor state, not source)
+.cnogo/scheduler/
+
 # Sensitive files
 *.pem
 *.key
@@ -59,6 +65,12 @@ service-account*.json
 # Validation baselines (per-branch runtime snapshots)
 .cnogo/validate-baseline.json
 .cnogo/validate-latest.json
+
+# Watch patrol state (operational inbox snapshots, not source)
+.cnogo/watch/
+
+# Scheduler runtime (local supervisor state, not source)
+.cnogo/scheduler/
 
 # Context graph (rebuild from source)
 .cnogo/graph.db

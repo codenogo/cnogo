@@ -30,7 +30,7 @@ git stash pop
 
 ### Step 3: Rehydrate Working Context
 
-Open only handoff-mentioned or active task files.
+Open handoff-mentioned or active files.
 
 ### Step 4: Team Recovery (If Relevant)
 
@@ -43,10 +43,11 @@ python3 .cnogo/scripts/workflow_memory.py session-reconcile
 ```
 
 `session-status --json` is the source of truth. When it returns a linked `deliveryRun`, inspect its `status`, `integration`, and `reviewReadiness` before choosing `/team implement`, more verification, or `/review`.
+If unclear, inspect `python3 .cnogo/scripts/workflow_memory.py work-list --needs-attention --json`, `work-show <feature> --json`, or `run-watch-patrol --feature <feature>`.
 
 If reconcile found orphaned issues, rerun `python3 .cnogo/scripts/workflow_memory.py prime`.
 
-If an active worktree session exists, continue with `/team implement <feature> <plan>`; otherwise use `/implement`.
+Active session: continue with `/team implement <feature> <plan>`; otherwise use `/implement`.
 
 ### Step 5: Next
 

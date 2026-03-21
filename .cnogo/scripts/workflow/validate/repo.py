@@ -15,7 +15,11 @@ from scripts.workflow.orchestration import (
     DELIVERY_RUN_STATUSES,
     DELIVERY_SHIP_STATUSES,
     DELIVERY_TASK_STATUSES,
+    SCHEDULER_STATE_SCHEMA_VERSION,
+    WATCH_STATE_SCHEMA_VERSION,
+    WORK_ORDER_STATUSES,
 )
+from scripts.workflow.shared.profiles import is_profile_name
 
 
 def validate_worktree_session(
@@ -80,6 +84,83 @@ def validate_worktree_session(
                 )
 
 
+def validate_watch_runtime(
+    root: Path,
+    findings: list[Any],
+    touched: Callable[[Path], bool],
+    *,
+    load_json: Callable[[Path], Any],
+    finding_type: Any,
+) -> None:
+    state_path = root / ".cnogo" / "watch" / "state.json"
+    if not state_path.exists() or not touched(state_path):
+        return
+    try:
+        data = load_json(state_path)
+    except Exception as exc:
+        findings.append(finding_type("ERROR", f"Failed to parse watch state: {exc}", str(state_path)))
+        return
+    if not isinstance(data, dict):
+        findings.append(finding_type("ERROR", "Watch state must be a JSON object.", str(state_path)))
+        return
+
+    schema_version = data.get("schemaVersion")
+    if not isinstance(schema_version, int):
+        findings.append(finding_type("WARN", "Watch state schemaVersion should be an integer.", str(state_path)))
+    elif schema_version != WATCH_STATE_SCHEMA_VERSION:
+        findings.append(
+            finding_type(
+                "WARN",
+                f"Watch state schemaVersion {schema_version} does not match expected {WATCH_STATE_SCHEMA_VERSION}.",
+                str(state_path),
+            )
+        )
+
+    enabled = data.get("enabled")
+    if enabled is not None and not isinstance(enabled, bool):
+        findings.append(finding_type("WARN", "Watch state enabled should be boolean.", str(state_path)))
+    for key in ("patrolIntervalMinutes", "historyLimit", "attentionLimit"):
+        value = data.get(key)
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value <= 0):
+            findings.append(
+                finding_type("WARN", f"Watch state {key} should be an integer > 0.", str(state_path))
+            )
+    for key in (
+        "lastPatrolAt",
+        "nextPatrolAt",
+        "lastResult",
+        "lastReportPath",
+        "lastAttentionPath",
+        "lastSnapshotPath",
+    ):
+        value = data.get(key)
+        if value is not None and not isinstance(value, str):
+            findings.append(finding_type("WARN", f"Watch state {key} should be a string.", str(state_path)))
+
+    last_result = data.get("lastResult")
+    if isinstance(last_result, str) and last_result not in {"ok", "warn", "fail"}:
+        findings.append(
+            finding_type("WARN", "Watch state lastResult should be ok|warn|fail.", str(state_path))
+        )
+
+    for key in ("lastAttentionSummary", "lastDeltaSummary"):
+        value = data.get(key)
+        if value is not None and not isinstance(value, dict):
+            findings.append(finding_type("WARN", f"Watch state {key} should be an object.", str(state_path)))
+
+    for key in ("lastReportPath", "lastAttentionPath", "lastSnapshotPath"):
+        value = data.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        resolved = Path(value)
+        if not resolved.is_absolute():
+            resolved = root / resolved
+        if not resolved.exists():
+            findings.append(
+                finding_type("WARN", f"Watch state {key} points to missing file {value!r}.", str(state_path))
+            )
+
+
 def validate_delivery_runs(
     root: Path,
     findings: list[Any],
@@ -90,16 +171,14 @@ def validate_delivery_runs(
     finding_type: Any,
 ) -> None:
     runs_root = root / ".cnogo" / "runs"
-    if not runs_root.is_dir():
-        return
-
     target_dirs = []
-    if feature_filter:
-        target_dir = runs_root / feature_filter
-        if target_dir.exists():
-            target_dirs.append(target_dir)
-    else:
-        target_dirs = [path for path in runs_root.iterdir() if path.is_dir()]
+    if runs_root.is_dir():
+        if feature_filter:
+            target_dir = runs_root / feature_filter
+            if target_dir.exists():
+                target_dirs.append(target_dir)
+        else:
+            target_dirs = [path for path in runs_root.iterdir() if path.is_dir()]
 
     run_ids_by_feature: dict[str, set[str]] = {}
     for feature_dir in target_dirs:
@@ -196,6 +275,38 @@ def validate_delivery_runs(
                 findings.append(
                     finding_type("WARN", "Delivery run recommendation should be an object.", str(run_path))
                 )
+
+            profile = contract.get("profile")
+            if profile is not None:
+                if not isinstance(profile, dict):
+                    findings.append(
+                        finding_type("WARN", "Delivery run profile should be an object.", str(run_path))
+                    )
+                else:
+                    name = profile.get("name")
+                    if not isinstance(name, str) or not name.strip():
+                        findings.append(
+                            finding_type("WARN", "Delivery run profile.name should be non-empty.", str(run_path))
+                        )
+                    version = profile.get("version")
+                    if version is not None and not isinstance(version, str):
+                        findings.append(
+                            finding_type("WARN", "Delivery run profile.version should be a string.", str(run_path))
+                        )
+                    source = profile.get("source")
+                    if source is not None and not isinstance(source, str):
+                        findings.append(
+                            finding_type("WARN", "Delivery run profile.source should be a string.", str(run_path))
+                        )
+                    resolved_policy = profile.get("resolvedPolicy")
+                    if resolved_policy is not None and not isinstance(resolved_policy, dict):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run profile.resolvedPolicy should be an object.",
+                                str(run_path),
+                            )
+                        )
 
             formula = contract.get("formula")
             if formula is not None:
@@ -564,43 +675,71 @@ def validate_delivery_runs(
                             )
                         )
 
-    formulas_root = root / ".cnogo" / "formulas"
-    if formulas_root.is_dir() and touched(formulas_root):
-        for formula_path in sorted(formulas_root.glob("*.json")):
-            if not touched(formula_path):
+    def _validate_profile_dir(base_dir: Path, *, label: str, warn_legacy: bool) -> None:
+        if not base_dir.is_dir() or not touched(base_dir):
+            return
+        for profile_path in sorted(base_dir.glob("*.json")):
+            if not touched(profile_path):
                 continue
             try:
-                contract = load_json(formula_path)
+                contract = load_json(profile_path)
             except Exception as exc:
                 findings.append(
-                    finding_type("ERROR", f"Failed to parse formula contract: {exc}", str(formula_path))
+                    finding_type("ERROR", f"Failed to parse {label} contract: {exc}", str(profile_path))
                 )
                 continue
             if not isinstance(contract, dict):
                 findings.append(
-                    finding_type("ERROR", "Formula contract must be a JSON object.", str(formula_path))
+                    finding_type("ERROR", f"{label.title()} contract must be a JSON object.", str(profile_path))
                 )
                 continue
+            if warn_legacy:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        "Legacy formula contracts are deprecated; store canonical contracts under .cnogo/profiles/.",
+                        str(profile_path),
+                    )
+                )
             schema_version = contract.get("schemaVersion")
             if schema_version is not None and not isinstance(schema_version, int):
                 findings.append(
-                    finding_type("WARN", "Formula contract schemaVersion should be an integer.", str(formula_path))
+                    finding_type("WARN", f"{label.title()} contract schemaVersion should be an integer.", str(profile_path))
                 )
             name = contract.get("name")
             if not isinstance(name, str) or not name.strip():
                 findings.append(
-                    finding_type("WARN", "Formula contract should include non-empty name.", str(formula_path))
+                    finding_type("WARN", f"{label.title()} contract should include non-empty name.", str(profile_path))
+                )
+            elif not is_profile_name(name):
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"{label.title()} contract name should be a lowercase slug like 'feature-delivery'.",
+                        str(profile_path),
+                    )
+                )
+            elif profile_path.stem != name.strip():
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"{label.title()} filename {profile_path.name!r} should match contract name {name.strip()!r}.",
+                        str(profile_path),
+                    )
                 )
             version = contract.get("version")
             if version is not None and not isinstance(version, str):
                 findings.append(
-                    finding_type("WARN", "Formula contract version should be a string.", str(formula_path))
+                    finding_type("WARN", f"{label.title()} contract version should be a string.", str(profile_path))
                 )
             defaults = contract.get("defaults")
             if defaults is not None and not isinstance(defaults, dict):
                 findings.append(
-                    finding_type("WARN", "Formula contract defaults should be an object.", str(formula_path))
+                    finding_type("WARN", f"{label.title()} contract defaults should be an object.", str(profile_path))
                 )
+
+    _validate_profile_dir(root / ".cnogo" / "profiles", label="profile", warn_legacy=False)
+    _validate_profile_dir(root / ".cnogo" / "formulas", label="formula", warn_legacy=True)
 
     session_path = root / ".cnogo" / "worktree-session.json"
     if session_path.exists():
@@ -624,6 +763,82 @@ def validate_delivery_runs(
                             str(session_path),
                         )
                     )
+
+    work_orders_root = root / ".cnogo" / "work-orders"
+    if work_orders_root.is_dir() and touched(work_orders_root):
+        for order_path in sorted(work_orders_root.glob("*.json")):
+            if not touched(order_path):
+                continue
+            try:
+                contract = load_json(order_path)
+            except Exception as exc:
+                findings.append(
+                    finding_type("ERROR", f"Failed to parse Work Order: {exc}", str(order_path))
+                )
+                continue
+            if not isinstance(contract, dict):
+                findings.append(
+                    finding_type("ERROR", "Work Order artifact must be a JSON object.", str(order_path))
+                )
+                continue
+            schema_version = contract.get("schemaVersion")
+            if not isinstance(schema_version, int):
+                findings.append(
+                    finding_type("WARN", "Work Order schemaVersion should be an integer.", str(order_path))
+                )
+            feature = contract.get("feature")
+            if not isinstance(feature, str) or not feature.strip():
+                findings.append(finding_type("WARN", "Work Order feature should be non-empty.", str(order_path)))
+            work_order_id = contract.get("workOrderId")
+            if not isinstance(work_order_id, str) or not work_order_id.strip():
+                findings.append(finding_type("WARN", "Work Order workOrderId should be non-empty.", str(order_path)))
+            elif isinstance(feature, str) and feature.strip() and work_order_id.strip() != feature.strip():
+                findings.append(
+                    finding_type("WARN", "Work Order workOrderId should match feature slug.", str(order_path))
+                )
+            status = contract.get("status")
+            if status not in WORK_ORDER_STATUSES:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"Work Order status should be one of {sorted(WORK_ORDER_STATUSES)}.",
+                        str(order_path),
+                    )
+                )
+            profile = contract.get("profile")
+            if profile is not None and not isinstance(profile, dict):
+                findings.append(finding_type("WARN", "Work Order profile should be an object.", str(order_path)))
+            run_history = contract.get("runHistory")
+            if run_history is not None and not isinstance(run_history, list):
+                findings.append(finding_type("WARN", "Work Order runHistory should be an array.", str(order_path)))
+            next_action = contract.get("nextAction")
+            if next_action is not None and not isinstance(next_action, dict):
+                findings.append(finding_type("WARN", "Work Order nextAction should be an object.", str(order_path)))
+
+    scheduler_state_path = root / ".cnogo" / "scheduler" / "state.json"
+    if scheduler_state_path.exists() and touched(scheduler_state_path):
+        try:
+            state = load_json(scheduler_state_path)
+        except Exception as exc:
+            findings.append(
+                finding_type("ERROR", f"Failed to parse scheduler state: {exc}", str(scheduler_state_path))
+            )
+            state = None
+        if isinstance(state, dict):
+            schema_version = state.get("schemaVersion")
+            if schema_version is not None and schema_version != SCHEDULER_STATE_SCHEMA_VERSION:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"Scheduler state schemaVersion {schema_version} does not match expected {SCHEDULER_STATE_SCHEMA_VERSION}.",
+                        str(scheduler_state_path),
+                    )
+                )
+            mode = state.get("mode")
+            if mode is not None and mode not in {"hybrid", "supervisor"}:
+                findings.append(
+                    finding_type("WARN", "Scheduler state mode should be hybrid|supervisor.", str(scheduler_state_path))
+                )
 
 
 def build_touched_predicate(
@@ -700,6 +915,7 @@ def validate_repo(
     validate_shape_artifacts: Callable[[Path, list[Any], Callable[[Path], bool]], None],
     validate_worktree_session: Callable[[Path, list[Any]], None],
     validate_delivery_runs: Callable[[Path, list[Any], Callable[[Path], bool]], None],
+    validate_watch_runtime: Callable[[Path, list[Any], Callable[[Path], bool]], None],
     validate_token_budgets: Callable[[Path, list[Any], Callable[[Path], bool], dict[str, Any]], None],
     validate_bootstrap_context: Callable[[Path, list[Any], dict[str, Any]], None],
     validate_skills: Callable[[Path, list[Any], Callable[[Path], bool]], None],
@@ -755,6 +971,7 @@ def validate_repo(
         validate_research(root, findings, touched)
         validate_shape_artifacts(root, findings, touched)
         validate_worktree_session(root, findings)
+        validate_watch_runtime(root, findings, touched)
         validate_token_budgets(root, findings, touched, token_budgets)
         validate_bootstrap_context(root, findings, bootstrap_context)
         validate_skills(root, findings, touched)

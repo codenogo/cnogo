@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from scripts.workflow.shared.formulas import formula_watch_thresholds
+from scripts.workflow.shared.profiles import profile_watch_thresholds
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
 
 from .delivery_run import (
@@ -20,6 +20,7 @@ from .delivery_run import (
 from .integration import ensure_run_coordination_state, sync_review_readiness
 from .review import ensure_run_review_state, sync_review_state
 from .ship import ensure_run_ship_state, sync_ship_state
+from .work_order import build_work_order
 
 _RUNS_DIR = Path(".cnogo") / "runs"
 _SESSION_FILE = Path(".cnogo") / "worktree-session.json"
@@ -121,9 +122,12 @@ def summarize_delivery_run(
     return {
         "runId": run.run_id,
         "feature": run.feature,
+        "workOrderId": run.feature,
         "planNumber": run.plan_number,
         "mode": run.mode,
         "status": run.status,
+        "profileName": str(run.profile.get("name", "")).strip() if isinstance(run.profile, dict) else "",
+        "profileVersion": str(run.profile.get("version", "")).strip() if isinstance(run.profile, dict) else "",
         "formulaName": str(run.formula.get("name", "")).strip() if isinstance(run.formula, dict) else "",
         "formulaVersion": str(run.formula.get("version", "")).strip() if isinstance(run.formula, dict) else "",
         "branch": run.branch,
@@ -171,6 +175,7 @@ def _finding(
         payload.update(
             {
                 "feature": run.feature,
+                "workOrderId": run.feature,
                 "runId": run.run_id,
                 "planNumber": run.plan_number,
                 "mode": run.mode,
@@ -230,8 +235,8 @@ def watch_delivery_runs(
     summaries = [summarize_delivery_run(run, root=root, session=session, now=now) for run in runs]
 
     for run, summary in zip(runs, summaries):
-        thresholds = formula_watch_thresholds(
-            run.formula if isinstance(getattr(run, "formula", None), dict) else {},
+        thresholds = profile_watch_thresholds(
+            run.profile if isinstance(getattr(run, "profile", None), dict) else {},
             stale_minutes=stale_minutes,
             review_stale_minutes=review_stale_minutes,
         )
@@ -472,6 +477,39 @@ def watch_delivery_runs(
     for run in runs:
         status_counts[run.status] = status_counts.get(run.status, 0) + 1
 
+    findings_by_feature: dict[str, list[dict[str, Any]]] = {}
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        feature = str(finding.get("feature", "")).strip()
+        if not feature:
+            continue
+        findings_by_feature.setdefault(feature, []).append(dict(finding))
+
+    work_orders: list[dict[str, Any]] = []
+    seen_features: set[str] = set()
+    for run in runs:
+        feature = run.feature
+        if feature in seen_features:
+            continue
+        seen_features.add(feature)
+        work_orders.append(
+            build_work_order(
+                root,
+                feature,
+                current_run=run,
+                attention_items=findings_by_feature.get(feature, []),
+            ).to_dict()
+        )
+    for feature in sorted(findings_by_feature.keys() - seen_features):
+        work_orders.append(
+            build_work_order(
+                root,
+                feature,
+                attention_items=findings_by_feature.get(feature, []),
+            ).to_dict()
+        )
+
     return {
         "checkedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "thresholds": {
@@ -479,9 +517,11 @@ def watch_delivery_runs(
             "reviewStaleMinutes": review_stale_minutes,
         },
         "runs": summaries,
+        "workOrders": work_orders,
         "findings": findings,
         "summary": {
             "totalRuns": len(runs),
+            "totalWorkOrders": len(work_orders),
             "statusCounts": status_counts,
             "findingCounts": severity_counts,
             "activeSession": {

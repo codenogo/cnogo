@@ -8,9 +8,13 @@ from pathlib import Path
 from scripts.workflow.shared.artifacts import age_days, artifact_time, linked_artifact_time
 from scripts.workflow.shared.config import (
     DEFAULT_BOOTSTRAP_CONTEXT,
+    DEFAULT_SCHEDULER_SETTINGS,
     DEFAULT_TOKEN_BUDGETS,
+    DEFAULT_WATCH_SETTINGS,
     bootstrap_context_cfg,
+    scheduler_settings_cfg,
     token_budgets_cfg,
+    watch_settings_cfg,
     workflow_packages,
 )
 from scripts.workflow.shared.git import is_git_repo, repo_root, staged_files
@@ -72,6 +76,36 @@ def test_bootstrap_context_cfg_preserves_defaults_and_overrides():
     assert result["enabled"] is False
     assert result["commandSetWordMax"] == 9000
     assert result["rootClaudeWordMax"] == DEFAULT_BOOTSTRAP_CONTEXT["rootClaudeWordMax"]
+
+
+def test_watch_settings_cfg_preserves_defaults_and_overrides():
+    cfg = {
+        "watch": {
+            "enabled": False,
+            "patrolIntervalMinutes": 20,
+        }
+    }
+    result = watch_settings_cfg(cfg)
+    assert result["enabled"] is False
+    assert result["patrolIntervalMinutes"] == 20
+    assert result["historyLimit"] == DEFAULT_WATCH_SETTINGS["historyLimit"]
+
+
+def test_scheduler_settings_cfg_preserves_defaults_and_overrides():
+    cfg = {
+        "scheduler": {
+            "enabled": False,
+            "mode": "supervisor",
+            "tickIntervalMinutes": 7,
+            "opportunisticCommands": ["work-list"],
+        }
+    }
+    result = scheduler_settings_cfg(cfg)
+    assert result["enabled"] is False
+    assert result["mode"] == "supervisor"
+    assert result["tickIntervalMinutes"] == 7
+    assert result["opportunisticCommands"] == ["work-list"]
+    assert DEFAULT_SCHEDULER_SETTINGS["tickIntervalMinutes"] > 0
 
 
 def test_artifact_helpers_prefer_contract_timestamp_and_track_age(tmp_path):

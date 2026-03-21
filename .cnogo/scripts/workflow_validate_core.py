@@ -275,6 +275,11 @@ _validate_delivery_runs = partial(
     load_json=_load_json,
     finding_type=Finding,
 )
+_validate_watch_runtime = partial(
+    _repo_helpers.validate_watch_runtime,
+    load_json=_load_json,
+    finding_type=Finding,
+)
 _validate_token_budgets = partial(
     _config_policy_helpers.validate_token_budgets,
     default_token_budgets=DEFAULT_TOKEN_BUDGETS,
@@ -322,6 +327,7 @@ validate_repo = partial(
     validate_shape_artifacts=_validate_shape_artifacts,
     validate_worktree_session=_validate_worktree_session,
     validate_delivery_runs=_validate_delivery_runs,
+    validate_watch_runtime=_validate_watch_runtime,
     validate_token_budgets=_validate_token_budgets,
     validate_bootstrap_context=_validate_bootstrap_context,
     validate_skills=_validate_skills,

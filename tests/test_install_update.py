@@ -28,15 +28,21 @@ def test_update_adds_new_managed_files_missing_from_older_manifest(tmp_path):
     missing_paths = {
         ".claude/commands/shape.md",
         ".claude/skills/shape-facilitator/SKILL.md",
-        ".cnogo/formulas/feature-delivery.json",
+        ".cnogo/profiles/feature-delivery.json",
+        ".cnogo/work-orders/.gitkeep",
         ".cnogo/scripts/memory/runtime.py",
         ".cnogo/scripts/workflow/shared/config.py",
         ".cnogo/scripts/workflow/shared/formulas.py",
+        ".cnogo/scripts/workflow/shared/profiles.py",
         ".cnogo/scripts/workflow/orchestration/delivery_run.py",
+        ".cnogo/scripts/workflow/orchestration/implement.py",
         ".cnogo/scripts/workflow/orchestration/integration.py",
+        ".cnogo/scripts/workflow/orchestration/scheduler.py",
         ".cnogo/scripts/workflow/orchestration/ship.py",
         ".cnogo/scripts/workflow/orchestration/watch.py",
         ".cnogo/scripts/workflow/orchestration/watch_artifacts.py",
+        ".cnogo/scripts/workflow/orchestration/watch_schedule.py",
+        ".cnogo/scripts/workflow/orchestration/work_order.py",
     }
 
     manifest_path = target / ".cnogo" / "manifest.json"

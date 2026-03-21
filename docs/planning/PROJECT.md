@@ -1,6 +1,6 @@
 # Project: cnogo — Universal Development Workflow Pack
 
-> A zero-dependency workflow engine for Claude Code that provides 28+ slash commands, SQLite-backed memory, and Agent Teams support.
+> A zero-dependency workflow engine for Claude Code that provides 28+ slash commands, SQLite-backed memory, durable Work Orders, and Agent Teams support.
 
 ## Vision
 
@@ -13,7 +13,7 @@ cnogo gives any software project a structured development workflow out of the bo
 | Python stdlib only | Zero external dependencies — must work on any machine with Python 3.10+ |
 | Bash install.sh distribution | No package manager dependency — `install.sh` is the single distribution mechanism |
 | Stack-agnostic | Must work with Java, TypeScript, Python, Go, Rust, or any other stack |
-| No runtime services | No daemons, servers, or background processes — everything runs inline |
+| No external service requirement | No external daemons or servers. Inline execution is the default; an optional local scheduler supervisor is allowed |
 | Agent Teams requires Claude Code >= 2.1 with `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` | Experimental feature — pin to known-good version |
 
 ## Architecture
@@ -60,6 +60,9 @@ install.sh
 - For `schemaVersion >= 2` plans, tasks require `microSteps[]` + `tdd` contract (no minute-based time boxes)
 - For `schemaVersion >= 3` plans, tasks also require `contextLinks[]` plus at least one explicit error-path scenario when TDD is required
 - `/implement` is the canonical execution entrypoint; it may auto-route into `/team implement` when the dependency frontier exposes safe parallel work
+- Delivery Runs are the durable plan-execution object; Work Orders are the feature-level rollup over plans, runs, review, ship, and attention state
+- `profile` is the canonical delivery-policy contract; legacy `formula` remains a compatibility alias during migration
+- The scheduler is built in and local: opportunistic ticks are default, and an optional local supervisor can run the same jobs on cadence
 - Feature summaries should be generated from recorded execution evidence via `workflow_checks.py summarize`, not handwritten from scratch
 - Review contracts use staged review structure (spec-compliance then code-quality) before ship
 - Validated by `python3 .cnogo/scripts/workflow_validate.py`
@@ -94,4 +97,4 @@ Things explicitly out of scope:
 | Pin Agent Teams to Claude Code >= 2.1 | Feature is experimental; version pinning prevents breakage | 2026-02 |
 
 ---
-*Last updated: 2026-03-04*
+*Last updated: 2026-03-21*

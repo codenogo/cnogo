@@ -190,12 +190,13 @@ emit_manifest_paths_for_tree() {
             echo "$rel"
         done < <(find "$base/.cnogo/scripts/workflow" -type f -name '*.py' | sort)
     fi
-    if [ -d "$base/.cnogo/formulas" ]; then
+    if [ -d "$base/.cnogo/profiles" ]; then
         while IFS= read -r f; do
             rel="${f#$base/}"
             echo "$rel"
-        done < <(find "$base/.cnogo/formulas" -type f -name '*.json' | sort)
+        done < <(find "$base/.cnogo/profiles" -type f -name '*.json' | sort)
     fi
+    [ -f "$base/.cnogo/work-orders/.gitkeep" ] && echo ".cnogo/work-orders/.gitkeep"
     [ -f "$base/.cnogo/requirements-graph.txt" ] && echo ".cnogo/requirements-graph.txt"
 
     [ -f "$base/.cnogo/hooks/_bootstrap.py" ] && echo ".cnogo/hooks/_bootstrap.py"
@@ -255,6 +256,12 @@ CNOGO_BLOCK="# >>> cnogo
 # Validation baselines (per-branch runtime snapshots)
 .cnogo/validate-baseline.json
 .cnogo/validate-latest.json
+
+# Watch patrol state (operational inbox snapshots, not source)
+.cnogo/watch/
+
+# Scheduler runtime (local supervisor state, not source)
+.cnogo/scheduler/
 
 # Context graph (rebuild from source)
 .cnogo/graph.db

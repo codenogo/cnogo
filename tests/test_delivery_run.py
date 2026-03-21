@@ -140,7 +140,8 @@ def test_update_delivery_task_status_promotes_blocked_tasks_and_advances_run(tmp
 
     run = update_delivery_task_status(run, task_index=0, status="merged")
     run = update_delivery_task_status(run, task_index=1, status="merged")
-    assert run.status == "completed"
+    assert run.status == "active"
+    assert run.review_readiness["status"] == "awaiting_verification"
 
 
 def test_sync_run_with_worktree_session_applies_branch_path_and_status_mapping(tmp_path):

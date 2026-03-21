@@ -74,8 +74,39 @@ def validate_plan_contract(
     if parallelizable is not None and not isinstance(parallelizable, bool):
         findings.append(finding_type("WARN", "Plan contract: 'parallelizable' should be a boolean if present.", str(path)))
 
+    profile = contract.get("profile")
+    if profile is not None:
+        if isinstance(profile, str):
+            if not profile.strip():
+                findings.append(finding_type("WARN", "Plan contract profile should be a non-empty string.", str(path)))
+        elif isinstance(profile, dict):
+            name = profile.get("name")
+            if not isinstance(name, str) or not name.strip():
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        "Plan contract profile object should include non-empty 'name'.",
+                        str(path),
+                    )
+                )
+        else:
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "Plan contract profile should be a string or object with name.",
+                    str(path),
+                )
+            )
+
     formula = contract.get("formula")
     if formula is not None:
+        findings.append(
+            finding_type(
+                "WARN",
+                "Plan contract legacy 'formula' is deprecated; use 'profile' instead.",
+                str(path),
+            )
+        )
         if isinstance(formula, str):
             if not formula.strip():
                 findings.append(finding_type("WARN", "Plan contract formula should be a non-empty string.", str(path)))

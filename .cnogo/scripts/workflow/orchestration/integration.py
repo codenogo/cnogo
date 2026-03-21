@@ -109,6 +109,7 @@ def sync_review_readiness(run: Any) -> Any:
         status = "ready"
     elif integration_status in {"merged", "cleaned"}:
         status = "awaiting_verification"
+        run.status = "active"
     else:
         status = "pending"
 

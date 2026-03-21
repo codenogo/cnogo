@@ -24,7 +24,7 @@ Verify Agent Teams is enabled, then parse `$ARGUMENTS`.
 2. Load plan JSON. Generate run_id via `bridge.generate_run_id(feature)`.
 3. Generate TaskDescV2 via `bridge.plan_to_task_descriptions()`. Run `recommend_team_mode()` plus `detect_file_conflicts()`; stop if team mode was forced onto an unsafe plan.
 4. Create or resume the Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-create <feature> <NN> --mode team --run-id <run-id> --json`.
-   Persist it under `.cnogo/runs/<feature>/<run-id>.json`, create the worktree session with the same `run_id`, and set phase to `implement`.
+   Persist it under `.cnogo/runs/<feature>/<run-id>.json`, sync the feature Work Order, create the worktree session with the same `run_id`, and set phase `implement`.
 5. Create TaskCreate entries, then wire blockedBy.
 6. Spawn one implementer per task via `bridge.generate_implement_prompt(taskdesc, actor_name=...)`. Leader is orchestration-only. Require `TASK_EVIDENCE` then `TASK_DONE`.
 7. Monitor TaskList and poll stalls via `workflow_memory.py stalled`; takeover and respawn as needed.
@@ -34,8 +34,9 @@ Verify Agent Teams is enabled, then parse `$ARGUMENTS`.
 
 ## Action: `status`
 
-Report teammates, blockers, Delivery Run state, Integration state, Review readiness, and the next unblock action.
+Report teammates, blockers, Work Order state, Delivery Run state, Integration state, Review readiness, next action.
 Use `python3 .cnogo/scripts/workflow_memory.py session-status --json` as the primary source when a worktree session exists.
+Also inspect `python3 .cnogo/scripts/workflow_memory.py work-list --needs-attention --json` or `run-watch-patrol --feature <feature>` if stalled.
 
 ## Action: `message`
 

@@ -35,11 +35,11 @@
       "enabled": true,
       "rootClaudeWordMax": 500,
       "workflowClaudeWordMax": 450,
-      "commandSetWordMax": 7000
+      "commandSetWordMax": 7300
     },
     "tokenBudgets": {
       "enabled": true,
-      "commandWordMax": 400,
+      "commandWordMax": 430,
       "commandsTotalWordMax": 8000,
       "contextWordMax": 1300,
       "planWordMax": 1200,
@@ -54,10 +54,29 @@
     "mode": "auto",
     "minSources": 3
   },
-  "formulas": {
+  "profiles": {
     "default": "feature-delivery",
-    "catalogPath": ".cnogo/formulas",
+    "catalogPath": ".cnogo/profiles",
     "allowPlanOverride": true
+  },
+  "scheduler": {
+    "enabled": true,
+    "mode": "hybrid",
+    "tickIntervalMinutes": 15,
+    "opportunisticCommands": [
+      "session-status",
+      "run-list",
+      "run-attention",
+      "work-list",
+      "work-show",
+      "work-next"
+    ]
+  },
+  "watch": {
+    "enabled": true,
+    "patrolIntervalMinutes": 15,
+    "historyLimit": 25,
+    "attentionLimit": 50
   },
   "enforcement": {
     "monorepoVerifyScope": "warn",

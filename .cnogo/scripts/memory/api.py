@@ -13,26 +13,44 @@ from ..workflow.orchestration import (
     DELIVERY_REVIEW_STATUSES,
     DELIVERY_REVIEW_VERDICTS,
     DeliveryRun,
+    WorkOrder,
+    begin_task_execution as _begin_task_execution_impl,
     build_attention_queue as _build_attention_queue_impl,
+    build_work_order as _build_work_order_impl,
     complete_ship as _complete_ship_impl,
+    complete_task_execution as _complete_task_execution_impl,
     create_delivery_run as _create_delivery_run_impl,
+    diff_attention_queues as _diff_attention_queues_impl,
     ensure_run_coordination_state as _ensure_run_coordination_state_impl,
     ensure_run_review_state as _ensure_run_review_state_impl,
     ensure_run_ship_state as _ensure_run_ship_state_impl,
     ensure_delivery_run as _ensure_delivery_run_impl,
+    fail_task_execution as _fail_task_execution_impl,
     fail_ship as _fail_ship_impl,
     filter_attention_queue as _filter_attention_queue_impl,
     latest_delivery_run as _latest_delivery_run_impl,
+    list_work_orders as _list_work_orders_impl,
     list_delivery_runs as _list_delivery_runs_impl,
     load_attention_queue as _load_attention_queue_impl,
     load_delivery_run as _load_delivery_run_impl,
+    load_work_order as _load_work_order_impl,
+    load_watch_history as _load_watch_history_impl,
     load_watch_report as _load_watch_report_impl,
+    load_watch_state as _load_watch_state_impl,
+    next_delivery_run_action as _next_delivery_run_action_impl,
+    next_work_order_action as _next_work_order_action_impl,
     persist_watch_report as _persist_watch_report_impl,
-    record_plan_verification as _record_plan_verification_impl,
+    record_plan_verification_for_execution as _record_plan_verification_for_execution_impl,
     refresh_task_frontier as _refresh_task_frontier_impl,
+    run_scheduler_once as _run_scheduler_once_impl,
+    run_watch_tick as _run_watch_tick_impl,
     save_delivery_run as _save_delivery_run_impl,
+    save_work_order as _save_work_order_impl,
+    scheduler_status as _scheduler_status_impl,
+    start_scheduler_supervisor as _start_scheduler_supervisor_impl,
     set_review_stage as _set_review_stage_impl,
     set_review_verdict as _set_review_verdict_impl,
+    stop_scheduler_supervisor as _stop_scheduler_supervisor_impl,
     summarize_delivery_run as _summarize_delivery_run_impl,
     sync_integration_state as _sync_integration_state_impl,
     sync_review_from_artifact as _sync_review_from_artifact_impl,
@@ -40,17 +58,20 @@ from ..workflow.orchestration import (
     sync_review_readiness as _sync_review_readiness_impl,
     sync_review_state as _sync_review_state_impl,
     sync_ship_state as _sync_ship_state_impl,
+    sync_all_work_orders as _sync_all_work_orders_impl,
+    sync_work_order as _sync_work_order_impl,
     sync_run_with_worktree_session as _sync_run_with_worktree_session_impl,
     start_review as _start_review_impl,
     start_ship as _start_ship_impl,
     update_delivery_task_status as _update_delivery_task_status_impl,
     watch_delivery_runs as _watch_delivery_runs_impl,
-)
-from ..workflow.orchestration.review_artifacts import (
-    persist_review_artifact_from_run as _persist_review_artifact_from_run_impl,
+    watch_schedule_status as _watch_schedule_status_impl,
 )
 from ..workflow.shared.config import agent_team_settings as _agent_team_settings_cfg
 from ..workflow.shared.config import load_workflow_config as _load_workflow_config
+from ..workflow.orchestration.review_artifacts import (
+    persist_review_artifact_from_run as _persist_review_artifact_from_run_impl,
+)
 from . import bootstrap as _bootstrap_api
 from . import cost_tracking as _cost_tracking_api
 from . import creation as _creation_api
@@ -92,6 +113,19 @@ def _emit(
 def _auto_export(root: Path) -> None:
     """Best-effort JSONL export after state-changing operations."""
     _runtime.auto_export(root)
+
+
+def _sync_run_work_order(run: DeliveryRun | None, *, root: Path | None = None) -> WorkOrder | None:
+    if run is None or not getattr(run, "feature", ""):
+        return None
+    return _sync_work_order_impl(_resolve_root(root), run.feature, current_run=run)
+
+
+def _persist_run_and_sync_work_order(run: DeliveryRun, *, root: Path | None = None) -> DeliveryRun:
+    resolved_root = _resolve_root(root)
+    _save_delivery_run_impl(run, resolved_root)
+    _sync_run_work_order(run, root=resolved_root)
+    return run
 
 
 def init(root: Path) -> None:
@@ -468,10 +502,11 @@ def create_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
     formula: dict[str, Any] | None = None,
     root: Path | None = None,
 ) -> DeliveryRun:
-    return _create_delivery_run_impl(
+    created = _create_delivery_run_impl(
         _resolve_root(root),
         feature=feature,
         plan_number=plan_number,
@@ -482,8 +517,11 @@ def create_delivery_run(
         started_by=started_by,
         branch=branch,
         recommendation=recommendation,
+        profile=profile,
         formula=formula,
     )
+    _sync_run_work_order(created, root=root)
+    return created
 
 
 def ensure_delivery_run(
@@ -497,11 +535,12 @@ def ensure_delivery_run(
     started_by: str = "claude",
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
     formula: dict[str, Any] | None = None,
     resume_latest: bool = True,
     root: Path | None = None,
 ) -> DeliveryRun:
-    return _ensure_delivery_run_impl(
+    created = _ensure_delivery_run_impl(
         _resolve_root(root),
         feature=feature,
         plan_number=plan_number,
@@ -512,9 +551,12 @@ def ensure_delivery_run(
         started_by=started_by,
         branch=branch,
         recommendation=recommendation,
+        profile=profile,
         formula=formula,
         resume_latest=resume_latest,
     )
+    _sync_run_work_order(created, root=root)
+    return created
 
 
 def load_delivery_run(feature: str, run_id: str, *, root: Path | None = None) -> DeliveryRun | None:
@@ -547,13 +589,14 @@ def save_delivery_run(run: DeliveryRun, *, root: Path | None = None) -> Path:
     _ensure_run_ship_state_impl(run)
     _sync_review_state_impl(run)
     _sync_ship_state_impl(run)
-    return _save_delivery_run_impl(run, _resolve_root(root))
+    path = _save_delivery_run_impl(run, _resolve_root(root))
+    _sync_run_work_order(run, root=root)
+    return path
 
 
 def refresh_delivery_run(run: DeliveryRun, *, root: Path | None = None) -> DeliveryRun:
     refreshed = _refresh_task_frontier_impl(run)
-    _save_delivery_run_impl(refreshed, _resolve_root(root))
-    return refreshed
+    return _persist_run_and_sync_work_order(refreshed, root=root)
 
 
 def update_delivery_task_status(
@@ -576,8 +619,70 @@ def update_delivery_task_status(
         worktree_path=worktree_path,
         note=note,
     )
-    _save_delivery_run_impl(updated, _resolve_root(root))
-    return updated
+    return _persist_run_and_sync_work_order(updated, root=root)
+
+
+def begin_delivery_run_task(
+    run: DeliveryRun,
+    *,
+    task_index: int,
+    actor: str = "",
+    branch: str | None = None,
+    worktree_path: str | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _begin_task_execution_impl(
+        run,
+        task_index=task_index,
+        actor=actor,
+        branch=branch,
+        worktree_path=worktree_path,
+        note=note,
+    )
+    return _persist_run_and_sync_work_order(updated, root=root)
+
+
+def complete_delivery_run_task(
+    run: DeliveryRun,
+    *,
+    task_index: int,
+    actor: str = "",
+    verify_commands: list[str] | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _complete_task_execution_impl(
+        run,
+        task_index=task_index,
+        actor=actor,
+        verify_commands=verify_commands,
+        note=note,
+    )
+    return _persist_run_and_sync_work_order(updated, root=root)
+
+
+def fail_delivery_run_task(
+    run: DeliveryRun,
+    *,
+    task_index: int,
+    actor: str = "",
+    error: str | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _fail_task_execution_impl(
+        run,
+        task_index=task_index,
+        actor=actor,
+        error=error,
+        note=note,
+    )
+    return _persist_run_and_sync_work_order(updated, root=root)
+
+
+def next_delivery_run_action(run: DeliveryRun) -> dict[str, Any]:
+    return _next_delivery_run_action_impl(run)
 
 
 def sync_delivery_run_with_session(
@@ -587,8 +692,7 @@ def sync_delivery_run_with_session(
     root: Path | None = None,
 ) -> DeliveryRun:
     synced = _sync_run_with_worktree_session_impl(run, session)
-    _save_delivery_run_impl(synced, _resolve_root(root))
-    return synced
+    return _persist_run_and_sync_work_order(synced, root=root)
 
 
 def sync_delivery_run_integration(
@@ -599,8 +703,7 @@ def sync_delivery_run_integration(
     root: Path | None = None,
 ) -> DeliveryRun:
     synced = _sync_integration_state_impl(run, session=session, merge_result=merge_result)
-    _save_delivery_run_impl(synced, _resolve_root(root))
-    return synced
+    return _persist_run_and_sync_work_order(synced, root=root)
 
 
 def record_delivery_run_plan_verification(
@@ -611,9 +714,13 @@ def record_delivery_run_plan_verification(
     note: str | None = None,
     root: Path | None = None,
 ) -> DeliveryRun:
-    updated = _record_plan_verification_impl(run, passed=passed, commands=commands, note=note)
-    _save_delivery_run_impl(updated, _resolve_root(root))
-    return updated
+    updated = _record_plan_verification_for_execution_impl(
+        run,
+        passed=passed,
+        commands=commands,
+        note=note,
+    )
+    return _persist_run_and_sync_work_order(updated, root=root)
 
 
 def _save_delivery_run_with_review_artifact(run: DeliveryRun, *, root: Path | None = None) -> DeliveryRun:
@@ -621,8 +728,7 @@ def _save_delivery_run_with_review_artifact(run: DeliveryRun, *, root: Path | No
     contract, review_json_path, _ = _persist_review_artifact_from_run_impl(resolved_root, run)
     rel_path = str(review_json_path.relative_to(resolved_root))
     _sync_review_from_contract_impl(run, contract, review_path=rel_path)
-    _save_delivery_run_impl(run, resolved_root)
-    return run
+    return _persist_run_and_sync_work_order(run, root=resolved_root)
 
 
 def start_delivery_run_review(
@@ -681,8 +787,7 @@ def start_delivery_run_ship(
     root: Path | None = None,
 ) -> DeliveryRun:
     updated = _start_ship_impl(run, note=note)
-    _save_delivery_run_impl(updated, _resolve_root(root))
-    return updated
+    return _persist_run_and_sync_work_order(updated, root=root)
 
 
 def complete_delivery_run_ship(
@@ -701,8 +806,7 @@ def complete_delivery_run_ship(
         pr_url=pr_url,
         note=note,
     )
-    _save_delivery_run_impl(updated, _resolve_root(root))
-    return updated
+    return _persist_run_and_sync_work_order(updated, root=root)
 
 
 def fail_delivery_run_ship(
@@ -713,8 +817,7 @@ def fail_delivery_run_ship(
     root: Path | None = None,
 ) -> DeliveryRun:
     updated = _fail_ship_impl(run, error=error, note=note)
-    _save_delivery_run_impl(updated, _resolve_root(root))
-    return updated
+    return _persist_run_and_sync_work_order(updated, root=root)
 
 
 def sync_delivery_run_review(
@@ -733,8 +836,7 @@ def sync_delivery_run_review(
             review_contract,
             review_path=review_path or "",
         )
-    _save_delivery_run_impl(updated, resolved_root)
-    return updated
+    return _persist_run_and_sync_work_order(updated, root=resolved_root)
 
 
 def list_delivery_runs(
@@ -762,6 +864,32 @@ def summarize_delivery_run(
     return _summarize_delivery_run_impl(run, root=_resolve_root(root))
 
 
+def load_work_order(feature: str, *, root: Path | None = None) -> WorkOrder | None:
+    return _load_work_order_impl(_resolve_root(root), feature)
+
+
+def build_work_order(feature: str, *, root: Path | None = None) -> WorkOrder:
+    resolved_root = _resolve_root(root)
+    existing = _load_work_order_impl(resolved_root, feature)
+    return _build_work_order_impl(resolved_root, feature, existing=existing)
+
+
+def sync_work_order(feature: str, *, root: Path | None = None) -> WorkOrder:
+    return _sync_work_order_impl(_resolve_root(root), feature)
+
+
+def sync_all_work_orders(*, feature_slug: str | None = None, root: Path | None = None) -> list[WorkOrder]:
+    return _sync_all_work_orders_impl(_resolve_root(root), feature_filter=feature_slug)
+
+
+def list_work_orders(*, feature_slug: str | None = None, root: Path | None = None) -> list[WorkOrder]:
+    return _list_work_orders_impl(_resolve_root(root), feature_filter=feature_slug)
+
+
+def next_work_order_action(feature: str, *, root: Path | None = None) -> dict[str, Any]:
+    return _next_work_order_action_impl(_resolve_root(root), feature)
+
+
 def watch_delivery_runs(
     *,
     feature_slug: str | None = None,
@@ -779,13 +907,14 @@ def watch_delivery_runs(
         if isinstance(review_stale_minutes, int) and review_stale_minutes > 0
         else max(stale_threshold * 6, 60)
     )
-    return _watch_delivery_runs_impl(
+    report = _watch_delivery_runs_impl(
         resolved_root,
         feature_filter=feature_slug,
         stale_minutes=stale_threshold,
         review_stale_minutes=review_threshold,
         include_terminal=include_terminal,
     )
+    return report
 
 
 def persist_delivery_run_watch_report(
@@ -793,24 +922,110 @@ def persist_delivery_run_watch_report(
     *,
     root: Path | None = None,
 ) -> dict[str, Any]:
-    return _persist_watch_report_impl(_resolve_root(root), report)
+    resolved_root = _resolve_root(root)
+    persisted = _persist_watch_report_impl(resolved_root, report)
+    _sync_all_work_orders_impl(resolved_root)
+    return persisted
 
 
 def load_delivery_run_watch_report(*, root: Path | None = None) -> dict[str, Any] | None:
     return _load_watch_report_impl(_resolve_root(root))
 
 
+def load_delivery_run_watch_state(*, root: Path | None = None) -> dict[str, Any] | None:
+    return _load_watch_state_impl(_resolve_root(root))
+
+
 def build_delivery_run_attention_queue(report: dict[str, Any]) -> dict[str, Any]:
     return _build_attention_queue_impl(report)
+
+
+def diff_delivery_run_attention_queues(
+    previous: dict[str, Any] | None,
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    return _diff_attention_queues_impl(previous, current)
 
 
 def load_delivery_run_attention_queue(*, root: Path | None = None) -> dict[str, Any] | None:
     return _load_attention_queue_impl(_resolve_root(root))
 
 
+def load_delivery_run_watch_history(*, limit: int = 10, root: Path | None = None) -> list[dict[str, Any]]:
+    return _load_watch_history_impl(_resolve_root(root), limit=limit)
+
+
+def delivery_run_watch_schedule_status(*, root: Path | None = None) -> dict[str, Any]:
+    resolved_root = _resolve_root(root)
+    return _watch_schedule_status_impl(
+        resolved_root,
+        cfg=_load_workflow_config(resolved_root),
+    )
+
+
+def run_delivery_run_watch_tick(
+    *,
+    stale_minutes: int | None = None,
+    review_stale_minutes: int | None = None,
+    include_terminal: bool = False,
+    force: bool = False,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    resolved_root = _resolve_root(root)
+    payload = _run_watch_tick_impl(
+        resolved_root,
+        stale_minutes=stale_minutes,
+        review_stale_minutes=review_stale_minutes,
+        include_terminal=include_terminal,
+        force=force,
+    )
+    if payload.get("executed"):
+        _sync_all_work_orders_impl(resolved_root)
+    return payload
+
+
 def filter_delivery_run_attention_queue(
     queue: dict[str, Any],
     *,
     feature_slug: str | None = None,
+    severities: set[str] | None = None,
+    kinds: set[str] | None = None,
+    limit: int | None = None,
+    root: Path | None = None,
 ) -> dict[str, Any]:
-    return _filter_attention_queue_impl(queue, feature_filter=feature_slug)
+    return _filter_attention_queue_impl(
+        queue,
+        feature_filter=feature_slug,
+        severities=severities,
+        kinds=kinds,
+        limit=limit,
+    )
+
+
+def scheduler_status(*, root: Path | None = None) -> dict[str, Any]:
+    return _scheduler_status_impl(_resolve_root(root))
+
+
+def run_scheduler_once(
+    *,
+    jobs: list[str] | None = None,
+    force: bool = False,
+    triggered_by: str = "manual",
+    allow_when_supervisor: bool = False,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    return _run_scheduler_once_impl(
+        _resolve_root(root),
+        jobs=jobs,
+        force=force,
+        triggered_by=triggered_by,
+        allow_when_supervisor=allow_when_supervisor,
+    )
+
+
+def start_scheduler_supervisor(*, root: Path | None = None) -> dict[str, Any]:
+    return _start_scheduler_supervisor_impl(_resolve_root(root))
+
+
+def stop_scheduler_supervisor(*, root: Path | None = None) -> dict[str, Any]:
+    return _stop_scheduler_supervisor_impl(_resolve_root(root))

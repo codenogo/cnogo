@@ -34,10 +34,20 @@ from scripts.workflow.orchestration.watch import (  # noqa: E402
 )
 from scripts.workflow.orchestration.watch_artifacts import (  # noqa: E402
     attention_queue_path,
+    diff_attention_queues,
+    filter_attention_queue,
     load_attention_queue,
+    load_watch_history,
     load_watch_report,
     persist_watch_report,
     watch_report_path,
+    watch_snapshot_path,
+)
+from scripts.workflow.orchestration.watch_schedule import (  # noqa: E402
+    load_watch_state,
+    run_watch_tick,
+    watch_schedule_status,
+    watch_state_path,
 )
 
 
@@ -91,6 +101,19 @@ def test_list_delivery_runs_filters_terminal_status_by_default(tmp_path):
         run_id="demo-complete",
     )
     completed = update_delivery_task_status(completed, task_index=0, status="merged")
+    completed.ship = {
+        "status": "completed",
+        "attempts": 1,
+        "startedAt": "2026-03-21T13:00:00Z",
+        "completedAt": "2026-03-21T13:01:00Z",
+        "failedAt": "",
+        "commit": "abc123",
+        "branch": "feature/demo",
+        "prUrl": "https://example.test/pr/1",
+        "lastError": "",
+        "notes": [],
+        "updatedAt": "2026-03-21T13:01:00Z",
+    }
     save_delivery_run(completed, tmp_path)
 
     listed = list_delivery_runs(tmp_path)
@@ -284,6 +307,69 @@ def test_persist_watch_report_writes_latest_and_attention_queue(tmp_path):
     assert persisted["attention"]["summary"]["totalItems"] == len(persisted["attention"]["items"])
 
 
+def test_persist_watch_report_archives_snapshot_and_delta(tmp_path):
+    plan_path = _write_plan(tmp_path, "demo", "01")
+    create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="team",
+        run_id="demo-watch-history",
+    )
+    _force_updated_at(tmp_path, "demo", "demo-watch-history", "2020-01-01T00:00:00Z")
+
+    first_report = watch_delivery_runs(tmp_path, stale_minutes=10, review_stale_minutes=60)
+    first_persisted = persist_watch_report(tmp_path, first_report)
+    assert first_persisted["delta"]["summary"]["new"] >= 1
+    assert first_persisted["delta"]["summary"]["resolved"] == 0
+    assert first_persisted["delta"]["summary"]["ongoing"] == 0
+    snapshot_path = watch_snapshot_path(tmp_path, str(first_report.get("checkedAt", "")))
+    assert snapshot_path.is_file()
+
+    run = load_watch_report(tmp_path)
+    assert run is not None
+    run_contract = json.loads(
+        (tmp_path / ".cnogo" / "runs" / "demo" / "demo-watch-history.json").read_text(encoding="utf-8")
+    )
+    run_contract["mode"] = "serial"
+    (tmp_path / ".cnogo" / "runs" / "demo" / "demo-watch-history.json").write_text(
+        json.dumps(run_contract, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    second_report = watch_delivery_runs(tmp_path, stale_minutes=10, review_stale_minutes=60)
+    second_report["checkedAt"] = "2026-03-21T13:47:26Z"
+    second_persisted = persist_watch_report(tmp_path, second_report)
+    assert second_persisted["delta"]["summary"]["resolved"] >= 1
+    history = load_watch_history(tmp_path, limit=5)
+    assert len(history) >= 2
+    assert history[0]["path"].endswith(".json")
+
+
+def test_diff_attention_queues_tracks_new_resolved_and_ongoing_items():
+    previous = {
+        "items": [
+            {"feature": "demo", "runId": "run-1", "kind": "stale_active_run", "severity": "warn"},
+            {"feature": "demo", "runId": "run-2", "kind": "review_in_progress_stale", "severity": "fail"},
+        ]
+    }
+    current = {
+        "items": [
+            {"feature": "demo", "runId": "run-2", "kind": "review_in_progress_stale", "severity": "fail"},
+            {"feature": "demo", "runId": "run-3", "kind": "ship_failed_stale", "severity": "warn"},
+        ]
+    }
+
+    delta = diff_attention_queues(previous, current)
+
+    assert delta["summary"] == {"new": 1, "resolved": 1, "ongoing": 1}
+    assert delta["newItems"][0]["runId"] == "run-3"
+    assert delta["resolvedItems"][0]["runId"] == "run-1"
+    assert delta["ongoingItems"][0]["runId"] == "run-2"
+
+
 def test_watch_delivery_runs_detects_review_artifact_drift(tmp_path):
     plan_path = _write_plan(tmp_path, "demo", "01")
     run = create_delivery_run(
@@ -388,3 +474,57 @@ def test_watch_delivery_runs_detects_ready_and_failed_ship_staleness(tmp_path):
     report = watch_delivery_runs(tmp_path, stale_minutes=10, review_stale_minutes=30)
     kinds = {finding["kind"] for finding in report["findings"]}
     assert "ship_failed_stale" in kinds
+
+
+def test_run_watch_tick_records_schedule_state_and_skips_until_due(tmp_path):
+    plan_path = _write_plan(tmp_path, "demo", "01")
+    create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="team",
+        run_id="demo-watch-tick",
+    )
+    _force_updated_at(tmp_path, "demo", "demo-watch-tick", "2020-01-01T00:00:00Z")
+
+    before = watch_schedule_status(tmp_path)
+    assert before["due"] is True
+
+    first = run_watch_tick(tmp_path)
+    assert first["executed"] is True
+    assert watch_state_path(tmp_path).is_file()
+    state = load_watch_state(tmp_path)
+    assert state is not None
+    assert state["lastResult"] == "warn"
+    assert state["lastAttentionSummary"]["totalItems"] >= 1
+
+    second = run_watch_tick(tmp_path)
+    assert second["executed"] is False
+    assert second["schedule"]["due"] is False
+
+
+def test_filter_attention_queue_supports_severity_kind_and_limit(tmp_path):
+    queue = {
+        "items": [
+            {"feature": "demo", "runId": "run-1", "kind": "stale_active_run", "severity": "warn"},
+            {"feature": "demo", "runId": "run-2", "kind": "integration_conflict", "severity": "fail"},
+            {"feature": "demo", "runId": "run-3", "kind": "review_in_progress_stale", "severity": "warn"},
+        ],
+        "summary": {"totalItems": 3},
+    }
+
+    filtered = load_attention_queue(tmp_path)
+    assert filtered is None
+
+    out = filter_attention_queue(
+        queue,
+        severities={"warn"},
+        kinds={"review_in_progress_stale", "stale_active_run"},
+        limit=1,
+    )
+
+    assert len(out["items"]) == 1
+    assert out["items"][0]["kind"] == "stale_active_run"
+    assert out["summary"]["matchedItems"] == 2

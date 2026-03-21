@@ -254,6 +254,76 @@ def test_plan_formula_warns_on_invalid_shape():
     assert any("Plan contract formula should be a string or object with name." in m for m in _messages(findings))
 
 
+def test_plan_profile_accepts_string_or_named_object():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "profile": {"name": "feature-delivery"},
+        "goal": "stricter planning",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "contextLinks": ["Constraint: return 400 on invalid input"],
+                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    assert not any("Plan contract profile" in m for m in _messages(findings))
+
+
+def test_plan_formula_warns_as_legacy_alias():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "formula": "feature-delivery",
+        "goal": "legacy alias still loads",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "contextLinks": ["Constraint: return 400 on invalid input"],
+                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    assert any("legacy 'formula' is deprecated; use 'profile' instead." in m for m in _messages(findings))
+
+
 def test_review_v4_requires_stage_reviews_when_enabled(tmp_path):
     feature_dir = tmp_path / "feature"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -1513,6 +1583,104 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     assert any("worktree-session.json references runId that does not exist" in msg for msg in msgs)
 
 
+def test_validate_repo_warns_for_unknown_default_formula_and_formula_filename_mismatch(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "formulas": {
+                    "default": "unknown-formula",
+                    "catalogPath": ".cnogo/formulas",
+                    "allowPlanOverride": True,
+                },
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+    formulas_dir = cnogo_dir / "formulas"
+    formulas_dir.mkdir(parents=True, exist_ok=True)
+    (formulas_dir / "incident.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "name": "incident-debug",
+                "version": "1.0.0",
+                "defaults": {"execution": {"modePreference": "serial"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert any("WORKFLOW.json: formulas.default refers to unknown formula 'unknown-formula'." in msg for msg in msgs)
+    assert any("Formula filename 'incident.json' should match contract name 'incident-debug'." in msg for msg in msgs)
+
+
+def test_validate_repo_warns_for_invalid_watch_config_and_state(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "watch": {
+                    "enabled": "yes",
+                    "patrolIntervalMinutes": 0,
+                    "historyLimit": "many",
+                    "attentionLimit": -1,
+                },
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+    watch_dir = cnogo_dir / "watch"
+    watch_dir.mkdir(parents=True, exist_ok=True)
+    (watch_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "1",
+                "enabled": "yes",
+                "patrolIntervalMinutes": 0,
+                "historyLimit": [],
+                "attentionLimit": {},
+                "lastResult": "bad",
+                "lastReportPath": ".cnogo/watch/missing-report.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert any("WORKFLOW.json: watch.enabled should be boolean." in msg for msg in msgs)
+    assert any("WORKFLOW.json: watch.patrolIntervalMinutes should be an integer > 0." in msg for msg in msgs)
+    assert any("Watch state schemaVersion should be an integer." in msg for msg in msgs)
+    assert any("Watch state enabled should be boolean." in msg for msg in msgs)
+    assert any("Watch state lastResult should be ok|warn|fail." in msg for msg in msgs)
+    assert any("Watch state lastReportPath points to missing file" in msg for msg in msgs)
+
+
 def test_validation_baseline_round_trip(tmp_path):
     warning = core._finding_to_warning(core.Finding("WARN", "Example warning", "demo.json"))
     path = core.save_baseline([warning], tmp_path)
@@ -1529,3 +1697,123 @@ def test_validate_repo_staged_requires_git_repo(tmp_path):
     findings = core.validate_repo(tmp_path, staged_only=True)
 
     assert any("--staged requires a git repository." in message for message in _messages(findings))
+
+
+def test_validate_repo_warns_for_legacy_formula_config_and_contracts(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "formulas": {
+                    "default": "feature-delivery",
+                    "catalogPath": ".cnogo/formulas",
+                    "allowPlanOverride": True,
+                },
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    formulas_dir = tmp_path / ".cnogo" / "formulas"
+    formulas_dir.mkdir(parents=True, exist_ok=True)
+    (formulas_dir / "feature-delivery.json").write_text(
+        json.dumps({"schemaVersion": 1, "name": "feature-delivery", "defaults": {}}, indent=2),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+    assert any("legacy 'formulas' is deprecated; use 'profiles' instead." in msg for msg in msgs)
+    assert any("Legacy formula contracts are deprecated" in msg for msg in msgs)
+
+
+def test_validate_repo_accepts_profile_catalog_and_scheduler_state(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "profiles": {
+                    "default": "feature-delivery",
+                    "catalogPath": ".cnogo/profiles",
+                    "allowPlanOverride": True,
+                },
+                "scheduler": {
+                    "enabled": True,
+                    "mode": "hybrid",
+                    "tickIntervalMinutes": 15,
+                    "opportunisticCommands": ["work-list"],
+                },
+                "packages": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    profiles_dir = tmp_path / ".cnogo" / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (profiles_dir / "feature-delivery.json").write_text(
+        json.dumps({"schemaVersion": 1, "name": "feature-delivery", "defaults": {}}, indent=2),
+        encoding="utf-8",
+    )
+    scheduler_dir = tmp_path / ".cnogo" / "scheduler"
+    scheduler_dir.mkdir(parents=True, exist_ok=True)
+    (scheduler_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "enabled": True,
+                "mode": "hybrid",
+                "tickIntervalMinutes": 15,
+                "opportunisticCommands": ["work-list"],
+                "lastRunAt": "2026-03-21T10:00:00Z",
+                "nextRunAt": "2026-03-21T10:15:00Z",
+                "lastResult": "ok",
+                "lastJobs": ["watch_patrol", "work_order_sync"],
+                "lastEvent": {"result": "ok"},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    work_orders_dir = tmp_path / ".cnogo" / "work-orders"
+    work_orders_dir.mkdir(parents=True, exist_ok=True)
+    (work_orders_dir / "demo.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "workOrderId": "demo",
+                "feature": "demo",
+                "status": "planned",
+                "currentPhase": "plan",
+                "profile": {"name": "feature-delivery"},
+                "currentRunId": "",
+                "runHistory": [],
+                "artifactPaths": {},
+                "attentionSummary": {},
+                "reviewSummary": {},
+                "shipSummary": {},
+                "nextAction": {"kind": "plan"},
+                "createdAt": "2026-03-21T10:00:00Z",
+                "updatedAt": "2026-03-21T10:00:00Z",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+    assert not any("profiles.default" in msg for msg in msgs)
+    assert not any("Scheduler state" in msg for msg in msgs)
+    assert not any("Work Order" in msg for msg in msgs)
