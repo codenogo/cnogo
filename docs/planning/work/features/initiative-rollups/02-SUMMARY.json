@@ -1,0 +1,68 @@
+{
+  "changes": [
+    {
+      "change": "Updated during plan execution.",
+      "file": ".cnogo/scripts/workflow/orchestration/initiative_rollup.py"
+    }
+  ],
+  "commit": {
+    "hash": "598a9e3",
+    "message": "task(workflow-deepdive-v2): Create initiative_rollup.py module"
+  },
+  "feature": "initiative-rollups",
+  "generatedFrom": {
+    "changedFilesSource": "git:HEAD",
+    "generatedAt": "2026-03-21T18:17:47Z",
+    "kind": "workflow_checks.summarize",
+    "planPath": "docs/planning/work/features/initiative-rollups/02-PLAN.json",
+    "taskEvidenceSource": "plan-contract"
+  },
+  "notes": [],
+  "outcome": "complete",
+  "planNumber": "02",
+  "schemaVersion": 2,
+  "timestamp": "2026-03-21T18:17:47Z",
+  "verification": [
+    {
+      "commands": [
+        "python3 .cnogo/scripts/workflow_memory.py initiative-list --json 2>&1 | head -5",
+        "python3 -m pytest tests/test_initiative_rollup_cli.py -v"
+      ],
+      "name": "Add initiative CLI subcommands to workflow_memory.py",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "grep -q 'initiative' .claude/commands/status.md",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "name": "Update /status command for initiative section",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "grep -q 'initiative' .claude/commands/resume.md",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "name": "Update /resume command for initiative section",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "python3 -m pytest tests/test_initiative_rollup_cli.py -v",
+        "python3 .cnogo/scripts/workflow_validate.py",
+        "python3 .cnogo/scripts/workflow_memory.py initiative-list --json 2>&1 | head -5"
+      ],
+      "name": "planVerify",
+      "result": "pass",
+      "scope": "plan",
+      "source": "plan-contract"
+    }
+  ]
+}
