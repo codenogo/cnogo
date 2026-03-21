@@ -40,7 +40,8 @@ Execute a plan.
 4. **Plan verification**
    - Run all `planVerify[]` commands.
    - Record the gate outcome on the Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-plan-verify <feature-slug> pass --run-id <run-id> [--command "<cmd>"]...`.
-   - If verification fails, record `run-plan-verify <feature-slug> fail ...` before stopping. If it passes, run `phase-set <feature-slug> review`.
+   - If verification fails, record `run-plan-verify <feature-slug> fail ...` before stopping.
+   - If verification passes but `reviewReadiness.status` is still not `ready`, finalize it with `python3 .cnogo/scripts/workflow_memory.py run-review-ready <feature-slug> --run-id <run-id>`.
 
 5. **Commit**
    - `git add -A`

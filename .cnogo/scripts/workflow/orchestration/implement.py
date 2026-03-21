@@ -17,6 +17,7 @@ DELIVERY_NEXT_ACTION_KINDS = frozenset(
         "merge_team_session",
         "resolve_merge_conflict",
         "run_plan_verify",
+        "prepare_review",
         "start_review",
         "continue_review",
         "start_ship",
@@ -202,6 +203,20 @@ def next_delivery_run_action(run: DeliveryRun) -> dict[str, Any]:
             ),
         }
 
+    if (
+        run.review_readiness.get("planVerifyPassed") is True
+        and review_readiness == "pending"
+        and integration_status in {"pending", "awaiting_merge", "merging"}
+    ):
+        return {
+            "kind": "prepare_review",
+            "reason": "Plan verification passed; finalize integration state before review starts.",
+            "command": (
+                "python3 .cnogo/scripts/workflow_memory.py "
+                f"run-review-ready {run.feature} --run-id {run.run_id}"
+            ),
+        }
+
     if review_readiness == "ready":
         if review_status in {"pending", "ready"}:
             return {
@@ -263,4 +278,3 @@ def next_delivery_run_action(run: DeliveryRun) -> dict[str, Any]:
             f"run-show {run.feature} --run-id {run.run_id} --json"
         ),
     }
-

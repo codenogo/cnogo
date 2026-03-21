@@ -195,6 +195,11 @@ class TestGenerateImplementPrompt:
         prompt = generate_implement_prompt(desc)
         assert "NEVER close issues" in prompt
 
+    def test_repo_authority_warning_present(self):
+        prompt = generate_implement_prompt(_make_desc())
+        assert "do NOT run `git commit`, `git push`, or create PRs" in prompt
+        assert "the leader handles merge, commit, and ship" in prompt
+
 
 # ---------------------------------------------------------------------------
 # detect_file_conflicts — pure logic

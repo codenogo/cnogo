@@ -229,3 +229,55 @@ def record_plan_verification(
         run.review_readiness.setdefault("notes", []).append(note)
     run.review_readiness["updatedAt"] = _now_iso()
     return sync_review_readiness(run)
+
+
+def prepare_review_readiness(
+    run: Any,
+    *,
+    integration_status: str | None = None,
+    note: str | None = None,
+) -> Any:
+    """Finalize integration state for review and recompute review readiness.
+
+    This is the explicit public transition for branch-native or already-merged
+    team work after plan verification has passed. It intentionally avoids
+    relying on an active worktree session.
+    """
+    ensure_run_coordination_state(run)
+
+    if run.review_readiness.get("planVerifyPassed") is not True:
+        raise ValueError(
+            "Review cannot be prepared until plan verification has passed."
+        )
+
+    current_status = str(run.integration.get("status", "pending"))
+    if current_status == "conflicted":
+        raise ValueError(
+            "Review cannot be prepared while integration.status == 'conflicted'."
+        )
+
+    target_status = integration_status.strip() if isinstance(integration_status, str) else ""
+    if not target_status:
+        target_status = current_status
+        if target_status not in {"merged", "cleaned"}:
+            target_status = "cleaned"
+
+    if target_status not in DELIVERY_INTEGRATION_STATUSES:
+        raise ValueError(
+            f"Unknown integration status {target_status!r}; "
+            f"expected one of {sorted(DELIVERY_INTEGRATION_STATUSES)}."
+        )
+    if target_status not in {"merged", "cleaned"}:
+        raise ValueError(
+            "Review readiness requires integration.status == 'merged' or 'cleaned'."
+        )
+
+    run.integration["status"] = target_status
+    if target_status == "cleaned":
+        run.integration["lastSessionPhase"] = "cleaned"
+    run.integration["updatedAt"] = _now_iso()
+
+    if note:
+        run.review_readiness.setdefault("notes", []).append(str(note))
+    run.review_readiness["updatedAt"] = _now_iso()
+    return sync_review_readiness(run)

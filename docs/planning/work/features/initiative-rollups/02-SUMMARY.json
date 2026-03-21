@@ -2,12 +2,20 @@
   "changes": [
     {
       "change": "Updated during plan execution.",
-      "file": ".cnogo/scripts/workflow/orchestration/initiative_rollup.py"
+      "file": ".cnogo/scripts/workflow_memory.py"
+    },
+    {
+      "change": "Updated during plan execution.",
+      "file": ".claude/commands/status.md"
+    },
+    {
+      "change": "Updated during plan execution.",
+      "file": ".claude/commands/resume.md"
     }
   ],
   "commit": {
-    "hash": "598a9e3",
-    "message": "task(workflow-deepdive-v2): Create initiative_rollup.py module"
+    "hash": "b016fd3",
+    "message": "feat(workflow): add initiative rollup engine and CLI integration"
   },
   "feature": "initiative-rollups",
   "generatedFrom": {

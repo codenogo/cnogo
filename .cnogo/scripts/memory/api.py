@@ -40,6 +40,7 @@ from ..workflow.orchestration import (
     next_delivery_run_action as _next_delivery_run_action_impl,
     next_work_order_action as _next_work_order_action_impl,
     persist_watch_report as _persist_watch_report_impl,
+    prepare_review_readiness as _prepare_review_readiness_impl,
     record_plan_verification_for_execution as _record_plan_verification_for_execution_impl,
     refresh_task_frontier as _refresh_task_frontier_impl,
     run_scheduler_once as _run_scheduler_once_impl,
@@ -118,7 +119,14 @@ def _auto_export(root: Path) -> None:
 def _sync_run_work_order(run: DeliveryRun | None, *, root: Path | None = None) -> WorkOrder | None:
     if run is None or not getattr(run, "feature", ""):
         return None
-    return _sync_work_order_impl(_resolve_root(root), run.feature, current_run=run)
+    # Work Order rollups derive next actions from the current run; clone it so
+    # that rollup computation cannot mutate the caller's in-memory lifecycle
+    # state while we persist related artifacts.
+    return _sync_work_order_impl(
+        _resolve_root(root),
+        run.feature,
+        current_run=DeliveryRun.from_dict(run.to_dict()),
+    )
 
 
 def _persist_run_and_sync_work_order(run: DeliveryRun, *, root: Path | None = None) -> DeliveryRun:
@@ -714,6 +722,21 @@ def record_delivery_run_plan_verification(
         run,
         passed=passed,
         commands=commands,
+        note=note,
+    )
+    return _persist_run_and_sync_work_order(updated, root=root)
+
+
+def prepare_delivery_run_review_ready(
+    run: DeliveryRun,
+    *,
+    integration_status: str | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _prepare_review_readiness_impl(
+        run,
+        integration_status=integration_status,
         note=note,
     )
     return _persist_run_and_sync_work_order(updated, root=root)

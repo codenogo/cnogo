@@ -13,6 +13,7 @@ Quality gate.
    - Run `python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>`; expected phase: `implement` or `review`.
    - Load the feature-level Work Order with `python3 .cnogo/scripts/workflow_memory.py work-show <feature-slug> --json`.
    - Load the latest Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-show <feature-slug> --json`.
+   - If `planVerifyPassed=true` but `reviewReadiness.status != ready`, run `python3 .cnogo/scripts/workflow_memory.py run-review-ready <feature-slug> --json` once, then reload the Delivery Run.
    - Stop unless `reviewReadiness.status == ready`, unless the Delivery Run already has `review.status == in_progress|completed`.
 
 2. **Automated review**

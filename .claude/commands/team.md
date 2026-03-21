@@ -21,16 +21,19 @@ Verify Agent Teams is enabled, then parse `$ARGUMENTS`.
 ## Action: `implement`
 
 1. Parse `<feature>` and `<plan>`. Verify phase.
-2. Load plan JSON. Generate run_id via `bridge.generate_run_id(feature)`.
-3. Generate TaskDescV2 via `bridge.plan_to_task_descriptions()`. Run `recommend_team_mode()` plus `detect_file_conflicts()`; stop if team mode was forced onto an unsafe plan.
-4. Create or resume the Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-create <feature> <NN> --mode team --run-id <run-id> --json`.
-   Persist it under `.cnogo/runs/<feature>/<run-id>.json`, sync the feature Work Order, create the worktree session with the same `run_id`, and set phase `implement`.
-5. Create TaskCreate entries, then wire blockedBy.
-6. Spawn one implementer per task via `bridge.generate_implement_prompt(taskdesc, actor_name=...)`. Leader is orchestration-only. Require `TASK_EVIDENCE` then `TASK_DONE`.
+2. Create or resume the Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-create <feature> <NN> --mode team --json`.
+   Use the returned `runId` and `recommendation` as the supported team-execution source of truth.
+3. Create TaskCreate entries, then wire blockedBy.
+4. Use `python3 .cnogo/scripts/workflow_memory.py run-next <feature> --run-id <run-id> --json` to find the current frontier.
+5. Generate worker prompts with `python3 .cnogo/scripts/workflow_memory.py run-task-prompt <feature> <task-index> --run-id <run-id> [--actor <name>]`.
+   Do not import `bridge.*` directly in the operator flow.
+6. Spawn one implementer per runnable task. Leader is orchestration-only. Require `TASK_EVIDENCE` then `TASK_DONE`.
+   Workers must not commit, push, create PRs, or stage repo-wide changes. The leader owns merge, commit, push, and ship.
 7. Monitor TaskList and poll stalls via `workflow_memory.py stalled`; takeover and respawn as needed.
 8. Keep the Delivery Run current as tasks move through `ready`, `in_progress`, `done`, `merged`, or `failed`. Use `python3 .cnogo/scripts/workflow_memory.py run-sync-session <feature> --run-id <run-id> --json` after worker progress or merge changes.
 9. Reconcile, merge with `workflow_memory.py session-merge`, resolve conflicts (max 2 retries), then record planVerify with `python3 .cnogo/scripts/workflow_memory.py run-plan-verify <feature> pass|fail --run-id <run-id> [--command "<cmd>"]...`.
-10. Commit, summarize, set phase `review`, then cleanup with `workflow_memory.py session-cleanup` + `workflow_validate.py` and dismiss the team.
+10. If verification passed but review is still blocked on integration state, run `python3 .cnogo/scripts/workflow_memory.py run-review-ready <feature> --run-id <run-id>`.
+11. Commit, summarize, set phase `review` when ready, then cleanup with `workflow_memory.py session-cleanup` + `workflow_validate.py` and dismiss the team.
 
 ## Action: `status`
 

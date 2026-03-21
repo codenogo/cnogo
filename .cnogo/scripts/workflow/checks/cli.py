@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Callable
 
@@ -23,8 +24,10 @@ def build_parser(*, default_command_usage_since_days: int) -> argparse.ArgumentP
         "summarize",
         help="Generate NN-SUMMARY artifacts from a plan contract and recorded execution evidence.",
     )
-    summarize.add_argument("--feature", required=True, help="Feature slug (docs/planning/work/features/<feature>/)")
-    summarize.add_argument("--plan", required=True, help="Plan number (NN).")
+    summarize.add_argument("feature_pos", nargs="?", help="Feature slug (positional shorthand).")
+    summarize.add_argument("plan_pos", nargs="?", help="Plan number (NN) (positional shorthand).")
+    summarize.add_argument("--feature", help="Feature slug (docs/planning/work/features/<feature>/)")
+    summarize.add_argument("--plan", help="Plan number (NN).")
     summarize.add_argument(
         "--outcome",
         choices=["auto", "complete", "partial", "failed"],
@@ -138,10 +141,19 @@ def run_command(
         return cmd_doctor(root, workflow, json_output=getattr(args, "json_output", False))
 
     if args.cmd == "summarize":
+        feature = getattr(args, "feature", None) or getattr(args, "feature_pos", None)
+        plan_number = getattr(args, "plan", None) or getattr(args, "plan_pos", None)
+        if not feature or not plan_number:
+            print(
+                "workflow_checks.py summarize requires feature and plan "
+                "(use positional `summarize <feature> <NN>` or `--feature/--plan`).",
+                file=sys.stderr,
+            )
+            return 2
         return cmd_summarize(
             root,
-            args.feature,
-            args.plan,
+            feature,
+            plan_number,
             outcome=args.outcome,
             notes=list(args.note or []),
             json_output=getattr(args, "json_output", False),
