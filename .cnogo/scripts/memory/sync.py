@@ -227,20 +227,21 @@ def import_jsonl(root: Path) -> int:
         conn.close()
 
 
-def sync(root: Path) -> None:
-    """Full sync: export JSONL, then git add the file."""
+def sync(root: Path, *, stage: bool = False) -> Path:
+    """Full sync: export JSONL and optionally stage it for git."""
     jsonl_path = export_jsonl(root)
 
-    # Stage the JSONL file for git
-    try:
-        subprocess.run(
-            ["git", "add", "--", str(jsonl_path)],
-            cwd=str(root),
-            capture_output=True,
-            timeout=10,
-        )
-    except (subprocess.SubprocessError, FileNotFoundError):
-        pass  # Not in a git repo or git not available — that's fine
+    if stage:
+        try:
+            subprocess.run(
+                ["git", "add", "--", str(jsonl_path)],
+                cwd=str(root),
+                capture_output=True,
+                timeout=10,
+            )
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass  # Not in a git repo or git not available — that's fine
+    return jsonl_path
 
 
 # ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@ complete
 | File | Change |
 |------|--------|
 | `.claude/commands/ship.md` | Gitignore work-order runtime files and update /ship command |
-| `.cnogo/scripts/workflow/orchestration/ship_draft.py` | Updated during plan execution. |
+| `.cnogo/scripts/workflow_memory.py` | Add run-ship-draft CLI and auto-infer on run-ship-complete |
 
 ## Verification Results
 
@@ -25,7 +25,7 @@ complete
 - Plan: `docs/planning/work/features/ship-assistant/02-PLAN.json`
 - Changed files source: `git:working-tree`
 - Task evidence source: `plan-contract`
-- Generated at: `2026-03-21T19:34:33Z`
+- Generated at: `2026-03-21T20:17:58Z`
 
 ## Commit
-`6574373` - feat(workflow): add run-ship-draft CLI and auto-infer on run-ship-complete
+`4a1c082` - fix(workflow): address PR review findings in ship draft

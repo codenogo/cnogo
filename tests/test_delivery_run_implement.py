@@ -97,7 +97,34 @@ def test_next_delivery_run_action_guides_serial_verify_and_team_merge(tmp_path):
     team_next = next_delivery_run_action(team_run)
 
     assert team_next["kind"] == "merge_team_session"
-    assert "session-merge" in team_next["command"]
+    assert "session-apply" in team_next["command"]
+
+
+def test_record_plan_verification_for_execution_merges_team_tasks_when_passed(tmp_path):
+    plan_path = tmp_path / "docs" / "planning" / "work" / "features" / "demo" / "01-PLAN.json"
+    plan_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path.write_text("{}", encoding="utf-8")
+
+    run = create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0), _task_desc(1)],
+        mode="team",
+        run_id="demo-team-verify",
+    )
+
+    run = record_plan_verification_for_execution(
+        run,
+        passed=True,
+        commands=["pytest -q"],
+        note="team verify passed",
+    )
+
+    assert [task.status for task in run.tasks] == ["merged", "merged"]
+    assert run.integration["status"] == "merged"
+    assert run.review_readiness["status"] == "ready"
 
 
 def test_next_delivery_run_action_guides_review_and_ship(tmp_path):

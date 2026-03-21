@@ -101,7 +101,10 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     assert "workflow_memory.py run-create <feature> <NN> --mode team --json" in team
     assert "workflow_memory.py run-task-prompt <feature> <task-index> --run-id <run-id>" in team
     assert "workflow_memory.py run-sync-session <feature> --run-id <run-id> --json" in team
+    assert "workflow_memory.py session-apply --json" in team
+    assert "workflow_memory.py verify-import <module> [symbol...]" in team
     assert "run-plan-verify <feature> pass|fail" in team
+    assert "--use-plan-verify" in team
     assert "Workers must not commit, push, create PRs, or stage repo-wide changes" in team
     assert "Work Order state, Delivery Run state, Integration state, Review readiness" in team
     assert "work-list --needs-attention --json" in team
@@ -158,6 +161,6 @@ def test_ship_command_uses_delivery_run_ship_lifecycle():
     assert "workflow_checks.py ship-ready --feature <feature-slug>" in ship
     assert "workflow_memory.py run-ship-start <feature-slug>" in ship
     assert "ship.status = in_progress" in ship
-    assert "workflow_memory.py run-ship-complete <feature-slug> <commit-sha>" in ship
+    assert "workflow_memory.py run-ship-complete <feature-slug> --pr-url <pr-url>" in ship
     assert "workflow_memory.py run-ship-fail <feature-slug>" in ship
     assert "work-next <feature-slug> --json" in ship

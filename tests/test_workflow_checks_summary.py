@@ -156,6 +156,20 @@ def test_write_summary_prefers_working_tree_changes_over_last_commit(tmp_path):
     assert contract["changes"] == [{"file": "app.py", "change": "Add demo handler"}]
 
 
+def test_write_summary_filters_changes_to_plan_scope(tmp_path, monkeypatch):
+    _write_plan(tmp_path)
+    monkeypatch.setattr(
+        checks,
+        "_summary_changed_files",
+        lambda root: (["app.py", ".cnogo/scripts/workflow/orchestration/ship_draft.py"], "git:working-tree"),
+    )
+    monkeypatch.setattr(checks, "_head_commit_metadata", lambda root: {"hash": "abc123", "message": "feat: demo"})
+
+    contract = checks.write_summary(tmp_path, "demo", "01")
+
+    assert contract["changes"] == [{"file": "app.py", "change": "Add demo handler"}]
+
+
 def test_summarize_cli_accepts_positional_feature_and_plan(tmp_path):
     _init_repo(tmp_path)
     _write_plan(tmp_path)

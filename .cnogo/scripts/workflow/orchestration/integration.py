@@ -258,9 +258,10 @@ def prepare_review_readiness(
 
     target_status = integration_status.strip() if isinstance(integration_status, str) else ""
     if not target_status:
-        target_status = current_status
-        if target_status not in {"merged", "cleaned"}:
-            target_status = "cleaned"
+        # Review readiness is the explicit "finalize integration" step for
+        # branch-native or already-integrated work, so default to the terminal
+        # cleaned state unless the caller asks to preserve merged explicitly.
+        target_status = "cleaned"
 
     if target_status not in DELIVERY_INTEGRATION_STATUSES:
         raise ValueError(

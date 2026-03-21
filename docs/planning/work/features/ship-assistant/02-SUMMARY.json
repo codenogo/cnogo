@@ -5,18 +5,18 @@
       "file": ".claude/commands/ship.md"
     },
     {
-      "change": "Updated during plan execution.",
-      "file": ".cnogo/scripts/workflow/orchestration/ship_draft.py"
+      "change": "Add run-ship-draft CLI and auto-infer on run-ship-complete",
+      "file": ".cnogo/scripts/workflow_memory.py"
     }
   ],
   "commit": {
-    "hash": "6574373",
-    "message": "feat(workflow): add run-ship-draft CLI and auto-infer on run-ship-complete"
+    "hash": "4a1c082",
+    "message": "fix(workflow): address PR review findings in ship draft"
   },
   "feature": "ship-assistant",
   "generatedFrom": {
     "changedFilesSource": "git:working-tree",
-    "generatedAt": "2026-03-21T19:34:33Z",
+    "generatedAt": "2026-03-21T20:17:58Z",
     "kind": "workflow_checks.summarize",
     "planPath": "docs/planning/work/features/ship-assistant/02-PLAN.json",
     "taskEvidenceSource": "plan-contract"
@@ -25,7 +25,7 @@
   "outcome": "complete",
   "planNumber": "02",
   "schemaVersion": 2,
-  "timestamp": "2026-03-21T19:34:33Z",
+  "timestamp": "2026-03-21T20:17:58Z",
   "verification": [
     {
       "commands": [

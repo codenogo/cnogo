@@ -21,6 +21,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 SHIP_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    ".cnogo/issues.jsonl",
     ".cnogo/runs/",
     ".cnogo/work-orders/",
     ".cnogo/feature-phases.json",
@@ -45,7 +46,6 @@ SHIP_EXCLUDE_PATTERNS: tuple[str, ...] = (
 _GITKEEP_EXCEPTION = ".cnogo/work-orders/.gitkeep"
 
 _FEATURES_DIR = Path("docs") / "planning" / "work" / "features"
-_ISSUES_JSONL = Path(".cnogo") / "issues.jsonl"
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +93,53 @@ def _load_changed_files(root: Path) -> list[str]:
         if result.returncode != 0:
             return []
         lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
-        return lines
+        expanded: list[str] = []
+        for line in lines:
+            candidate = (root / line)
+            if candidate.is_dir():
+                for path in candidate.rglob("*"):
+                    if path.is_file():
+                        try:
+                            expanded.append(str(path.relative_to(root)))
+                        except ValueError:
+                            expanded.append(str(path))
+            else:
+                expanded.append(line)
+        return expanded
+    except Exception:
+        return []
+
+
+def _load_working_tree_files(root: Path) -> list[str]:
+    """Return files currently modified or untracked in the working tree."""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            cwd=str(root),
+        )
+        if result.returncode != 0:
+            return []
+        entries: list[str] = []
+        for line in result.stdout.splitlines():
+            if not line.strip():
+                continue
+            path = line[3:].strip()
+            if not path:
+                continue
+            candidate = root / path
+            if candidate.is_dir():
+                for child in candidate.rglob("*"):
+                    if not child.is_file():
+                        continue
+                    try:
+                        entries.append(str(child.relative_to(root)))
+                    except ValueError:
+                        entries.append(str(child))
+            else:
+                entries.append(path)
+        return entries
     except Exception:
         return []
 
@@ -192,14 +238,12 @@ def compute_commit_surface(root: Path, feature: str) -> list[str]:
                     rel = str(artifact)
                 collected.add(rel)
 
-    # Step 3: .cnogo/issues.jsonl if it exists
-    issues_path = root / _ISSUES_JSONL
-    if issues_path.exists():
-        collected.add(str(_ISSUES_JSONL))
-
-    # Step 4: fallback union with git diff
+    # Step 3: fallback union with git diff
     git_files = _load_changed_files(root)
     collected.update(git_files)
+
+    # Step 4: also include active working-tree files for the branch
+    collected.update(_load_working_tree_files(root))
 
     # Step 5: filter excluded
     filtered = [f for f in collected if not _is_excluded(f)]
@@ -380,9 +424,10 @@ def build_ship_draft(root: Path, feature: str) -> dict[str, Any]:
     # Compute commit surface
     commit_surface = compute_commit_surface(root, feature)
 
-    # Compute excluded files (from git diff that were excluded)
-    git_files = _load_changed_files(root)
-    excluded_files = sorted(set(f for f in git_files if _is_excluded(f)))
+    # Compute excluded files from both committed branch diff and current working tree.
+    git_files = set(_load_changed_files(root))
+    working_tree_files = set(_load_working_tree_files(root))
+    excluded_files = sorted(set(f for f in git_files.union(working_tree_files) if _is_excluded(f)))
 
     # Commit message
     commit_message = generate_commit_message(root, feature)
@@ -415,6 +460,11 @@ def build_ship_draft(root: Path, feature: str) -> dict[str, Any]:
         warnings.append(f"No REVIEW.json found for feature '{feature}'")
     elif str(review.get("verdict", "")).strip().lower() == "fail":
         warnings.append("Review verdict is 'fail' — do not ship until blockers are resolved")
+    if excluded_files:
+        warnings.append(
+            "Excluded operational files are present in the branch or working tree: "
+            + ", ".join(excluded_files[:5])
+        )
 
     return {
         "commitSurface": commit_surface,

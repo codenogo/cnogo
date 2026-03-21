@@ -21,7 +21,7 @@ python3 .cnogo/scripts/workflow_memory.py sync
 python3 .cnogo/scripts/workflow_memory.py prime
 python3 .cnogo/scripts/workflow_memory.py stats
 ```
-This updates `.cnogo/issues.jsonl`, stages it for git, and prints compact context + counts.
+This updates `.cnogo/issues.jsonl` and prints compact context + counts. Add `--stage` only when you intentionally want the sync artifact staged for git.
 
 3. Agent Teams detection (optional overlay):
 - Check `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` and active team config under `~/.claude/teams/*/config.json`.

@@ -8,6 +8,7 @@ that is expected until the module is implemented.
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -185,12 +186,12 @@ class TestShipExcludePatterns:
             "docs/planning/work/features/",
             "src/",
             "tests/",
-            ".cnogo/issues.jsonl",
         ]
         for path in normal_paths:
             assert path not in SHIP_EXCLUDE_PATTERNS, (
                 f"Normal path {path!r} should NOT be in SHIP_EXCLUDE_PATTERNS"
             )
+        assert ".cnogo/issues.jsonl" in SHIP_EXCLUDE_PATTERNS
 
 
 # ===========================================================================
@@ -419,6 +420,14 @@ class TestGeneratePrBody:
 
         assert "## Follow-ups" not in body
 
+    def test_uses_commands_plural_from_summary_verification(self, tmp_path):
+        (_, _, _, _, generate_pr_body, *_) = _import_module()
+        _setup_feature_dir(tmp_path)
+
+        body = generate_pr_body(tmp_path, "test-feature")
+
+        assert "`python3 -m pytest tests/test_widget.py -v`" in body
+
 
 # ===========================================================================
 # 6. build_ship_draft
@@ -497,6 +506,19 @@ class TestErrorPaths:
         assert "commitSurface" in draft
         warnings = draft.get("warnings", [])
         assert len(warnings) > 0, "Expected at least one warning for missing REVIEW.json"
+
+    def test_excluded_operational_files_emit_warning(self, tmp_path):
+        (_, build_ship_draft, *_) = _import_module()
+        _setup_feature_dir(tmp_path)
+        subprocess.run(["git", "init"], cwd=tmp_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cnogo_dir = tmp_path / ".cnogo"
+        cnogo_dir.mkdir(parents=True, exist_ok=True)
+        (cnogo_dir / "issues.jsonl").write_text("{}\n", encoding="utf-8")
+
+        draft = build_ship_draft(tmp_path, "test-feature")
+
+        assert ".cnogo/issues.jsonl" in draft["excludedFiles"]
+        assert any("Excluded operational files" in warning for warning in draft["warnings"])
 
     def test_missing_all_plan_files_returns_empty_surface_with_warning(self, tmp_path):
         (_, build_ship_draft, *_) = _import_module()

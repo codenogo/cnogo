@@ -134,6 +134,17 @@ def test_run_ship_draft_table_output_shows_commit_message(tmp_path):
     assert "Commit message" in result.stdout
 
 
+def test_verify_import_can_import_ship_draft_without_pythonpath(tmp_path):
+    result = _run_cli(
+        "verify-import",
+        "scripts.workflow.orchestration.ship_draft",
+        "build_ship_draft",
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "Imported scripts.workflow.orchestration.ship_draft" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # run-ship-complete: commit is optional (nargs='?')
 # ---------------------------------------------------------------------------

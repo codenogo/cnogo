@@ -30,6 +30,7 @@ DELIVERY_NEXT_ACTION_KINDS = frozenset(
 
 _SERIAL_VERIFY_READY_TASKS = frozenset({"done", "verified", "merged", "skipped", "cancelled"})
 _SERIAL_AUTO_MERGE_TASKS = frozenset({"done", "verified"})
+_TEAM_AUTO_MERGE_TASKS = frozenset({"pending", "ready", "in_progress", "done", "verified"})
 
 
 def _now_iso() -> str:
@@ -136,6 +137,15 @@ def record_plan_verification_for_execution(
     note: str | None = None,
 ) -> DeliveryRun:
     prepared = prepare_run_for_plan_verification(run)
+    if passed and prepared.mode == "team":
+        changed = False
+        for task in prepared.tasks:
+            if task.status in _TEAM_AUTO_MERGE_TASKS:
+                task.status = "merged"
+                task.updated_at = _now_iso()
+                changed = True
+        if changed:
+            prepared = refresh_task_frontier(prepared)
     return record_plan_verification(
         prepared,
         passed=passed,
@@ -189,8 +199,8 @@ def next_delivery_run_action(run: DeliveryRun) -> dict[str, Any]:
         if integration_status in {"awaiting_merge", "merging"}:
             return {
                 "kind": "merge_team_session",
-                "reason": "Completed team tasks need integration merge before verification.",
-                "command": "python3 .cnogo/scripts/workflow_memory.py session-merge --json",
+                "reason": "Completed team tasks need leader-owned integration before verification.",
+                "command": "python3 .cnogo/scripts/workflow_memory.py session-apply --json",
             }
 
     if _serial_ready_for_verification(run) or review_readiness == "awaiting_verification":
