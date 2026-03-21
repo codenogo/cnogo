@@ -52,6 +52,13 @@ from .watch import (
     summarize_delivery_run,
     watch_delivery_runs,
 )
+from .watch_artifacts import (
+    build_attention_queue,
+    filter_attention_queue,
+    load_attention_queue,
+    load_watch_report,
+    persist_watch_report,
+)
 
 __all__ = [
     "DELIVERY_RUN_SCHEMA_VERSION",
@@ -76,9 +83,14 @@ __all__ = [
     "load_delivery_run",
     "refresh_task_frontier",
     "save_delivery_run",
+    "build_attention_queue",
     "ensure_run_coordination_state",
     "ensure_run_review_state",
     "ensure_run_ship_state",
+    "filter_attention_queue",
+    "load_attention_queue",
+    "load_watch_report",
+    "persist_watch_report",
     "record_plan_verification",
     "set_review_stage",
     "set_review_verdict",

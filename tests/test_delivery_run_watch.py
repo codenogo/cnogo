@@ -32,6 +32,13 @@ from scripts.workflow.orchestration.watch import (  # noqa: E402
     list_delivery_runs,
     watch_delivery_runs,
 )
+from scripts.workflow.orchestration.watch_artifacts import (  # noqa: E402
+    attention_queue_path,
+    load_attention_queue,
+    load_watch_report,
+    persist_watch_report,
+    watch_report_path,
+)
 
 
 def _task_desc(index: int, *, blocked_by: list[int] | None = None) -> dict:
@@ -247,6 +254,34 @@ def test_watch_delivery_runs_detects_session_missing_run(tmp_path):
     kinds = {finding["kind"] for finding in report["findings"]}
 
     assert "session_missing_run" in kinds
+
+
+def test_persist_watch_report_writes_latest_and_attention_queue(tmp_path):
+    plan_path = _write_plan(tmp_path, "demo", "01")
+    create_delivery_run(
+        tmp_path,
+        feature="demo",
+        plan_number="01",
+        plan_path=plan_path,
+        task_descriptions=[_task_desc(0)],
+        mode="team",
+        run_id="demo-watch-persist",
+    )
+    _force_updated_at(tmp_path, "demo", "demo-watch-persist", "2020-01-01T00:00:00Z")
+
+    report = watch_delivery_runs(tmp_path, stale_minutes=10, review_stale_minutes=60)
+    persisted = persist_watch_report(tmp_path, report)
+
+    assert watch_report_path(tmp_path).is_file()
+    assert attention_queue_path(tmp_path).is_file()
+    latest = load_watch_report(tmp_path)
+    attention = load_attention_queue(tmp_path)
+    assert latest is not None
+    assert attention is not None
+    assert latest["paths"]["attention"] == str(attention_queue_path(tmp_path))
+    assert attention["sourceReportPath"] == str(watch_report_path(tmp_path))
+    assert attention["summary"]["totalItems"] == len(attention["items"])
+    assert persisted["attention"]["summary"]["totalItems"] == len(persisted["attention"]["items"])
 
 
 def test_watch_delivery_runs_detects_review_artifact_drift(tmp_path):

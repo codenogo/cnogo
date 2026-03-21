@@ -69,6 +69,8 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
 
     assert "Each task needs `name`" in plan
     assert "Optional top-level `formula`" in plan
+    assert "formula-suggest $ARGUMENTS --plan <NN> --json" in plan
+    assert "formula-stamp $ARGUMENTS <NN>" in plan
     assert "`contextLinks[]`" in plan
     assert "explicit error-path scenario" in plan
     assert "[--serial]" in implement

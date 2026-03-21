@@ -13,6 +13,7 @@ from ..workflow.orchestration import (
     DELIVERY_REVIEW_STATUSES,
     DELIVERY_REVIEW_VERDICTS,
     DeliveryRun,
+    build_attention_queue as _build_attention_queue_impl,
     complete_ship as _complete_ship_impl,
     create_delivery_run as _create_delivery_run_impl,
     ensure_run_coordination_state as _ensure_run_coordination_state_impl,
@@ -20,9 +21,13 @@ from ..workflow.orchestration import (
     ensure_run_ship_state as _ensure_run_ship_state_impl,
     ensure_delivery_run as _ensure_delivery_run_impl,
     fail_ship as _fail_ship_impl,
+    filter_attention_queue as _filter_attention_queue_impl,
     latest_delivery_run as _latest_delivery_run_impl,
     list_delivery_runs as _list_delivery_runs_impl,
+    load_attention_queue as _load_attention_queue_impl,
     load_delivery_run as _load_delivery_run_impl,
+    load_watch_report as _load_watch_report_impl,
+    persist_watch_report as _persist_watch_report_impl,
     record_plan_verification as _record_plan_verification_impl,
     refresh_task_frontier as _refresh_task_frontier_impl,
     save_delivery_run as _save_delivery_run_impl,
@@ -781,3 +786,31 @@ def watch_delivery_runs(
         review_stale_minutes=review_threshold,
         include_terminal=include_terminal,
     )
+
+
+def persist_delivery_run_watch_report(
+    report: dict[str, Any],
+    *,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    return _persist_watch_report_impl(_resolve_root(root), report)
+
+
+def load_delivery_run_watch_report(*, root: Path | None = None) -> dict[str, Any] | None:
+    return _load_watch_report_impl(_resolve_root(root))
+
+
+def build_delivery_run_attention_queue(report: dict[str, Any]) -> dict[str, Any]:
+    return _build_attention_queue_impl(report)
+
+
+def load_delivery_run_attention_queue(*, root: Path | None = None) -> dict[str, Any] | None:
+    return _load_attention_queue_impl(_resolve_root(root))
+
+
+def filter_delivery_run_attention_queue(
+    queue: dict[str, Any],
+    *,
+    feature_slug: str | None = None,
+) -> dict[str, Any]:
+    return _filter_attention_queue_impl(queue, feature_filter=feature_slug)

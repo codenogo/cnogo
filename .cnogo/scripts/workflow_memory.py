@@ -36,6 +36,7 @@ Commands:
     run-list            List delivery runs across features
     run-show            Show a delivery run
     run-watch           Inspect delivery-run health and next actions
+    run-attention       Show the persisted needs-attention queue
     run-refresh         Refresh task frontier for a delivery run
     run-task-set        Update a delivery-run task state
     run-plan-verify     Record plan verification outcome for a delivery run
@@ -52,6 +53,8 @@ Commands:
     session-merge       Merge active worktree session branches
     session-cleanup     Cleanup active worktree session
     session-reconcile   Fix orphaned issues after compaction
+    formula-suggest     Suggest the best workflow formula for a feature/plan
+    formula-stamp       Stamp a formula onto a plan and rerender it
     graph-index         Index codebase into context graph
     graph-query <name>  Search for symbols by name
     graph-impact <file> Analyze change impact (BFS blast radius)
@@ -107,6 +110,7 @@ def _ensure_graph_venv() -> None:
 from scripts.memory import (  # noqa: E402
     blocks,
     blockers,
+    build_delivery_run_attention_queue,
     checkpoint,
     claim,
     cleanup_session,
@@ -117,6 +121,7 @@ from scripts.memory import (  # noqa: E402
     dep_add,
     dep_remove,
     fail_delivery_run_ship,
+    filter_delivery_run_attention_queue,
     export_jsonl,
     get_cost_summary,
     import_jsonl,
@@ -124,11 +129,14 @@ from scripts.memory import (  # noqa: E402
     is_initialized,
     history,
     latest_delivery_run,
+    load_delivery_run_attention_queue,
     list_delivery_runs,
     list_issues,
     load_delivery_run,
+    load_delivery_run_watch_report,
     load_session,
     plan_to_task_descriptions,
+    persist_delivery_run_watch_report,
     get_phase,
     merge_session,
     prime,
@@ -169,8 +177,11 @@ from scripts.workflow.orchestration import (
 )
 from scripts.workflow.shared.formulas import (
     formula_auto_spawn_configured_reviewers,
+    formula_name_from_plan,
     formula_required_reviewers,
+    load_formula_catalog,
     resolve_formula,
+    suggest_formula,
 )
 from scripts.workflow.shared.plans import normalize_plan_number
 
@@ -201,6 +212,20 @@ def _git_branch(root: Path) -> str:
 def _plan_contract_path(root: Path, feature: str, plan_number: str) -> Path:
     normalized = normalize_plan_number(plan_number)
     return root / "docs" / "planning" / "work" / "features" / feature / f"{normalized}-PLAN.json"
+
+
+def _context_contract_path(root: Path, feature: str) -> Path:
+    return root / "docs" / "planning" / "work" / "features" / feature / "CONTEXT.json"
+
+
+def _load_json_contract(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _resolve_run(root: Path, feature: str, run_id: str | None):
@@ -311,17 +336,58 @@ def _print_watch_report(report: dict) -> None:
     findings = report.get("findings", [])
     if not findings:
         print("No watch findings")
+    else:
+        print("Findings:")
+        for finding in findings:
+            location = ""
+            if finding.get("feature") and finding.get("runId"):
+                location = f"{finding['feature']}/{finding['runId']} "
+            print(
+                f"- {finding.get('severity', 'warn').upper()} "
+                f"{location}{finding.get('kind')}: {finding.get('message')}"
+            )
+            print(f"  next: {finding.get('nextAction')}")
+    paths = report.get("paths", {})
+    if isinstance(paths, dict):
+        if paths.get("report"):
+            print(f"Report: {paths['report']}")
+        if paths.get("attention"):
+            print(f"Attention: {paths['attention']}")
+
+
+def _print_attention_queue(queue: dict) -> None:
+    summary = queue.get("summary", {})
+    print(
+        f"Attention Queue: {summary.get('totalItems', 0)} "
+        f"severity_counts={summary.get('severityCounts', {})}"
+    )
+    items = queue.get("items", [])
+    if not items:
+        print("No attention items")
         return
-    print("Findings:")
-    for finding in findings:
+    for item in items:
         location = ""
-        if finding.get("feature") and finding.get("runId"):
-            location = f"{finding['feature']}/{finding['runId']} "
+        if item.get("feature") and item.get("runId"):
+            location = f"{item['feature']}/{item['runId']} "
+        stale = item.get("minutesStale")
+        stale_label = f" ({stale:.1f}m stale)" if isinstance(stale, (int, float)) else ""
         print(
-            f"- {finding.get('severity', 'warn').upper()} "
-            f"{location}{finding.get('kind')}: {finding.get('message')}"
+            f"- {item.get('severity', 'warn').upper()} "
+            f"{location}{item.get('kind')}{stale_label}: {item.get('message')}"
         )
-        print(f"  next: {finding.get('nextAction')}")
+        print(f"  next: {item.get('nextAction')}")
+
+
+def _print_formula_suggestion(suggestion: dict) -> None:
+    confidence = suggestion.get("confidence")
+    confidence_label = f"{float(confidence):.2f}" if isinstance(confidence, (int, float)) else "n/a"
+    print(f"Suggested formula: {suggestion.get('name', 'feature-delivery')}")
+    print(f"Confidence: {confidence_label}")
+    if suggestion.get("reason"):
+        print(f"Reason: {suggestion['reason']}")
+    matched_terms = suggestion.get("matchedTerms", [])
+    if isinstance(matched_terms, list) and matched_terms:
+        print("Matched terms: " + ", ".join(str(term) for term in matched_terms))
 
 
 def _print_issue(issue, *, verbose: bool = False) -> None:
@@ -1005,12 +1071,48 @@ def cmd_run_watch(args: argparse.Namespace) -> int:
         include_terminal=args.all,
         root=root,
     )
+    if not args.no_write:
+        report = persist_delivery_run_watch_report(report, root=root)["report"]
     if args.json:
         _print_json(report)
     else:
         _print_watch_report(report)
     findings = report.get("findings", [])
     return 1 if any(finding.get("severity") == "fail" for finding in findings) else 0
+
+
+def cmd_run_attention(args: argparse.Namespace) -> int:
+    root = _root()
+    force_refresh = bool(args.refresh or args.stale_minutes or args.review_stale_minutes or args.all)
+    queue = None if force_refresh else load_delivery_run_attention_queue(root=root)
+    if queue is None and not force_refresh:
+        report = load_delivery_run_watch_report(root=root)
+        if report is not None:
+            queue = build_delivery_run_attention_queue(report)
+    if queue is None:
+        report = watch_delivery_runs(
+            feature_slug=args.feature,
+            stale_minutes=args.stale_minutes,
+            review_stale_minutes=args.review_stale_minutes,
+            include_terminal=args.all,
+            root=root,
+        )
+        if args.no_write:
+            queue = build_delivery_run_attention_queue(report)
+        else:
+            queue = persist_delivery_run_watch_report(report, root=root)["attention"]
+    if args.feature:
+        queue = filter_delivery_run_attention_queue(queue, feature_slug=args.feature)
+    if args.json:
+        _print_json(queue)
+    else:
+        _print_attention_queue(queue)
+    items = queue.get("items", [])
+    if isinstance(items, list) and any(
+        isinstance(item, dict) and item.get("severity") == "fail" for item in items
+    ):
+        return 1
+    return 0
 
 
 def cmd_run_refresh(args: argparse.Namespace) -> int:
@@ -1334,6 +1436,95 @@ def cmd_run_review_sync(args: argparse.Namespace) -> int:
         _print_json(run.to_dict())
     else:
         _print_run(run)
+    return 0
+
+
+def cmd_formula_suggest(args: argparse.Namespace) -> int:
+    root = _root()
+    plan_contract = None
+    if args.plan:
+        plan_path = _plan_contract_path(root, args.feature, args.plan)
+        plan_contract = _load_json_contract(plan_path)
+        if plan_contract is None:
+            print(f"Plan contract not found or invalid: {plan_path}", file=sys.stderr)
+            return 1
+    context_contract = _load_json_contract(_context_contract_path(root, args.feature))
+    suggestion = suggest_formula(
+        root,
+        feature_slug=args.feature,
+        plan_contract=plan_contract,
+        context_contract=context_contract,
+    )
+    if plan_contract is not None:
+        current_formula = formula_name_from_plan(plan_contract)
+        suggestion["currentFormula"] = current_formula or ""
+        suggestion["matchesCurrent"] = bool(current_formula and current_formula == suggestion["name"])
+    if args.json:
+        _print_json(suggestion)
+    else:
+        _print_formula_suggestion(suggestion)
+        current_formula = suggestion.get("currentFormula")
+        if isinstance(current_formula, str) and current_formula:
+            print(f"Current formula: {current_formula}")
+    return 0
+
+
+def cmd_formula_stamp(args: argparse.Namespace) -> int:
+    root = _root()
+    plan_path = _plan_contract_path(root, args.feature, args.plan)
+    plan_contract = _load_json_contract(plan_path)
+    if plan_contract is None:
+        print(f"Plan contract not found or invalid: {plan_path}", file=sys.stderr)
+        return 1
+    context_contract = _load_json_contract(_context_contract_path(root, args.feature))
+    suggestion: dict[str, object] | None = None
+    chosen_name = args.formula
+    if not chosen_name:
+        suggestion = suggest_formula(
+            root,
+            feature_slug=args.feature,
+            plan_contract=plan_contract,
+            context_contract=context_contract,
+        )
+        chosen_name = str(suggestion["name"])
+    catalog = load_formula_catalog(root)
+    if chosen_name not in catalog:
+        print(f"Unknown formula: {chosen_name}", file=sys.stderr)
+        return 1
+    current_formula = formula_name_from_plan(plan_contract)
+    if current_formula and current_formula != chosen_name and not args.force:
+        print(
+            f"Plan already has formula {current_formula!r}; use --force to replace it.",
+            file=sys.stderr,
+        )
+        return 1
+    plan_contract["formula"] = chosen_name
+    plan_path.write_text(json.dumps(plan_contract, indent=2) + "\n", encoding="utf-8")
+    try:
+        from scripts.workflow_render import render_plan, write
+
+        write(plan_path.with_suffix(".md"), render_plan(plan_contract))
+    except Exception as exc:
+        print(f"Error: stamped formula but failed to render plan markdown: {exc}", file=sys.stderr)
+        return 1
+    payload = {
+        "feature": args.feature,
+        "planNumber": normalize_plan_number(args.plan),
+        "formula": chosen_name,
+        "replaced": current_formula or "",
+        "planPath": str(plan_path),
+        "markdownPath": str(plan_path.with_suffix(".md")),
+    }
+    if suggestion is not None:
+        payload["suggestion"] = suggestion
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Stamped formula `{chosen_name}` on {plan_path.name}")
+        if current_formula and current_formula != chosen_name:
+            print(f"Replaced: {current_formula}")
+        if suggestion is not None and suggestion.get("reason"):
+            print(f"Reason: {suggestion['reason']}")
     return 0
 
 
@@ -2273,6 +2464,17 @@ def main() -> int:
     p.add_argument("--stale-minutes", type=int, help="Idle threshold for active/merge verification findings")
     p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold")
     p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--no-write", action="store_true", help="Do not persist latest watch artifacts")
+    p.add_argument("--json", action="store_true")
+
+    # run-attention
+    p = sub.add_parser("run-attention", help="Show or refresh the persisted needs-attention queue")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--stale-minutes", type=int, help="Idle threshold for active/merge verification findings")
+    p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold")
+    p.add_argument("--all", action="store_true", help="Include terminal runs when refreshing")
+    p.add_argument("--refresh", action="store_true", help="Recompute watch findings before showing the queue")
+    p.add_argument("--no-write", action="store_true", help="Do not persist refreshed attention artifacts")
     p.add_argument("--json", action="store_true")
 
     # run-refresh
@@ -2390,6 +2592,20 @@ def main() -> int:
 
     # session-reconcile
     p = sub.add_parser("session-reconcile", help="Fix orphaned issues after compaction")
+    p.add_argument("--json", action="store_true")
+
+    # formula-suggest
+    p = sub.add_parser("formula-suggest", help="Suggest the best formula for a feature or plan")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--plan", help="Plan number to inspect")
+    p.add_argument("--json", action="store_true")
+
+    # formula-stamp
+    p = sub.add_parser("formula-stamp", help="Stamp a formula onto a plan and rerender markdown")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("plan", help="Plan number")
+    p.add_argument("--formula", help="Explicit formula name (defaults to the suggestion)")
+    p.add_argument("--force", action="store_true", help="Replace an existing stamped formula")
     p.add_argument("--json", action="store_true")
 
     # costs
@@ -2537,6 +2753,7 @@ def main() -> int:
 
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
+    _needs_db = _needs_db and args.command not in {"formula-suggest", "formula-stamp"}
     if args.command != "init" and _needs_db and not is_initialized(_root()):
         print(
             "Memory engine not initialized. Run: "
@@ -2577,6 +2794,7 @@ def main() -> int:
         "run-list": cmd_run_list,
         "run-show": cmd_run_show,
         "run-watch": cmd_run_watch,
+        "run-attention": cmd_run_attention,
         "run-refresh": cmd_run_refresh,
         "run-task-set": cmd_run_task_set,
         "run-plan-verify": cmd_run_plan_verify,
@@ -2593,6 +2811,8 @@ def main() -> int:
         "session-merge": cmd_session_merge,
         "session-cleanup": cmd_session_cleanup,
         "session-reconcile": cmd_session_reconcile,
+        "formula-suggest": cmd_formula_suggest,
+        "formula-stamp": cmd_formula_stamp,
         "costs": cmd_costs,
         "cost-record": cmd_cost_record,
         "graph-index": cmd_graph_index,

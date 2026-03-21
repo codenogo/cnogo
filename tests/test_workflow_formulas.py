@@ -13,6 +13,7 @@ from scripts.workflow.shared.formulas import (  # noqa: E402
     formula_auto_spawn_configured_reviewers,
     formula_required_reviewers,
     resolve_formula,
+    suggest_formula,
 )
 
 
@@ -108,3 +109,32 @@ def test_formula_auto_spawn_defaults_true_and_can_disable():
         )
         is False
     )
+
+
+def test_suggest_formula_prefers_migration_signals(tmp_path):
+    _write_workflow(tmp_path)
+
+    suggestion = suggest_formula(
+        tmp_path,
+        feature_slug="account-ledger-rollout",
+        plan_contract={
+            "goal": "Apply schema migration and backfill historical ledger data",
+            "tasks": [{"name": "Add SQL migration", "action": "Backfill the new column"}],
+        },
+    )
+
+    assert suggestion["name"] == "migration-rollout"
+    assert "migration" in suggestion["matchedTerms"]
+
+
+def test_suggest_formula_falls_back_to_repo_default(tmp_path):
+    _write_workflow(tmp_path, default_formula="feature-delivery")
+
+    suggestion = suggest_formula(
+        tmp_path,
+        feature_slug="profile-avatar",
+        plan_contract={"goal": "Add avatar upload to the profile page"},
+    )
+
+    assert suggestion["name"] == "feature-delivery"
+    assert suggestion["matchedTerms"] == []

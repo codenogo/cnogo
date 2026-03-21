@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
@@ -103,6 +104,47 @@ _BUILTIN_FORMULAS = {
             "watch": {"staleMinutes": 10, "reviewStaleMinutes": 45},
         },
     },
+}
+
+_SUGGESTION_KEYWORDS = {
+    "migration-rollout": [
+        "migration",
+        "migrate",
+        "schema",
+        "backfill",
+        "database",
+        "sql",
+        "table",
+        "column",
+        "index",
+        "rollout",
+        "data",
+    ],
+    "release-cut": [
+        "release",
+        "version",
+        "tag",
+        "changelog",
+        "cut release",
+        "publish",
+    ],
+    "debug-fix": [
+        "bug",
+        "fix",
+        "debug",
+        "regression",
+        "hotfix",
+        "incident",
+        "failure",
+        "broken",
+        "repair",
+    ],
+}
+
+_SUGGESTION_PRIORITY = {
+    "migration-rollout": 0,
+    "release-cut": 1,
+    "debug-fix": 2,
 }
 
 
@@ -212,6 +254,82 @@ def resolve_formula(
         "source": resolved["source"],
         "description": resolved["description"],
         "resolvedPolicy": deepcopy(resolved["resolvedPolicy"]),
+    }
+
+
+def _collect_strings(value: Any) -> list[str]:
+    if isinstance(value, str):
+        trimmed = value.strip()
+        return [trimmed] if trimmed else []
+    if isinstance(value, dict):
+        out: list[str] = []
+        for nested in value.values():
+            out.extend(_collect_strings(nested))
+        return out
+    if isinstance(value, list):
+        out: list[str] = []
+        for nested in value:
+            out.extend(_collect_strings(nested))
+        return out
+    return []
+
+
+def _keyword_present(text: str, keyword: str) -> bool:
+    if " " in keyword:
+        return keyword in text
+    return re.search(rf"\b{re.escape(keyword)}\b", text) is not None
+
+
+def suggest_formula(
+    root: Path,
+    *,
+    feature_slug: str = "",
+    plan_contract: dict[str, Any] | None = None,
+    context_contract: dict[str, Any] | None = None,
+    cfg: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    workflow_cfg = cfg or load_workflow_config(root)
+    settings = formula_settings(workflow_cfg)
+    catalog = load_formula_catalog(root, cfg=workflow_cfg)
+    text_parts = [feature_slug]
+    text_parts.extend(_collect_strings(plan_contract))
+    text_parts.extend(_collect_strings(context_contract))
+    haystack = " ".join(part.lower() for part in text_parts if isinstance(part, str))
+    candidates: list[dict[str, Any]] = []
+    for name, keywords in _SUGGESTION_KEYWORDS.items():
+        if name not in catalog:
+            continue
+        matched = [keyword for keyword in keywords if _keyword_present(haystack, keyword)]
+        if not matched:
+            continue
+        candidates.append(
+            {
+                "name": name,
+                "matchedTerms": matched,
+                "score": len(matched),
+            }
+        )
+    if candidates:
+        candidates.sort(key=lambda item: (-int(item["score"]), _SUGGESTION_PRIORITY.get(str(item["name"]), 99)))
+        chosen = candidates[0]
+        score = int(chosen["score"])
+        confidence = 0.95 if score >= 3 else 0.8 if score == 2 else 0.65
+        return {
+            "name": str(chosen["name"]),
+            "confidence": confidence,
+            "matchedTerms": list(chosen["matchedTerms"]),
+            "reason": "Matched workflow signals for "
+            + f"`{chosen['name']}`: "
+            + ", ".join(f"`{term}`" for term in chosen["matchedTerms"]),
+        }
+    default_name = str(settings["default"])
+    if default_name not in catalog:
+        default_name = "feature-delivery"
+    return {
+        "name": default_name,
+        "confidence": 0.5,
+        "matchedTerms": [],
+        "reason": f"No stronger migration/release/debug signals found; using repo default `{default_name}`.",
     }
 
 

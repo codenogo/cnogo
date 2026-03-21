@@ -461,3 +461,36 @@ def test_run_list_and_run_watch_cli(tmp_path):
     report = json.loads(watch.stdout)
     kinds = {finding["kind"] for finding in report["findings"]}
     assert "team_run_missing_session" in kinds
+    assert (tmp_path / ".cnogo" / "watch" / "latest.json").is_file()
+    assert (tmp_path / ".cnogo" / "watch" / "attention.json").is_file()
+
+    attention = _run_cli("run-attention", "--json", cwd=tmp_path)
+    assert attention.returncode == 0, attention.stderr + attention.stdout
+    queue = json.loads(attention.stdout)
+    assert queue["summary"]["totalItems"] >= 1
+    assert any(item["kind"] == "team_run_missing_session" for item in queue["items"])
+
+
+def test_formula_suggest_and_stamp_cli(tmp_path):
+    feature = "ledger-rollout"
+    plan_path = _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["goal"] = "Apply schema migration and backfill ledger data"
+    plan["tasks"][0]["action"] = "Write SQL migration and data backfill"
+    plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+
+    suggestion = _run_cli("formula-suggest", feature, "--plan", "01", "--json", cwd=tmp_path)
+    assert suggestion.returncode == 0, suggestion.stderr + suggestion.stdout
+    suggestion_payload = json.loads(suggestion.stdout)
+    assert suggestion_payload["name"] == "migration-rollout"
+
+    stamped = _run_cli("formula-stamp", feature, "01", "--json", cwd=tmp_path)
+    assert stamped.returncode == 0, stamped.stderr + stamped.stdout
+    stamped_payload = json.loads(stamped.stdout)
+    assert stamped_payload["formula"] == "migration-rollout"
+
+    updated_plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    assert updated_plan["formula"] == "migration-rollout"
+    plan_md = plan_path.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## Formula" in plan_md
+    assert "`migration-rollout`" in plan_md
