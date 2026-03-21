@@ -192,6 +192,63 @@ def test_session_status_json_includes_linked_delivery_run(tmp_path):
     assert payload["deliveryRun"]["feature"] == "demo"
 
 
+def test_session_apply_copies_worker_outputs_and_updates_run(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
+
+    created = _run_cli("run-create", "demo", "01", "--mode", "team", "--json", cwd=tmp_path)
+    run = json.loads(created.stdout)
+
+    worker_path = tmp_path / "agent-demo-0"
+    (worker_path / "app").mkdir(parents=True, exist_ok=True)
+    (worker_path / "app" / "one.py").write_text("print('worker')\n", encoding="utf-8")
+
+    session_path = tmp_path / ".cnogo" / "worktree-session.json"
+    session_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "feature": "demo",
+                "planNumber": "01",
+                "runId": run["runId"],
+                "baseCommit": "abc123",
+                "baseBranch": "feature/demo",
+                "phase": "executing",
+                "worktrees": [
+                    {
+                        "taskIndex": 0,
+                        "name": "Task 0",
+                        "branch": "agent/demo-0",
+                        "path": str(worker_path),
+                        "status": "completed",
+                    },
+                    {
+                        "taskIndex": 1,
+                        "name": "Task 1",
+                        "branch": "agent/demo-1",
+                        "path": str(tmp_path / "agent-demo-1"),
+                        "status": "executing",
+                    },
+                ],
+                "mergeOrder": [0, 1],
+                "mergedSoFar": [],
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    applied = _run_cli("session-apply", "--json", cwd=tmp_path)
+    assert applied.returncode == 0, applied.stderr + applied.stdout
+    payload = json.loads(applied.stdout)
+    assert payload["success"] is True
+    assert payload["applied"] == [0, 1]
+    assert "app/one.py" in payload["appliedFiles"]
+    assert (tmp_path / "app" / "one.py").read_text(encoding="utf-8") == "print('worker')\n"
+    assert payload["deliveryRun"]["tasks"][0]["status"] == "merged"
+
+
 def test_run_plan_verify_records_review_readiness(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
@@ -220,6 +277,28 @@ def test_run_plan_verify_records_review_readiness(tmp_path):
     assert payload["reviewReadiness"]["status"] == "ready"
     assert payload["reviewReadiness"]["planVerifyPassed"] is True
     assert payload["integration"]["status"] == "merged"
+
+
+def test_run_plan_verify_can_reuse_plan_verify_commands(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
+
+    created = _run_cli("run-create", "demo", "01", "--json", cwd=tmp_path)
+    run = json.loads(created.stdout)
+
+    verified = _run_cli(
+        "run-plan-verify",
+        "demo",
+        "pass",
+        "--run-id",
+        run["runId"],
+        "--use-plan-verify",
+        "--json",
+        cwd=tmp_path,
+    )
+    assert verified.returncode == 0, verified.stderr + verified.stdout
+    payload = json.loads(verified.stdout)
+    assert payload["reviewReadiness"]["verifiedCommands"] == ["pytest -q"]
 
 
 def test_run_task_prompt_renders_supported_worker_prompt(tmp_path):
@@ -272,11 +351,11 @@ def test_run_review_ready_prepares_branch_native_team_run_for_review(tmp_path):
     )
     assert verified.returncode == 0, verified.stderr + verified.stdout
     verified_payload = json.loads(verified.stdout)
-    assert verified_payload["reviewReadiness"]["status"] == "pending"
+    assert verified_payload["reviewReadiness"]["status"] == "ready"
 
     phase = _run_cli("phase-get", "demo", "--json", cwd=tmp_path)
     assert phase.returncode == 0, phase.stderr + phase.stdout
-    assert json.loads(phase.stdout)["phase"] == "implement"
+    assert json.loads(phase.stdout)["phase"] == "review"
 
     prepared = _run_cli("run-review-ready", "demo", "--run-id", run_id, "--json", cwd=tmp_path)
     assert prepared.returncode == 0, prepared.stderr + prepared.stdout
@@ -863,3 +942,24 @@ def test_scheduler_cli_runs_once_and_reports_status(tmp_path):
     after_payload = json.loads(status_after.stdout)
     assert after_payload["lastRunAt"]
     assert (tmp_path / ".cnogo" / "scheduler" / "state.json").is_file()
+
+
+def test_sync_does_not_stage_jsonl_by_default(tmp_path):
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=tmp_path, check=True)
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    created = _run_cli("create", "Demo issue", "--json", cwd=tmp_path)
+    assert created.returncode == 0, created.stderr + created.stdout
+
+    synced = _run_cli("sync", cwd=tmp_path)
+    assert synced.returncode == 0, synced.stderr + synced.stdout
+
+    cached = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert cached.stdout.strip() == ""

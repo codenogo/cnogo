@@ -80,6 +80,7 @@ _KV_SECRET_RE = re.compile(
     r"(?i)((?:password|pass|token|secret|apikey|api[-_]?key)=)([^\s]+)"
 )
 _COMMAND_KEYS = ("command", "cmd", "shell_command", "bash_command", "input", "text")
+_AGENT_BRANCH_PREFIX = "agent/"
 
 
 def _now_iso() -> str:
@@ -167,6 +168,29 @@ def _redact_for_log(command: str) -> str:
     out = _FLAG_SECRET_RE.sub(r"\1[REDACTED]", out)
     out = _KV_SECRET_RE.sub(r"\1[REDACTED]", out)
     return out
+
+
+def _git_current_branch(root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _is_worker_repo_authority_command(command: str) -> bool:
+    normalized = _normalize_cmd(command)
+    return bool(
+        re.match(r"^\s*git\s+commit(\s|$)", normalized)
+        or re.match(r"^\s*git\s+push(\s|$)", normalized)
+        or re.match(r"^\s*gh\s+pr\s+create(\s|$)", normalized)
+    )
 
 
 def _classify_command(command: str) -> dict[str, Any]:
@@ -322,6 +346,14 @@ def pre_bash() -> int:
         if not command:
             return 0
         root = repo_root()
+        branch = _git_current_branch(root)
+        if branch.startswith(_AGENT_BRANCH_PREFIX) and _is_worker_repo_authority_command(command):
+            print(
+                "Blocked on worker branch: leader-only repo authority commands "
+                "(commit, push, PR creation) are not allowed on agent/* branches.",
+                file=sys.stderr,
+            )
+            return 2
         wf = load_workflow(root)
         cfg = _hook_optimization_cfg(wf)
         if not cfg.get("enabled", True) or cfg.get("mode") == "off":

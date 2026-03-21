@@ -26,7 +26,7 @@ Commands:
     blocks <id>         Show what an issue blocks
     export              Export to JSONL
     import              Import from JSONL
-    sync                Export + git add
+    sync                Export JSONL memory state (optionally stage it)
     prime               Generate context summary
     checkpoint          Generate compact objective/progress checkpoint
     history <id>        Show recent event history for an issue
@@ -69,9 +69,11 @@ Commands:
     run-ship-complete   Record successful ship completion on a delivery run
     run-ship-fail       Record a failed ship attempt on a delivery run
     run-ship-draft      Compute ship draft for a feature (commit surface, PR body, etc.)
+    verify-import       Verify that a Python module (and optional symbols) import cleanly
     run-sync-session    Sync a delivery run from worktree-session state
     graph <feature>     Show dependency graph
     session-status      Show active worktree session status
+    session-apply       Apply active worktree session outputs into the leader branch
     session-merge       Merge active worktree session branches
     session-cleanup     Cleanup active worktree session
     session-reconcile   Fix orphaned issues after compaction
@@ -98,6 +100,7 @@ except ImportError:
     pass  # imported as module; caller manages sys.path
 
 import argparse
+import importlib
 import json
 import os
 import subprocess
@@ -137,6 +140,7 @@ from scripts.memory import (  # noqa: E402
     blockers,
     build_delivery_run_attention_queue,
     build_work_order,
+    apply_session,
     checkpoint,
     claim,
     cleanup_session,
@@ -311,6 +315,15 @@ def _resolve_task_description_for_run(root: Path, run, task_index: int) -> dict[
         if int(taskdesc.get("plan_task_index", -1)) == task_index:
             return taskdesc
     raise ValueError(f"Unknown task index {task_index} for plan {run.plan_number}.")
+
+
+def _plan_verify_commands_for_run(root: Path, run) -> list[str]:
+    plan_path = _run_plan_path(root, run)
+    contract = _load_json_contract(plan_path) or {}
+    raw = contract.get("planVerify")
+    if not isinstance(raw, list):
+        return []
+    return [str(command).strip() for command in raw if isinstance(command, str) and str(command).strip()]
 
 
 def _print_run(run) -> None:
@@ -1061,8 +1074,11 @@ def cmd_import(args: argparse.Namespace) -> int:
 
 def cmd_sync_fn(args: argparse.Namespace) -> int:
     root = _root()
-    sync(root)
-    print("Synced: exported JSONL and staged for git")
+    path = sync(root, stage=args.stage)
+    if args.stage:
+        print(f"Synced: exported JSONL and staged for git ({path})")
+    else:
+        print(f"Synced: exported JSONL ({path})")
     return 0
 
 
@@ -1251,6 +1267,68 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
     return 0 if result.success else 1
 
 
+def cmd_session_apply(args: argparse.Namespace) -> int:
+    root = _root()
+    session = load_session(root)
+    if not session:
+        payload = {"success": False, "error": "No active worktree session"}
+        if args.json:
+            _print_json(payload)
+        else:
+            print(payload["error"])
+        return 1
+    linked_run = None
+    if session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
+    task_scopes: dict[int, list[str]] = {}
+    if linked_run is not None:
+        for task in linked_run.tasks:
+            task_scopes[task.task_index] = list(task.file_paths)
+    result = apply_session(session, root, task_file_scopes=task_scopes)
+    updated_session = load_session(root) or session
+    if linked_run is not None:
+        linked_run = sync_delivery_run_with_session(linked_run, updated_session, root=root)
+        linked_run = sync_delivery_run_integration(
+            linked_run,
+            session=updated_session,
+            root=root,
+        )
+    payload = {
+        "success": result.success,
+        "applied": result.applied_indices,
+        "appliedFiles": result.applied_files,
+        "conflictIndex": result.conflict_index,
+        "conflictFiles": result.conflict_files,
+        "error": "",
+    }
+    if linked_run is not None:
+        payload["deliveryRun"] = linked_run.to_dict()
+    if args.json:
+        _print_json(payload)
+    else:
+        if result.success:
+            print(f"Applied tasks: {result.applied_indices}")
+            if result.applied_files:
+                print(f"Files: {result.applied_files}")
+        else:
+            print(f"Apply stopped at task {result.conflict_index}: {result.conflict_files}")
+        if linked_run is not None:
+            print(
+                "Delivery Run integration: "
+                f"{linked_run.integration.get('status', 'pending')} "
+                f"(merged={len(linked_run.integration.get('mergedTaskIndices', []))})"
+            )
+            print(
+                "Delivery Run review readiness: "
+                f"{linked_run.review_readiness.get('status', 'pending')} "
+                f"(plan_verify={linked_run.review_readiness.get('planVerifyPassed')})"
+            )
+    return 0 if result.success else 1
+
+
 def cmd_session_cleanup(args: argparse.Namespace) -> int:
     root = _root()
     session = load_session(root)
@@ -1398,6 +1476,7 @@ def cmd_run_show(args: argparse.Namespace) -> int:
     if run is None:
         print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
         return 1
+    run = refresh_delivery_run(run, root=root)
     if args.json:
         _print_json(run.to_dict())
     else:
@@ -1779,6 +1858,8 @@ def cmd_run_next(args: argparse.Namespace) -> int:
     if run is None:
         print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
         return 1
+    run = refresh_delivery_run(run, root=root)
+    next_action = next_delivery_run_action(run)
     ready_tasks = []
     for task in _ready_run_tasks(run):
         ready_tasks.append(
@@ -1803,7 +1884,7 @@ def cmd_run_next(args: argparse.Namespace) -> int:
         "reviewReadiness": run.review_readiness.get("status", "pending"),
         "reviewStatus": run.review.get("status", "pending"),
         "shipStatus": run.ship.get("status", "pending"),
-        "nextAction": next_delivery_run_action(run),
+        "nextAction": next_action,
         "readyTasks": ready_tasks,
         "readyCount": len(ready_tasks),
     }
@@ -2007,10 +2088,31 @@ def cmd_run_plan_verify(args: argparse.Namespace) -> int:
     if run is None:
         print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
         return 1
+    commands = [str(command).strip() for command in list(args.verify_command or []) if str(command).strip()]
+    if args.use_plan_verify:
+        commands.extend(_plan_verify_commands_for_run(root, run))
+    if args.command_file:
+        command_file = Path(args.command_file)
+        if not command_file.is_absolute():
+            command_file = root / command_file
+        if not command_file.exists():
+            print(f"Command file not found: {command_file}", file=sys.stderr)
+            return 1
+        for line in command_file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                commands.append(line)
+    deduped_commands: list[str] = []
+    seen_commands: set[str] = set()
+    for command in commands:
+        if command in seen_commands:
+            continue
+        seen_commands.add(command)
+        deduped_commands.append(command)
     run = record_delivery_run_plan_verification(
         run,
         passed=args.result == "pass",
-        commands=args.verify_command,
+        commands=deduped_commands,
         note=args.note,
         root=root,
     )
@@ -2274,6 +2376,34 @@ def cmd_run_ship_draft(args: argparse.Namespace) -> int:
             print(f"  \u26a0 {w}")
     print(f"\n{draft.get('gitAddCommand', '')}")
     return 0
+
+
+def cmd_verify_import(args: argparse.Namespace) -> int:
+    try:
+        module = importlib.import_module(args.module)
+    except Exception as exc:
+        print(f"Import failed for {args.module}: {exc}", file=sys.stderr)
+        return 1
+    missing: list[str] = []
+    for symbol in list(args.symbol or []):
+        if not hasattr(module, symbol):
+            missing.append(symbol)
+    payload = {
+        "module": args.module,
+        "symbols": list(args.symbol or []),
+        "ok": not missing,
+        "missing": missing,
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        if missing:
+            print(f"Imported {args.module}, but missing symbols: {', '.join(missing)}")
+        else:
+            print(f"Imported {args.module}")
+            for symbol in list(args.symbol or []):
+                print(f"  - {symbol}")
+    return 0 if not missing else 1
 
 
 def cmd_run_review_stage_set(args: argparse.Namespace) -> int:
@@ -3390,7 +3520,8 @@ def main() -> int:
     sub.add_parser("import", help="Import from JSONL")
 
     # sync
-    sub.add_parser("sync", help="Export + git add")
+    p = sub.add_parser("sync", help="Export JSONL memory state")
+    p.add_argument("--stage", action="store_true", help="Also stage .cnogo/issues.jsonl for git")
 
     # prime
     p = sub.add_parser("prime", help="Generate context summary")
@@ -3625,6 +3756,15 @@ def main() -> int:
         default=[],
         help="Verification command that was run",
     )
+    p.add_argument(
+        "--use-plan-verify",
+        action="store_true",
+        help="Also record planVerify[] commands from the linked plan contract",
+    )
+    p.add_argument(
+        "--command-file",
+        help="Read additional verification commands from a newline-delimited file",
+    )
     p.add_argument("--note", help="Optional note to store with verification state")
     p.add_argument("--json", action="store_true")
 
@@ -3692,6 +3832,12 @@ def main() -> int:
     p.add_argument("feature", help="Feature slug")
     p.add_argument("--json", action="store_true")
 
+    # verify-import
+    p = sub.add_parser("verify-import", help="Verify that a Python module and optional symbols import cleanly")
+    p.add_argument("module", help="Module path to import")
+    p.add_argument("symbol", nargs="*", help="Optional symbols that must exist on the imported module")
+    p.add_argument("--json", action="store_true")
+
     # run-ship-fail
     p = sub.add_parser("run-ship-fail", help="Record a failed ship attempt on a delivery run")
     p.add_argument("feature", help="Feature slug")
@@ -3712,6 +3858,10 @@ def main() -> int:
 
     # session-status
     p = sub.add_parser("session-status", help="Show active worktree session")
+    p.add_argument("--json", action="store_true")
+
+    # session-apply
+    p = sub.add_parser("session-apply", help="Apply active worktree session outputs into the leader branch")
     p.add_argument("--json", action="store_true")
 
     # session-merge
@@ -3919,6 +4069,7 @@ def main() -> int:
         "initiative-list",
         "initiative-current",
         "run-ship-draft",
+        "verify-import",
         "session-status",
         "session-cleanup",
     }
@@ -3996,9 +4147,11 @@ def main() -> int:
         "run-ship-complete": cmd_run_ship_complete,
         "run-ship-fail": cmd_run_ship_fail,
         "run-ship-draft": cmd_run_ship_draft,
+        "verify-import": cmd_verify_import,
         "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
         "session-status": cmd_session_status,
+        "session-apply": cmd_session_apply,
         "session-merge": cmd_session_merge,
         "session-cleanup": cmd_session_cleanup,
         "session-reconcile": cmd_session_reconcile,

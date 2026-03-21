@@ -88,6 +88,7 @@ from .reconcile_leader import reconcile
 from .sync import export_jsonl, import_jsonl, sync
 from .watchdog import check_stale_issues
 from .worktree import (
+    apply_session,
     cleanup_session,
     create_session,
     get_conflict_context,
@@ -136,6 +137,7 @@ __all__ = [
     "history",
     "show_graph",
     "merge_session",
+    "apply_session",
     "cleanup_session",
     "load_session",
     "create_session",

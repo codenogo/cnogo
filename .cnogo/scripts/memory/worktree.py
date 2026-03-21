@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -101,6 +102,17 @@ class MergeResult:
     conflict_index: int | None = None
     conflict_files: list[str] = field(default_factory=list)
     resolved_tier: str = ""
+
+
+@dataclass
+class ApplyResult:
+    """Outcome of applying worktree file changes into the leader branch."""
+
+    success: bool
+    applied_indices: list[int] = field(default_factory=list)
+    applied_files: list[str] = field(default_factory=list)
+    conflict_index: int | None = None
+    conflict_files: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -417,6 +429,98 @@ def _auto_resolve_keep_incoming(root: Path, conflict_files: list[str]) -> bool:
             return False
 
     return True
+
+
+def _normalize_scope_files(values: Any) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [str(value).strip() for value in values if isinstance(value, str) and str(value).strip()]
+
+
+def apply_session(
+    session: WorktreeSession | None,
+    root: Path,
+    *,
+    task_file_scopes: dict[int, list[str]] | None = None,
+) -> ApplyResult:
+    """Apply worker worktree outputs into the leader branch without commits.
+
+    This is the preferred integration path when worker branches are not
+    allowed to create commits. It copies declared task-scope files from each
+    worktree into the repo root and marks the worktree merged.
+    """
+    if session is None:
+        raise ValueError(
+            "No active worktree session. Create one with create_session() first."
+        )
+
+    session.phase = "merging"
+    save_session(session, root)
+
+    applied_indices: list[int] = []
+    applied_files: list[str] = []
+    seen_files = set()
+    scopes = task_file_scopes or {}
+
+    for task_index in session.merge_order:
+        if task_index in session.merged_so_far:
+            continue
+
+        wt = next((w for w in session.worktrees if w.task_index == task_index), None)
+        if wt is None:
+            continue
+
+        scope_files = _normalize_scope_files(scopes.get(task_index))
+        if not scope_files:
+            wt.status = "completed"
+            save_session(session, root)
+            continue
+
+        overlapping = sorted(file_path for file_path in scope_files if file_path in seen_files)
+        if overlapping:
+            wt.status = "conflict"
+            wt.conflict_files = overlapping
+            save_session(session, root)
+            return ApplyResult(
+                success=False,
+                applied_indices=list(session.merged_so_far),
+                applied_files=sorted(set(applied_files)),
+                conflict_index=task_index,
+                conflict_files=overlapping,
+            )
+
+        wt_applied: list[str] = []
+        for rel_path in scope_files:
+            src = Path(wt.path) / rel_path
+            dst = root / rel_path
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+                wt_applied.append(rel_path)
+                seen_files.add(rel_path)
+            elif dst.exists():
+                if dst.is_file():
+                    dst.unlink()
+                    wt_applied.append(rel_path)
+                    seen_files.add(rel_path)
+
+        wt.status = "merged"
+        wt.conflict_files = []
+        wt.resolved_tier = "apply-copy"
+        session.merged_so_far.append(task_index)
+        applied_indices.append(task_index)
+        applied_files.extend(wt_applied)
+        save_session(session, root)
+
+    session.phase = "merged"
+    save_session(session, root)
+    return ApplyResult(
+        success=True,
+        applied_indices=list(session.merged_so_far),
+        applied_files=sorted(set(applied_files)),
+        conflict_index=None,
+        conflict_files=[],
+    )
 
 
 def _check_disjoint_files(session: WorktreeSession, task_index: int, root: Path) -> bool:

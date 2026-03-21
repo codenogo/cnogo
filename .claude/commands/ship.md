@@ -14,9 +14,6 @@ Rules:
 - Refuse to ship from `main/master`.
 - Must be on `feature/<feature-slug>`. Otherwise stop.
 
-**Step 0a: Clean merged branches**
-Optional.
-
 ### Step 1: Phase Check + Preflight
 
 ```bash
@@ -28,7 +25,7 @@ Warn if not in `ship` phase.
 - Load the latest Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-show <feature-slug> --json`.
 - Treat the run's resolved profile as ship policy context.
 - Stop unless `ship.status == ready`, unless the Delivery Run already has `ship.status == in_progress|completed`.
-- Run the staged review/freshness gate:
+- Run the ship gate:
 ```bash
 python3 .cnogo/scripts/workflow_checks.py ship-ready --feature <feature-slug>
 ```
@@ -47,16 +44,13 @@ This sets `ship.status = in_progress`.
 python3 .cnogo/scripts/workflow_memory.py run-ship-draft <feature-slug> --json
 ```
 
-This returns: `commitSurface[]`, `excludedFiles[]`, `commitMessage`, `prTitle`, `prBody`, `branch`, `gitAddCommand`, and `warnings[]`. Review the draft before proceeding.
-
-If no draft is available, fall back to manual: choose files with `git add`, compose commit message from the diff.
+Review the returned draft before proceeding.
 
 ### Step 3: Commit + Push
 
 Use the draft output to stage and commit:
 
 ```bash
-# Stage only the computed commit surface (from draft gitAddCommand)
 <gitAddCommand from draft>
 git commit -m "$(cat <<'EOF'
 <commitMessage from draft>
@@ -82,7 +76,7 @@ EOF
 
 ### Step 4a: Record Ship Completion
 
-Auto-infer mode (commit SHA and branch inferred from HEAD):
+Auto-infer mode:
 
 ```bash
 python3 .cnogo/scripts/workflow_memory.py run-ship-complete <feature-slug> --pr-url <pr-url>
@@ -105,11 +99,11 @@ python3 .cnogo/scripts/workflow_memory.py run-ship-fail <feature-slug> --error "
 ```bash
 python3 .cnogo/scripts/workflow_memory.py sync
 ```
-Close shipped issues and update phase when IDs are known.
+This exports `.cnogo/issues.jsonl` without staging it. Use `sync --stage` only if you intentionally want it in git.
 
 ### Step 6: Feature Lifecycle Closure
 
-Apply `.claude/skills/feature-lifecycle-closure.md` checklist before final handoff.
+Apply `.claude/skills/feature-lifecycle-closure.md` before final handoff.
 
 ### Step 7: Local Cleanup
 
@@ -118,7 +112,7 @@ Optional.
 ## Output
 
 - PR URL
-- commit(s) shipped
+- shipped commit(s)
 - Work Order completion state
 - verification summary
-- any remaining follow-up actions
+- follow-up actions

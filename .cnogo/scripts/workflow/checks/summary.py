@@ -183,6 +183,25 @@ def build_summary_changes(changed_files: list[str], plan: dict[str, Any]) -> lis
     return changes
 
 
+def filter_summary_changed_files(changed_files: list[str], plan: dict[str, Any]) -> list[str]:
+    """Limit SUMMARY changes to files explicitly owned by the plan contract."""
+    planned_files: set[str] = set()
+    tasks = plan.get("tasks")
+    if isinstance(tasks, list):
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            files = task.get("files")
+            if not isinstance(files, list):
+                continue
+            for file_path in files:
+                if isinstance(file_path, str) and file_path.strip():
+                    planned_files.add(file_path.strip())
+    if not planned_files:
+        return changed_files
+    return [file_path for file_path in changed_files if file_path in planned_files]
+
+
 def resolve_summary_outcome(
     requested: str,
     *,
@@ -223,6 +242,7 @@ def write_summary(
     plan_path, plan = load_plan_contract(root, feature, normalized_plan)
     timestamp = now_iso()
     changed_files, changed_files_source = summary_changed_files(root)
+    changed_files = filter_summary_changed_files(changed_files, plan)
     commit = head_commit_metadata(root)
     task_entries, task_evidence_source = build_task_verification_entries(
         root,
