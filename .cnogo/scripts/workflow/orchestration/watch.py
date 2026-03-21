@@ -128,8 +128,6 @@ def summarize_delivery_run(
         "status": run.status,
         "profileName": str(run.profile.get("name", "")).strip() if isinstance(run.profile, dict) else "",
         "profileVersion": str(run.profile.get("version", "")).strip() if isinstance(run.profile, dict) else "",
-        "formulaName": str(run.formula.get("name", "")).strip() if isinstance(run.formula, dict) else "",
-        "formulaVersion": str(run.formula.get("version", "")).strip() if isinstance(run.formula, dict) else "",
         "branch": run.branch,
         "integrationStatus": run.integration.get("status", "pending"),
         "reviewReadiness": run.review_readiness.get("status", "pending"),

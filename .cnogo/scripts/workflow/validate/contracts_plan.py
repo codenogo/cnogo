@@ -98,37 +98,6 @@ def validate_plan_contract(
                 )
             )
 
-    formula = contract.get("formula")
-    if formula is not None:
-        findings.append(
-            finding_type(
-                "WARN",
-                "Plan contract legacy 'formula' is deprecated; use 'profile' instead.",
-                str(path),
-            )
-        )
-        if isinstance(formula, str):
-            if not formula.strip():
-                findings.append(finding_type("WARN", "Plan contract formula should be a non-empty string.", str(path)))
-        elif isinstance(formula, dict):
-            name = formula.get("name")
-            if not isinstance(name, str) or not name.strip():
-                findings.append(
-                    finding_type(
-                        "WARN",
-                        "Plan contract formula object should include non-empty 'name'.",
-                        str(path),
-                    )
-                )
-        else:
-            findings.append(
-                finding_type(
-                    "WARN",
-                    "Plan contract formula should be a string or object with name.",
-                    str(path),
-                )
-            )
-
     tasks = contract.get("tasks")
     if not isinstance(tasks, list):
         findings.append(finding_type("ERROR", "Plan contract must include 'tasks' array.", str(path)))

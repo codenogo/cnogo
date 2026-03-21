@@ -61,7 +61,7 @@ install.sh
 - For `schemaVersion >= 3` plans, tasks also require `contextLinks[]` plus at least one explicit error-path scenario when TDD is required
 - `/implement` is the canonical execution entrypoint; it may auto-route into `/team implement` when the dependency frontier exposes safe parallel work
 - Delivery Runs are the durable plan-execution object; Work Orders are the feature-level rollup over plans, runs, review, ship, and attention state
-- `profile` is the canonical delivery-policy contract; legacy `formula` remains a compatibility alias during migration
+- `profile` is the canonical delivery-policy contract
 - The scheduler is built in and local: opportunistic ticks are default, and an optional local supervisor can run the same jobs on cadence
 - Feature summaries should be generated from recorded execution evidence via `workflow_checks.py summarize`, not handwritten from scratch
 - Review contracts use staged review structure (spec-compliance then code-quality) before ship

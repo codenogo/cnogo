@@ -184,76 +184,6 @@ def test_plan_v3_accepts_context_links_and_failure_scenario():
     assert not any("explicit error-path scenario" in m for m in msgs)
 
 
-def test_plan_formula_accepts_string_or_named_object():
-    findings = []
-    contract = {
-        "schemaVersion": 3,
-        "feature": "demo",
-        "planNumber": "01",
-        "formula": {"name": "feature-delivery"},
-        "goal": "stricter planning",
-        "tasks": [
-            {
-                "name": "task",
-                "files": ["a.py"],
-                "contextLinks": ["Constraint: return 400 on invalid input"],
-                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
-                "action": "change a.py",
-                "verify": ["pytest -q"],
-                "tdd": {
-                    "required": True,
-                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
-                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
-                },
-            }
-        ],
-        "planVerify": ["pytest -q"],
-    }
-    core._validate_plan_contract(
-        contract,
-        findings,
-        Path("01-PLAN.json"),
-        tdd_mode_level="error",
-        operating_principles_level="warn",
-    )
-    assert not any("Plan contract formula" in m for m in _messages(findings))
-
-
-def test_plan_formula_warns_on_invalid_shape():
-    findings = []
-    contract = {
-        "schemaVersion": 3,
-        "feature": "demo",
-        "planNumber": "01",
-        "formula": [],
-        "goal": "stricter planning",
-        "tasks": [
-            {
-                "name": "task",
-                "files": ["a.py"],
-                "contextLinks": ["Constraint: return 400 on invalid input"],
-                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
-                "action": "change a.py",
-                "verify": ["pytest -q"],
-                "tdd": {
-                    "required": True,
-                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
-                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
-                },
-            }
-        ],
-        "planVerify": ["pytest -q"],
-    }
-    core._validate_plan_contract(
-        contract,
-        findings,
-        Path("01-PLAN.json"),
-        tdd_mode_level="error",
-        operating_principles_level="warn",
-    )
-    assert any("Plan contract formula should be a string or object with name." in m for m in _messages(findings))
-
-
 def test_plan_profile_accepts_string_or_named_object():
     findings = []
     contract = {
@@ -287,41 +217,6 @@ def test_plan_profile_accepts_string_or_named_object():
         operating_principles_level="warn",
     )
     assert not any("Plan contract profile" in m for m in _messages(findings))
-
-
-def test_plan_formula_warns_as_legacy_alias():
-    findings = []
-    contract = {
-        "schemaVersion": 3,
-        "feature": "demo",
-        "planNumber": "01",
-        "formula": "feature-delivery",
-        "goal": "legacy alias still loads",
-        "tasks": [
-            {
-                "name": "task",
-                "files": ["a.py"],
-                "contextLinks": ["Constraint: return 400 on invalid input"],
-                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
-                "action": "change a.py",
-                "verify": ["pytest -q"],
-                "tdd": {
-                    "required": True,
-                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
-                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
-                },
-            }
-        ],
-        "planVerify": ["pytest -q"],
-    }
-    core._validate_plan_contract(
-        contract,
-        findings,
-        Path("01-PLAN.json"),
-        tdd_mode_level="error",
-        operating_principles_level="warn",
-    )
-    assert any("legacy 'formula' is deprecated; use 'profile' instead." in m for m in _messages(findings))
 
 
 def test_review_v4_requires_stage_reviews_when_enabled(tmp_path):
@@ -1182,9 +1077,9 @@ def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path
             {
                 "version": 1,
                 "repoShape": "auto",
-                "formulas": {
+                "profiles": {
                     "default": "feature-delivery",
-                    "catalogPath": ".cnogo/formulas",
+                    "catalogPath": ".cnogo/profiles",
                     "allowPlanOverride": True,
                 },
                 "enforcement": {
@@ -1286,7 +1181,7 @@ def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
             {
                 "version": 1,
                 "repoShape": "auto",
-                "formulas": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
+                "profiles": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
                 "packages": [],
             }
         ),
@@ -1345,7 +1240,7 @@ def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
                 "planPath": "docs/planning/work/features/demo/01-PLAN.json",
                 "summaryPath": "docs/planning/work/features/demo/01-SUMMARY.json",
                 "reviewPath": "docs/planning/work/features/demo/REVIEW.json",
-                "formula": {
+                "profile": {
                     "name": "feature-delivery",
                     "version": "1.0.0",
                     "source": "builtin",
@@ -1477,7 +1372,7 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
             {
                 "version": 1,
                 "repoShape": "auto",
-                "formulas": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
+                "profiles": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
                 "packages": [],
             }
         ),
@@ -1499,7 +1394,7 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
                 "planNumber": "",
                 "mode": "invalid",
                 "status": "mystery",
-                "formula": {
+                "profile": {
                     "name": "",
                     "version": 1,
                     "source": [],
@@ -1569,10 +1464,10 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     msgs = _messages(findings)
 
     assert any("Delivery run schemaVersion should be an integer." in msg for msg in msgs)
-    assert any("WORKFLOW.json: formulas.default should be a non-empty string." in msg for msg in msgs)
+    assert any("WORKFLOW.json: profiles.default should be a non-empty string." in msg for msg in msgs)
     assert any("Delivery run mode should be serial|team." in msg for msg in msgs)
     assert any("Delivery run status should be one of" in msg for msg in msgs)
-    assert any("Delivery run formula.name should be non-empty." in msg for msg in msgs)
+    assert any("Delivery run profile.name should be non-empty." in msg for msg in msgs)
     assert any("Delivery run integration.status should be one of" in msg for msg in msgs)
     assert any("Delivery run reviewReadiness.status should be one of" in msg for msg in msgs)
     assert any("Delivery run review.status should be one of" in msg for msg in msgs)
@@ -1583,7 +1478,7 @@ def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(t
     assert any("worktree-session.json references runId that does not exist" in msg for msg in msgs)
 
 
-def test_validate_repo_warns_for_unknown_default_formula_and_formula_filename_mismatch(tmp_path):
+def test_validate_repo_warns_for_unknown_default_profile_and_profile_filename_mismatch(tmp_path):
     planning_dir = tmp_path / "docs" / "planning"
     planning_dir.mkdir(parents=True, exist_ok=True)
     (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
@@ -1593,9 +1488,9 @@ def test_validate_repo_warns_for_unknown_default_formula_and_formula_filename_mi
             {
                 "version": 1,
                 "repoShape": "auto",
-                "formulas": {
-                    "default": "unknown-formula",
-                    "catalogPath": ".cnogo/formulas",
+                "profiles": {
+                    "default": "unknown-profile",
+                    "catalogPath": ".cnogo/profiles",
                     "allowPlanOverride": True,
                 },
                 "packages": [],
@@ -1607,9 +1502,9 @@ def test_validate_repo_warns_for_unknown_default_formula_and_formula_filename_mi
     cnogo_dir = tmp_path / ".cnogo"
     cnogo_dir.mkdir(parents=True, exist_ok=True)
     (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
-    formulas_dir = cnogo_dir / "formulas"
-    formulas_dir.mkdir(parents=True, exist_ok=True)
-    (formulas_dir / "incident.json").write_text(
+    profiles_dir = cnogo_dir / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (profiles_dir / "incident.json").write_text(
         json.dumps(
             {
                 "schemaVersion": 1,
@@ -1624,8 +1519,8 @@ def test_validate_repo_warns_for_unknown_default_formula_and_formula_filename_mi
     findings = core.validate_repo(tmp_path, staged_only=False)
     msgs = _messages(findings)
 
-    assert any("WORKFLOW.json: formulas.default refers to unknown formula 'unknown-formula'." in msg for msg in msgs)
-    assert any("Formula filename 'incident.json' should match contract name 'incident-debug'." in msg for msg in msgs)
+    assert any("WORKFLOW.json: profiles.default refers to unknown profile 'unknown-profile'." in msg for msg in msgs)
+    assert any("Profile filename 'incident.json' should match contract name 'incident-debug'." in msg for msg in msgs)
 
 
 def test_validate_repo_warns_for_invalid_watch_config_and_state(tmp_path):
@@ -1697,39 +1592,6 @@ def test_validate_repo_staged_requires_git_repo(tmp_path):
     findings = core.validate_repo(tmp_path, staged_only=True)
 
     assert any("--staged requires a git repository." in message for message in _messages(findings))
-
-
-def test_validate_repo_warns_for_legacy_formula_config_and_contracts(tmp_path):
-    planning_dir = tmp_path / "docs" / "planning"
-    planning_dir.mkdir(parents=True, exist_ok=True)
-    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
-    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
-    (planning_dir / "WORKFLOW.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "repoShape": "auto",
-                "formulas": {
-                    "default": "feature-delivery",
-                    "catalogPath": ".cnogo/formulas",
-                    "allowPlanOverride": True,
-                },
-                "packages": [],
-            }
-        ),
-        encoding="utf-8",
-    )
-    formulas_dir = tmp_path / ".cnogo" / "formulas"
-    formulas_dir.mkdir(parents=True, exist_ok=True)
-    (formulas_dir / "feature-delivery.json").write_text(
-        json.dumps({"schemaVersion": 1, "name": "feature-delivery", "defaults": {}}, indent=2),
-        encoding="utf-8",
-    )
-
-    findings = core.validate_repo(tmp_path, staged_only=False)
-    msgs = _messages(findings)
-    assert any("legacy 'formulas' is deprecated; use 'profiles' instead." in msg for msg in msgs)
-    assert any("Legacy formula contracts are deprecated" in msg for msg in msgs)
 
 
 def test_validate_repo_accepts_profile_catalog_and_scheduler_state(tmp_path):

@@ -1,8 +1,4 @@
-"""Workflow profile catalog and compatibility helpers.
-
-Canonical product language is ``profile``. Legacy ``formula`` naming remains
-accepted during the migration window via aliases and fallback loaders.
-"""
+"""Workflow profile catalog and policy helpers."""
 
 from __future__ import annotations
 
@@ -19,7 +15,6 @@ DEFAULT_PROFILE_SETTINGS = {
     "catalogPath": ".cnogo/profiles",
     "allowPlanOverride": True,
 }
-DEFAULT_FORMULA_SETTINGS = DEFAULT_PROFILE_SETTINGS
 
 _DEFAULT_POLICY = {
     "execution": {
@@ -164,15 +159,8 @@ def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
     return merged
 
 
-def _legacy_formula_settings(cfg: dict[str, Any]) -> dict[str, Any] | None:
-    raw = cfg.get("formulas")
-    return raw if isinstance(raw, dict) else None
-
-
 def profile_settings(cfg: dict[str, Any]) -> dict[str, Any]:
     raw = cfg.get("profiles")
-    if not isinstance(raw, dict):
-        raw = _legacy_formula_settings(cfg)
     if not isinstance(raw, dict):
         return dict(DEFAULT_PROFILE_SETTINGS)
     out = dict(DEFAULT_PROFILE_SETTINGS)
@@ -188,27 +176,9 @@ def profile_settings(cfg: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def formula_settings(cfg: dict[str, Any]) -> dict[str, Any]:
-    return profile_settings(cfg)
-
-
 def profile_catalog_dir(root: Path, cfg: dict[str, Any] | None = None) -> Path:
     settings = profile_settings(cfg or load_workflow_config(root))
     return root / str(settings["catalogPath"])
-
-
-def legacy_formula_catalog_dir(root: Path, cfg: dict[str, Any] | None = None) -> Path:
-    workflow_cfg = cfg or load_workflow_config(root)
-    legacy = _legacy_formula_settings(workflow_cfg)
-    if isinstance(legacy, dict):
-        catalog_path = legacy.get("catalogPath")
-        if isinstance(catalog_path, str) and catalog_path.strip():
-            return root / catalog_path.strip()
-    return root / ".cnogo" / "formulas"
-
-
-def formula_catalog_dir(root: Path, cfg: dict[str, Any] | None = None) -> Path:
-    return legacy_formula_catalog_dir(root, cfg)
 
 
 def _normalize_profile_contract(raw: dict[str, Any], *, source: str) -> dict[str, Any]:
@@ -229,11 +199,7 @@ def _normalize_profile_contract(raw: dict[str, Any], *, source: str) -> dict[str
     }
 
 
-def _load_catalog_from_dir(
-    catalog: dict[str, dict[str, Any]],
-    root: Path,
-    catalog_dir: Path,
-) -> None:
+def _load_catalog_from_dir(catalog: dict[str, dict[str, Any]], root: Path, catalog_dir: Path) -> None:
     if not catalog_dir.is_dir():
         return
     for path in sorted(catalog_dir.glob("*.json")):
@@ -256,34 +222,21 @@ def load_profile_catalog(root: Path, *, cfg: dict[str, Any] | None = None) -> di
         name: _normalize_profile_contract(contract, source="builtin")
         for name, contract in _BUILTIN_PROFILES.items()
     }
-    legacy_dir = legacy_formula_catalog_dir(root, workflow_cfg)
-    canonical_dir = profile_catalog_dir(root, workflow_cfg)
-    if legacy_dir != canonical_dir:
-        _load_catalog_from_dir(catalog, root, legacy_dir)
-    _load_catalog_from_dir(catalog, root, canonical_dir)
+    _load_catalog_from_dir(catalog, root, profile_catalog_dir(root, workflow_cfg))
     return catalog
-
-
-def load_formula_catalog(root: Path, *, cfg: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
-    return load_profile_catalog(root, cfg=cfg)
 
 
 def profile_name_from_plan(plan_contract: dict[str, Any] | None) -> str | None:
     if not isinstance(plan_contract, dict):
         return None
-    for key in ("profile", "formula"):
-        raw = plan_contract.get(key)
-        if isinstance(raw, str) and raw.strip():
-            return raw.strip()
-        if isinstance(raw, dict):
-            name = raw.get("name")
-            if isinstance(name, str) and name.strip():
-                return name.strip()
+    raw = plan_contract.get("profile")
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    if isinstance(raw, dict):
+        name = raw.get("name")
+        if isinstance(name, str) and name.strip():
+            return name.strip()
     return None
-
-
-def formula_name_from_plan(plan_contract: dict[str, Any] | None) -> str | None:
-    return profile_name_from_plan(plan_contract)
 
 
 def resolve_profile(
@@ -309,27 +262,8 @@ def resolve_profile(
     }
 
 
-def resolve_formula(
-    root: Path,
-    *,
-    cfg: dict[str, Any] | None = None,
-    plan_contract: dict[str, Any] | None = None,
-    requested_name: str | None = None,
-) -> dict[str, Any]:
-    return resolve_profile(
-        root,
-        cfg=cfg,
-        plan_contract=plan_contract,
-        requested_name=requested_name,
-    )
-
-
 def is_profile_name(value: str) -> bool:
     return bool(isinstance(value, str) and _PROFILE_NAME_RE.match(value.strip()))
-
-
-def is_formula_name(value: str) -> bool:
-    return is_profile_name(value)
 
 
 def scaffold_profile_contract(
@@ -354,15 +288,6 @@ def scaffold_profile_contract(
         "description": description.strip() or f"Custom workflow policy for `{name.strip()}`.",
         "defaults": base_policy,
     }
-
-
-def scaffold_formula_contract(
-    name: str,
-    *,
-    base_formula: dict[str, Any] | None = None,
-    description: str = "",
-) -> dict[str, Any]:
-    return scaffold_profile_contract(name, base_profile=base_formula, description=description)
 
 
 def _collect_strings(value: Any) -> list[str]:
@@ -435,23 +360,6 @@ def suggest_profile(
     }
 
 
-def suggest_formula(
-    root: Path,
-    *,
-    feature_slug: str = "",
-    plan_contract: dict[str, Any] | None = None,
-    context_contract: dict[str, Any] | None = None,
-    cfg: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    return suggest_profile(
-        root,
-        feature_slug=feature_slug,
-        plan_contract=plan_contract,
-        context_contract=context_contract,
-        cfg=cfg,
-    )
-
-
 def profile_mode_preference(profile: dict[str, Any] | None) -> str:
     if not isinstance(profile, dict):
         return "auto"
@@ -465,10 +373,6 @@ def profile_mode_preference(profile: dict[str, Any] | None) -> str:
     if mode not in {"auto", "serial", "team"}:
         return "auto"
     return mode
-
-
-def formula_mode_preference(formula: dict[str, Any] | None) -> str:
-    return profile_mode_preference(formula)
 
 
 def profile_required_reviewers(profile: dict[str, Any] | None) -> list[str]:
@@ -496,10 +400,6 @@ def profile_required_reviewers(profile: dict[str, Any] | None) -> list[str]:
     return out
 
 
-def formula_required_reviewers(formula: dict[str, Any] | None) -> list[str]:
-    return profile_required_reviewers(formula)
-
-
 def profile_auto_spawn_configured_reviewers(profile: dict[str, Any] | None) -> bool:
     if not isinstance(profile, dict):
         return True
@@ -513,10 +413,6 @@ def profile_auto_spawn_configured_reviewers(profile: dict[str, Any] | None) -> b
     return auto_spawn if isinstance(auto_spawn, bool) else True
 
 
-def formula_auto_spawn_configured_reviewers(formula: dict[str, Any] | None) -> bool:
-    return profile_auto_spawn_configured_reviewers(formula)
-
-
 def profile_require_package_checks(profile: dict[str, Any] | None) -> bool:
     if not isinstance(profile, dict):
         return True
@@ -528,10 +424,6 @@ def profile_require_package_checks(profile: dict[str, Any] | None) -> bool:
         return True
     required = verify.get("requirePackageChecks")
     return required if isinstance(required, bool) else True
-
-
-def formula_require_package_checks(formula: dict[str, Any] | None) -> bool:
-    return profile_require_package_checks(formula)
 
 
 def profile_required_package_commands(profile: dict[str, Any] | None) -> list[str]:
@@ -560,10 +452,6 @@ def profile_required_package_commands(profile: dict[str, Any] | None) -> list[st
     return out or default
 
 
-def formula_required_package_commands(formula: dict[str, Any] | None) -> list[str]:
-    return profile_required_package_commands(formula)
-
-
 def profile_ship_require_tracking(profile: dict[str, Any] | None) -> bool:
     if not isinstance(profile, dict):
         return True
@@ -577,10 +465,6 @@ def profile_ship_require_tracking(profile: dict[str, Any] | None) -> bool:
     return required if isinstance(required, bool) else True
 
 
-def formula_ship_require_tracking(formula: dict[str, Any] | None) -> bool:
-    return profile_ship_require_tracking(formula)
-
-
 def profile_ship_require_pull_request(profile: dict[str, Any] | None) -> bool:
     if not isinstance(profile, dict):
         return True
@@ -592,10 +476,6 @@ def profile_ship_require_pull_request(profile: dict[str, Any] | None) -> bool:
         return True
     required = ship.get("requirePullRequest")
     return required if isinstance(required, bool) else True
-
-
-def formula_ship_require_pull_request(formula: dict[str, Any] | None) -> bool:
-    return profile_ship_require_pull_request(formula)
 
 
 def profile_watch_thresholds(
@@ -620,16 +500,3 @@ def profile_watch_thresholds(
     if isinstance(review_stale, int) and not isinstance(review_stale, bool) and review_stale > 0:
         out["reviewStaleMinutes"] = review_stale
     return out
-
-
-def formula_watch_thresholds(
-    formula: dict[str, Any] | None,
-    *,
-    stale_minutes: int = 10,
-    review_stale_minutes: int = 60,
-) -> dict[str, int]:
-    return profile_watch_thresholds(
-        formula,
-        stale_minutes=stale_minutes,
-        review_stale_minutes=review_stale_minutes,
-    )

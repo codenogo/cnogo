@@ -7,9 +7,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from scripts.workflow.shared.config import load_workflow_config
-from scripts.workflow.shared.formulas import (
-    formula_auto_spawn_configured_reviewers,
-    formula_required_reviewers,
+from scripts.workflow.shared.profiles import (
+    profile_auto_spawn_configured_reviewers,
+    profile_required_reviewers,
 )
 from scripts.workflow.orchestration.review_artifacts import write_review_artifact
 
@@ -169,14 +169,14 @@ def write_review(
     if gating_error:
         print(gating_error, file=sys.stderr)
         return 1
-    run_formula = (
-        linked_run.formula
-        if linked_run is not None and isinstance(getattr(linked_run, "formula", None), dict)
+    run_profile = (
+        linked_run.profile
+        if linked_run is not None and isinstance(getattr(linked_run, "profile", None), dict)
         else {}
     )
     reviewers = _merge_reviewers(
-        configured_reviewers(root) if formula_auto_spawn_configured_reviewers(run_formula) else [],
-        formula_required_reviewers(run_formula),
+        configured_reviewers(root) if profile_auto_spawn_configured_reviewers(run_profile) else [],
+        profile_required_reviewers(run_profile),
     )
 
     automated_verdict = "pass"

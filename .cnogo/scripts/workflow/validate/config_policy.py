@@ -80,51 +80,6 @@ def validate_workflow_config(
                 )
             )
 
-    formulas = cfg.get("formulas")
-    if formulas is not None and not isinstance(formulas, dict):
-        findings.append(finding_type("WARN", "WORKFLOW.json: legacy 'formulas' should be an object when present.", str(cfg_path)))
-    elif isinstance(formulas, dict):
-        default_name = formulas.get("default")
-        if default_name is not None and (not isinstance(default_name, str) or not default_name.strip()):
-            findings.append(
-                finding_type("WARN", "WORKFLOW.json: formulas.default should be a non-empty string.", str(cfg_path))
-            )
-        elif isinstance(default_name, str) and default_name.strip():
-            catalog = load_profile_catalog(root, cfg=cfg)
-            if default_name.strip() not in catalog:
-                findings.append(
-                    finding_type(
-                        "WARN",
-                        f"WORKFLOW.json: formulas.default refers to unknown formula {default_name!r}.",
-                        str(cfg_path),
-                    )
-                )
-        catalog_path = formulas.get("catalogPath")
-        if catalog_path is not None and (not isinstance(catalog_path, str) or not catalog_path.strip()):
-            findings.append(
-                finding_type(
-                    "WARN",
-                    "WORKFLOW.json: formulas.catalogPath should be a non-empty string.",
-                    str(cfg_path),
-                )
-            )
-        allow_plan_override = formulas.get("allowPlanOverride")
-        if allow_plan_override is not None and not isinstance(allow_plan_override, bool):
-            findings.append(
-                finding_type(
-                    "WARN",
-                    "WORKFLOW.json: formulas.allowPlanOverride should be boolean.",
-                    str(cfg_path),
-                )
-            )
-        findings.append(
-            finding_type(
-                "WARN",
-                "WORKFLOW.json: legacy 'formulas' is deprecated; use 'profiles' instead.",
-                str(cfg_path),
-            )
-        )
-
     scheduler = cfg.get("scheduler")
     if scheduler is not None and not isinstance(scheduler, dict):
         findings.append(finding_type("WARN", "WORKFLOW.json: 'scheduler' should be an object.", str(cfg_path)))

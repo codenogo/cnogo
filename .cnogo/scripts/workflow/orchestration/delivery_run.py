@@ -179,7 +179,6 @@ class DeliveryRun:
             "summaryPath": self.summary_path,
             "reviewPath": self.review_path,
             "profile": self.profile,
-            "formula": self.profile,
             "recommendation": self.recommendation,
             "integration": self.integration,
             "reviewReadiness": self.review_readiness,
@@ -196,8 +195,6 @@ class DeliveryRun:
         profile = {}
         if isinstance(data.get("profile"), dict):
             profile = dict(data.get("profile", {}))
-        elif isinstance(data.get("formula"), dict):
-            profile = dict(data.get("formula", {}))
         return cls(
             schema_version=int(data.get("schemaVersion", DELIVERY_RUN_SCHEMA_VERSION)),
             run_id=str(data.get("runId", "")),
@@ -235,15 +232,6 @@ class DeliveryRun:
             created_at=str(data.get("createdAt", _now_iso())),
             updated_at=str(data.get("updatedAt", _now_iso())),
         )
-
-    @property
-    def formula(self) -> dict[str, Any]:
-        return self.profile
-
-    @formula.setter
-    def formula(self, value: dict[str, Any] | None) -> None:
-        self.profile = dict(value) if isinstance(value, dict) else {}
-
 
 def delivery_run_dir(root: Path, feature: str) -> Path:
     return root / _RUNS_DIR / feature
@@ -356,7 +344,6 @@ def create_delivery_run(
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
-    formula: dict[str, Any] | None = None,
 ) -> DeliveryRun:
     if mode not in {"serial", "team"}:
         raise ValueError(f"Unsupported delivery run mode: {mode!r}")
@@ -366,7 +353,7 @@ def create_delivery_run(
         DeliveryTask.from_task_desc(task_desc, fallback_index=index)
         for index, task_desc in enumerate(task_descriptions)
     ]
-    resolved_profile = profile if isinstance(profile, dict) else formula if isinstance(formula, dict) else {}
+    resolved_profile = profile if isinstance(profile, dict) else {}
     run = DeliveryRun(
         run_id=run_id,
         feature=feature,
@@ -407,7 +394,6 @@ def ensure_delivery_run(
     branch: str = "",
     recommendation: dict[str, Any] | None = None,
     profile: dict[str, Any] | None = None,
-    formula: dict[str, Any] | None = None,
     resume_latest: bool = True,
 ) -> DeliveryRun:
     if run_id:
@@ -430,7 +416,6 @@ def ensure_delivery_run(
         branch=branch,
         recommendation=recommendation,
         profile=profile,
-        formula=formula,
     )
 
 

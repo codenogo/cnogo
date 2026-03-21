@@ -1,4 +1,4 @@
-"""Tests for workflow profile resolution and legacy formula compatibility helpers."""
+"""Tests for workflow profile resolution helpers."""
 
 from __future__ import annotations
 
@@ -10,16 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.memory.bridge import recommend_team_mode  # noqa: E402
 from scripts.workflow.shared.profiles import (  # noqa: E402
-    formula_required_reviewers,
-    is_formula_name,
     is_profile_name,
     profile_auto_spawn_configured_reviewers,
     profile_required_reviewers,
-    resolve_formula,
     resolve_profile,
-    scaffold_formula_contract,
     scaffold_profile_contract,
-    suggest_formula,
     suggest_profile,
 )
 
@@ -92,20 +87,20 @@ def test_resolve_profile_allows_plan_override(tmp_path):
     assert profile_required_reviewers(resolved) == ["code-reviewer", "qa-reviewer"]
 
 
-def test_recommend_team_mode_respects_formula_serial_preference():
+def test_recommend_team_mode_respects_profile_serial_preference():
     tasks = [_task(0, path="a.py"), _task(1, path="b.py")]
 
     recommendation = recommend_team_mode(
         tasks,
-        formula={
+        profile={
             "name": "migration-rollout",
             "resolvedPolicy": {"execution": {"modePreference": "serial"}},
         },
     )
 
     assert recommendation["recommended"] is False
-    assert recommendation["reason"] == "Formula prefers serial execution for this kind of work."
-    assert recommendation["formulaModePreference"] == "serial"
+    assert recommendation["reason"] == "Profile prefers serial execution for this kind of work."
+    assert recommendation["profileModePreference"] == "serial"
 
 
 def test_profile_auto_spawn_defaults_true_and_can_disable():
@@ -147,14 +142,6 @@ def test_suggest_profile_falls_back_to_repo_default(tmp_path):
     assert suggestion["matchedTerms"] == []
 
 
-def test_is_formula_name_requires_lowercase_slug():
-    assert is_formula_name("feature-delivery") is True
-    assert is_formula_name("debug-fix") is True
-    assert is_formula_name("FeatureDelivery") is False
-    assert is_formula_name("debug_fix") is False
-    assert is_formula_name("bad space") is False
-
-
 def test_is_profile_name_requires_lowercase_slug():
     assert is_profile_name("feature-delivery") is True
     assert is_profile_name("release-cut") is True
@@ -179,29 +166,10 @@ def test_scaffold_profile_contract_uses_base_policy_copy():
     assert scaffold["defaults"]["review"]["requiredReviewers"] == ["code-reviewer"]
 
 
-def test_legacy_formula_config_and_plan_override_still_load(tmp_path):
-    planning_dir = tmp_path / "docs" / "planning"
-    planning_dir.mkdir(parents=True, exist_ok=True)
-    (planning_dir / "WORKFLOW.json").write_text(
-        json.dumps(
-            {
-                "version": 1,
-                "repoShape": "single",
-                "formulas": {
-                    "default": "migration-rollout",
-                    "catalogPath": ".cnogo/formulas",
-                    "allowPlanOverride": True,
-                },
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+def test_profile_plan_override_loads_custom_plan_profile(tmp_path):
+    _write_workflow(tmp_path, default_profile="migration-rollout")
 
-    resolved = resolve_profile(tmp_path, plan_contract={"formula": "debug-fix"})
-    legacy = resolve_formula(tmp_path, plan_contract={"formula": "debug-fix"})
+    resolved = resolve_profile(tmp_path, plan_contract={"profile": "debug-fix"})
 
     assert resolved["name"] == "debug-fix"
-    assert legacy["name"] == "debug-fix"
-    assert formula_required_reviewers(legacy) == profile_required_reviewers(resolved)
+    assert profile_required_reviewers(resolved) == ["code-reviewer"]

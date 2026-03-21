@@ -308,38 +308,6 @@ def validate_delivery_runs(
                             )
                         )
 
-            formula = contract.get("formula")
-            if formula is not None:
-                if not isinstance(formula, dict):
-                    findings.append(
-                        finding_type("WARN", "Delivery run formula should be an object.", str(run_path))
-                    )
-                else:
-                    name = formula.get("name")
-                    if not isinstance(name, str) or not name.strip():
-                        findings.append(
-                            finding_type("WARN", "Delivery run formula.name should be non-empty.", str(run_path))
-                        )
-                    version = formula.get("version")
-                    if version is not None and not isinstance(version, str):
-                        findings.append(
-                            finding_type("WARN", "Delivery run formula.version should be a string.", str(run_path))
-                        )
-                    source = formula.get("source")
-                    if source is not None and not isinstance(source, str):
-                        findings.append(
-                            finding_type("WARN", "Delivery run formula.source should be a string.", str(run_path))
-                        )
-                    resolved_policy = formula.get("resolvedPolicy")
-                    if resolved_policy is not None and not isinstance(resolved_policy, dict):
-                        findings.append(
-                            finding_type(
-                                "WARN",
-                                "Delivery run formula.resolvedPolicy should be an object.",
-                                str(run_path),
-                            )
-                        )
-
             integration = contract.get("integration")
             if integration is not None:
                 if not isinstance(integration, dict):
@@ -693,14 +661,6 @@ def validate_delivery_runs(
                     finding_type("ERROR", f"{label.title()} contract must be a JSON object.", str(profile_path))
                 )
                 continue
-            if warn_legacy:
-                findings.append(
-                    finding_type(
-                        "WARN",
-                        "Legacy formula contracts are deprecated; store canonical contracts under .cnogo/profiles/.",
-                        str(profile_path),
-                    )
-                )
             schema_version = contract.get("schemaVersion")
             if schema_version is not None and not isinstance(schema_version, int):
                 findings.append(
@@ -739,7 +699,6 @@ def validate_delivery_runs(
                 )
 
     _validate_profile_dir(root / ".cnogo" / "profiles", label="profile", warn_legacy=False)
-    _validate_profile_dir(root / ".cnogo" / "formulas", label="formula", warn_legacy=True)
 
     session_path = root / ".cnogo" / "worktree-session.json"
     if session_path.exists():

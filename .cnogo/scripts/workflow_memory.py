@@ -73,10 +73,6 @@ Commands:
     profile-list        List available workflow profiles
     profile-init        Create a repo-local profile scaffold
     profile-stamp       Stamp a profile onto a plan and rerender it
-    formula-suggest     Compatibility alias for profile-suggest
-    formula-list        Compatibility alias for profile-list
-    formula-init        Compatibility alias for profile-init
-    formula-stamp       Compatibility alias for profile-stamp
     graph-index         Index codebase into context graph
     graph-query <name>  Search for symbols by name
     graph-impact <file> Analyze change impact (BFS blast radius)
@@ -218,20 +214,14 @@ from scripts.workflow.orchestration import (
 )
 from scripts.workflow.shared.config import load_workflow_config, scheduler_settings_cfg, watch_settings_cfg
 from scripts.workflow.shared.profiles import (
-    formula_auto_spawn_configured_reviewers,
-    formula_name_from_plan,
-    formula_required_reviewers,
-    is_formula_name,
-    load_formula_catalog,
     load_profile_catalog,
     is_profile_name,
+    profile_auto_spawn_configured_reviewers,
     profile_name_from_plan,
+    profile_required_reviewers,
     resolve_profile,
-    resolve_formula,
     scaffold_profile_contract,
-    scaffold_formula_contract,
     suggest_profile,
-    suggest_formula,
 )
 from scripts.workflow.shared.plans import normalize_plan_number
 
@@ -368,7 +358,7 @@ def _print_run_list(entries: list[dict]) -> None:
         print(
             f"{entry['feature']} {entry['runId']} "
             f"[{entry['status']}/{entry['mode']}] "
-            f"profile={entry.get('profileName') or entry.get('formulaName', 'unknown')} "
+            f"profile={entry.get('profileName', 'unknown')} "
             f"integration={entry['integrationStatus']} "
             f"review={entry['reviewReadiness']} "
             f"review_state={entry.get('reviewStatus', 'pending')} "
@@ -533,18 +523,6 @@ def _print_attention_queue(queue: dict) -> None:
         print(f"  next: {item.get('nextAction')}")
 
 
-def _print_formula_suggestion(suggestion: dict) -> None:
-    confidence = suggestion.get("confidence")
-    confidence_label = f"{float(confidence):.2f}" if isinstance(confidence, (int, float)) else "n/a"
-    print(f"Suggested formula: {suggestion.get('name', 'feature-delivery')}")
-    print(f"Confidence: {confidence_label}")
-    if suggestion.get("reason"):
-        print(f"Reason: {suggestion['reason']}")
-    matched_terms = suggestion.get("matchedTerms", [])
-    if isinstance(matched_terms, list) and matched_terms:
-        print("Matched terms: " + ", ".join(str(term) for term in matched_terms))
-
-
 def _print_profile_suggestion(suggestion: dict) -> None:
     confidence = suggestion.get("confidence")
     confidence_label = f"{float(confidence):.2f}" if isinstance(confidence, (int, float)) else "n/a"
@@ -584,19 +562,6 @@ def _print_watch_history(entries: list[dict]) -> None:
             f"resolved={delta.get('resolved', 0)} "
             f"path={entry.get('path', '')}"
         )
-
-
-def _print_formula_catalog(entries: list[dict]) -> None:
-    if not entries:
-        print("No formulas available")
-        return
-    for entry in entries:
-        print(
-            f"- {entry.get('name', 'unknown')} "
-            f"(v{entry.get('version', '1.0.0')}, source={entry.get('source', 'builtin')})"
-        )
-        if entry.get("description"):
-            print(f"  {entry['description']}")
 
 
 def _print_profile_catalog(entries: list[dict]) -> None:
@@ -1299,11 +1264,11 @@ def cmd_run_create(args: argparse.Namespace) -> int:
         if not isinstance(plan_contract, dict):
             raise ValueError("plan contract must be a JSON object")
         profile = resolve_profile(root, plan_contract=plan_contract)
-        taskdescs = plan_to_task_descriptions(plan_path, root, formula=profile)
+        taskdescs = plan_to_task_descriptions(plan_path, root, profile=profile)
     except Exception as exc:
         print(f"Error: failed to load plan tasks: {exc}", file=sys.stderr)
         return 1
-    recommendation = recommend_team_mode(taskdescs, formula=profile)
+    recommendation = recommend_team_mode(taskdescs, profile=profile)
     mode = args.mode
     if mode == "auto":
         mode = "team" if recommendation.get("recommended") else "serial"
@@ -1720,7 +1685,6 @@ def cmd_run_next(args: argparse.Namespace) -> int:
         "mode": run.mode,
         "status": run.status,
         "profile": run.profile if isinstance(getattr(run, "profile", None), dict) else {},
-        "formula": run.profile if isinstance(getattr(run, "profile", None), dict) else {},
         "integrationStatus": run.integration.get("status", "pending"),
         "reviewReadiness": run.review_readiness.get("status", "pending"),
         "reviewStatus": run.review.get("status", "pending"),
@@ -1940,24 +1904,24 @@ def cmd_run_review_start(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 1
-    formula_reviewers = (
-        formula_required_reviewers(run.formula)
-        if isinstance(getattr(run, "formula", None), dict)
+    profile_reviewers = (
+        profile_required_reviewers(run.profile)
+        if isinstance(getattr(run, "profile", None), dict)
         else []
     )
-    configured_formula_reviewers: list[str] = []
-    if formula_auto_spawn_configured_reviewers(
-        run.formula if isinstance(getattr(run, "formula", None), dict) else {}
+    configured_profile_reviewers: list[str] = []
+    if profile_auto_spawn_configured_reviewers(
+        run.profile if isinstance(getattr(run, "profile", None), dict) else {}
     ):
         try:
             from scripts.workflow.checks.review import configured_reviewers
 
-            configured_formula_reviewers = configured_reviewers(root)
+            configured_profile_reviewers = configured_reviewers(root)
         except Exception:
-            configured_formula_reviewers = []
+            configured_profile_reviewers = []
     merged_reviewers: list[str] = []
     seen_reviewers: set[str] = set()
-    for reviewer in [*configured_formula_reviewers, *(args.reviewer or []), *formula_reviewers]:
+    for reviewer in [*configured_profile_reviewers, *(args.reviewer or []), *profile_reviewers]:
         if not isinstance(reviewer, str) or not reviewer.strip():
             continue
         value = reviewer.strip()
@@ -2172,12 +2136,11 @@ def _profile_suggestion_payload(root: Path, feature: str, plan_number: str | Non
     if plan_contract is not None:
         current_profile = profile_name_from_plan(plan_contract)
         suggestion["currentProfile"] = current_profile or ""
-        suggestion["currentFormula"] = current_profile or ""
         suggestion["matchesCurrent"] = bool(current_profile and current_profile == suggestion["name"])
     return suggestion, plan_contract
 
 
-def cmd_formula_suggest(args: argparse.Namespace) -> int:
+def cmd_profile_suggest(args: argparse.Namespace) -> int:
     root = _root()
     try:
         suggestion, plan_contract = _profile_suggestion_payload(root, args.feature, args.plan)
@@ -2194,7 +2157,7 @@ def cmd_formula_suggest(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_formula_list(args: argparse.Namespace) -> int:
+def cmd_profile_list(args: argparse.Namespace) -> int:
     root = _root()
     catalog = load_profile_catalog(root)
     payload = [
@@ -2213,7 +2176,7 @@ def cmd_formula_list(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_formula_init(args: argparse.Namespace) -> int:
+def cmd_profile_init(args: argparse.Namespace) -> int:
     root = _root()
     if not is_profile_name(args.name):
         print(
@@ -2239,16 +2202,11 @@ def cmd_formula_init(args: argparse.Namespace) -> int:
     )
     profile_dir.mkdir(parents=True, exist_ok=True)
     profile_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
-    legacy_formula_path = root / ".cnogo" / "formulas" / f"{args.name}.json"
-    if getattr(args, "command", "") == "formula-init":
-        legacy_formula_path.parent.mkdir(parents=True, exist_ok=True)
-        legacy_formula_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
     payload = {
         "name": args.name,
         "base": base_name,
         "path": str(profile_path),
         "profilePath": str(profile_path),
-        "formulaPath": str(legacy_formula_path) if getattr(args, "command", "") == "formula-init" else "",
         "contract": contract,
     }
     if args.json:
@@ -2259,7 +2217,7 @@ def cmd_formula_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_formula_stamp(args: argparse.Namespace) -> int:
+def cmd_profile_stamp(args: argparse.Namespace) -> int:
     root = _root()
     plan_path = _plan_contract_path(root, args.feature, args.plan)
     plan_contract = _load_json_contract(plan_path)
@@ -2268,7 +2226,7 @@ def cmd_formula_stamp(args: argparse.Namespace) -> int:
         return 1
     context_contract = _load_json_contract(_context_contract_path(root, args.feature))
     suggestion: dict[str, object] | None = None
-    chosen_name = getattr(args, "profile", None) or getattr(args, "formula", None)
+    chosen_name = getattr(args, "profile", None)
     if not chosen_name:
         suggestion = suggest_profile(root, feature_slug=args.feature, plan_contract=plan_contract, context_contract=context_contract)
         chosen_name = str(suggestion["name"])
@@ -2284,10 +2242,7 @@ def cmd_formula_stamp(args: argparse.Namespace) -> int:
         )
         return 1
     plan_contract["profile"] = chosen_name
-    if getattr(args, "command", "") == "formula-stamp":
-        plan_contract["formula"] = chosen_name
-    else:
-        plan_contract.pop("formula", None)
+    plan_contract.pop("formula", None)
     plan_path.write_text(json.dumps(plan_contract, indent=2) + "\n", encoding="utf-8")
     try:
         from scripts.workflow_render import render_plan, write
@@ -2300,7 +2255,6 @@ def cmd_formula_stamp(args: argparse.Namespace) -> int:
         "feature": args.feature,
         "planNumber": normalize_plan_number(args.plan),
         "profile": chosen_name,
-        "formula": chosen_name,
         "replaced": current_profile or "",
         "planPath": str(plan_path),
         "markdownPath": str(plan_path.with_suffix(".md")),
@@ -2316,22 +2270,6 @@ def cmd_formula_stamp(args: argparse.Namespace) -> int:
         if suggestion is not None and suggestion.get("reason"):
             print(f"Reason: {suggestion['reason']}")
     return 0
-
-
-def cmd_profile_suggest(args: argparse.Namespace) -> int:
-    return cmd_formula_suggest(args)
-
-
-def cmd_profile_list(args: argparse.Namespace) -> int:
-    return cmd_formula_list(args)
-
-
-def cmd_profile_init(args: argparse.Namespace) -> int:
-    return cmd_formula_init(args)
-
-
-def cmd_profile_stamp(args: argparse.Namespace) -> int:
-    return cmd_formula_stamp(args)
 
 
 def _graph_open(repo: str | None) -> "ContextGraph":
@@ -3510,32 +3448,14 @@ def main() -> int:
     p = sub.add_parser("session-reconcile", help="Fix orphaned issues after compaction")
     p.add_argument("--json", action="store_true")
 
-    # formula-suggest
-    p = sub.add_parser("formula-suggest", help="Suggest the best formula for a feature or plan")
-    p.add_argument("feature", help="Feature slug")
-    p.add_argument("--plan", help="Plan number to inspect")
-    p.add_argument("--json", action="store_true")
-
     # profile-suggest
     p = sub.add_parser("profile-suggest", help="Suggest the best profile for a feature or plan")
     p.add_argument("feature", help="Feature slug")
     p.add_argument("--plan", help="Plan number to inspect")
     p.add_argument("--json", action="store_true")
 
-    # formula-list
-    p = sub.add_parser("formula-list", help="List available formulas from builtins and repo-local catalog")
-    p.add_argument("--json", action="store_true")
-
     # profile-list
     p = sub.add_parser("profile-list", help="List available profiles from builtins and repo-local catalog")
-    p.add_argument("--json", action="store_true")
-
-    # formula-init
-    p = sub.add_parser("formula-init", help="Create a new repo-local formula scaffold")
-    p.add_argument("name", help="Formula slug")
-    p.add_argument("--base", help="Base formula to copy policy from", default="feature-delivery")
-    p.add_argument("--description", help="Optional description to seed the scaffold")
-    p.add_argument("--force", action="store_true", help="Overwrite an existing formula file")
     p.add_argument("--json", action="store_true")
 
     # profile-init
@@ -3544,14 +3464,6 @@ def main() -> int:
     p.add_argument("--base", help="Base profile to copy policy from", default="feature-delivery")
     p.add_argument("--description", help="Optional description to seed the scaffold")
     p.add_argument("--force", action="store_true", help="Overwrite an existing profile file")
-    p.add_argument("--json", action="store_true")
-
-    # formula-stamp
-    p = sub.add_parser("formula-stamp", help="Stamp a formula onto a plan and rerender markdown")
-    p.add_argument("feature", help="Feature slug")
-    p.add_argument("plan", help="Plan number")
-    p.add_argument("--formula", help="Explicit formula name (defaults to the suggestion)")
-    p.add_argument("--force", action="store_true", help="Replace an existing stamped formula")
     p.add_argument("--json", action="store_true")
 
     # profile-stamp
@@ -3709,10 +3621,6 @@ def main() -> int:
     _needs_db = _needs_db and args.command not in _graph_cmds
     _needs_db = _needs_db and args.command not in {
         "_scheduler-worker",
-        "formula-suggest",
-        "formula-stamp",
-        "formula-list",
-        "formula-init",
         "profile-suggest",
         "profile-stamp",
         "profile-list",
@@ -3807,10 +3715,6 @@ def main() -> int:
         "session-merge": cmd_session_merge,
         "session-cleanup": cmd_session_cleanup,
         "session-reconcile": cmd_session_reconcile,
-        "formula-suggest": cmd_formula_suggest,
-        "formula-list": cmd_formula_list,
-        "formula-init": cmd_formula_init,
-        "formula-stamp": cmd_formula_stamp,
         "profile-suggest": cmd_profile_suggest,
         "profile-list": cmd_profile_list,
         "profile-init": cmd_profile_init,

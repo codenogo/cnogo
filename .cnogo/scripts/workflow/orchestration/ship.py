@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from scripts.workflow.shared.formulas import (
-    formula_ship_require_pull_request,
-    formula_ship_require_tracking,
+from scripts.workflow.shared.profiles import (
+    profile_ship_require_pull_request,
+    profile_ship_require_tracking,
 )
 
 DELIVERY_SHIP_STATUSES = frozenset(
@@ -132,11 +132,11 @@ def complete_ship(
     status = str(run.ship.get("status", "pending"))
     if status not in {"ready", "in_progress", "failed", "completed"}:
         raise ValueError(f"Ship cannot complete from status {status!r}")
-    run_formula = run.formula if isinstance(getattr(run, "formula", None), dict) else {}
-    if formula_ship_require_tracking(run_formula) and not str(branch).strip():
-        raise ValueError("Ship completion requires a tracked branch for this formula.")
-    if formula_ship_require_pull_request(run_formula) and not str(pr_url).strip():
-        raise ValueError("Ship completion requires a PR URL for this formula.")
+    run_profile = run.profile if isinstance(getattr(run, "profile", None), dict) else {}
+    if profile_ship_require_tracking(run_profile) and not str(branch).strip():
+        raise ValueError("Ship completion requires a tracked branch for this profile.")
+    if profile_ship_require_pull_request(run_profile) and not str(pr_url).strip():
+        raise ValueError("Ship completion requires a PR URL for this profile.")
     if status != "completed" and not run.ship.get("startedAt"):
         run.ship["attempts"] = int(run.ship.get("attempts", 0)) + 1
         run.ship["startedAt"] = _now_iso()

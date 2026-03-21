@@ -69,7 +69,6 @@ def test_run_create_and_show_cli(tmp_path):
     assert run["planNumber"] == "01"
     assert run["mode"] == "serial"
     assert run["profile"]["name"] == "migration-rollout"
-    assert run["formula"]["name"] == "migration-rollout"
     assert [task["status"] for task in run["tasks"]] == ["ready", "ready"]
     phase = _run_cli("phase-get", "demo", "--json", cwd=tmp_path)
     assert phase.returncode == 0, phase.stderr + phase.stdout
@@ -80,7 +79,6 @@ def test_run_create_and_show_cli(tmp_path):
     shown_run = json.loads(shown.stdout)
     assert shown_run["runId"] == run["runId"]
     assert shown_run["profile"]["name"] == "migration-rollout"
-    assert shown_run["formula"]["name"] == "migration-rollout"
 
 
 def test_run_task_set_promotes_blocked_tail(tmp_path):
@@ -244,9 +242,9 @@ def test_run_review_commands_update_delivery_run_review_state(tmp_path):
         + "\n",
         encoding="utf-8",
     )
-    formulas_dir = tmp_path / ".cnogo" / "formulas"
-    formulas_dir.mkdir(parents=True, exist_ok=True)
-    (formulas_dir / "custom.json").write_text(
+    profiles_dir = tmp_path / ".cnogo" / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (profiles_dir / "custom.json").write_text(
         json.dumps(
             {
                 "schemaVersion": 1,
@@ -262,13 +260,12 @@ def test_run_review_commands_update_delivery_run_review_state(tmp_path):
     feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / feature
     plan_path = feature_dir / "01-PLAN.json"
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    plan["formula"] = "custom-review"
+    plan["profile"] = "custom-review"
     plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
 
     created = _run_cli("run-create", feature, "01", "--json", cwd=tmp_path)
     run = json.loads(created.stdout)
     assert run["profile"]["name"] == "custom-review"
-    assert run["formula"]["name"] == "custom-review"
 
     _run_cli("run-task-set", feature, "0", "merged", "--json", cwd=tmp_path)
     _run_cli("run-task-set", feature, "1", "merged", "--json", cwd=tmp_path)
@@ -459,7 +456,6 @@ def test_run_list_and_run_watch_cli(tmp_path):
     assert listed[0]["runId"] == run["runId"]
     assert listed[0]["feature"] == "demo"
     assert listed[0]["profileName"] == "feature-delivery"
-    assert "formulaName" in listed[0]
     assert listed[0]["reviewStatus"] == "pending"
     assert listed[0]["reviewVerdict"] == "pending"
 
@@ -680,31 +676,6 @@ def test_run_next_and_task_lifecycle_cli(tmp_path):
     assert any("fixture broke" in note for note in failed_payload["tasks"][1]["notes"])
 
 
-def test_formula_suggest_and_stamp_cli(tmp_path):
-    feature = "ledger-rollout"
-    plan_path = _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
-    plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    plan["goal"] = "Apply schema migration and backfill ledger data"
-    plan["tasks"][0]["action"] = "Write SQL migration and data backfill"
-    plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
-
-    suggestion = _run_cli("formula-suggest", feature, "--plan", "01", "--json", cwd=tmp_path)
-    assert suggestion.returncode == 0, suggestion.stderr + suggestion.stdout
-    suggestion_payload = json.loads(suggestion.stdout)
-    assert suggestion_payload["name"] == "migration-rollout"
-
-    stamped = _run_cli("formula-stamp", feature, "01", "--json", cwd=tmp_path)
-    assert stamped.returncode == 0, stamped.stderr + stamped.stdout
-    stamped_payload = json.loads(stamped.stdout)
-    assert stamped_payload["formula"] == "migration-rollout"
-
-    updated_plan = json.loads(plan_path.read_text(encoding="utf-8"))
-    assert updated_plan["formula"] == "migration-rollout"
-    plan_md = plan_path.with_suffix(".md").read_text(encoding="utf-8")
-    assert "## Formula" in plan_md
-    assert "`migration-rollout`" in plan_md
-
-
 def test_profile_suggest_and_stamp_cli(tmp_path):
     feature = "ledger-rollout"
     plan_path = _write_plan(tmp_path, feature=feature, plan_number="01", blocked_tail=False)
@@ -729,36 +700,6 @@ def test_profile_suggest_and_stamp_cli(tmp_path):
     plan_md = plan_path.with_suffix(".md").read_text(encoding="utf-8")
     assert "## Profile" in plan_md
     assert "`migration-rollout`" in plan_md
-
-
-def test_formula_list_and_init_cli(tmp_path):
-    listed = _run_cli("formula-list", "--json", cwd=tmp_path)
-    assert listed.returncode == 0, listed.stderr + listed.stdout
-    catalog = json.loads(listed.stdout)
-    assert any(entry["name"] == "feature-delivery" for entry in catalog)
-
-    created = _run_cli(
-        "formula-init",
-        "incident-debug",
-        "--base",
-        "debug-fix",
-        "--description",
-        "Operational incident response policy.",
-        "--json",
-        cwd=tmp_path,
-    )
-    assert created.returncode == 0, created.stderr + created.stdout
-    payload = json.loads(created.stdout)
-    assert payload["name"] == "incident-debug"
-    assert payload["base"] == "debug-fix"
-    assert payload["contract"]["defaults"]["review"]["requiredReviewers"] == ["code-reviewer"]
-    formula_path = tmp_path / ".cnogo" / "formulas" / "incident-debug.json"
-    assert formula_path.is_file()
-
-    listed = _run_cli("formula-list", "--json", cwd=tmp_path)
-    assert listed.returncode == 0, listed.stderr + listed.stdout
-    catalog = json.loads(listed.stdout)
-    assert any(entry["name"] == "incident-debug" and "Operational incident response" in entry["description"] for entry in catalog)
 
 
 def test_profile_list_and_init_cli(tmp_path):

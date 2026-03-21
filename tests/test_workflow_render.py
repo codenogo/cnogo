@@ -248,19 +248,19 @@ def test_render_plan_shows_context_links_for_schema_v3_tasks():
     assert "Constraint: return 401 on missing auth context" in markdown
 
 
-def test_render_plan_shows_formula_when_present():
+def test_render_plan_shows_profile_when_present():
     markdown = render.render_plan(
         {
             "schemaVersion": 3,
             "feature": "demo",
             "planNumber": "01",
-            "formula": "migration-rollout",
+            "profile": "migration-rollout",
             "goal": "Tighten auth handler behavior.",
             "tasks": [],
         }
     )
 
-    assert "## Formula" in markdown
+    assert "## Profile" in markdown
     assert "`migration-rollout`" in markdown
 
 

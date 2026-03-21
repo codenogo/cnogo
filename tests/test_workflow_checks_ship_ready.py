@@ -336,7 +336,7 @@ def test_ship_ready_fails_when_delivery_run_ship_state_failed(tmp_path):
     assert checks._cmd_ship_ready(tmp_path, feature, json_output=True) == 1
 
 
-def test_ship_ready_fails_when_formula_requires_pr_metadata(tmp_path):
+def test_ship_ready_fails_when_profile_requires_pr_metadata(tmp_path):
     feature = "demo"
     feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / feature
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -363,7 +363,7 @@ def test_ship_ready_fails_when_formula_requires_pr_metadata(tmp_path):
         ],
         mode="serial",
         run_id="demo-ship-pr-required",
-        formula={
+        profile={
             "name": "feature-delivery",
             "version": "1.0.0",
             "source": "builtin",

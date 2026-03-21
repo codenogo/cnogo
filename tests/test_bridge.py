@@ -361,7 +361,7 @@ class TestPlanToTaskDescriptions:
             "cd services/api && go test ./... -race",
         ]
 
-    def test_package_quality_gates_respect_formula_required_commands(self, tmp_path):
+    def test_package_quality_gates_respect_profile_required_commands(self, tmp_path):
         self._write_workflow(
             tmp_path,
             [
@@ -392,7 +392,7 @@ class TestPlanToTaskDescriptions:
             results = plan_to_task_descriptions(
                 plan_path,
                 tmp_path,
-                formula={
+                profile={
                     "resolvedPolicy": {
                         "verify": {
                             "requirePackageChecks": True,
@@ -409,7 +409,7 @@ class TestPlanToTaskDescriptions:
         ]
         assert "cd services/api && staticcheck ./..." not in desc["commands"]["verify"]
 
-    def test_package_quality_gates_can_be_disabled_by_formula(self, tmp_path):
+    def test_package_quality_gates_can_be_disabled_by_profile(self, tmp_path):
         self._write_workflow(
             tmp_path,
             [
@@ -439,7 +439,7 @@ class TestPlanToTaskDescriptions:
             results = plan_to_task_descriptions(
                 plan_path,
                 tmp_path,
-                formula={"resolvedPolicy": {"verify": {"requirePackageChecks": False}}},
+                profile={"resolvedPolicy": {"verify": {"requirePackageChecks": False}}},
             )
 
         desc = results[0]

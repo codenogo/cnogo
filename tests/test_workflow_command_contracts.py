@@ -70,7 +70,6 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
 
     assert "Each task needs `name`" in plan
     assert "Optional top-level `profile`" in plan
-    assert "Legacy `formula` still loads" in plan
     assert "profile-list --json" in plan
     assert "profile-suggest $ARGUMENTS --plan <NN> --json" in plan
     assert "profile-init <profile-slug> --base feature-delivery" in plan

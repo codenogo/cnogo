@@ -32,7 +32,6 @@ def test_update_adds_new_managed_files_missing_from_older_manifest(tmp_path):
         ".cnogo/work-orders/.gitkeep",
         ".cnogo/scripts/memory/runtime.py",
         ".cnogo/scripts/workflow/shared/config.py",
-        ".cnogo/scripts/workflow/shared/formulas.py",
         ".cnogo/scripts/workflow/shared/profiles.py",
         ".cnogo/scripts/workflow/orchestration/delivery_run.py",
         ".cnogo/scripts/workflow/orchestration/implement.py",

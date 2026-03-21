@@ -29,7 +29,6 @@ Create plans for a feature.
    - New plans use `schemaVersion: 3`.
    - Required fields: `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`; keep `tasks.length <= 3`.
    - Optional top-level `profile` selects delivery policy for `/implement`, `/review`, and `/ship`; use a string or `{ "name": "feature-delivery" }`.
-   - Legacy `formula` still loads during migration, but new plans should use `profile`.
    - Before finalizing, run `python3 .cnogo/scripts/workflow_memory.py profile-suggest $ARGUMENTS --plan <NN> --json`; if needed, stamp with `python3 .cnogo/scripts/workflow_memory.py profile-stamp $ARGUMENTS <NN>`.
    - If no profile fits, scaffold one with `python3 .cnogo/scripts/workflow_memory.py profile-init <profile-slug> --base feature-delivery`.
    - Each task needs `name`, `files[]`, `action`, `verify[]`, `microSteps[]`, and `tdd`.
