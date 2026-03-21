@@ -184,6 +184,19 @@ emit_manifest_paths_for_tree() {
             [ -f "$f" ] && echo ".cnogo/scripts/context/phases/$(basename "$f")"
         done
     fi
+    if [ -d "$base/.cnogo/scripts/workflow" ]; then
+        while IFS= read -r f; do
+            rel="${f#$base/}"
+            echo "$rel"
+        done < <(find "$base/.cnogo/scripts/workflow" -type f -name '*.py' | sort)
+    fi
+    if [ -d "$base/.cnogo/profiles" ]; then
+        while IFS= read -r f; do
+            rel="${f#$base/}"
+            echo "$rel"
+        done < <(find "$base/.cnogo/profiles" -type f -name '*.json' | sort)
+    fi
+    [ -f "$base/.cnogo/work-orders/.gitkeep" ] && echo ".cnogo/work-orders/.gitkeep"
     [ -f "$base/.cnogo/requirements-graph.txt" ] && echo ".cnogo/requirements-graph.txt"
 
     [ -f "$base/.cnogo/hooks/_bootstrap.py" ] && echo ".cnogo/hooks/_bootstrap.py"
@@ -243,6 +256,12 @@ CNOGO_BLOCK="# >>> cnogo
 # Validation baselines (per-branch runtime snapshots)
 .cnogo/validate-baseline.json
 .cnogo/validate-latest.json
+
+# Watch patrol state (operational inbox snapshots, not source)
+.cnogo/watch/
+
+# Scheduler runtime (local supervisor state, not source)
+.cnogo/scheduler/
 
 # Context graph (rebuild from source)
 .cnogo/graph.db
@@ -705,6 +724,12 @@ if [ "$SELF_HOST" = true ]; then
             [ -f "$f" ] && track_managed_path ".cnogo/scripts/context/phases/$(basename "$f")"
         done
     fi
+    if [ -d "$TARGET_DIR/.cnogo/scripts/workflow" ]; then
+        while IFS= read -r f; do
+            rel="${f#$TARGET_DIR/}"
+            track_managed_path "$rel"
+        done < <(find "$TARGET_DIR/.cnogo/scripts/workflow" -type f -name '*.py' | sort)
+    fi
 
     # .cnogo/requirements-graph.txt
     [ -f "$TARGET_DIR/.cnogo/requirements-graph.txt" ] && track_managed_path ".cnogo/requirements-graph.txt"
@@ -860,6 +885,14 @@ if [ -d "$SCRIPT_DIR/.cnogo/scripts/context/phases" ]; then
             track_managed_path ".cnogo/scripts/context/phases/$(basename "$phase")"
         fi
     done
+fi
+if [ -d "$SCRIPT_DIR/.cnogo/scripts/workflow" ]; then
+    while IFS= read -r workflow_file; do
+        rel="${workflow_file#$SCRIPT_DIR/.cnogo/scripts/}"
+        mkdir -p "$TARGET_DIR/.cnogo/scripts/$(dirname "$rel")"
+        cp "$workflow_file" "$TARGET_DIR/.cnogo/scripts/$rel"
+        track_managed_path ".cnogo/scripts/$rel"
+    done < <(find "$SCRIPT_DIR/.cnogo/scripts/workflow" -type f -name '*.py' | sort)
 fi
 echo "   └── context/ (context graph package)"
 

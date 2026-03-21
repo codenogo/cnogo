@@ -32,7 +32,7 @@ python3 -m pytest tests/test_context_impact.py tests/test_context_pipeline.py -x
 **Done when:** [Observable outcome]
 
 ### Task 2: Context query method (node neighborhood)
-**Files:** `scripts/context/__init__.py`, `scripts/context/storage.py`, `tests/test_context_query.py`
+**Files:** `scripts/context/__init__.py`, `scripts/context/storage.py`, `tests/test_context_query.py`, `tests/test_context_graph.py`
 **Action:**
 Implement ContextGraph.context(node_id) replacing NotImplementedError stub. Add get_related_nodes(node_id, rel_type, direction='outgoing'|'incoming') to GraphStorage for generic edge traversal. context() returns a dict: {node: GraphNode, callers: [...], callees: [...], importers: [...], imports: [...], parent_classes: [...], child_classes: [...]}. Each list contains GraphNode instances. If node_id not found, raise ValueError.
 

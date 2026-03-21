@@ -1,7 +1,7 @@
 # Implement: $ARGUMENTS
 <!-- effort: medium -->
 
-Execute a plan with verification.
+Execute a plan.
 
 ## Arguments
 
@@ -11,33 +11,36 @@ Execute a plan with verification.
 
 1. **Branch**
    - Check `git branch --show-current` and `git status --porcelain`.
-   - Work must run on `feature/<feature-slug>`.
-   - If the branch exists but the tree is dirty, stop before switching.
-   - If the branch is missing, stop and tell the user to run `/discuss` first.
+   - Must be on `feature/<feature-slug>`. Missing branch: send the user back to `/discuss`. Dirty branch: stop.
 
 2. **Load contracts**
-   - Run `python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>`; expected phase is `plan` or `implement`.
-   - Read `docs/planning/work/features/<feature>/<NN>-PLAN.json` and `NN-PLAN.md`.
-   - If memory is enabled, run `python3 .cnogo/scripts/workflow_memory.py ready --feature <feature-slug>` and `phase-set <feature-slug> implement`.
-   - Build TaskDescV2 objects via `plan_to_task_descriptions(plan_path, root)`.
-   - Call `recommend_team_mode(taskdescs)`.
-   - Team-first default: `--serial` stays serial; otherwise `--team` or `recommended=true` routes to `/team implement`.
-   - Treat `parallelizable: true` as a hint only; actual routing comes from dependency frontier + file-scope safety.
+   - Run `python3 .cnogo/scripts/workflow_memory.py phase-get <feature-slug>`; expected phase `plan|implement`.
+   - Read `docs/planning/work/features/<feature>/<NN>-PLAN.json`.
+   - If memory is enabled, run `ready --feature <feature-slug>` and `phase-set <feature-slug> implement`.
+   - Build TaskDescV2 and call `recommend_team_mode(taskdescs)`.
+   - Resolve the plan profile from `NN-PLAN.json` or `WORKFLOW.json.profiles.default`.
+   - Create or resume a Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-create <feature-slug> <NN> [--mode auto|serial|team] --json`.
+   - Keep the returned `runId`; the run persists at `.cnogo/runs/<feature>/<run-id>.json`.
+   - Optional: inspect `python3 .cnogo/scripts/workflow_memory.py work-show <feature-slug> --json` for prior runs or blocked attention.
+   - Default: `--serial` stays serial; otherwise `--team` or `recommended=true` uses `/team implement`.
 
 3. **Execute each task**
+   - Use `python3 .cnogo/scripts/workflow_memory.py run-next <feature-slug> --run-id <run-id> --json`; trust returned `nextAction`.
+   - In serial mode, `run-plan-verify` absorbs integration.
    - Skip tasks marked `skipped`.
-   - Follow `micro_steps` in order and honor the `tdd` contract.
-   - If `task_id` exists, run `python3 .cnogo/scripts/workflow_memory.py claim <task-id> --actor implementer`.
+   - Follow `micro_steps` and honor `tdd`.
+   - Preferred start path: `python3 .cnogo/scripts/workflow_memory.py run-task-begin <feature-slug> <task-index> --run-id <run-id> --actor implementer`.
    - Edit only files in `task["file_scope"]["paths"]`.
-   - Run all task verify commands from TaskDescV2, including the auto-appended package `lint` / `typecheck` / `test` commands inferred from `WORKFLOW.json`.
-   - Optional `python3 .cnogo/scripts/workflow_memory.py graph-validate-scope ...` is advisory.
-   - On success, run `python3 .cnogo/scripts/workflow_memory.py report-done <task-id> --actor implementer`; on failure, checkpoint, inspect history, fix, and retry up to 2 times before stopping.
-   - Workers never close issues. Use footer `TASK_DONE: [cn-xxx, ...]` when needed.
-   - In serial mode, checkpoint and re-read before starting the next task.
+   - Run all task verify commands from TaskDescV2, including the auto-appended package `lint` / `typecheck` / `test` commands from `WORKFLOW.json`.
+   - Preferred completion path: `python3 .cnogo/scripts/workflow_memory.py run-task-complete <feature-slug> <task-index> --run-id <run-id> [--command "<verify>"]...`.
+   - If the task is blocked or regresses, record it with `python3 .cnogo/scripts/workflow_memory.py run-task-fail <feature-slug> <task-index> --run-id <run-id> --error "<summary>"`.
+   - Use `run-refresh` after manual intervention. Use `run-show` for `integration` plus `reviewReadiness`.
+   - In serial mode, checkpoint before the next task.
 
 4. **Plan verification**
    - Run all `planVerify[]` commands.
-   - If they pass and memory is enabled, run `python3 .cnogo/scripts/workflow_memory.py phase-set <feature-slug> review`.
+   - Record the gate outcome on the Delivery Run with `python3 .cnogo/scripts/workflow_memory.py run-plan-verify <feature-slug> pass --run-id <run-id> [--command "<cmd>"]...`.
+   - If verification fails, record `run-plan-verify <feature-slug> fail ...` before stopping. If it passes, run `phase-set <feature-slug> review`.
 
 5. **Commit**
    - `git add -A`
@@ -45,8 +48,9 @@ Execute a plan with verification.
 
 6. **Summary + validation**
    - Generate summary artifacts with `python3 .cnogo/scripts/workflow_checks.py summarize --feature <feature-slug> --plan <NN>`.
-   - Optional overrides: `--outcome partial|failed` and repeated `--note "<context>"`.
-   - `summarize` writes both `<NN>-SUMMARY.json` and `<NN>-SUMMARY.md` from execution evidence.
+   - `summarize` writes both `<NN>-SUMMARY.json` and `<NN>-SUMMARY.md`; optional overrides: `--outcome partial|failed`, repeated `--note "<context>"`.
+   - Before handoff, run `python3 .cnogo/scripts/workflow_memory.py run-watch-patrol --feature <feature-slug>`.
+   - Confirm the feature-level Work Order is current with `python3 .cnogo/scripts/workflow_memory.py work-next <feature-slug> --json`.
    - Apply `.claude/skills/workflow-contract-integrity.md`.
    - Run `python3 .cnogo/scripts/workflow_validate.py --feature <feature-slug>`.
 
@@ -54,4 +58,5 @@ Execute a plan with verification.
 
 - task outcomes
 - commit hash and message
+- Delivery Run + Work Order state
 - ready for `/review`

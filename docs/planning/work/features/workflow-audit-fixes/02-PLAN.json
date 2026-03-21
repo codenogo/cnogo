@@ -48,8 +48,7 @@
     },
     {
       "name": "Consolidate perf-analysis into performance-review",
-      "files": [".claude/skills/performance-review.md"],
-      "deletions": [".claude/skills/perf-analysis.md"],
+      "files": [".claude/skills/performance-review.md", ".claude/skills/perf-analysis.md"],
       "microSteps": [
         "Read perf-analysis.md checklist items (8 items)",
         "Read performance-review.md Step B section",

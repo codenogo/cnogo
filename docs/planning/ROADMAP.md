@@ -2,7 +2,7 @@
 
 High-level phases and progress tracking.
 
-## Current Milestone: v1.1 — Extended Commands + Memory Engine
+## Current Milestone: v1.2 — Durable Orchestration
 
 ### Phase 1: Foundation (v1.0)
 **Status:** ✅ Complete
@@ -58,7 +58,7 @@ KuzuDB-based code graph for dependency analysis, proximity queries, and heritage
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| `workflow-deepdive-v2` | In Progress | Deep audit of workflow commands, skills, and scripts — 50 findings across 6 plans |
+| `workflow-deepdive-v2` | In Progress | Work Orders, canonical profiles, hybrid scheduler, and run-native review/ship/watch orchestration |
 
 ## Completed Features
 
@@ -87,6 +87,11 @@ KuzuDB-based code graph for dependency analysis, proximity queries, and heritage
 - [ ] Plugin system for custom command extensions
 - [ ] Dashboard/reporting for workflow metrics
 
+### v2.2 — Workflow Recipes + Automation
+- [ ] Recipe layer above profiles for reusable multi-stage workflow patterns
+- [ ] Stronger scheduler jobs and inbox automation
+- [ ] Feature-level dashboards over Work Orders and Delivery Runs
+
 ---
 
 ## Parking Lot
@@ -101,4 +106,4 @@ Ideas captured but not scheduled:
 - [ ] Workflow visualization
 
 ---
-*Last updated: 2026-03-04*
+*Last updated: 2026-03-21*

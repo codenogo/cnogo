@@ -31,7 +31,8 @@
       "files": [
         "scripts/context/__init__.py",
         "scripts/context/storage.py",
-        "tests/test_context_query.py"
+        "tests/test_context_query.py",
+        "tests/test_context_graph.py"
       ],
       "microSteps": [
         "Write failing tests for ContextGraph.context(): returns callers, callees, importers, parent classes, child classes for a given node ID",

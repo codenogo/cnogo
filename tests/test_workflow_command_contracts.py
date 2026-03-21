@@ -64,14 +64,50 @@ def test_shape_workspace_supports_dedicated_read_only_scouts():
 def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     plan = _read(".claude/commands/plan.md")
     implement = _read(".claude/commands/implement.md")
+    team = _read(".claude/commands/team.md")
+    resume = _read(".claude/commands/resume.md")
+    status = _read(".claude/commands/status.md")
 
     assert "Each task needs `name`" in plan
+    assert "Optional top-level `profile`" in plan
+    assert "profile-list --json" in plan
+    assert "profile-suggest $ARGUMENTS --plan <NN> --json" in plan
+    assert "profile-init <profile-slug> --base feature-delivery" in plan
+    assert "profile-stamp $ARGUMENTS <NN>" in plan
     assert "`contextLinks[]`" in plan
     assert "explicit error-path scenario" in plan
     assert "[--serial]" in implement
     assert "recommend_team_mode(taskdescs)" in implement
+    assert "Resolve the plan profile" in implement
+    assert "Delivery Run" in implement
+    assert "work-show <feature-slug> --json" in implement
+    assert ".cnogo/runs/<feature>/<run-id>.json" in implement
+    assert "workflow_memory.py run-create <feature-slug> <NN>" in implement
+    assert "workflow_memory.py run-next <feature-slug> --run-id <run-id> --json" in implement
+    assert "returned `nextAction`" in implement
+    assert "serial mode, `run-plan-verify` absorbs integration" in implement
+    assert "workflow_memory.py run-plan-verify <feature-slug> pass" in implement
+    assert "workflow_memory.py run-task-begin <feature-slug> <task-index>" in implement
+    assert "workflow_memory.py run-task-complete <feature-slug> <task-index>" in implement
+    assert "workflow_memory.py run-task-fail <feature-slug> <task-index>" in implement
+    assert "integration` plus `reviewReadiness`" in implement
     assert "auto-appended package `lint` / `typecheck` / `test` commands" in implement
     assert "workflow_checks.py summarize --feature <feature-slug> --plan <NN>" in implement
+    assert "run-watch-patrol --feature <feature-slug>" in implement
+    assert "work-next <feature-slug> --json" in implement
+    assert "Delivery Run" in team
+    assert "Work Order state" in team
+    assert "same `run_id`" in team
+    assert "workflow_memory.py run-create <feature> <NN> --mode team --run-id <run-id>" in team
+    assert "workflow_memory.py run-sync-session <feature> --run-id <run-id> --json" in team
+    assert "run-plan-verify <feature> pass|fail" in team
+    assert "Work Order state, Delivery Run state, Integration state, Review readiness" in team
+    assert "work-list --needs-attention --json" in team
+    assert "session-status --json" in resume
+    assert "status`, `integration`, and `reviewReadiness`" in resume
+    assert "work-list --needs-attention --json" in resume
+    assert "run-watch-patrol --feature <feature>" in resume
+    assert "work-list --needs-attention --json" in status
 
 
 def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
@@ -86,6 +122,15 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "verdict: pending" in review
     assert "always spawn" in review
     assert "REVIEW.json.reviewers[]" in review
+    assert "reviewReadiness.status == ready" in review
+    assert "must stop if there is no linked Delivery Run" in review
+    assert "review.status = in_progress" in review
+    assert "profile-required reviewers" in review
+    assert "work-show <feature-slug> --json" in review
+    assert "work-next <feature-slug> --json" in review
+    assert "workflow_memory.py run-show <feature-slug> --json" in review
+    assert "auto-syncs the linked Delivery Run" in review
+    assert "workflow_memory.py run-review-sync <feature-slug>" in review
     assert "code-reviewer" in review
     assert "security-scanner" in review
     assert "perf-analyzer" in review
@@ -96,3 +141,18 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "correctness and contract reviewer" in code_reviewer
     assert "security reviewer" in security_scanner
     assert "performance and reliability reviewer" in perf_analyzer
+
+
+def test_ship_command_uses_delivery_run_ship_lifecycle():
+    ship = _read(".claude/commands/ship.md")
+
+    assert "work-show <feature-slug> --json" in ship
+    assert "run-show <feature-slug> --json" in ship
+    assert "ship.status == ready" in ship
+    assert "resolved profile as ship policy context" in ship
+    assert "workflow_checks.py ship-ready --feature <feature-slug>" in ship
+    assert "workflow_memory.py run-ship-start <feature-slug>" in ship
+    assert "ship.status = in_progress" in ship
+    assert "workflow_memory.py run-ship-complete <feature-slug> <commit-sha>" in ship
+    assert "workflow_memory.py run-ship-fail <feature-slug>" in ship
+    assert "work-next <feature-slug> --json" in ship

@@ -68,6 +68,7 @@
       "name": "Implement structure phase (File/Folder nodes + CONTAINS edges)",
       "files": [
         "scripts/context/phases/structure.py",
+        "scripts/context/phases/__init__.py",
         "tests/test_context_structure.py"
       ],
       "microSteps": [

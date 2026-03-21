@@ -361,6 +361,91 @@ class TestPlanToTaskDescriptions:
             "cd services/api && go test ./... -race",
         ]
 
+    def test_package_quality_gates_respect_profile_required_commands(self, tmp_path):
+        self._write_workflow(
+            tmp_path,
+            [
+                {
+                    "name": "service",
+                    "path": "services/api",
+                    "commands": {
+                        "lint": "golangci-lint run ./...",
+                        "typecheck": "staticcheck ./...",
+                        "test": "go test ./... -race",
+                    },
+                }
+            ],
+        )
+        plan_path = self._write_plan(
+            tmp_path,
+            [
+                {
+                    "name": "Task A",
+                    "files": ["services/api/handler.go"],
+                    "verify": ["go test ./services/api/... -run TestHandler"],
+                    "action": "do A",
+                }
+            ],
+        )
+        with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
+             mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
+            results = plan_to_task_descriptions(
+                plan_path,
+                tmp_path,
+                profile={
+                    "resolvedPolicy": {
+                        "verify": {
+                            "requirePackageChecks": True,
+                            "requiredPackageCommands": ["lint", "test"],
+                        }
+                    }
+                },
+            )
+
+        desc = results[0]
+        assert desc["commands"]["package_verify"] == [
+            "cd services/api && golangci-lint run ./...",
+            "cd services/api && go test ./... -race",
+        ]
+        assert "cd services/api && staticcheck ./..." not in desc["commands"]["verify"]
+
+    def test_package_quality_gates_can_be_disabled_by_profile(self, tmp_path):
+        self._write_workflow(
+            tmp_path,
+            [
+                {
+                    "name": "service",
+                    "path": "services/api",
+                    "commands": {
+                        "lint": "golangci-lint run ./...",
+                        "test": "go test ./... -race",
+                    },
+                }
+            ],
+        )
+        plan_path = self._write_plan(
+            tmp_path,
+            [
+                {
+                    "name": "Task A",
+                    "files": ["services/api/handler.go"],
+                    "verify": ["go test ./services/api/... -run TestHandler"],
+                    "action": "do A",
+                }
+            ],
+        )
+        with mock.patch("scripts.memory.bridge._is_already_closed", return_value=False), \
+             mock.patch("scripts.memory.bridge._ensure_memory_issue", return_value=""):
+            results = plan_to_task_descriptions(
+                plan_path,
+                tmp_path,
+                profile={"resolvedPolicy": {"verify": {"requirePackageChecks": False}}},
+            )
+
+        desc = results[0]
+        assert "package_verify" not in desc["commands"]
+        assert desc["commands"]["verify"] == ["go test ./services/api/... -run TestHandler"]
+
     def test_explicit_cwd_is_preserved(self, tmp_path):
         plan_path = self._write_plan(
             tmp_path,

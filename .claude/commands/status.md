@@ -1,7 +1,7 @@
 # Status
 <!-- effort: low -->
 
-Show current position, progress, and next actions.
+Show current position and next actions.
 
 ## Your Task
 
@@ -10,6 +10,7 @@ Show current position, progress, and next actions.
 ```bash
 python3 .cnogo/scripts/workflow_memory.py prime --limit 8
 python3 .cnogo/scripts/workflow_memory.py stats
+python3 .cnogo/scripts/workflow_memory.py work-list --needs-attention --json
 ```
 
 If memory is not initialized, report that and continue with git/artifact status.
@@ -36,7 +37,7 @@ If team execution is active, recommend `/team status` for detailed teammate prog
 
 Report:
 - current branch + dirty/clean state
-- active feature/plan progress from memory
+- active feature/work-order progress from memory
 - commits ahead of remote
 - token optimization drift from `python3 .cnogo/scripts/workflow_checks.py discover --since-days 7` (optional)
 - immediate next action

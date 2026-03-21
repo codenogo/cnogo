@@ -184,6 +184,41 @@ def test_plan_v3_accepts_context_links_and_failure_scenario():
     assert not any("explicit error-path scenario" in m for m in msgs)
 
 
+def test_plan_profile_accepts_string_or_named_object():
+    findings = []
+    contract = {
+        "schemaVersion": 3,
+        "feature": "demo",
+        "planNumber": "01",
+        "profile": {"name": "feature-delivery"},
+        "goal": "stricter planning",
+        "tasks": [
+            {
+                "name": "task",
+                "files": ["a.py"],
+                "contextLinks": ["Constraint: return 400 on invalid input"],
+                "microSteps": ["write invalid input failure test", "implement validation", "run tests"],
+                "action": "change a.py",
+                "verify": ["pytest -q"],
+                "tdd": {
+                    "required": True,
+                    "failingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                    "passingVerify": ["pytest tests/test_a.py -k invalid_input"],
+                },
+            }
+        ],
+        "planVerify": ["pytest -q"],
+    }
+    core._validate_plan_contract(
+        contract,
+        findings,
+        Path("01-PLAN.json"),
+        tdd_mode_level="error",
+        operating_principles_level="warn",
+    )
+    assert not any("Plan contract profile" in m for m in _messages(findings))
+
+
 def test_review_v4_requires_stage_reviews_when_enabled(tmp_path):
     feature_dir = tmp_path / "feature"
     feature_dir.mkdir(parents=True, exist_ok=True)
@@ -263,6 +298,43 @@ def test_workflow_config_rejects_invalid_task_ownership_and_max_takeovers(tmp_pa
     assert any("agentTeams.maxTakeoversPerTask should be an integer >= 0" in m for m in msgs)
 
 
+def test_validate_research_wrapper_preserves_contract_checks(tmp_path):
+    research_dir = tmp_path / "docs" / "planning" / "work" / "research" / "provider-study"
+    research_dir.mkdir(parents=True, exist_ok=True)
+    (research_dir / "RESEARCH.md").write_text("# Research\n", encoding="utf-8")
+    (research_dir / "RESEARCH.json").write_text(
+        json.dumps({"schemaVersion": 1, "sources": "not-an-array"}),
+        encoding="utf-8",
+    )
+
+    findings = []
+    core._validate_research(tmp_path, findings, lambda _path: True)
+
+    assert any("RESEARCH.json: sources should be an array." in m for m in _messages(findings))
+
+
+def test_validate_quick_wrapper_preserves_contract_checks(tmp_path):
+    quick_dir = tmp_path / "docs" / "planning" / "work" / "quick" / "001-fix-typo"
+    quick_dir.mkdir(parents=True, exist_ok=True)
+    (quick_dir / "PLAN.md").write_text("# Quick Plan\n", encoding="utf-8")
+
+    findings = []
+    core._validate_quick_tasks(tmp_path, findings, lambda _path: True)
+
+    assert any("Missing PLAN.json contract for quick PLAN.md" in m for m in _messages(findings))
+
+
+def test_validate_quick_summary_wrapper_preserves_contract_checks():
+    findings = []
+
+    core._validate_quick_summary({"schemaVersion": 1, "changes": []}, findings, Path("SUMMARY.json"))
+
+    msgs = _messages(findings)
+    assert any("Quick summary missing non-empty 'outcome'." in m for m in msgs)
+    assert any("Quick summary missing non-empty 'changes' list." in m for m in msgs)
+    assert any("Quick summary missing non-empty 'verification' list." in m for m in msgs)
+
+
 def test_workflow_config_accepts_review_default_composition_with_real_agents(tmp_path):
     agents_dir = tmp_path / ".claude" / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
@@ -306,6 +378,98 @@ def test_workflow_config_warns_on_homogeneous_or_missing_review_agents(tmp_path)
     msgs = _messages(findings)
     assert any("references missing agent 'missing-agent'" in m for m in msgs)
     assert any("should use at least 2 distinct reviewer agents" in m for m in msgs)
+
+
+def test_detect_repo_shape_prefers_configured_packages(tmp_path):
+    shape = core._detect_repo_shape(
+        tmp_path,
+        {
+            "packages": [
+                {"path": "apps/web", "kind": "node"},
+                {"path": "services/api", "kind": "go"},
+                {"path": "tools/worker", "kind": "go"},
+            ]
+        },
+    )
+
+    assert shape["package_json"] == 1
+    assert shape["go_mod"] == 2
+    assert shape["monorepo"] is True
+    assert shape["polyglot"] is True
+
+
+def test_policy_level_wrappers_fall_back_to_defaults():
+    cfg = {
+        "enforcement": {
+            "monorepoVerifyScope": "nope",
+            "operatingPrinciples": "nope",
+            "tddMode": "nope",
+            "verificationBeforeCompletion": "nope",
+            "twoStageReview": "nope",
+            "taskOwnership": "nope",
+        }
+    }
+
+    assert core._get_monorepo_scope_level(cfg) == "warn"
+    assert core._get_operating_principles_level(cfg) == "warn"
+    assert core._get_tdd_mode_level(cfg) == "error"
+    assert core._get_verification_before_completion_level(cfg) == "error"
+    assert core._get_two_stage_review_level(cfg) == "error"
+    assert core._get_task_ownership_level(cfg) == "error"
+
+
+def test_verify_cmd_scoped_wrapper_distinguishes_scoped_and_unscoped_commands():
+    assert core._verify_cmd_scoped("cd apps/web && npm test")
+    assert core._verify_cmd_scoped("pytest -q")
+    assert not core._verify_cmd_scoped("npm test")
+
+
+def test_validate_token_budgets_warns_on_touched_shape_artifact(tmp_path):
+    ideas_dir = tmp_path / "docs" / "planning" / "work" / "ideas" / "demo-shape"
+    ideas_dir.mkdir(parents=True, exist_ok=True)
+    shape_md = ideas_dir / "SHAPE.md"
+    shape_md.write_text(" ".join(["shape"] * 40), encoding="utf-8")
+
+    findings = []
+    core._validate_token_budgets(
+        tmp_path,
+        findings,
+        lambda _path: True,
+        {
+            "enabled": True,
+            "shapeWordMax": 5,
+            "brainstormWordMax": 5,
+        },
+    )
+
+    assert any("Shape artifact is" in m for m in _messages(findings))
+
+
+def test_validate_bootstrap_context_warns_on_large_claude_files(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text(" ".join(["root"] * 20), encoding="utf-8")
+    workflow_claude = tmp_path / ".claude"
+    workflow_claude.mkdir(parents=True, exist_ok=True)
+    (workflow_claude / "CLAUDE.md").write_text(" ".join(["workflow"] * 20), encoding="utf-8")
+    commands_dir = workflow_claude / "commands"
+    commands_dir.mkdir(parents=True, exist_ok=True)
+    (commands_dir / "shape.md").write_text(" ".join(["command"] * 20), encoding="utf-8")
+
+    findings = []
+    core._validate_bootstrap_context(
+        tmp_path,
+        findings,
+        {
+            "enabled": True,
+            "rootClaudeWordMax": 5,
+            "workflowClaudeWordMax": 5,
+            "commandSetWordMax": 5,
+        },
+    )
+
+    msgs = _messages(findings)
+    assert any("Root CLAUDE.md is" in m for m in msgs)
+    assert any("Workflow CLAUDE.md is" in m for m in msgs)
+    assert any("Command artifact set totals" in m for m in msgs)
 
 
 def test_memory_runtime_accepts_tracked_issues_jsonl(tmp_path):
@@ -913,6 +1077,11 @@ def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path
             {
                 "version": 1,
                 "repoShape": "auto",
+                "profiles": {
+                    "default": "feature-delivery",
+                    "catalogPath": ".cnogo/profiles",
+                    "allowPlanOverride": True,
+                },
                 "enforcement": {
                     "twoStageReview": "error",
                     "verificationBeforeCompletion": "error",
@@ -1000,3 +1169,513 @@ def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path
     assert not any("Summary generatedFrom" in m for m in msgs)
     assert not any("Summary notes" in m for m in msgs)
     assert not any("REVIEW.json reviewers" in m for m in msgs)
+
+
+def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "profiles": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+
+    feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / "demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "01-PLAN.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 3,
+                "feature": "demo",
+                "planNumber": "01",
+                "goal": "demo",
+                "tasks": [
+                    {
+                        "name": "Add handler",
+                        "files": ["app.py"],
+                        "contextLinks": ["Constraint: return deterministic output"],
+                        "microSteps": ["write invalid-input failure test", "implement handler", "run tests"],
+                        "action": "Update app.py",
+                        "verify": ["pytest -q"],
+                        "tdd": {
+                            "required": True,
+                            "failingVerify": ["pytest -q -k fail"],
+                            "passingVerify": ["pytest -q -k fail"],
+                        },
+                    }
+                ],
+                "planVerify": ["pytest -q"],
+                "commitMessage": "feat: demo",
+                "timestamp": _iso_now(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    runs_dir = tmp_path / ".cnogo" / "runs" / "demo"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / "demo-100.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "runId": "demo-100",
+                "feature": "demo",
+                "planNumber": "01",
+                "mode": "team",
+                "status": "active",
+                "startedBy": "claude",
+                "branch": "feature/demo",
+                "planPath": "docs/planning/work/features/demo/01-PLAN.json",
+                "summaryPath": "docs/planning/work/features/demo/01-SUMMARY.json",
+                "reviewPath": "docs/planning/work/features/demo/REVIEW.json",
+                "profile": {
+                    "name": "feature-delivery",
+                    "version": "1.0.0",
+                    "source": "builtin",
+                    "resolvedPolicy": {"execution": {"modePreference": "auto"}},
+                },
+                "recommendation": {"recommended": True},
+                "integration": {
+                    "status": "awaiting_merge",
+                    "mergedTaskIndices": [],
+                    "awaitingMergeTaskIndices": [0],
+                    "activeTaskIndices": [],
+                    "conflictTaskIndex": None,
+                    "conflictFiles": [],
+                    "lastSessionPhase": "executing",
+                    "updatedAt": _iso_now(),
+                },
+                "reviewReadiness": {
+                    "status": "pending",
+                    "planVerifyPassed": None,
+                    "verifiedAt": "",
+                    "verifiedCommands": [],
+                    "notes": [],
+                    "updatedAt": _iso_now(),
+                },
+                "review": {
+                    "status": "pending",
+                    "reviewers": [],
+                    "automatedVerdict": "pending",
+                    "finalVerdict": "pending",
+                    "stages": [
+                        {
+                            "stage": "spec-compliance",
+                            "status": "pending",
+                            "findings": [],
+                            "evidence": [],
+                            "notes": [],
+                            "updatedAt": _iso_now(),
+                        },
+                        {
+                            "stage": "code-quality",
+                            "status": "pending",
+                            "findings": [],
+                            "evidence": [],
+                            "notes": [],
+                            "updatedAt": _iso_now(),
+                        },
+                    ],
+                    "reviewStartedAt": "",
+                    "reviewCompletedAt": "",
+                    "artifactTimestamp": "",
+                    "artifactUpdatedAt": "",
+                    "artifactPath": "",
+                    "syncedAt": "",
+                    "notes": [],
+                    "updatedAt": _iso_now(),
+                },
+                "ship": {
+                    "status": "pending",
+                    "attempts": 0,
+                    "startedAt": "",
+                    "completedAt": "",
+                    "failedAt": "",
+                    "commit": "",
+                    "branch": "",
+                    "prUrl": "",
+                    "lastError": "",
+                    "notes": [],
+                    "updatedAt": _iso_now(),
+                },
+                "tasks": [
+                    {
+                        "taskIndex": 0,
+                        "title": "Add handler",
+                        "status": "ready",
+                        "memoryId": "cn-demo",
+                        "blockedBy": [],
+                        "filePaths": ["app.py"],
+                        "forbiddenPaths": [],
+                        "verifyCommands": ["pytest -q"],
+                        "packageVerifyCommands": [],
+                        "cwd": "",
+                        "assignee": "",
+                        "branch": "",
+                        "worktreePath": "",
+                        "notes": [],
+                        "updatedAt": _iso_now(),
+                    }
+                ],
+                "notes": [],
+                "createdAt": _iso_now(),
+                "updatedAt": _iso_now(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (cnogo_dir / "worktree-session.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "feature": "demo",
+                "planNumber": "01",
+                "runId": "demo-100",
+                "baseCommit": "abc123",
+                "baseBranch": "feature/demo",
+                "phase": "executing",
+                "worktrees": [],
+                "mergeOrder": [],
+                "mergedSoFar": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert not any("Delivery run" in msg for msg in msgs)
+    assert not any("worktree-session.json references runId" in msg for msg in msgs)
+
+
+def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "profiles": {"default": 123, "catalogPath": [], "allowPlanOverride": "yes"},
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+
+    runs_dir = tmp_path / ".cnogo" / "runs" / "demo"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / "demo-bad.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "1",
+                "runId": "",
+                "feature": "wrong-feature",
+                "planNumber": "",
+                "mode": "invalid",
+                "status": "mystery",
+                "profile": {
+                    "name": "",
+                    "version": 1,
+                    "source": [],
+                    "resolvedPolicy": [],
+                },
+                "integration": {
+                    "status": "mystery",
+                    "mergedTaskIndices": "bad",
+                    "conflictTaskIndex": "zero",
+                },
+                "reviewReadiness": {
+                    "status": "mystery",
+                    "planVerifyPassed": "yes",
+                    "verifiedCommands": "pytest -q",
+                },
+                "review": {
+                    "status": "mystery",
+                    "reviewers": "code-reviewer",
+                    "automatedVerdict": "maybe",
+                    "finalVerdict": "later",
+                    "stages": [
+                        {
+                            "stage": "wrong-stage",
+                            "status": "mystery",
+                            "findings": "bad",
+                            "evidence": "bad",
+                            "notes": "bad",
+                            "updatedAt": 123,
+                        }
+                    ],
+                    "reviewStartedAt": 123,
+                    "artifactPath": [],
+                    "notes": "bad",
+                },
+                "ship": {
+                    "status": "mystery",
+                    "attempts": -1,
+                    "startedAt": 123,
+                    "prUrl": [],
+                    "notes": "bad",
+                },
+                "tasks": [{"taskIndex": "0", "title": "", "status": "mystery"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (cnogo_dir / "worktree-session.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "feature": "demo",
+                "planNumber": "01",
+                "runId": "missing-run",
+                "baseCommit": "abc123",
+                "baseBranch": "feature/demo",
+                "phase": "executing",
+                "worktrees": [],
+                "mergeOrder": [],
+                "mergedSoFar": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert any("Delivery run schemaVersion should be an integer." in msg for msg in msgs)
+    assert any("WORKFLOW.json: profiles.default should be a non-empty string." in msg for msg in msgs)
+    assert any("Delivery run mode should be serial|team." in msg for msg in msgs)
+    assert any("Delivery run status should be one of" in msg for msg in msgs)
+    assert any("Delivery run profile.name should be non-empty." in msg for msg in msgs)
+    assert any("Delivery run integration.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run reviewReadiness.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run review.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run review.automatedVerdict should be one of" in msg for msg in msgs)
+    assert any("Delivery run ship.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run ship.attempts should be an integer >= 0" in msg for msg in msgs)
+    assert any("Delivery run review.stages[0].stage should be 'spec-compliance'." in msg for msg in msgs)
+    assert any("worktree-session.json references runId that does not exist" in msg for msg in msgs)
+
+
+def test_validate_repo_warns_for_unknown_default_profile_and_profile_filename_mismatch(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "profiles": {
+                    "default": "unknown-profile",
+                    "catalogPath": ".cnogo/profiles",
+                    "allowPlanOverride": True,
+                },
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+    profiles_dir = cnogo_dir / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (profiles_dir / "incident.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "name": "incident-debug",
+                "version": "1.0.0",
+                "defaults": {"execution": {"modePreference": "serial"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert any("WORKFLOW.json: profiles.default refers to unknown profile 'unknown-profile'." in msg for msg in msgs)
+    assert any("Profile filename 'incident.json' should match contract name 'incident-debug'." in msg for msg in msgs)
+
+
+def test_validate_repo_warns_for_invalid_watch_config_and_state(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "watch": {
+                    "enabled": "yes",
+                    "patrolIntervalMinutes": 0,
+                    "historyLimit": "many",
+                    "attentionLimit": -1,
+                },
+                "packages": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+    watch_dir = cnogo_dir / "watch"
+    watch_dir.mkdir(parents=True, exist_ok=True)
+    (watch_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "1",
+                "enabled": "yes",
+                "patrolIntervalMinutes": 0,
+                "historyLimit": [],
+                "attentionLimit": {},
+                "lastResult": "bad",
+                "lastReportPath": ".cnogo/watch/missing-report.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert any("WORKFLOW.json: watch.enabled should be boolean." in msg for msg in msgs)
+    assert any("WORKFLOW.json: watch.patrolIntervalMinutes should be an integer > 0." in msg for msg in msgs)
+    assert any("Watch state schemaVersion should be an integer." in msg for msg in msgs)
+    assert any("Watch state enabled should be boolean." in msg for msg in msgs)
+    assert any("Watch state lastResult should be ok|warn|fail." in msg for msg in msgs)
+    assert any("Watch state lastReportPath points to missing file" in msg for msg in msgs)
+
+
+def test_validation_baseline_round_trip(tmp_path):
+    warning = core._finding_to_warning(core.Finding("WARN", "Example warning", "demo.json"))
+    path = core.save_baseline([warning], tmp_path)
+    assert path.exists()
+
+    loaded = core.load_baseline(tmp_path)
+    assert loaded == [warning]
+
+    diff = core.diff_baselines(loaded, loaded)
+    assert diff == {"new": [], "resolved": [], "unchanged": [warning]}
+
+
+def test_validate_repo_staged_requires_git_repo(tmp_path):
+    findings = core.validate_repo(tmp_path, staged_only=True)
+
+    assert any("--staged requires a git repository." in message for message in _messages(findings))
+
+
+def test_validate_repo_accepts_profile_catalog_and_scheduler_state(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "repoShape": "auto",
+                "profiles": {
+                    "default": "feature-delivery",
+                    "catalogPath": ".cnogo/profiles",
+                    "allowPlanOverride": True,
+                },
+                "scheduler": {
+                    "enabled": True,
+                    "mode": "hybrid",
+                    "tickIntervalMinutes": 15,
+                    "opportunisticCommands": ["work-list"],
+                },
+                "packages": [],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    profiles_dir = tmp_path / ".cnogo" / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (profiles_dir / "feature-delivery.json").write_text(
+        json.dumps({"schemaVersion": 1, "name": "feature-delivery", "defaults": {}}, indent=2),
+        encoding="utf-8",
+    )
+    scheduler_dir = tmp_path / ".cnogo" / "scheduler"
+    scheduler_dir.mkdir(parents=True, exist_ok=True)
+    (scheduler_dir / "state.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "enabled": True,
+                "mode": "hybrid",
+                "tickIntervalMinutes": 15,
+                "opportunisticCommands": ["work-list"],
+                "lastRunAt": "2026-03-21T10:00:00Z",
+                "nextRunAt": "2026-03-21T10:15:00Z",
+                "lastResult": "ok",
+                "lastJobs": ["watch_patrol", "work_order_sync"],
+                "lastEvent": {"result": "ok"},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    work_orders_dir = tmp_path / ".cnogo" / "work-orders"
+    work_orders_dir.mkdir(parents=True, exist_ok=True)
+    (work_orders_dir / "demo.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "workOrderId": "demo",
+                "feature": "demo",
+                "status": "planned",
+                "currentPhase": "plan",
+                "profile": {"name": "feature-delivery"},
+                "currentRunId": "",
+                "runHistory": [],
+                "artifactPaths": {},
+                "attentionSummary": {},
+                "reviewSummary": {},
+                "shipSummary": {},
+                "nextAction": {"kind": "plan"},
+                "createdAt": "2026-03-21T10:00:00Z",
+                "updatedAt": "2026-03-21T10:00:00Z",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+    assert not any("profiles.default" in msg for msg in msgs)
+    assert not any("Scheduler state" in msg for msg in msgs)
+    assert not any("Work Order" in msg for msg in msgs)

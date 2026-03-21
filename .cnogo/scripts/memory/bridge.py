@@ -17,14 +17,21 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
 import time
 from pathlib import Path
 from typing import Any
 
 from . import storage as _st
 from .identity import generate_child_id as _child_id
-from ..workflow_utils import load_workflow
+from ..workflow.shared.config import load_workflow_config
+from ..workflow.shared.config import workflow_packages
+from ..workflow.shared.profiles import (
+    profile_mode_preference,
+    profile_require_package_checks,
+    profile_required_package_commands,
+)
+from ..workflow.shared.packages import infer_task_package as _shared_infer_task_package
+from ..workflow.shared.packages import scope_package_command
 
 _CNOGO_DIR = ".cnogo"
 _DB_NAME = "memory.db"
@@ -36,26 +43,7 @@ _MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
 
 
 def _packages_from_workflow(root: Path) -> list[dict[str, Any]]:
-    cfg = load_workflow(root)
-    packages = cfg.get("packages")
-    if not isinstance(packages, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for package in packages:
-        if not isinstance(package, dict):
-            continue
-        path = package.get("path")
-        if isinstance(path, str) and path.strip():
-            out.append(package)
-    out.sort(key=lambda item: len(str(item.get("path") or "")), reverse=True)
-    return out
-
-
-def _normalize_pkg_path(path: str) -> str:
-    normalized = path.strip()
-    if normalized.startswith("./"):
-        normalized = normalized[2:]
-    return normalized.strip("/")
+    return workflow_packages(load_workflow_config(root))
 
 
 def _infer_task_package(
@@ -64,44 +52,7 @@ def _infer_task_package(
     *,
     cwd: str | None = None,
 ) -> str | None:
-    if cwd and isinstance(cwd, str) and cwd.strip():
-        normalized_cwd = _normalize_pkg_path(cwd)
-        for package in packages:
-            package_path = package.get("path")
-            if isinstance(package_path, str) and _normalize_pkg_path(package_path) == normalized_cwd:
-                return package_path
-
-    if not files or not packages:
-        return None
-
-    matched: set[str] = set()
-    for file_path in files:
-        normalized_file = str(file_path).lstrip("./")
-        for package in packages:
-            package_path = package.get("path")
-            if not isinstance(package_path, str):
-                continue
-            base = _normalize_pkg_path(package_path)
-            if not base:
-                matched.add(package_path)
-                break
-            if normalized_file == base or normalized_file.startswith(base + "/"):
-                matched.add(package_path)
-                break
-        else:
-            matched.add("__outside__")
-    if len(matched) == 1:
-        only = next(iter(matched))
-        if only != "__outside__":
-            return only
-    return None
-
-
-def _scope_package_command(package_path: str, command: str) -> str:
-    normalized_path = _normalize_pkg_path(package_path)
-    if not normalized_path:
-        return command
-    return f"cd {shlex.quote(normalized_path)} && {command}"
+    return _shared_infer_task_package(files, packages, cwd=cwd)
 
 
 def _package_quality_gates(
@@ -110,7 +61,10 @@ def _package_quality_gates(
     verify: list[str],
     *,
     cwd: str | None = None,
+    profile: dict[str, Any] | None = None,
 ) -> list[str]:
+    if not profile_require_package_checks(profile):
+        return []
     packages = _packages_from_workflow(root)
     package_path = _infer_task_package(files, packages, cwd=cwd)
     if not package_path:
@@ -137,11 +91,11 @@ def _package_quality_gates(
         if isinstance(command, str) and command.strip()
     }
     quality_gates: list[str] = []
-    for key in ("lint", "typecheck", "test"):
+    for key in profile_required_package_commands(profile):
         command = commands.get(key)
         if not isinstance(command, str) or not command.strip():
             continue
-        scoped = _scope_package_command(package_path, command.strip())
+        scoped = scope_package_command(package_path, command.strip())
         if scoped in existing:
             continue
         existing.add(scoped)
@@ -181,6 +135,7 @@ def plan_to_task_descriptions(
     root: Path,
     *,
     ensure_memory_issues: bool = True,
+    profile: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Read an NN-PLAN.json and generate TaskDesc V2 objects.
 
@@ -224,7 +179,7 @@ def plan_to_task_descriptions(
 
         files = task.get("files", [])
         verify = task.get("verify", [])
-        package_verify = _package_quality_gates(root, files, verify, cwd=cwd)
+        package_verify = _package_quality_gates(root, files, verify, cwd=cwd, profile=profile)
         combined_verify = [
             str(command).strip()
             for command in list(verify) + package_verify
@@ -530,7 +485,11 @@ def detect_file_conflicts(
     return conflicts
 
 
-def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
+def recommend_team_mode(
+    tasks: list[dict[str, Any]],
+    *,
+    profile: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Recommend whether a plan should default to team execution.
 
     Team mode is recommended when there are 2+ tasks immediately runnable from
@@ -547,6 +506,22 @@ def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
         for idx, task in non_skipped_tasks
         if not task.get("blockedBy")
     ]
+    mode_preference = profile_mode_preference(profile)
+
+    if mode_preference == "serial":
+        return {
+            "recommended": False,
+            "reason": "Profile prefers serial execution for this kind of work.",
+            "runnableTasks": runnable_tasks,
+            "blockedTasks": [
+                task.get("plan_task_index", idx)
+                for idx, task in non_skipped_tasks
+                if task.get("blockedBy")
+            ],
+            "conflicts": [],
+            "profileModePreference": mode_preference,
+        }
+
     if len(runnable_tasks) < 2:
         return {
             "recommended": False,
@@ -561,6 +536,7 @@ def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
                 if task.get("blockedBy")
             ],
             "conflicts": [],
+            "profileModePreference": mode_preference,
         }
 
     blocked_tasks = [
@@ -572,20 +548,30 @@ def recommend_team_mode(tasks: list[dict[str, Any]]) -> dict[str, Any]:
     if conflicts:
         return {
             "recommended": False,
-            "reason": "Task file scopes overlap; keep serial unless the user explicitly asks for team mode.",
+            "reason": (
+                "Task file scopes overlap; keep serial unless the user explicitly asks for team mode."
+                if mode_preference != "team"
+                else "Profile prefers team mode, but task file scopes overlap so serial is safer."
+            ),
             "runnableTasks": runnable_tasks,
             "blockedTasks": blocked_tasks,
             "conflicts": conflicts,
+            "profileModePreference": mode_preference,
         }
     return {
         "recommended": True,
         "reason": (
-            "At least 2 tasks are runnable from the current dependency frontier, "
-            "remaining dependencies can stage later, and file scopes are disjoint."
+            "Profile prefers team execution and the runnable frontier is safe."
+            if mode_preference == "team"
+            else (
+                "At least 2 tasks are runnable from the current dependency frontier, "
+                "remaining dependencies can stage later, and file scopes are disjoint."
+            )
         ),
         "runnableTasks": runnable_tasks,
         "blockedTasks": blocked_tasks,
         "conflicts": [],
+        "profileModePreference": mode_preference,
     }
 
 

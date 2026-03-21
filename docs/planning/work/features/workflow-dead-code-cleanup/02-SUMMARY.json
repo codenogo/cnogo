@@ -5,15 +5,15 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": "docs/planning/work/archive/event-hardening/",
+      "file": "docs/planning/work/archive/event-hardening",
       "description": "Moved from docs/planning/work/features/ via git mv. REVIEW-only directory with no CONTEXT/PLANs."
     },
     {
-      "file": "docs/planning/work/archive/context-engineering-fixes/",
+      "file": "docs/planning/work/archive/context-engineering-fixes",
       "description": "Moved from docs/planning/work/features/ via git mv. CONTEXT + REVIEW but no PLANs/SUMMARYs."
     },
     {
-      "file": "docs/planning/work/archive/overstory-workflow-patterns/",
+      "file": "docs/planning/work/archive/overstory-workflow-patterns",
       "description": "Moved from docs/planning/work/features/ via git mv. 3 PLANs without SUMMARYs, last touched 2026-02-14."
     },
     {

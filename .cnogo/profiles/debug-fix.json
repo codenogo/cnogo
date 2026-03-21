@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "debug-fix",
+  "version": "1.0.0",
+  "description": "Fast-but-governed debugging profile for bug fixes that still need review and ship tracking, while allowing auto execution when task safety is clear.",
+  "defaults": {
+    "execution": {
+      "modePreference": "auto",
+      "preferTeamWhenSafe": true
+    },
+    "verify": {
+      "requirePackageChecks": true,
+      "requiredPackageCommands": ["lint", "typecheck", "test"]
+    },
+    "review": {
+      "autoSpawnConfiguredReviewers": true,
+      "requiredReviewers": ["code-reviewer"]
+    },
+    "ship": {
+      "requireTracking": true,
+      "requirePullRequest": true
+    },
+    "watch": {
+      "staleMinutes": 10,
+      "reviewStaleMinutes": 45
+    }
+  }
+}

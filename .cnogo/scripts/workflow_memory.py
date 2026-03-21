@@ -32,11 +32,47 @@ Commands:
     history <id>        Show recent event history for an issue
     phase-get <feature> Get current workflow phase for feature
     phase-set <feature> Set workflow phase for feature
+    run-create          Create or resume a durable delivery run
+    run-list            List delivery runs across features
+    run-show            Show a delivery run
+    work-show           Show the feature-level Work Order
+    work-list           List Work Orders across features
+    work-sync           Rebuild Work Order rollups
+    work-next           Show the next feature-level action
+    run-watch           Inspect delivery-run health and next actions
+    run-watch-status    Show recurring watch schedule status and patrol state
+    run-watch-tick      Run the recurring watch patrol only when due (or when forced)
+    run-watch-patrol    Refresh watch artifacts, archive a patrol snapshot, and show deltas
+    run-watch-history   Show archived watch patrol snapshots
+    run-attention       Show the persisted needs-attention queue
+    scheduler-status    Show hybrid scheduler state
+    scheduler-run-once  Run due scheduler jobs one time
+    scheduler-start     Start the optional local scheduler supervisor
+    scheduler-stop      Stop the optional local scheduler supervisor
+    run-refresh         Refresh task frontier for a delivery run
+    run-next            Show the next ready tasks for a delivery run
+    run-task-begin      Claim memory ownership and mark a task in progress
+    run-task-complete   Report memory completion and mark a task done
+    run-task-fail       Mark a delivery-run task as failed
+    run-task-set        Update a delivery-run task state
+    run-plan-verify     Record plan verification outcome for a delivery run
+    run-review-start    Start or resume review state for a delivery run
+    run-review-stage-set Update one review stage on a delivery run
+    run-review-verdict  Set the final review verdict on a delivery run
+    run-review-sync     Sync a delivery run from REVIEW.json
+    run-ship-start      Start ship state for a delivery run
+    run-ship-complete   Record successful ship completion on a delivery run
+    run-ship-fail       Record a failed ship attempt on a delivery run
+    run-sync-session    Sync a delivery run from worktree-session state
     graph <feature>     Show dependency graph
     session-status      Show active worktree session status
     session-merge       Merge active worktree session branches
     session-cleanup     Cleanup active worktree session
     session-reconcile   Fix orphaned issues after compaction
+    profile-suggest     Suggest the best workflow profile for a feature/plan
+    profile-list        List available workflow profiles
+    profile-init        Create a repo-local profile scaffold
+    profile-stamp       Stamp a profile onto a plan and rerender it
     graph-index         Index codebase into context graph
     graph-query <name>  Search for symbols by name
     graph-impact <file> Analyze change impact (BFS blast radius)
@@ -58,6 +94,7 @@ except ImportError:
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -89,42 +126,104 @@ def _ensure_graph_venv() -> None:
 
 
 from scripts.memory import (  # noqa: E402
+    begin_delivery_run_task,
     blocks,
     blockers,
+    build_delivery_run_attention_queue,
+    build_work_order,
     checkpoint,
     claim,
     cleanup_session,
     close,
+    complete_delivery_run_task,
+    complete_delivery_run_ship,
     create,
+    delivery_run_watch_schedule_status,
+    ensure_delivery_run,
     dep_add,
     dep_remove,
+    fail_delivery_run_task,
+    fail_delivery_run_ship,
+    filter_delivery_run_attention_queue,
     export_jsonl,
     get_cost_summary,
     import_jsonl,
     init,
     is_initialized,
     history,
+    latest_delivery_run,
+    load_delivery_run_attention_queue,
+    load_delivery_run_watch_history,
+    list_delivery_runs,
     list_issues,
+    list_work_orders,
+    load_delivery_run,
+    load_delivery_run_watch_report,
+    load_work_order,
     load_session,
+    next_delivery_run_action,
+    next_work_order_action,
+    plan_to_task_descriptions,
+    persist_delivery_run_watch_report,
     get_phase,
     merge_session,
     prime,
     ready,
+    record_delivery_run_plan_verification,
+    refresh_delivery_run,
     reconcile_session,
+    recommend_team_mode,
     record_cost_event,
+    run_delivery_run_watch_tick,
+    run_scheduler_once,
     release,
     reopen,
     report_done,
+    scheduler_status,
+    set_delivery_run_review_verdict,
+    start_scheduler_supervisor,
+    sync_delivery_run_integration,
+    sync_delivery_run_review,
+    sync_delivery_run_with_session,
     show,
     show_graph,
     stalled_tasks,
+    start_delivery_run_ship,
+    start_delivery_run_review,
     stats,
     set_phase,
+    summarize_delivery_run,
     sync,
+    sync_all_work_orders,
+    sync_work_order,
     takeover_task,
+    stop_scheduler_supervisor,
     update,
+    update_delivery_run_review_stage,
+    update_delivery_task_status,
     verify_and_close,
+    watch_delivery_runs,
 )
+from scripts.workflow.orchestration import (
+    DELIVERY_REVIEW_STAGE_STATUSES,
+    DELIVERY_REVIEW_STAGES,
+    DELIVERY_REVIEW_VERDICTS,
+    SCHEDULER_JOB_NAMES,
+    scheduler_worker_loop,
+    DELIVERY_TASK_STATUSES,
+)
+from scripts.workflow.shared.config import load_workflow_config, scheduler_settings_cfg, watch_settings_cfg
+from scripts.workflow.shared.profiles import (
+    load_profile_catalog,
+    is_profile_name,
+    profile_auto_spawn_configured_reviewers,
+    profile_name_from_plan,
+    profile_required_reviewers,
+    resolve_profile,
+    scaffold_profile_contract,
+    suggest_profile,
+)
+from scripts.workflow.shared.plans import normalize_plan_number
 
 
 def _root() -> Path:
@@ -134,6 +233,422 @@ def _root() -> Path:
         if (p / ".git").exists():
             return p
     return cwd
+
+
+def _git_branch(root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _plan_contract_path(root: Path, feature: str, plan_number: str) -> Path:
+    normalized = normalize_plan_number(plan_number)
+    return root / "docs" / "planning" / "work" / "features" / feature / f"{normalized}-PLAN.json"
+
+
+def _context_contract_path(root: Path, feature: str) -> Path:
+    return root / "docs" / "planning" / "work" / "features" / feature / "CONTEXT.json"
+
+
+def _load_json_contract(path: Path) -> dict[str, object] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _resolve_run(root: Path, feature: str, run_id: str | None):
+    if run_id:
+        return load_delivery_run(feature, run_id, root=root)
+    return latest_delivery_run(feature, root=root)
+
+
+def _print_run(run) -> None:
+    status_counts: dict[str, int] = {}
+    for task in run.tasks:
+        status_counts[task.status] = status_counts.get(task.status, 0) + 1
+    print(f"Run: {run.run_id}")
+    print(f"Feature: {run.feature}")
+    print(f"Plan: {run.plan_number}")
+    print(f"Mode: {run.mode}")
+    print(f"Status: {run.status}")
+    profile = run.profile if isinstance(getattr(run, "profile", None), dict) else {}
+    if profile:
+        profile_name = str(profile.get("name", "")).strip() or "unknown"
+        profile_version = str(profile.get("version", "")).strip()
+        version_suffix = f" v{profile_version}" if profile_version else ""
+        print(f"Profile: {profile_name}{version_suffix}")
+    if run.branch:
+        print(f"Branch: {run.branch}")
+    integration = run.integration if isinstance(getattr(run, "integration", None), dict) else {}
+    review = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    if integration:
+        print(
+            "Integration: "
+            f"{integration.get('status', 'pending')} "
+            f"(merged={len(integration.get('mergedTaskIndices', []))}, "
+            f"awaiting_merge={len(integration.get('awaitingMergeTaskIndices', []))})"
+        )
+        if integration.get("conflictTaskIndex") is not None or integration.get("conflictFiles"):
+            print(
+                "Integration conflicts: "
+                f"task={integration.get('conflictTaskIndex')} "
+                f"files={integration.get('conflictFiles', [])}"
+            )
+    if review:
+        print(
+            "Review readiness: "
+            f"{review.get('status', 'pending')} "
+            f"(plan_verify={review.get('planVerifyPassed')})"
+        )
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    if review_state:
+        print(
+            "Review: "
+            f"{review_state.get('status', 'pending')} "
+            f"(automated={review_state.get('automatedVerdict', 'pending')}, "
+            f"final={review_state.get('finalVerdict', 'pending')})"
+        )
+        reviewers = review_state.get("reviewers", [])
+        if isinstance(reviewers, list) and reviewers:
+            print(f"Reviewers: {reviewers}")
+        for stage in review_state.get("stages", []) if isinstance(review_state.get("stages"), list) else []:
+            if not isinstance(stage, dict):
+                continue
+            print(
+                f"  - {stage.get('stage')}: {stage.get('status', 'pending')} "
+                f"(findings={len(stage.get('findings', [])) if isinstance(stage.get('findings'), list) else 0}, "
+                f"evidence={len(stage.get('evidence', [])) if isinstance(stage.get('evidence'), list) else 0})"
+            )
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    if ship_state:
+        print(
+            "Ship: "
+            f"{ship_state.get('status', 'pending')} "
+            f"(attempts={ship_state.get('attempts', 0)}, "
+            f"commit={ship_state.get('commit', '') or 'n/a'})"
+        )
+        if ship_state.get("prUrl"):
+            print(f"Ship PR: {ship_state.get('prUrl')}")
+    if status_counts:
+        print(f"Task status counts: {status_counts}")
+    for task in run.tasks:
+        suffix = f" @{task.assignee}" if task.assignee else ""
+        print(f"- Task {task.task_index}: {task.title} [{task.status}{suffix}]")
+
+
+def _print_run_list(entries: list[dict]) -> None:
+    if not entries:
+        print("No delivery runs found")
+        return
+    for entry in entries:
+        updated = entry.get("minutesSinceUpdate")
+        updated_label = f"{updated}m" if updated is not None else "n/a"
+        print(
+            f"{entry['feature']} {entry['runId']} "
+            f"[{entry['status']}/{entry['mode']}] "
+            f"profile={entry.get('profileName', 'unknown')} "
+            f"integration={entry['integrationStatus']} "
+            f"review={entry['reviewReadiness']} "
+            f"review_state={entry.get('reviewStatus', 'pending')} "
+            f"ship={entry.get('shipStatus', 'pending')} "
+            f"updated={updated_label}"
+        )
+        if entry.get("workOrderId"):
+            print(f"  work-order={entry['workOrderId']}")
+        if entry.get("attentionKinds"):
+            print(
+                "  attention="
+                f"{entry.get('attentionMaxSeverity', 'warn')}:"
+                + ",".join(str(kind) for kind in entry.get("attentionKinds", []))
+            )
+            if entry.get("attentionNextAction"):
+                print(f"  next={entry['attentionNextAction']}")
+
+
+def _print_watch_report(report: dict) -> None:
+    summary = report.get("summary", {})
+    print(
+        f"Delivery Runs: {summary.get('totalRuns', 0)} "
+        f"status_counts={summary.get('statusCounts', {})} "
+        f"work_orders={summary.get('totalWorkOrders', 0)}"
+    )
+    findings = report.get("findings", [])
+    if not findings:
+        print("No watch findings")
+    else:
+        print("Findings:")
+        for finding in findings:
+            location = ""
+            if finding.get("feature") and finding.get("runId"):
+                location = f"{finding['feature']}/{finding['runId']} "
+            print(
+                f"- {finding.get('severity', 'warn').upper()} "
+                f"{location}{finding.get('kind')}: {finding.get('message')}"
+            )
+            print(f"  next: {finding.get('nextAction')}")
+    paths = report.get("paths", {})
+    if isinstance(paths, dict):
+        if paths.get("report"):
+            print(f"Report: {paths['report']}")
+        if paths.get("attention"):
+            print(f"Attention: {paths['attention']}")
+
+
+def _print_work_order(order: dict) -> None:
+    print(f"Work Order: {order.get('workOrderId', '')}")
+    print(f"Feature: {order.get('feature', '')}")
+    print(f"Status: {order.get('status', '')}")
+    print(f"Phase: {order.get('currentPhase', '')}")
+    profile = order.get("profile", {})
+    if isinstance(profile, dict) and profile.get("name"):
+        version = str(profile.get("version", "")).strip()
+        suffix = f" v{version}" if version else ""
+        print(f"Profile: {profile.get('name')}{suffix}")
+    if order.get("currentRunId"):
+        print(f"Current Run: {order['currentRunId']}")
+    attention = order.get("attentionSummary", {})
+    if isinstance(attention, dict):
+        print(
+            "Attention: "
+            f"items={attention.get('itemCount', 0)} "
+            f"highest={attention.get('highestSeverity', 'ok')}"
+        )
+    review = order.get("reviewSummary", {})
+    if isinstance(review, dict):
+        print(
+            "Review: "
+            f"{review.get('status', 'pending')} "
+            f"(final={review.get('finalVerdict', 'pending')})"
+        )
+    ship = order.get("shipSummary", {})
+    if isinstance(ship, dict):
+        print(
+            "Ship: "
+            f"{ship.get('status', 'pending')} "
+            f"(attempts={ship.get('attempts', 0)})"
+        )
+    next_action = order.get("nextAction", {})
+    if isinstance(next_action, dict) and next_action.get("summary"):
+        print(f"Next: {next_action['summary']}")
+        if next_action.get("command"):
+            print(f"Command: {next_action['command']}")
+
+
+def _print_work_order_list(entries: list[dict]) -> None:
+    if not entries:
+        print("No work orders found")
+        return
+    for entry in entries:
+        print(
+            f"{entry.get('workOrderId', '')} "
+            f"[{entry.get('status', '')}/{entry.get('currentPhase', '')}] "
+            f"profile={entry.get('profile', {}).get('name', 'unknown') if isinstance(entry.get('profile'), dict) else 'unknown'} "
+            f"run={entry.get('currentRunId', '') or 'n/a'}"
+        )
+        attention = entry.get("attentionSummary", {})
+        if isinstance(attention, dict) and attention.get("itemCount", 0):
+            print(
+                "  attention="
+                f"{attention.get('highestSeverity', 'warn')}:"
+                f"{attention.get('itemCount', 0)}"
+            )
+        next_action = entry.get("nextAction", {})
+        if isinstance(next_action, dict) and next_action.get("command"):
+            print(f"  next={next_action['command']}")
+
+
+def _print_watch_schedule(payload: dict) -> None:
+    print(
+        "Watch schedule: "
+        f"enabled={payload.get('enabled')} "
+        f"due={payload.get('due')} "
+        f"interval={payload.get('patrolIntervalMinutes')}m"
+    )
+    if payload.get("reason"):
+        print(f"Reason: {payload['reason']}")
+    if payload.get("lastPatrolAt"):
+        print(f"Last patrol: {payload['lastPatrolAt']}")
+    if payload.get("nextPatrolAt"):
+        print(f"Next patrol: {payload['nextPatrolAt']}")
+    if payload.get("lastResult"):
+        print(f"Last result: {payload['lastResult']}")
+    summary = payload.get("lastAttentionSummary", {})
+    if isinstance(summary, dict):
+        print(
+            "Attention summary: "
+            f"total={summary.get('totalItems', 0)} "
+            f"highest={summary.get('highestSeverity', 'ok')}"
+        )
+    if payload.get("statePath"):
+        print(f"State: {payload['statePath']}")
+    if payload.get("reportPath"):
+        print(f"Report: {payload['reportPath']}")
+    if payload.get("attentionPath"):
+        print(f"Attention: {payload['attentionPath']}")
+
+
+def _print_attention_queue(queue: dict) -> None:
+    summary = queue.get("summary", {})
+    print(
+        f"Attention Queue: {summary.get('totalItems', 0)} "
+        f"severity_counts={summary.get('severityCounts', {})} "
+        f"matched={summary.get('matchedItems', summary.get('totalItems', 0))}"
+    )
+    items = queue.get("items", [])
+    if not items:
+        print("No attention items")
+        return
+    for item in items:
+        location = ""
+        if item.get("feature") and item.get("runId"):
+            location = f"{item['feature']}/{item['runId']} "
+        stale = item.get("minutesStale")
+        stale_label = f" ({stale:.1f}m stale)" if isinstance(stale, (int, float)) else ""
+        print(
+            f"- {item.get('severity', 'warn').upper()} "
+            f"{location}{item.get('kind')}{stale_label}: {item.get('message')}"
+        )
+        print(f"  next: {item.get('nextAction')}")
+
+
+def _print_profile_suggestion(suggestion: dict) -> None:
+    confidence = suggestion.get("confidence")
+    confidence_label = f"{float(confidence):.2f}" if isinstance(confidence, (int, float)) else "n/a"
+    print(f"Suggested profile: {suggestion.get('name', 'feature-delivery')}")
+    print(f"Confidence: {confidence_label}")
+    if suggestion.get("reason"):
+        print(f"Reason: {suggestion['reason']}")
+    matched_terms = suggestion.get("matchedTerms", [])
+    if isinstance(matched_terms, list) and matched_terms:
+        print("Matched terms: " + ", ".join(str(term) for term in matched_terms))
+
+
+def _print_watch_patrol(payload: dict) -> None:
+    report = payload.get("report", {})
+    delta = payload.get("delta", {})
+    _print_watch_report(report if isinstance(report, dict) else {})
+    summary = delta.get("summary", {}) if isinstance(delta, dict) else {}
+    print(
+        "Patrol delta: "
+        f"new={summary.get('new', 0)} "
+        f"resolved={summary.get('resolved', 0)} "
+        f"ongoing={summary.get('ongoing', 0)}"
+    )
+
+
+def _print_watch_history(entries: list[dict]) -> None:
+    if not entries:
+        print("No watch history snapshots")
+        return
+    for entry in entries:
+        attention = entry.get("attentionSummary", {})
+        delta = entry.get("deltaSummary", {})
+        print(
+            f"{entry.get('checkedAt', 'unknown')} "
+            f"attention={attention.get('totalItems', 0)} "
+            f"new={delta.get('new', 0)} "
+            f"resolved={delta.get('resolved', 0)} "
+            f"path={entry.get('path', '')}"
+        )
+
+
+def _print_profile_catalog(entries: list[dict]) -> None:
+    if not entries:
+        print("No profiles available")
+        return
+    for entry in entries:
+        print(
+            f"- {entry.get('name', 'unknown')} "
+            f"(v{entry.get('version', '1.0.0')}, source={entry.get('source', 'builtin')})"
+        )
+        if entry.get("description"):
+            print(f"  {entry['description']}")
+
+
+def _print_run_next(payload: dict) -> None:
+    print(
+        f"Run: {payload.get('feature', '')}/{payload.get('runId', '')} "
+        f"[{payload.get('status', '')}/{payload.get('mode', '')}]"
+    )
+    next_action = payload.get("nextAction", {})
+    if isinstance(next_action, dict) and next_action.get("kind"):
+        print(f"Next action: {next_action.get('kind')}")
+        if next_action.get("reason"):
+            print(f"Reason: {next_action.get('reason')}")
+        if next_action.get("command"):
+            print(f"Command: {next_action.get('command')}")
+    ready_tasks = payload.get("readyTasks", [])
+    if not isinstance(ready_tasks, list) or not ready_tasks:
+        print("No ready tasks")
+        return
+    for task in ready_tasks:
+        if not isinstance(task, dict):
+            continue
+        print(f"- Task {task.get('taskIndex')}: {task.get('title')} [{task.get('status')}]")
+        if task.get("memoryId"):
+            print(f"  memory: {task['memoryId']}")
+        if task.get("cwd"):
+            print(f"  cwd: {task['cwd']}")
+        begin_cmd = task.get("beginCommand")
+        if begin_cmd:
+            print(f"  begin: {begin_cmd}")
+
+
+def _print_scheduler_status(payload: dict) -> None:
+    print(
+        "Scheduler: "
+        f"enabled={payload.get('enabled')} "
+        f"mode={payload.get('mode')} "
+        f"due={payload.get('due')} "
+        f"interval={payload.get('tickIntervalMinutes')}m"
+    )
+    if payload.get("reason"):
+        print(f"Reason: {payload['reason']}")
+    if payload.get("supervisorActive"):
+        print(f"Supervisor PID: {payload.get('workerPid')}")
+    if payload.get("lastRunAt"):
+        print(f"Last run: {payload['lastRunAt']}")
+    if payload.get("nextRunAt"):
+        print(f"Next run: {payload['nextRunAt']}")
+    if payload.get("lastJobs"):
+        print("Last jobs: " + ", ".join(str(job) for job in payload["lastJobs"]))
+
+
+def _print_scheduler_run(payload: dict) -> None:
+    _print_scheduler_status(payload.get("status", {}))
+    if payload.get("executed"):
+        print("Executed jobs:")
+        for name, result in payload.get("jobs", {}).items():
+            if name == "work_order_sync":
+                print(f"- {name}: {result.get('count', 0)} work orders synced")
+            elif name == "watch_patrol":
+                attention = result.get("attention", {}) if isinstance(result, dict) else {}
+                items = attention.get("items", []) if isinstance(attention, dict) else []
+                print(f"- {name}: {len(items) if isinstance(items, list) else 0} attention items")
+            else:
+                print(f"- {name}")
+    elif payload.get("reason"):
+        print(f"Skipped: {payload['reason']}")
+
+
+def _find_run_task(run, task_index: int):
+    return next((task for task in run.tasks if task.task_index == task_index), None)
+
+
+def _ready_run_tasks(run) -> list:
+    return [task for task in run.tasks if getattr(task, "status", "") == "ready"]
 
 
 def _print_issue(issue, *, verbose: bool = False) -> None:
@@ -551,6 +1066,7 @@ def cmd_phase_set(args: argparse.Namespace) -> int:
     root = _root()
     try:
         count = set_phase(args.feature, args.phase, root=root)
+        sync_work_order(args.feature, root=root)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -571,8 +1087,19 @@ def cmd_graph(args: argparse.Namespace) -> int:
 def cmd_session_status(args: argparse.Namespace) -> int:
     root = _root()
     session = load_session(root)
+    linked_run = None
+    if session and session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
     if args.json:
-        _print_json(session.to_dict() if session else {"session": None})
+        if not session:
+            _print_json({"session": None})
+            return 0
+        payload = session.to_dict()
+        payload["deliveryRun"] = linked_run.to_dict() if linked_run else None
+        _print_json(payload)
         return 0
     if not session:
         print("No active worktree session")
@@ -582,6 +1109,37 @@ def cmd_session_status(args: argparse.Namespace) -> int:
     print(f"Feature: {session.feature}")
     print(f"Plan: {session.plan_number}")
     print(f"Phase: {session.phase}")
+    if session.run_id:
+        if linked_run and linked_run.run_id == session.run_id:
+            print(f"Delivery Run: {linked_run.run_id} [{linked_run.status}, {linked_run.mode}]")
+        else:
+            print(f"Delivery Run: {session.run_id} [missing]")
+    elif linked_run:
+        print(f"Delivery Run: {linked_run.run_id} [{linked_run.status}, {linked_run.mode}]")
+    if linked_run:
+        integration = linked_run.integration if isinstance(linked_run.integration, dict) else {}
+        review = linked_run.review_readiness if isinstance(linked_run.review_readiness, dict) else {}
+        review_state = linked_run.review if isinstance(getattr(linked_run, "review", None), dict) else {}
+        if integration:
+            print(
+                "Integration: "
+                f"{integration.get('status', 'pending')} "
+                f"(merged={len(integration.get('mergedTaskIndices', []))}, "
+                f"awaiting_merge={len(integration.get('awaitingMergeTaskIndices', []))})"
+            )
+        if review:
+            print(
+                "Review readiness: "
+                f"{review.get('status', 'pending')} "
+                f"(plan_verify={review.get('planVerifyPassed')})"
+            )
+        if review_state:
+            print(
+                "Review: "
+                f"{review_state.get('status', 'pending')} "
+                f"(automated={review_state.get('automatedVerdict', 'pending')}, "
+                f"final={review_state.get('finalVerdict', 'pending')})"
+            )
     print(f"Progress: {done}/{total}")
     for wt in session.worktrees:
         print(f"- Task {wt.task_index}: {wt.name} [{wt.status}]")
@@ -599,6 +1157,21 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
             print(payload["error"])
         return 1
     result = merge_session(session, root)
+    updated_session = load_session(root) or session
+    linked_run = None
+    if session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
+    if linked_run is not None:
+        linked_run = sync_delivery_run_with_session(linked_run, updated_session, root=root)
+        linked_run = sync_delivery_run_integration(
+            linked_run,
+            session=updated_session,
+            merge_result=result,
+            root=root,
+        )
     tiers = {}
     for wt in session.worktrees:
         if wt.task_index in result.merged_indices:
@@ -611,6 +1184,8 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
         "error": "",
         "tiers": tiers,
     }
+    if linked_run is not None:
+        payload["deliveryRun"] = linked_run.to_dict()
     if args.json:
         _print_json(payload)
     else:
@@ -623,6 +1198,17 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
             tier_counts[t] = tier_counts.get(t, 0) + 1
         if tier_counts:
             print(f"Resolution tiers: {tier_counts}")
+        if linked_run is not None:
+            print(
+                "Delivery Run integration: "
+                f"{linked_run.integration.get('status', 'pending')} "
+                f"(merged={len(linked_run.integration.get('mergedTaskIndices', []))})"
+            )
+            print(
+                "Delivery Run review readiness: "
+                f"{linked_run.review_readiness.get('status', 'pending')} "
+                f"(plan_verify={linked_run.review_readiness.get('planVerifyPassed')})"
+            )
     return 0 if result.success else 1
 
 
@@ -632,7 +1218,16 @@ def cmd_session_cleanup(args: argparse.Namespace) -> int:
     if not session:
         print("No active worktree session")
         return 0
+    linked_run = None
+    if session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
     cleanup_session(session, root)
+    if linked_run is not None:
+        linked_run = sync_delivery_run_with_session(linked_run, session, root=root)
+        sync_delivery_run_integration(linked_run, session=session, root=root)
     print("Worktrees cleaned")
     return 0
 
@@ -655,6 +1250,1025 @@ def cmd_session_reconcile(args: argparse.Namespace) -> int:
             print("No orphaned issues found")
         else:
             print(f"\nTotal: {len(result.get('reconciled', []))} closed, {len(result.get('skipped', []))} skipped, {len(result.get('errors', []))} errors")
+    return 0
+
+
+def cmd_run_create(args: argparse.Namespace) -> int:
+    root = _root()
+    plan_path = _plan_contract_path(root, args.feature, args.plan)
+    if not plan_path.exists():
+        print(f"Plan contract not found: {plan_path}", file=sys.stderr)
+        return 1
+    try:
+        plan_contract = json.loads(plan_path.read_text(encoding="utf-8"))
+        if not isinstance(plan_contract, dict):
+            raise ValueError("plan contract must be a JSON object")
+        profile = resolve_profile(root, plan_contract=plan_contract)
+        taskdescs = plan_to_task_descriptions(plan_path, root, profile=profile)
+    except Exception as exc:
+        print(f"Error: failed to load plan tasks: {exc}", file=sys.stderr)
+        return 1
+    recommendation = recommend_team_mode(taskdescs, profile=profile)
+    mode = args.mode
+    if mode == "auto":
+        mode = "team" if recommendation.get("recommended") else "serial"
+    run = ensure_delivery_run(
+        feature=args.feature,
+        plan_number=normalize_plan_number(args.plan),
+        plan_path=plan_path,
+        task_descriptions=taskdescs,
+        mode=mode,
+        run_id=args.run_id,
+        started_by=args.actor,
+        branch=args.branch or _git_branch(root),
+        recommendation=recommendation,
+        profile=profile,
+        resume_latest=not args.no_resume_latest,
+        root=root,
+    )
+    set_phase(args.feature, "implement", root=root)
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_list(args: argparse.Namespace) -> int:
+    root = _root()
+    statuses = set(args.status or []) if args.status else None
+    runs = list_delivery_runs(
+        feature_slug=args.feature,
+        statuses=statuses,
+        mode=args.mode,
+        include_terminal=args.all,
+        root=root,
+    )
+    payload = [summarize_delivery_run(run, root=root) for run in runs]
+    if args.needs_attention:
+        queue = load_delivery_run_attention_queue(root=root)
+        if queue is None:
+            report = watch_delivery_runs(
+                feature_slug=args.feature,
+                root=root,
+            )
+            queue = build_delivery_run_attention_queue(report)
+        if args.feature:
+            queue = filter_delivery_run_attention_queue(queue, feature_slug=args.feature, root=root)
+        attention_by_run: dict[tuple[str, str], list[dict]] = {}
+        run_priority: dict[tuple[str, str], int] = {}
+        for item in queue.get("items", []) if isinstance(queue.get("items"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            key = (str(item.get("feature", "")), str(item.get("runId", "")))
+            attention_by_run.setdefault(key, []).append(item)
+            run_priority.setdefault(key, len(run_priority))
+        filtered_payload: list[dict] = []
+        for entry in payload:
+            key = (str(entry.get("feature", "")), str(entry.get("runId", "")))
+            if key not in attention_by_run:
+                continue
+            entry = dict(entry)
+            items = attention_by_run[key]
+            entry["attentionKinds"] = [str(item.get("kind", "")) for item in items]
+            entry["attentionMaxSeverity"] = "fail" if any(item.get("severity") == "fail" for item in items) else "warn"
+            entry["attentionNextAction"] = str(items[0].get("nextAction", "")).strip() if items else ""
+            entry["workOrderId"] = str(items[0].get("workOrderId", entry.get("feature", ""))).strip() if items else str(entry.get("feature", ""))
+            stale_minutes = [
+                float(item.get("minutesStale"))
+                for item in items
+                if isinstance(item.get("minutesStale"), (int, float))
+            ]
+            if stale_minutes:
+                entry["attentionMinutesStale"] = max(stale_minutes)
+            filtered_payload.append(entry)
+        payload = sorted(
+            filtered_payload,
+            key=lambda entry: run_priority.get((str(entry.get("feature", "")), str(entry.get("runId", ""))), len(run_priority)),
+        )
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_run_list(payload)
+    return 0
+
+
+def cmd_run_show(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_work_show(args: argparse.Namespace) -> int:
+    root = _root()
+    order = sync_work_order(args.feature, root=root)
+    payload = order.to_dict()
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_work_order(payload)
+    return 0
+
+
+def cmd_work_list(args: argparse.Namespace) -> int:
+    root = _root()
+    entries = [order.to_dict() for order in sync_all_work_orders(feature_slug=args.feature, root=root)]
+    if args.needs_attention:
+        entries = [
+            entry
+            for entry in entries
+            if isinstance(entry.get("attentionSummary"), dict)
+            and int(entry["attentionSummary"].get("itemCount", 0) or 0) > 0
+        ]
+        entries.sort(
+            key=lambda entry: (
+                0 if str(entry.get("attentionSummary", {}).get("highestSeverity", "ok")) == "fail" else 1,
+                -int(entry.get("attentionSummary", {}).get("itemCount", 0) or 0),
+                str(entry.get("workOrderId", "")),
+            )
+        )
+    if args.json:
+        _print_json(entries)
+    else:
+        _print_work_order_list(entries)
+    return 0
+
+
+def cmd_work_sync(args: argparse.Namespace) -> int:
+    root = _root()
+    if args.feature:
+        order = sync_work_order(args.feature, root=root)
+        payload = order.to_dict()
+    else:
+        payload = [order.to_dict() for order in sync_all_work_orders(root=root)]
+    if args.json:
+        _print_json(payload)
+    else:
+        if isinstance(payload, list):
+            _print_work_order_list(payload)
+        else:
+            _print_work_order(payload)
+    return 0
+
+
+def cmd_work_next(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = {
+        "feature": args.feature,
+        "nextAction": next_work_order_action(args.feature, root=root),
+        "workOrder": sync_work_order(args.feature, root=root).to_dict(),
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        next_action = payload["nextAction"]
+        print(f"Work Order: {args.feature}")
+        print(f"Next action: {next_action.get('kind', '')}")
+        if next_action.get("summary"):
+            print(f"Summary: {next_action['summary']}")
+        if next_action.get("command"):
+            print(f"Command: {next_action['command']}")
+    return 0
+
+
+def cmd_run_watch(args: argparse.Namespace) -> int:
+    root = _root()
+    report = watch_delivery_runs(
+        feature_slug=args.feature,
+        stale_minutes=args.stale_minutes,
+        review_stale_minutes=args.review_stale_minutes,
+        include_terminal=args.all,
+        root=root,
+    )
+    if not args.no_write:
+        report = persist_delivery_run_watch_report(report, root=root)["report"]
+    if args.json:
+        _print_json(report)
+    else:
+        _print_watch_report(report)
+    findings = report.get("findings", [])
+    return 1 if any(finding.get("severity") == "fail" for finding in findings) else 0
+
+
+def cmd_run_watch_status(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = delivery_run_watch_schedule_status(root=root)
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_watch_schedule(payload)
+    summary = payload.get("lastAttentionSummary", {})
+    if isinstance(summary, dict) and summary.get("highestSeverity") == "fail":
+        return 1
+    return 0
+
+
+def cmd_run_watch_tick(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = run_scheduler_once(
+        jobs=["watch_patrol"],
+        force=args.force,
+        triggered_by="manual-watch",
+        root=root,
+    )
+    jobs = payload.get("jobs", {}) if isinstance(payload.get("jobs"), dict) else {}
+    watch_payload = jobs.get("watch_patrol", {}) if isinstance(jobs.get("watch_patrol"), dict) else {}
+    display_payload = dict(watch_payload) if isinstance(watch_payload, dict) else {}
+    display_payload.setdefault("scheduler", payload.get("status", {}))
+    display_payload.setdefault("executed", payload.get("executed", False))
+    display_payload.setdefault("schedule", delivery_run_watch_schedule_status(root=root))
+    if payload.get("reason") and "reason" not in display_payload:
+        display_payload["reason"] = payload["reason"]
+    if args.json:
+        _print_json(display_payload)
+    else:
+        _print_watch_schedule(display_payload.get("schedule", {}))
+        if display_payload.get("executed"):
+            _print_watch_patrol(display_payload)
+        elif display_payload.get("reason"):
+            print(f"Tick skipped: {display_payload['reason']}")
+    attention = watch_payload.get("attention", {}) if isinstance(watch_payload, dict) else {}
+    items = attention.get("items", []) if isinstance(attention, dict) else []
+    if isinstance(items, list) and any(
+        isinstance(item, dict) and item.get("severity") == "fail" for item in items
+    ):
+        return 1
+    return 0
+
+
+def cmd_run_attention(args: argparse.Namespace) -> int:
+    root = _root()
+    effective_limit = args.limit
+    if effective_limit is None:
+        effective_limit = watch_settings_cfg(load_workflow_config(root)).get("attentionLimit")
+    force_refresh = bool(args.refresh or args.stale_minutes or args.review_stale_minutes or args.all)
+    queue = None if force_refresh else load_delivery_run_attention_queue(root=root)
+    if queue is None and not force_refresh:
+        report = load_delivery_run_watch_report(root=root)
+        if report is not None:
+            queue = build_delivery_run_attention_queue(report)
+    if queue is None:
+        report = watch_delivery_runs(
+            feature_slug=args.feature,
+            stale_minutes=args.stale_minutes,
+            review_stale_minutes=args.review_stale_minutes,
+            include_terminal=args.all,
+            root=root,
+        )
+        if args.no_write:
+            queue = build_delivery_run_attention_queue(report)
+        else:
+            queue = persist_delivery_run_watch_report(report, root=root)["attention"]
+    queue = filter_delivery_run_attention_queue(
+        queue,
+        feature_slug=args.feature,
+        severities=set(args.severity or []) if args.severity else None,
+        kinds=set(args.kind or []) if args.kind else None,
+        limit=effective_limit,
+        root=root,
+    )
+    if args.json:
+        _print_json(queue)
+    else:
+        _print_attention_queue(queue)
+    items = queue.get("items", [])
+    if isinstance(items, list) and any(
+        isinstance(item, dict) and item.get("severity") == "fail" for item in items
+    ):
+        return 1
+    return 0
+
+
+def cmd_run_watch_patrol(args: argparse.Namespace) -> int:
+    root = _root()
+    report = watch_delivery_runs(
+        feature_slug=args.feature,
+        stale_minutes=args.stale_minutes,
+        review_stale_minutes=args.review_stale_minutes,
+        include_terminal=args.all,
+        root=root,
+    )
+    persisted = persist_delivery_run_watch_report(report, root=root)
+    payload = {
+        "report": persisted["report"],
+        "attention": persisted["attention"],
+        "delta": persisted.get("delta", {}),
+        "snapshot": persisted.get("snapshot", {}),
+    }
+    if args.feature:
+        payload["attention"] = filter_delivery_run_attention_queue(
+            payload["attention"],
+            feature_slug=args.feature,
+            root=root,
+        )
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_watch_patrol(payload)
+    items = payload.get("attention", {}).get("items", [])
+    if isinstance(items, list) and any(
+        isinstance(item, dict) and item.get("severity") == "fail" for item in items
+    ):
+        return 1
+    return 0
+
+
+def cmd_run_watch_history(args: argparse.Namespace) -> int:
+    root = _root()
+    history = load_delivery_run_watch_history(limit=args.limit, root=root)
+    if args.json:
+        _print_json(history)
+    else:
+        _print_watch_history(history)
+    return 0
+
+
+def cmd_scheduler_status(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = scheduler_status(root=root)
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_scheduler_status(payload)
+    return 0
+
+
+def cmd_scheduler_run_once(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = run_scheduler_once(
+        jobs=list(args.job or []) or None,
+        force=args.force,
+        triggered_by="manual",
+        root=root,
+    )
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_scheduler_run(payload)
+    jobs = payload.get("jobs", {})
+    watch_result = jobs.get("watch_patrol", {}) if isinstance(jobs, dict) else {}
+    attention = watch_result.get("attention", {}) if isinstance(watch_result, dict) else {}
+    items = attention.get("items", []) if isinstance(attention, dict) else []
+    if isinstance(items, list) and any(isinstance(item, dict) and item.get("severity") == "fail" for item in items):
+        return 1
+    return 0
+
+
+def cmd_scheduler_start(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = start_scheduler_supervisor(root=root)
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_scheduler_status(payload)
+    return 0
+
+
+def cmd_scheduler_stop(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = stop_scheduler_supervisor(root=root)
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_scheduler_status(payload)
+    return 0
+
+
+def cmd_scheduler_worker(args: argparse.Namespace) -> int:
+    return scheduler_worker_loop(_root())
+
+
+def cmd_run_refresh(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    run = refresh_delivery_run(run, root=root)
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_next(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    ready_tasks = []
+    for task in _ready_run_tasks(run):
+        ready_tasks.append(
+            {
+                "taskIndex": task.task_index,
+                "title": task.title,
+                "status": task.status,
+                "memoryId": task.memory_id,
+                "cwd": task.cwd,
+                "verifyCommands": list(task.verify_commands),
+                "packageVerifyCommands": list(task.package_verify_commands),
+                "beginCommand": f"python3 .cnogo/scripts/workflow_memory.py run-task-begin {run.feature} {task.task_index} --run-id {run.run_id}",
+            }
+        )
+    payload = {
+        "feature": run.feature,
+        "runId": run.run_id,
+        "mode": run.mode,
+        "status": run.status,
+        "profile": run.profile if isinstance(getattr(run, "profile", None), dict) else {},
+        "integrationStatus": run.integration.get("status", "pending"),
+        "reviewReadiness": run.review_readiness.get("status", "pending"),
+        "reviewStatus": run.review.get("status", "pending"),
+        "shipStatus": run.ship.get("status", "pending"),
+        "nextAction": next_delivery_run_action(run),
+        "readyTasks": ready_tasks,
+        "readyCount": len(ready_tasks),
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_run_next(payload)
+    return 0
+
+
+def cmd_run_task_begin(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    task = _find_run_task(run, args.task_index)
+    if task is None:
+        print(f"Unknown task index {args.task_index} for run {run.run_id}", file=sys.stderr)
+        return 1
+    if task.status not in {"ready", "in_progress", "failed"}:
+        print(f"Task {task.task_index} cannot begin from status {task.status!r}.", file=sys.stderr)
+        return 1
+    if task.memory_id and not args.skip_memory:
+        try:
+            claim(task.memory_id, actor=args.actor, root=root)
+        except Exception as exc:
+            print(f"Error: failed to claim memory task {task.memory_id}: {exc}", file=sys.stderr)
+            return 1
+    try:
+        run = begin_delivery_run_task(
+            run,
+            task_index=args.task_index,
+            actor=args.actor,
+            branch=args.branch,
+            worktree_path=args.worktree_path,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_task_complete(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    task = _find_run_task(run, args.task_index)
+    if task is None:
+        print(f"Unknown task index {args.task_index} for run {run.run_id}", file=sys.stderr)
+        return 1
+    if task.status not in {"in_progress", "done", "failed"}:
+        print(f"Task {task.task_index} cannot complete from status {task.status!r}.", file=sys.stderr)
+        return 1
+    if task.memory_id and not args.skip_memory:
+        try:
+            report_done(
+                task.memory_id,
+                outputs={"verifyCommands": list(args.verify_command or [])},
+                actor=args.actor,
+                root=root,
+            )
+        except Exception as exc:
+            print(f"Error: failed to report memory completion for {task.memory_id}: {exc}", file=sys.stderr)
+            return 1
+    try:
+        run = complete_delivery_run_task(
+            run,
+            task_index=args.task_index,
+            actor=args.actor,
+            verify_commands=list(args.verify_command or []),
+            note=args.note or None,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_task_fail(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        run = fail_delivery_run_task(
+            run,
+            task_index=args.task_index,
+            actor=args.actor,
+            error=args.error,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_task_set(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        run = update_delivery_task_status(
+            run,
+            task_index=args.task_index,
+            status=args.status,
+            assignee=args.assignee,
+            branch=args.branch,
+            worktree_path=args.worktree_path,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_sync_session(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    session = load_session(root)
+    if session is None:
+        print("No active worktree session", file=sys.stderr)
+        return 1
+    if session.feature and session.feature != run.feature:
+        print(
+            f"Active worktree session is for feature {session.feature!r}, not {run.feature!r}",
+            file=sys.stderr,
+        )
+        return 1
+    run = sync_delivery_run_with_session(run, session, root=root)
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_plan_verify(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    run = record_delivery_run_plan_verification(
+        run,
+        passed=args.result == "pass",
+        commands=args.verify_command,
+        note=args.note,
+        root=root,
+    )
+    if args.result == "pass":
+        set_phase(args.feature, "review", root=root)
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def _review_ready_or_started(run) -> bool:
+    review_readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    return review_readiness.get("status") == "ready" or review_state.get("status") in {"in_progress", "completed"}
+
+
+def _ship_ready_or_started(run) -> bool:
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    return ship_state.get("status") in {"ready", "in_progress", "completed", "failed"}
+
+
+def cmd_run_review_start(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if not _review_ready_or_started(run):
+        print(
+            "Review cannot start until reviewReadiness.status == ready "
+            f"(current={run.review_readiness.get('status', 'pending')!r}).",
+            file=sys.stderr,
+        )
+        return 1
+    profile_reviewers = (
+        profile_required_reviewers(run.profile)
+        if isinstance(getattr(run, "profile", None), dict)
+        else []
+    )
+    configured_profile_reviewers: list[str] = []
+    if profile_auto_spawn_configured_reviewers(
+        run.profile if isinstance(getattr(run, "profile", None), dict) else {}
+    ):
+        try:
+            from scripts.workflow.checks.review import configured_reviewers
+
+            configured_profile_reviewers = configured_reviewers(root)
+        except Exception:
+            configured_profile_reviewers = []
+    merged_reviewers: list[str] = []
+    seen_reviewers: set[str] = set()
+    for reviewer in [*configured_profile_reviewers, *(args.reviewer or []), *profile_reviewers]:
+        if not isinstance(reviewer, str) or not reviewer.strip():
+            continue
+        value = reviewer.strip()
+        if value in seen_reviewers:
+            continue
+        seen_reviewers.add(value)
+        merged_reviewers.append(value)
+    run = start_delivery_run_review(
+        run,
+        reviewers=merged_reviewers,
+        automated_verdict=args.automated_verdict,
+        note=args.note,
+        root=root,
+    )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_ship_start(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    if ship_state.get("status") not in {"ready", "failed", "in_progress"}:
+        print(
+            "Ship cannot start until the Delivery Run is ship-ready "
+            f"(current ship.status={ship_state.get('status', 'pending')!r}, "
+            f"review.status={run.review.get('status', 'pending')!r}).",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = start_delivery_run_ship(
+            run,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_ship_complete(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if not _ship_ready_or_started(run):
+        print(
+            "Ship completion requires a ship-ready or already-started Delivery Run.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = complete_delivery_run_ship(
+            run,
+            commit=args.commit,
+            branch=args.branch or _git_branch(root),
+            pr_url=args.pr_url or "",
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_ship_fail(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    if ship_state.get("status") not in {"ready", "in_progress", "failed"}:
+        print(
+            "Ship failure can only be recorded after ship is ready or in progress.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = fail_delivery_run_ship(
+            run,
+            error=args.error or "",
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_stage_set(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if not _review_ready_or_started(run):
+        print(
+            "Review stages cannot be updated until review is ready or already started.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        run = update_delivery_run_review_stage(
+            run,
+            stage=args.stage,
+            status=args.status,
+            findings=list(args.finding or []),
+            evidence=list(args.evidence or []),
+            notes=list(args.note or []),
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_verdict(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    stages = run.review.get("stages", []) if isinstance(getattr(run, "review", None), dict) else []
+    if args.verdict != "pending":
+        if not isinstance(stages, list) or any(
+            not isinstance(stage, dict) or stage.get("status") not in {"pass", "warn", "fail"}
+            for stage in stages
+        ):
+            print(
+                "Final review verdict requires both stage reviews to be completed first.",
+                file=sys.stderr,
+            )
+            return 1
+    try:
+        run = set_delivery_run_review_verdict(
+            run,
+            verdict=args.verdict,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_sync(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        run = sync_delivery_run_review(run, root=root)
+    except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def _profile_suggestion_payload(root: Path, feature: str, plan_number: str | None) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    plan_contract = None
+    if plan_number:
+        plan_path = _plan_contract_path(root, feature, plan_number)
+        plan_contract = _load_json_contract(plan_path)
+        if plan_contract is None:
+            raise FileNotFoundError(f"Plan contract not found or invalid: {plan_path}")
+    context_contract = _load_json_contract(_context_contract_path(root, feature))
+    suggestion = suggest_profile(
+        root,
+        feature_slug=feature,
+        plan_contract=plan_contract,
+        context_contract=context_contract,
+    )
+    if plan_contract is not None:
+        current_profile = profile_name_from_plan(plan_contract)
+        suggestion["currentProfile"] = current_profile or ""
+        suggestion["matchesCurrent"] = bool(current_profile and current_profile == suggestion["name"])
+    return suggestion, plan_contract
+
+
+def cmd_profile_suggest(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        suggestion, plan_contract = _profile_suggestion_payload(root, args.feature, args.plan)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(suggestion)
+    else:
+        _print_profile_suggestion(suggestion)
+        current_profile = suggestion.get("currentProfile")
+        if isinstance(current_profile, str) and current_profile:
+            print(f"Current profile: {current_profile}")
+    return 0
+
+
+def cmd_profile_list(args: argparse.Namespace) -> int:
+    root = _root()
+    catalog = load_profile_catalog(root)
+    payload = [
+        {
+            "name": name,
+            "version": contract.get("version", "1.0.0"),
+            "source": contract.get("source", "builtin"),
+            "description": contract.get("description", ""),
+        }
+        for name, contract in sorted(catalog.items())
+    ]
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_profile_catalog(payload)
+    return 0
+
+
+def cmd_profile_init(args: argparse.Namespace) -> int:
+    root = _root()
+    if not is_profile_name(args.name):
+        print(
+            "Profile names must be lowercase slug strings like 'feature-delivery' or 'migration-rollout'.",
+            file=sys.stderr,
+        )
+        return 1
+    catalog = load_profile_catalog(root)
+    base_name = args.base or "feature-delivery"
+    base_profile = catalog.get(base_name)
+    if base_profile is None:
+        print(f"Unknown base profile: {base_name}", file=sys.stderr)
+        return 1
+    profile_dir = root / ".cnogo" / "profiles"
+    profile_path = profile_dir / f"{args.name}.json"
+    if profile_path.exists() and not args.force:
+        print(f"Profile file already exists: {profile_path}. Use --force to overwrite.", file=sys.stderr)
+        return 1
+    contract = scaffold_profile_contract(
+        args.name,
+        base_profile=base_profile,
+        description=args.description or "",
+    )
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    profile_path.write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+    payload = {
+        "name": args.name,
+        "base": base_name,
+        "path": str(profile_path),
+        "profilePath": str(profile_path),
+        "contract": contract,
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Created profile scaffold at {profile_path}")
+        print(f"Base: {base_name}")
+    return 0
+
+
+def cmd_profile_stamp(args: argparse.Namespace) -> int:
+    root = _root()
+    plan_path = _plan_contract_path(root, args.feature, args.plan)
+    plan_contract = _load_json_contract(plan_path)
+    if plan_contract is None:
+        print(f"Plan contract not found or invalid: {plan_path}", file=sys.stderr)
+        return 1
+    context_contract = _load_json_contract(_context_contract_path(root, args.feature))
+    suggestion: dict[str, object] | None = None
+    chosen_name = getattr(args, "profile", None)
+    if not chosen_name:
+        suggestion = suggest_profile(root, feature_slug=args.feature, plan_contract=plan_contract, context_contract=context_contract)
+        chosen_name = str(suggestion["name"])
+    catalog = load_profile_catalog(root)
+    if chosen_name not in catalog:
+        print(f"Unknown profile: {chosen_name}", file=sys.stderr)
+        return 1
+    current_profile = profile_name_from_plan(plan_contract)
+    if current_profile and current_profile != chosen_name and not args.force:
+        print(
+            f"Plan already has profile {current_profile!r}; use --force to replace it.",
+            file=sys.stderr,
+        )
+        return 1
+    plan_contract["profile"] = chosen_name
+    plan_contract.pop("formula", None)
+    plan_path.write_text(json.dumps(plan_contract, indent=2) + "\n", encoding="utf-8")
+    try:
+        from scripts.workflow_render import render_plan, write
+
+        write(plan_path.with_suffix(".md"), render_plan(plan_contract))
+    except Exception as exc:
+        print(f"Error: stamped profile but failed to render plan markdown: {exc}", file=sys.stderr)
+        return 1
+    payload = {
+        "feature": args.feature,
+        "planNumber": normalize_plan_number(args.plan),
+        "profile": chosen_name,
+        "replaced": current_profile or "",
+        "planPath": str(plan_path),
+        "markdownPath": str(plan_path.with_suffix(".md")),
+    }
+    if suggestion is not None:
+        payload["suggestion"] = suggestion
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Stamped profile `{chosen_name}` on {plan_path.name}")
+        if current_profile and current_profile != chosen_name:
+            print(f"Replaced: {current_profile}")
+        if suggestion is not None and suggestion.get("reason"):
+            print(f"Reason: {suggestion['reason']}")
     return 0
 
 
@@ -1563,6 +3177,258 @@ def main() -> int:
     p.add_argument("phase", choices=["discuss", "plan", "implement", "review", "ship"])
     p.add_argument("--json", action="store_true")
 
+    # run-create
+    p = sub.add_parser("run-create", help="Create or resume a durable delivery run for a feature plan")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("plan", help="Plan number")
+    p.add_argument("--mode", choices=["auto", "serial", "team"], default="auto")
+    p.add_argument("--run-id", help="Explicit run ID")
+    p.add_argument("--actor", default="claude")
+    p.add_argument("--branch", help="Override branch recorded on the run")
+    p.add_argument("--no-resume-latest", action="store_true", help="Force creation of a fresh run instead of resuming latest")
+    p.add_argument("--json", action="store_true")
+
+    # run-list
+    p = sub.add_parser("run-list", help="List delivery runs across features")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--status", action="append", choices=["created", "active", "blocked", "ready_for_review", "completed", "failed", "cancelled"])
+    p.add_argument("--mode", choices=["serial", "team"])
+    p.add_argument("--needs-attention", action="store_true", help="Only show runs currently present in the attention queue")
+    p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--json", action="store_true")
+
+    # run-show
+    p = sub.add_parser("run-show", help="Show a delivery run for a feature")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
+    # work-show
+    p = sub.add_parser("work-show", help="Show the feature-level Work Order")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--json", action="store_true")
+
+    # work-list
+    p = sub.add_parser("work-list", help="List Work Orders across features")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--needs-attention", action="store_true", help="Only show Work Orders with attention items")
+    p.add_argument("--json", action="store_true")
+
+    # work-sync
+    p = sub.add_parser("work-sync", help="Sync Work Orders from current feature artifacts and runs")
+    p.add_argument("feature", nargs="?", help="Optional feature slug to sync")
+    p.add_argument("--json", action="store_true")
+
+    # work-next
+    p = sub.add_parser("work-next", help="Show the next feature-level action for a Work Order")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--json", action="store_true")
+
+    # run-watch
+    p = sub.add_parser("run-watch", help="Inspect delivery-run health and next actions")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--stale-minutes", type=int, help="Idle threshold for active/merge verification findings")
+    p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold")
+    p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--no-write", action="store_true", help="Do not persist latest watch artifacts")
+    p.add_argument("--json", action="store_true")
+
+    # run-watch-status
+    p = sub.add_parser("run-watch-status", help="Show recurring watch schedule status and patrol state")
+    p.add_argument("--json", action="store_true")
+
+    # run-watch-tick
+    p = sub.add_parser("run-watch-tick", help="Run the recurring watch patrol only when due")
+    p.add_argument("--stale-minutes", type=int, help="Idle threshold override for active/merge verification findings")
+    p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold override")
+    p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--force", action="store_true", help="Run even when the patrol is not due or watch is disabled")
+    p.add_argument("--json", action="store_true")
+
+    # run-watch-patrol
+    p = sub.add_parser("run-watch-patrol", help="Refresh watch artifacts, archive a patrol snapshot, and show deltas")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--stale-minutes", type=int, help="Idle threshold for active/merge verification findings")
+    p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold")
+    p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--json", action="store_true")
+
+    # run-watch-history
+    p = sub.add_parser("run-watch-history", help="Show archived watch patrol snapshots")
+    p.add_argument("--limit", type=int, default=10)
+    p.add_argument("--json", action="store_true")
+
+    # scheduler-status
+    p = sub.add_parser("scheduler-status", help="Show hybrid scheduler status")
+    p.add_argument("--json", action="store_true")
+
+    # scheduler-run-once
+    p = sub.add_parser("scheduler-run-once", help="Run due scheduler jobs once")
+    p.add_argument("--job", action="append", choices=list(SCHEDULER_JOB_NAMES), help="Restrict to one or more scheduler jobs")
+    p.add_argument("--force", action="store_true", help="Run even when the scheduler is not due")
+    p.add_argument("--json", action="store_true")
+
+    # scheduler-start
+    p = sub.add_parser("scheduler-start", help="Start the optional local scheduler supervisor")
+    p.add_argument("--json", action="store_true")
+
+    # scheduler-stop
+    p = sub.add_parser("scheduler-stop", help="Stop the local scheduler supervisor")
+    p.add_argument("--json", action="store_true")
+
+    # internal scheduler worker
+    sub.add_parser("_scheduler-worker", help=argparse.SUPPRESS)
+
+    # run-attention
+    p = sub.add_parser("run-attention", help="Show or refresh the persisted needs-attention queue")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--stale-minutes", type=int, help="Idle threshold for active/merge verification findings")
+    p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold")
+    p.add_argument("--all", action="store_true", help="Include terminal runs when refreshing")
+    p.add_argument("--refresh", action="store_true", help="Recompute watch findings before showing the queue")
+    p.add_argument("--no-write", action="store_true", help="Do not persist refreshed attention artifacts")
+    p.add_argument("--severity", action="append", choices=["warn", "fail"], help="Filter queue items by severity")
+    p.add_argument("--kind", action="append", help="Filter queue items by finding kind")
+    p.add_argument("--limit", type=int, help="Limit the number of returned attention items")
+    p.add_argument("--json", action="store_true")
+
+    # run-refresh
+    p = sub.add_parser("run-refresh", help="Refresh delivery-run task frontier and save it")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
+    # run-next
+    p = sub.add_parser("run-next", help="Show the next ready tasks for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
+    # run-task-set
+    p = sub.add_parser("run-task-set", help="Update one delivery-run task status")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("task_index", type=int, help="Plan task index")
+    p.add_argument("status", choices=sorted(DELIVERY_TASK_STATUSES))
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--assignee")
+    p.add_argument("--branch")
+    p.add_argument("--worktree-path")
+    p.add_argument("--note")
+    p.add_argument("--json", action="store_true")
+
+    # run-task-begin
+    p = sub.add_parser("run-task-begin", help="Claim memory ownership and mark a task in_progress")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("task_index", type=int, help="Plan task index")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--actor", default="implementer")
+    p.add_argument("--branch")
+    p.add_argument("--worktree-path")
+    p.add_argument("--skip-memory", action="store_true")
+    p.add_argument("--note")
+    p.add_argument("--json", action="store_true")
+
+    # run-task-complete
+    p = sub.add_parser("run-task-complete", help="Report memory completion and mark a task done")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("task_index", type=int, help="Plan task index")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--actor", default="implementer")
+    p.add_argument("--skip-memory", action="store_true")
+    p.add_argument("--command", action="append", dest="verify_command", default=[])
+    p.add_argument("--note")
+    p.add_argument("--json", action="store_true")
+
+    # run-task-fail
+    p = sub.add_parser("run-task-fail", help="Mark a task failed on the Delivery Run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("task_index", type=int, help="Plan task index")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--actor", default="implementer")
+    p.add_argument("--error")
+    p.add_argument("--note")
+    p.add_argument("--json", action="store_true")
+
+    # run-plan-verify
+    p = sub.add_parser("run-plan-verify", help="Record plan verification outcome for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("result", choices=["pass", "fail"])
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument(
+        "--command",
+        action="append",
+        dest="verify_command",
+        default=[],
+        help="Verification command that was run",
+    )
+    p.add_argument("--note", help="Optional note to store with verification state")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-start
+    p = sub.add_parser("run-review-start", help="Start or resume review state for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--reviewer", action="append", default=[], help="Reviewer agent/user to record")
+    p.add_argument("--automated-verdict", choices=sorted(DELIVERY_REVIEW_VERDICTS - {'pending'}))
+    p.add_argument("--note", help="Optional note to attach to review state")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-stage-set
+    p = sub.add_parser("run-review-stage-set", help="Update one review stage on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("stage", choices=list(DELIVERY_REVIEW_STAGES))
+    p.add_argument("status", choices=sorted(DELIVERY_REVIEW_STAGE_STATUSES))
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--finding", action="append", default=[], help="Finding entry to store on the stage")
+    p.add_argument("--evidence", action="append", default=[], help="Evidence entry to store on the stage")
+    p.add_argument("--note", action="append", default=[], help="Stage note to store")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-verdict
+    p = sub.add_parser("run-review-verdict", help="Set the final review verdict on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("verdict", choices=sorted(DELIVERY_REVIEW_VERDICTS))
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--note", help="Optional note to append to review state")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-sync
+    p = sub.add_parser("run-review-sync", help="Sync a delivery run from REVIEW.json")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
+    # run-ship-start
+    p = sub.add_parser("run-ship-start", help="Start ship state for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
+    # run-ship-complete
+    p = sub.add_parser("run-ship-complete", help="Record successful ship completion on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("commit", help="Commit SHA shipped by this run")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--branch", help="Branch shipped for this run")
+    p.add_argument("--pr-url", help="PR URL created for this ship")
+    p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
+    # run-ship-fail
+    p = sub.add_parser("run-ship-fail", help="Record a failed ship attempt on a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--error", help="Error message or summary for the failed ship")
+    p.add_argument("--note", help="Optional note to attach to ship state")
+    p.add_argument("--json", action="store_true")
+
+    # run-sync-session
+    p = sub.add_parser("run-sync-session", help="Sync a delivery run from the active worktree session")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
     # graph
     p = sub.add_parser("graph", help="Show dependency graph")
     p.add_argument("feature", help="Feature slug")
@@ -1580,6 +3446,32 @@ def main() -> int:
 
     # session-reconcile
     p = sub.add_parser("session-reconcile", help="Fix orphaned issues after compaction")
+    p.add_argument("--json", action="store_true")
+
+    # profile-suggest
+    p = sub.add_parser("profile-suggest", help="Suggest the best profile for a feature or plan")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--plan", help="Plan number to inspect")
+    p.add_argument("--json", action="store_true")
+
+    # profile-list
+    p = sub.add_parser("profile-list", help="List available profiles from builtins and repo-local catalog")
+    p.add_argument("--json", action="store_true")
+
+    # profile-init
+    p = sub.add_parser("profile-init", help="Create a new repo-local profile scaffold")
+    p.add_argument("name", help="Profile slug")
+    p.add_argument("--base", help="Base profile to copy policy from", default="feature-delivery")
+    p.add_argument("--description", help="Optional description to seed the scaffold")
+    p.add_argument("--force", action="store_true", help="Overwrite an existing profile file")
+    p.add_argument("--json", action="store_true")
+
+    # profile-stamp
+    p = sub.add_parser("profile-stamp", help="Stamp a profile onto a plan and rerender markdown")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("plan", help="Plan number")
+    p.add_argument("--profile", help="Explicit profile name (defaults to the suggestion)")
+    p.add_argument("--force", action="store_true", help="Replace an existing stamped profile")
     p.add_argument("--json", action="store_true")
 
     # costs
@@ -1727,6 +3619,28 @@ def main() -> int:
 
     _needs_db = not (args.command == "costs" and getattr(args, "project_slug", None))
     _needs_db = _needs_db and args.command not in _graph_cmds
+    _needs_db = _needs_db and args.command not in {
+        "_scheduler-worker",
+        "profile-suggest",
+        "profile-stamp",
+        "profile-list",
+        "profile-init",
+        "scheduler-status",
+        "scheduler-start",
+        "scheduler-stop",
+        "scheduler-run-once",
+        "run-watch-status",
+        "run-watch-tick",
+        "run-watch-patrol",
+        "run-watch-history",
+        "run-attention",
+        "work-show",
+        "work-list",
+        "work-sync",
+        "work-next",
+        "session-status",
+        "session-cleanup",
+    }
     if args.command != "init" and _needs_db and not is_initialized(_root()):
         print(
             "Memory engine not initialized. Run: "
@@ -1763,11 +3677,48 @@ def main() -> int:
         "history": cmd_history,
         "phase-get": cmd_phase_get,
         "phase-set": cmd_phase_set,
+        "run-create": cmd_run_create,
+        "run-list": cmd_run_list,
+        "run-show": cmd_run_show,
+        "work-show": cmd_work_show,
+        "work-list": cmd_work_list,
+        "work-sync": cmd_work_sync,
+        "work-next": cmd_work_next,
+        "run-watch": cmd_run_watch,
+        "run-watch-status": cmd_run_watch_status,
+        "run-watch-tick": cmd_run_watch_tick,
+        "run-watch-patrol": cmd_run_watch_patrol,
+        "run-watch-history": cmd_run_watch_history,
+        "scheduler-status": cmd_scheduler_status,
+        "scheduler-run-once": cmd_scheduler_run_once,
+        "scheduler-start": cmd_scheduler_start,
+        "scheduler-stop": cmd_scheduler_stop,
+        "_scheduler-worker": cmd_scheduler_worker,
+        "run-attention": cmd_run_attention,
+        "run-refresh": cmd_run_refresh,
+        "run-next": cmd_run_next,
+        "run-task-set": cmd_run_task_set,
+        "run-task-begin": cmd_run_task_begin,
+        "run-task-complete": cmd_run_task_complete,
+        "run-task-fail": cmd_run_task_fail,
+        "run-plan-verify": cmd_run_plan_verify,
+        "run-review-start": cmd_run_review_start,
+        "run-review-stage-set": cmd_run_review_stage_set,
+        "run-review-verdict": cmd_run_review_verdict,
+        "run-review-sync": cmd_run_review_sync,
+        "run-ship-start": cmd_run_ship_start,
+        "run-ship-complete": cmd_run_ship_complete,
+        "run-ship-fail": cmd_run_ship_fail,
+        "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
         "session-status": cmd_session_status,
         "session-merge": cmd_session_merge,
         "session-cleanup": cmd_session_cleanup,
         "session-reconcile": cmd_session_reconcile,
+        "profile-suggest": cmd_profile_suggest,
+        "profile-list": cmd_profile_list,
+        "profile-init": cmd_profile_init,
+        "profile-stamp": cmd_profile_stamp,
         "costs": cmd_costs,
         "cost-record": cmd_cost_record,
         "graph-index": cmd_graph_index,
@@ -1794,6 +3745,19 @@ def main() -> int:
     if handler is None:
         parser.print_help()
         return 1
+
+    if args.command not in {"_scheduler-worker", "scheduler-start", "scheduler-stop", "scheduler-run-once"}:
+        try:
+            scheduler_cfg = scheduler_settings_cfg(load_workflow_config(_root()))
+            opportunistic = set(scheduler_cfg.get("opportunisticCommands", []))
+            if args.command in opportunistic:
+                run_scheduler_once(
+                    force=False,
+                    triggered_by=f"opportunistic:{args.command}",
+                    root=_root(),
+                )
+        except Exception:
+            pass
 
     return handler(args)
 

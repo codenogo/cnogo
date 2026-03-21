@@ -1,6 +1,6 @@
 # cnogo — Development Workflow Engine
 
-An artifact-driven development workflow for Claude Code. Small-batch planning, structured memory, automated verification, and multi-agent coordination — with a stdlib-only core and optional graph/context extras.
+An artifact-driven development workflow for Claude Code. Small-batch planning, structured memory, durable feature tracking, automated verification, and multi-agent coordination — with a stdlib-only core and optional graph/context extras.
 
 ## What It Does
 
@@ -11,7 +11,9 @@ cnogo turns Claude into a structured SDLC copilot by enforcing:
 - **TDD as a core principle** — test-first is default for code tasks; `/tdd` is deep mode
 - **Automated verification** — task-level checks, review gates, CI validation
 - **Persistent memory** — SQLite-backed task tracking that survives context compaction
+- **Durable execution state** — Delivery Runs for plan attempts plus Work Orders for feature-level rollups
 - **Multi-agent coordination** — Agent Teams with deterministic task assignment
+- **Hybrid watch scheduling** — opportunistic patrols by default, optional local supervisor when you want background cadence
 
 ## Quick Start
 
@@ -101,6 +103,10 @@ python3 .cnogo/scripts/workflow_memory.py create "title"  # Create an issue
 python3 .cnogo/scripts/workflow_memory.py show <id>       # Show issue details
 python3 .cnogo/scripts/workflow_memory.py checkpoint      # Snapshot current state
 python3 .cnogo/scripts/workflow_memory.py stalled --feature <slug> --json
+python3 .cnogo/scripts/workflow_memory.py work-list --needs-attention --json
+python3 .cnogo/scripts/workflow_memory.py work-next <slug> --json
+python3 .cnogo/scripts/workflow_memory.py profile-list --json
+python3 .cnogo/scripts/workflow_memory.py scheduler-status --json
 python3 .cnogo/scripts/workflow_memory.py takeover <id> --to <actor> --reason "stalled" --actor leader
 python3 .cnogo/scripts/workflow_memory.py release <id> --actor leader
 ```
@@ -125,6 +131,8 @@ python3 .cnogo/scripts/workflow_memory.py release <id> --actor leader
 | `watchdog.py` | Stale task detection |
 
 Runtime DB: `.cnogo/memory.db` (gitignored). Sync format: `.cnogo/issues.jsonl` (git-tracked).
+Durable workflow state: `.cnogo/runs/<feature>/...` for Delivery Runs and `.cnogo/work-orders/<feature>.json` for feature-level Work Orders.
+Runtime-only scheduler/watch state: `.cnogo/scheduler/` and `.cnogo/watch/` (gitignored).
 
 ## Agent Teams
 

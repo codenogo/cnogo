@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "name": "release-cut",
+  "version": "1.0.0",
+  "description": "Release-focused profile with serial preference, reviewer rigor, and tracked ship completion for coordinated branch and PR work.",
+  "defaults": {
+    "execution": {
+      "modePreference": "serial",
+      "preferTeamWhenSafe": false
+    },
+    "verify": {
+      "requirePackageChecks": true,
+      "requiredPackageCommands": ["lint", "typecheck", "test"]
+    },
+    "review": {
+      "autoSpawnConfiguredReviewers": true,
+      "requiredReviewers": ["code-reviewer", "perf-analyzer"]
+    },
+    "ship": {
+      "requireTracking": true,
+      "requirePullRequest": true
+    },
+    "watch": {
+      "staleMinutes": 10,
+      "reviewStaleMinutes": 30
+    }
+  }
+}

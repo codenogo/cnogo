@@ -7,7 +7,7 @@
   "tasks": [
     {
       "name": "Create run ledger module",
-      "files": ["scripts/memory/ledger.py"],
+      "files": ["scripts/memory/ledger.py", "scripts/memory/__init__.py"],
       "action": "Create new module scripts/memory/ledger.py (stdlib only). Implements read/write for .cnogo/run.json. Data shape: {run_id: str, feature: str, phase: str (setup|running|reconciling|done|failed), team_id: str, epic_id: str, plan_ids: [str], issue_states: {issue_id: state_str}, outputs_hash: str, created_at: str, updated_at: str}. Functions: (1) load_ledger(root: Path) -> dict | None — reads .cnogo/run.json, returns None if missing. (2) save_ledger(root: Path, data: dict) -> None — atomic write (write to .tmp, rename). (3) update_ledger(root: Path, **fields) -> dict — load, merge fields, set updated_at, save, return. (4) create_ledger(root: Path, *, run_id: str, feature: str, team_id: str, epic_id: str) -> dict — create new ledger with phase='setup'. (5) generate_run_id() -> str — returns f'{feature}-{YYYYMMDD}-{HHMMSS}' format using UTC time. All timestamps UTC ISO-8601. Add to __init__.py __all__: load_ledger, save_ledger, create_ledger.",
       "verify": [
         "python3 -m py_compile scripts/memory/ledger.py",
