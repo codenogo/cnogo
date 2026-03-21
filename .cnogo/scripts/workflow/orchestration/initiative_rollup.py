@@ -200,6 +200,8 @@ def _collect_shape_feedback(root: Path, candidate_slugs: list[str]) -> list[dict
 def _compute_next_initiative_action(
     features_rollup: list[dict[str, Any]],
     recommended_sequence: list[str],
+    *,
+    pending_feedback: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return a prescriptive next-action dict for the initiative.
 
@@ -208,18 +210,24 @@ def _compute_next_initiative_action(
       2. Follow recommendedSequence order: pick the first non-completed/non-cancelled feature
       3. If everything completed → initiative is done
     """
+    feedback_count = len(pending_feedback) if pending_feedback else 0
     status_map = {f["slug"]: f["status"] for f in features_rollup}
+
+    def _with_feedback(action: dict[str, Any]) -> dict[str, Any]:
+        if feedback_count > 0:
+            action["pendingFeedbackCount"] = feedback_count
+        return action
 
     # Priority 1: blocked features
     blocked = [f for f in features_rollup if f["status"] == "blocked"]
     if blocked:
         slug = blocked[0]["slug"]
-        return {
+        return _with_feedback({
             "kind": "unblock",
             "summary": f"Unblock '{slug}' before proceeding with the initiative.",
             "command": f"python3 .cnogo/scripts/workflow_memory.py work-show {slug}",
             "targetFeature": slug,
-        }
+        })
 
     terminal_statuses = {"completed", "cancelled"}
 
@@ -240,30 +248,30 @@ def _compute_next_initiative_action(
             "shipping": ("ship", f"/ship {slug}", "Complete ship tracking."),
         }
         kind, command, summary = action_map.get(st, ("implement", f"/implement {slug}", f"Advance '{slug}'."))
-        return {
+        return _with_feedback({
             "kind": kind,
             "summary": summary,
             "command": command,
             "targetFeature": slug,
-        }
+        })
 
     # Priority 3: all terminal
     non_terminal = [f for f in features_rollup if f["status"] not in terminal_statuses]
     if non_terminal:
         # Sequence not specified or exhausted — pick the first non-terminal feature
         slug = non_terminal[0]["slug"]
-        return {
+        return _with_feedback({
             "kind": "implement",
             "summary": f"Advance '{slug}' to completion.",
             "command": f"/implement {slug}",
             "targetFeature": slug,
-        }
+        })
 
-    return {
+    return _with_feedback({
         "kind": "complete",
         "summary": "All features are completed or cancelled. Initiative is done.",
         "command": "",
-    }
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -342,7 +350,9 @@ def build_initiative_rollup(root: Path, shape_path: Path) -> dict[str, Any]:
 
     completed_count = sum(1 for f in features_rollup if f["status"] == "completed")
     pending_feedback = _collect_shape_feedback(root, candidate_slugs)
-    next_action = _compute_next_initiative_action(features_rollup, recommended_sequence)
+    next_action = _compute_next_initiative_action(
+        features_rollup, recommended_sequence, pending_feedback=pending_feedback
+    )
 
     return {
         "initiative": initiative,

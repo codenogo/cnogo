@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 3,
+  "feature": "initiative-rollups",
+  "planNumber": "01",
+  "goal": "Create the core initiative rollup engine that reads SHAPE.json, feature directories, and Work Orders to produce a live initiative-level status view with unified status mapping, shapeFeedback aggregation, reviewVerdict per feature, and initiative-level next actions.",
+  "profile": "feature-delivery",
+  "tasks": [
+    {
+      "name": "Create initiative_rollup.py module",
+      "files": [
+        ".cnogo/scripts/workflow/orchestration/initiative_rollup.py"
+      ],
+      "action": "Create the initiative rollup module with: build_initiative_rollup(root, shape_path) -> dict that reads a SHAPE.json, resolves each candidateFeature to its unified status by checking for FEATURE.json stubs, CONTEXT.json, PLAN files, and Work Orders; collects reviewVerdict (pending|pass|warn|fail) from Work Order review_summary; aggregates shapeFeedback[] from child CONTEXT.json files; computes initiative-level next action based on feature statuses and recommendedSequence; returns a structured dict with initiative metadata, per-feature rollup entries, aggregated feedback, and next action. Also add list_initiatives(root) -> list[dict] that scans docs/planning/work/ideas/ for SHAPE.json files and returns a summary per initiative.",
+      "verify": [
+        "python3 -c \"from scripts.workflow.orchestration.initiative_rollup import build_initiative_rollup, list_initiatives; print('import ok')\"",
+        "python3 -m pytest tests/test_initiative_rollup.py -v"
+      ],
+      "microSteps": [
+        "Add imports and module docstring — stdlib only (json, pathlib, typing)",
+        "Define INITIATIVE_ROLLUP_STATUSES constant merging SHAPE candidate statuses with Work Order statuses",
+        "Implement _read_json(path) helper for safe JSON loading",
+        "Implement _derive_feature_status(root, slug) that checks artifact progression: no FEATURE.json -> shape candidate status, FEATURE.json -> discuss-ready, CONTEXT.json -> discussing, PLAN exists -> planned, Work Order exists -> WO status",
+        "Implement _review_verdict(work_order_dict) extracting compact verdict from review_summary",
+        "Implement _collect_shape_feedback(root, candidate_slugs) scanning child CONTEXT.json files for shapeFeedback[] entries",
+        "Implement _compute_next_initiative_action(features_rollup, recommended_sequence) returning a prescriptive next action dict",
+        "Implement build_initiative_rollup(root, shape_path) composing all helpers into a complete rollup dict",
+        "Implement list_initiatives(root) scanning ideas/ for SHAPE.json files",
+        "Error path: handle missing/corrupt SHAPE.json gracefully — return error dict instead of raising",
+        "Error path: handle missing/corrupt Work Order JSON gracefully — default to artifact-based status"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_initiative_rollup.py -v"],
+        "passingVerify": ["python3 -m pytest tests/test_initiative_rollup.py -v"]
+      },
+      "contextLinks": ["D1", "D2", "D5", "D6", "D7"],
+      "blockedBy": []
+    },
+    {
+      "name": "Write comprehensive tests for initiative rollup",
+      "files": [
+        "tests/test_initiative_rollup.py"
+      ],
+      "action": "Write tests covering: unified status mapping for all artifact progression states (draft, discuss-ready, discussing, planned, implementing, reviewing, shipping, blocked, completed, cancelled); reviewVerdict extraction (pending, pass, warn, fail); shapeFeedback aggregation from multiple child CONTEXT.json files; initiative-level next action computation; list_initiatives scanning; error paths for missing/corrupt SHAPE.json and Work Order files; edge cases (empty candidateFeatures, no Work Orders, shape with no features started).",
+      "verify": [
+        "python3 -m pytest tests/test_initiative_rollup.py -v --tb=short"
+      ],
+      "microSteps": [
+        "Set up test fixtures: create tmp_path-based SHAPE.json with candidateFeatures, feature directories with various artifact combinations",
+        "Test _derive_feature_status for each status tier: no FEATURE.json = shape status, FEATURE.json only = discuss-ready, CONTEXT.json = discussing, PLAN = planned, Work Order present = WO status",
+        "Test cancelled Work Order status stays cancelled (not mapped to parked) — decision D2",
+        "Test _review_verdict extraction from Work Order review_summary for each verdict value",
+        "Test _collect_shape_feedback aggregation from multiple CONTEXT.json files with mixed string/object feedback",
+        "Test _compute_next_initiative_action respecting blocked > shipping > reviewing > implementing > planned > draft priority",
+        "Test build_initiative_rollup end-to-end with a realistic SHAPE.json + mixed feature states",
+        "Test list_initiatives with zero, one, and multiple SHAPE.json files",
+        "Error path: test graceful handling of corrupt SHAPE.json (invalid JSON)",
+        "Error path: test graceful handling of missing Work Order directory"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_initiative_rollup.py -v --tb=short"],
+        "passingVerify": ["python3 -m pytest tests/test_initiative_rollup.py -v --tb=short"]
+      },
+      "contextLinks": ["D1", "D2", "D5", "D6"],
+      "blockedBy": []
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_initiative_rollup.py -v",
+    "python3 -c \"from scripts.workflow.orchestration.initiative_rollup import build_initiative_rollup, list_initiatives; print('public API ok')\""
+  ],
+  "commitMessage": "feat(workflow): add initiative rollup engine\n\nAdd initiative_rollup.py module that computes live rollups from\nSHAPE.json, feature directories, and Work Orders with unified\nstatus mapping, reviewVerdict per feature, shapeFeedback\naggregation, and initiative-level next actions.",
+  "timestamp": "2026-03-21T12:30:00Z"
+}

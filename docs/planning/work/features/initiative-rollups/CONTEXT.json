@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 3,
+  "feature": "initiative-rollups",
+  "displayName": "Initiative Rollups",
+  "decisions": [
+    {
+      "id": "D1",
+      "title": "Live computation over persisted rollup",
+      "decision": "Rollup is computed on demand by reading SHAPE.json, feature directories, and Work Order files. No persisted initiative-rollup artifact.",
+      "rationale": "Initiatives have 3-10 candidate features. Reading a handful of JSON files is cheap. Persisting would introduce another sync mechanism and staleness risk."
+    },
+    {
+      "id": "D2",
+      "title": "Cancelled status preserved as-is",
+      "decision": "Work Order status 'cancelled' is surfaced directly in the initiative view, not mapped to 'parked'.",
+      "rationale": "'parked' means intentionally deferred before or outside execution; 'cancelled' means work started and was abandoned. The distinction is semantically useful."
+    },
+    {
+      "id": "D3",
+      "title": "New module in orchestration package",
+      "decision": "Code lives in .cnogo/scripts/workflow/orchestration/initiative_rollup.py. CLI subcommands (initiative-show, initiative-list) added to workflow_memory.py.",
+      "rationale": "Initiative rollup is above Work Orders conceptually — it reads shapes and aggregates work orders. It should not be inside work_order.py or workflow_memory.py."
+    },
+    {
+      "id": "D4",
+      "title": "Automatic initiative section in /status and /resume",
+      "decision": "When the current feature has a parentShape link (in CONTEXT.json or FEATURE.json), /status and /resume include a compact initiative section by default. No flag required.",
+      "rationale": "If a parentShape link exists, the user opted into shape workflow. The section is cheap to compute and always relevant."
+    },
+    {
+      "id": "D5",
+      "title": "Review outcome as compact reviewVerdict field",
+      "decision": "Per-feature review signal in the rollup uses a compact reviewVerdict field with values: pending|pass|warn|fail. Full review findings are not inlined.",
+      "rationale": "The initiative view should show signal, not noise. Users can drill into individual features for full review details."
+    },
+    {
+      "id": "D6",
+      "title": "Unified status mapping across shape and execution phases",
+      "decision": "Status is derived from the furthest-progressed artifact: no FEATURE stub = SHAPE candidate status (draft/parked/blocked); FEATURE stub = discuss-ready; CONTEXT exists = discussing; PLAN exists without WO = planned; WO exists = WO status (implementing/reviewing/shipping/blocked/completed/cancelled).",
+      "rationale": "Provides a single coherent view across the full lifecycle from shaping through execution."
+    },
+    {
+      "id": "D7",
+      "title": "Read-only on SHAPE.json",
+      "decision": "The rollup never writes to SHAPE.json. shapeFeedback is collected from child CONTEXT.json files and displayed as pending items. Only /shape writes to SHAPE.json.",
+      "rationale": "Separation of concerns. The rollup is a read-only aggregation view; /shape is the write path for initiative-level decisions."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only — no external dependencies",
+    "Read-only on SHAPE.json — rollup never mutates shape artifacts",
+    "Work Orders are the source of truth for execution status — rollup reads, never duplicates",
+    "Backward compatible — features without parentShape are unaffected",
+    "Validation coverage — workflow_validate.py should verify rollup consistency"
+  ],
+  "openQuestions": [
+    {
+      "id": "Q1",
+      "question": "Should initiative-list also scan for orphaned features (features with parentShape pointing to a deleted/moved SHAPE.json)?",
+      "priority": "low",
+      "status": "open"
+    },
+    {
+      "id": "Q2",
+      "question": "Should the initiative-level next action consider recommendedSequence ordering, or just report on whatever is furthest behind?",
+      "priority": "medium",
+      "status": "open"
+    }
+  ],
+  "relatedCode": [
+    {
+      "path": ".cnogo/scripts/workflow/orchestration/work_order.py",
+      "description": "Work Order model — source of execution status (planned/implementing/reviewing/shipping/blocked/completed/cancelled), build_work_order() function"
+    },
+    {
+      "path": ".cnogo/scripts/workflow/validate/contracts_shape.py",
+      "description": "SHAPE.json validation — candidateFeatures schema, discuss-ready stub requirements, shape feedback validation"
+    },
+    {
+      "path": ".cnogo/scripts/workflow/validate/contracts_feature.py",
+      "description": "FEATURE.json stub validation — parentShape linkage, staleness checks, contract link validation"
+    },
+    {
+      "path": ".cnogo/scripts/workflow/validate/common.py",
+      "description": "SHAPE_CANDIDATE_STATUSES definition (draft, discuss-ready, blocked, parked)"
+    },
+    {
+      "path": ".cnogo/scripts/workflow_memory.py",
+      "description": "CLI entrypoint — will host initiative-show and initiative-list subcommands"
+    },
+    {
+      "path": ".cnogo/scripts/workflow_render.py",
+      "description": "Rendering engine — renders FEATURE.json and CONTEXT.json to Markdown, including parentShape sections"
+    },
+    {
+      "path": ".claude/commands/status.md",
+      "description": "Status command — needs initiative section when parentShape link is detected"
+    },
+    {
+      "path": ".claude/commands/resume.md",
+      "description": "Resume command — needs initiative section when parentShape link is detected"
+    },
+    {
+      "path": ".claude/commands/shape.md",
+      "description": "Shape command — creates SHAPE.json with candidateFeatures and FEATURE.json stubs"
+    }
+  ],
+  "memoryEpicId": "cn-4xxd50",
+  "timestamp": "2026-03-21T12:00:00Z"
+}

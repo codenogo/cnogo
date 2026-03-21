@@ -204,6 +204,7 @@ from scripts.memory import (  # noqa: E402
     verify_and_close,
     watch_delivery_runs,
 )
+from scripts.workflow.orchestration.initiative_rollup import build_initiative_rollup, list_initiatives
 from scripts.workflow.orchestration import (
     DELIVERY_REVIEW_STAGE_STATUSES,
     DELIVERY_REVIEW_STAGES,
@@ -1435,6 +1436,55 @@ def cmd_work_next(args: argparse.Namespace) -> int:
             print(f"Summary: {next_action['summary']}")
         if next_action.get("command"):
             print(f"Command: {next_action['command']}")
+    return 0
+
+
+def cmd_initiative_show(args: argparse.Namespace) -> int:
+    root = Path(".")
+    slug = args.slug
+    shape_path = root / "docs" / "planning" / "work" / "ideas" / slug / "SHAPE.json"
+    if not shape_path.exists():
+        print(f"No SHAPE.json found for initiative '{slug}'", file=sys.stderr)
+        return 1
+    rollup = build_initiative_rollup(root, shape_path)
+    if "error" in rollup:
+        print(f"Error: {rollup['error']}", file=sys.stderr)
+        return 1
+    if getattr(args, "json", False):
+        print(json.dumps(rollup, indent=2))
+        return 0
+    # Compact table output
+    print(f"## Initiative: {rollup['initiative']} ({rollup['slug']})")
+    print(f"Progress: {rollup['completedFeatures']}/{rollup['totalFeatures']} completed\n")
+    print(f"{'Feature':<30} {'Status':<15} {'Review':<10}")
+    print("-" * 55)
+    for f in rollup.get("features", []):
+        print(f"{f['slug']:<30} {f['status']:<15} {f.get('reviewVerdict', 'pending'):<10}")
+    feedback = rollup.get("pendingFeedback", [])
+    if feedback:
+        print(f"\nPending feedback: {len(feedback)} item(s)")
+    next_action = rollup.get("nextAction", {})
+    if next_action:
+        print(f"\nNext: {next_action.get('summary', '')}")
+        cmd = next_action.get("command", "")
+        if cmd:
+            print(f"  -> {cmd}")
+    return 0
+
+
+def cmd_initiative_list(args: argparse.Namespace) -> int:
+    root = Path(".")
+    initiatives = list_initiatives(root)
+    if getattr(args, "json", False):
+        print(json.dumps(initiatives, indent=2))
+        return 0
+    if not initiatives:
+        print("No initiatives found.")
+        return 0
+    print(f"{'Initiative':<30} {'Slug':<25} {'Candidates':<10}")
+    print("-" * 65)
+    for init in initiatives:
+        print(f"{init.get('initiative', ''):<30} {init.get('slug', ''):<25} {init.get('candidateCount', 0):<10}")
     return 0
 
 
@@ -3224,6 +3274,15 @@ def main() -> int:
     p.add_argument("feature", help="Feature slug")
     p.add_argument("--json", action="store_true")
 
+    # initiative-show
+    p = sub.add_parser("initiative-show", help="Show initiative rollup for a shape")
+    p.add_argument("slug", help="Initiative slug (matches ideas directory name)")
+    p.add_argument("--json", action="store_true")
+
+    # initiative-list
+    p = sub.add_parser("initiative-list", help="List all initiatives with SHAPE.json")
+    p.add_argument("--json", action="store_true")
+
     # run-watch
     p = sub.add_parser("run-watch", help="Inspect delivery-run health and next actions")
     p.add_argument("--feature", help="Feature slug to filter")
@@ -3684,6 +3743,8 @@ def main() -> int:
         "work-list": cmd_work_list,
         "work-sync": cmd_work_sync,
         "work-next": cmd_work_next,
+        "initiative-show": cmd_initiative_show,
+        "initiative-list": cmd_initiative_list,
         "run-watch": cmd_run_watch,
         "run-watch-status": cmd_run_watch_status,
         "run-watch-tick": cmd_run_watch_tick,

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 3,
+  "feature": "initiative-rollups",
+  "planNumber": "02",
+  "goal": "Wire the initiative rollup engine into the CLI (initiative-show, initiative-list subcommands) and update /status and /resume commands to automatically surface initiative context when a feature has a parentShape link.",
+  "profile": "feature-delivery",
+  "tasks": [
+    {
+      "name": "Add initiative CLI subcommands to workflow_memory.py",
+      "files": [
+        ".cnogo/scripts/workflow_memory.py"
+      ],
+      "action": "Add cmd_initiative_show and cmd_initiative_list functions plus argparse registration. initiative-show takes a shape slug, calls build_initiative_rollup, prints a compact table (feature | status | reviewVerdict | next action) and aggregated shapeFeedback. initiative-list calls list_initiatives and prints a summary table. Both support --json output.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_memory.py initiative-list --json 2>&1 | head -5",
+        "python3 -m pytest tests/test_initiative_rollup_cli.py -v"
+      ],
+      "microSteps": [
+        "Import build_initiative_rollup and list_initiatives from orchestration.initiative_rollup",
+        "Add cmd_initiative_show(args) — load root, resolve shape path from slug, call build_initiative_rollup, format output as table or JSON",
+        "Add cmd_initiative_list(args) — call list_initiatives, format as table or JSON",
+        "Register initiative-show and initiative-list in argparse subparsers block",
+        "Add to command dispatch dict and read-only commands list",
+        "Error path: initiative-show with non-existent slug prints error and exits 1"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_initiative_rollup_cli.py -v"],
+        "passingVerify": ["python3 -m pytest tests/test_initiative_rollup_cli.py -v"]
+      },
+      "contextLinks": ["D3"],
+      "blockedBy": []
+    },
+    {
+      "name": "Update /status command for initiative section",
+      "files": [
+        ".claude/commands/status.md"
+      ],
+      "action": "Add a new Step 2.5 (between Git Status and Artifact Status) that detects parentShape in the current feature's CONTEXT.json or FEATURE.json. If found, run initiative-show with the shape slug and include a compact initiative section in the output showing: initiative name, progress (N/M completed), per-feature status line, pending shapeFeedback count, and initiative-level next action.",
+      "verify": [
+        "grep -q 'initiative' .claude/commands/status.md",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "microSteps": [
+        "Add Step 2.5: Initiative Context after Git Status step",
+        "Detect parentShape from current feature CONTEXT.json or FEATURE.json via jq/python one-liner",
+        "If parentShape exists, run initiative-show --json with the resolved slug",
+        "Format compact initiative section: name, progress bar, per-feature status, feedback count, next action",
+        "If no parentShape, skip silently — backward compatible per D4"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Markdown command file — verified by workflow_validate.py and manual inspection"
+      },
+      "contextLinks": ["D4"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Update /resume command for initiative section",
+      "files": [
+        ".claude/commands/resume.md"
+      ],
+      "action": "Add initiative context loading after the handoff/memory step. Same detection logic as /status: check parentShape in current feature artifacts, run initiative-show if found, include in the context summary alongside where-stopped and next-command.",
+      "verify": [
+        "grep -q 'initiative' .claude/commands/resume.md",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "microSteps": [
+        "Add Step 1.5: Initiative Context after Load Handoff step",
+        "Detect parentShape from current feature CONTEXT.json or FEATURE.json",
+        "If parentShape exists, run initiative-show --json with the resolved slug",
+        "Include initiative progress in the Step 5 Next summary: blocked features, pending feedback, initiative-level recommended action",
+        "If no parentShape, skip silently"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Markdown command file — verified by workflow_validate.py and manual inspection"
+      },
+      "contextLinks": ["D4"],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_initiative_rollup_cli.py -v",
+    "python3 .cnogo/scripts/workflow_validate.py",
+    "python3 .cnogo/scripts/workflow_memory.py initiative-list --json 2>&1 | head -5"
+  ],
+  "commitMessage": "feat(workflow): add initiative rollup CLI and command integration\n\nWire initiative-show and initiative-list subcommands into the CLI.\nUpdate /status and /resume commands to auto-surface initiative\ncontext when a feature has a parentShape link.",
+  "timestamp": "2026-03-21T12:30:00Z"
+}
