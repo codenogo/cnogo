@@ -1,0 +1,160 @@
+{
+  "automated": [
+    {
+      "name": "lint",
+      "result": "pass"
+    },
+    {
+      "name": "types",
+      "result": "skipped"
+    },
+    {
+      "name": "tests",
+      "result": "skipped"
+    }
+  ],
+  "automatedVerdict": "warn",
+  "blockers": [],
+  "branch": "feature/ship-assistant",
+  "deliveryRun": {
+    "integrationStatus": "cleaned",
+    "mode": "team",
+    "planNumber": "02",
+    "reviewReadiness": "ready",
+    "reviewStatus": "ready",
+    "reviewVerdict": "pending",
+    "runId": "ship-assistant-1774121381",
+    "status": "ready_for_review"
+  },
+  "feature": "ship-assistant",
+  "impactAnalysis": {
+    "affected_files": [],
+    "affected_symbols": [],
+    "enabled": true,
+    "graph_status": "indexed",
+    "per_file": {
+      ".claude/commands/ship.md": [],
+      ".cnogo/scripts/workflow/orchestration/ship_draft.py": [],
+      "docs/planning/work/features/ship-assistant/01-PLAN.json": [],
+      "docs/planning/work/features/ship-assistant/01-PLAN.md": [],
+      "docs/planning/work/features/ship-assistant/01-SUMMARY.json": [],
+      "docs/planning/work/features/ship-assistant/01-SUMMARY.md": [],
+      "docs/planning/work/features/ship-assistant/02-PLAN.json": [],
+      "docs/planning/work/features/ship-assistant/02-PLAN.md": [],
+      "docs/planning/work/features/ship-assistant/02-SUMMARY.json": [],
+      "docs/planning/work/features/ship-assistant/02-SUMMARY.md": [],
+      "docs/planning/work/features/ship-assistant/CONTEXT.json": [],
+      "docs/planning/work/features/ship-assistant/CONTEXT.md": [],
+      "tests/test_ship_draft.py": []
+    },
+    "total_affected": 0
+  },
+  "invariants": {
+    "findings": [],
+    "summary": {
+      "fail": 0,
+      "total": 0,
+      "warn": 0
+    }
+  },
+  "packages": [
+    {
+      "checks": [
+        {
+          "cmd": "python3 -m py_compile .cnogo/scripts/workflow_validate.py .cnogo/scripts/workflow_validate_core.py .cnogo/scripts/workflow_checks.py .cnogo/scripts/workflow_checks_core.py .cnogo/scripts/workflow_detect.py .cnogo/scripts/workflow_utils.py .cnogo/scripts/workflow_render.py .cnogo/scripts/workflow_hooks.py .cnogo/scripts/workflow_memory.py",
+          "cwd": ".",
+          "exitCode": 0,
+          "fullOutputPath": null,
+          "name": "lint",
+          "output": "",
+          "outputReducer": "empty",
+          "reason": null,
+          "result": "pass",
+          "tokenTelemetry": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "savedTokens": 0,
+            "savingsPct": 0.0
+          }
+        },
+        {
+          "cmd": null,
+          "name": "typecheck",
+          "result": "skipped"
+        },
+        {
+          "cmd": null,
+          "name": "test",
+          "result": "skipped"
+        }
+      ],
+      "kind": "python",
+      "name": "cnogo-scripts",
+      "path": ".cnogo/scripts"
+    }
+  ],
+  "patternCompliance": [],
+  "performanceFindings": [],
+  "principleNotes": [],
+  "reviewers": [
+    "code-reviewer",
+    "security-scanner",
+    "perf-analyzer"
+  ],
+  "schemaVersion": 4,
+  "securityFindings": [
+    {"severity": "warn", "finding": "Path traversal via unsanitized feature slug — pre-existing codebase pattern, CLI-only local usage"},
+    {"severity": "warn", "finding": "SHIP_EXCLUDE_PATTERNS prefix matching without path normalization — mitigated by git diff clean paths"},
+    {"severity": "warn", "finding": "Double-quoted git commit -m placeholder allows shell expansion — recommend heredoc for commit message"}
+  ],
+  "performanceFindings": [
+    {"severity": "warn", "finding": "git diff subprocess spawned twice in build_ship_draft — should compute once and thread through"},
+    {"severity": "warn", "finding": "Plan/summary/review JSONs re-read 2-3x each — should pre-compute shared data"}
+  ],
+  "stageReviews": [
+    {
+      "evidence": [
+        "D1: SHIP_EXCLUDE_PATTERNS hardcoded with all required runtime paths",
+        "D2: generate_commit_message reads plan commitMessage field, no LLM re-summarization",
+        "D3: generate_pr_body produces terse sections (Summary/Test Plan/Review/Planning References), Follow-ups only on warn",
+        "D4: Auto-infer guarded by branch match + git rev-parse HEAD + run uniqueness, fails closed",
+        "D5: Module at ship_draft.py, CLI run-ship-draft in workflow_memory.py",
+        "D6: /ship command updated to use draft-driven flow",
+        "D7: .gitignore already excludes work-orders/*.json, runs/, feature-phases.json",
+        "D8: build_ship_draft returns commitSurface[] and gitAddCommand"
+      ],
+      "findings": [
+        {"severity": "warn", "detail": "code-reviewer noted generate_pr_body reads 'command' key but SUMMARY.json uses 'commands' (plural) — test fixtures may mask this"}
+      ],
+      "notes": "All 8 decisions correctly implemented. 42/42 tests pass. One minor schema key mismatch noted.",
+      "stage": "spec-compliance",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "code-reviewer: Module structure follows orchestration patterns, stdlib-only respected",
+        "security-scanner: subprocess calls use list-form args (no shell=True), 3 WARN findings (slug validation, prefix normalization, commit message quoting)",
+        "perf-analyzer: 2 WARN findings (duplicate subprocess spawn, redundant JSON reads) — recommend pre-computing shared data"
+      ],
+      "findings": [
+        {"severity": "warn", "area": "security", "detail": "Feature slug not validated for path traversal — pre-existing codebase pattern"},
+        {"severity": "warn", "area": "security", "detail": "Double-quoted git commit -m in ship.md template — recommend heredoc"},
+        {"severity": "warn", "area": "performance", "detail": "git diff spawned twice + JSON files read 2-3x each in build_ship_draft"}
+      ],
+      "notes": "All findings are WARN-level. No FAILs. Security subprocess usage is correct (list-form, no shell=True).",
+      "stage": "code-quality",
+      "status": "pass"
+    }
+  ],
+  "timestamp": "2026-03-21T19:37:40Z",
+  "tokenTelemetry": {
+    "checksRun": 1,
+    "checksSkipped": 2,
+    "inputTokens": 0,
+    "outputTokens": 0,
+    "savedTokens": 0,
+    "savingsPct": 0.0
+  },
+  "verdict": "pass",
+  "warnings": []
+}

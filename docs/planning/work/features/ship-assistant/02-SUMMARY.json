@@ -1,0 +1,63 @@
+{
+  "changes": [
+    {
+      "change": "Gitignore work-order runtime files and update /ship command",
+      "file": ".claude/commands/ship.md"
+    },
+    {
+      "change": "Updated during plan execution.",
+      "file": ".cnogo/scripts/workflow/orchestration/ship_draft.py"
+    }
+  ],
+  "commit": {
+    "hash": "6574373",
+    "message": "feat(workflow): add run-ship-draft CLI and auto-infer on run-ship-complete"
+  },
+  "feature": "ship-assistant",
+  "generatedFrom": {
+    "changedFilesSource": "git:working-tree",
+    "generatedAt": "2026-03-21T19:34:33Z",
+    "kind": "workflow_checks.summarize",
+    "planPath": "docs/planning/work/features/ship-assistant/02-PLAN.json",
+    "taskEvidenceSource": "plan-contract"
+  },
+  "notes": [],
+  "outcome": "complete",
+  "planNumber": "02",
+  "schemaVersion": 2,
+  "timestamp": "2026-03-21T19:34:33Z",
+  "verification": [
+    {
+      "commands": [
+        "python3 .cnogo/scripts/workflow_memory.py run-ship-draft --help 2>&1 | head -3",
+        "python3 -m pytest tests/test_ship_draft_cli.py -v"
+      ],
+      "name": "Add run-ship-draft CLI and auto-infer on run-ship-complete",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "grep -q 'run-ship-draft' .claude/commands/ship.md",
+        "grep -q 'work-orders' .gitignore",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "name": "Gitignore work-order runtime files and update /ship command",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "python3 -m pytest tests/test_ship_draft_cli.py -v",
+        "python3 .cnogo/scripts/workflow_validate.py",
+        "python3 .cnogo/scripts/workflow_memory.py run-ship-draft --help 2>&1 | head -3"
+      ],
+      "name": "planVerify",
+      "result": "pass",
+      "scope": "plan",
+      "source": "plan-contract"
+    }
+  ]
+}

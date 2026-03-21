@@ -402,6 +402,8 @@ def build_ship_draft(root: Path, feature: str) -> dict[str, Any]:
         warnings.append("No files found for commit surface — verify plans and git diff are available")
     if not _latest_plan(root, feature):
         warnings.append(f"No plan JSON found for feature '{feature}'")
+    if _latest_summary(root, feature) is None:
+        warnings.append(f"No SUMMARY.json found for feature '{feature}'")
     review = _review_json(root, feature)
     if review is None:
         warnings.append(f"No REVIEW.json found for feature '{feature}'")

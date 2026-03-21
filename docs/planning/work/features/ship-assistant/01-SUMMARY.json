@@ -1,0 +1,56 @@
+{
+  "changes": [
+    {
+      "change": "Create ship_draft.py module",
+      "file": ".cnogo/scripts/workflow/orchestration/ship_draft.py"
+    }
+  ],
+  "commit": {
+    "hash": "aba4d17",
+    "message": "feat(ship-assistant): create ship_draft.py module for feature ship drafts"
+  },
+  "feature": "ship-assistant",
+  "generatedFrom": {
+    "changedFilesSource": "git:working-tree",
+    "generatedAt": "2026-03-21T19:29:16Z",
+    "kind": "workflow_checks.summarize",
+    "planPath": "docs/planning/work/features/ship-assistant/01-PLAN.json",
+    "taskEvidenceSource": "plan-contract"
+  },
+  "notes": [],
+  "outcome": "complete",
+  "planNumber": "01",
+  "schemaVersion": 2,
+  "timestamp": "2026-03-21T19:29:16Z",
+  "verification": [
+    {
+      "commands": [
+        "PYTHONPATH=.cnogo python3 -c \"from scripts.workflow.orchestration.ship_draft import build_ship_draft, compute_commit_surface, generate_pr_body, generate_commit_message; print('import ok')\"",
+        "python3 -m pytest tests/test_ship_draft.py -v"
+      ],
+      "name": "Create ship_draft.py module",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "python3 -m pytest tests/test_ship_draft.py -v --tb=short"
+      ],
+      "name": "Write comprehensive tests for ship draft",
+      "result": "pass",
+      "scope": "task",
+      "source": "plan-contract"
+    },
+    {
+      "commands": [
+        "python3 -m pytest tests/test_ship_draft.py -v",
+        "PYTHONPATH=.cnogo python3 -c \"from scripts.workflow.orchestration.ship_draft import build_ship_draft, compute_commit_surface, generate_pr_body, generate_commit_message; print('public API ok')\""
+      ],
+      "name": "planVerify",
+      "result": "pass",
+      "scope": "plan",
+      "source": "plan-contract"
+    }
+  ]
+}

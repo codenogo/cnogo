@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 3,
+  "feature": "ship-assistant",
+  "planNumber": "02",
+  "goal": "Wire ship draft into CLI (run-ship-draft subcommand), add auto-infer to run-ship-complete, gitignore work-order runtime files, and update /ship command to use draft-driven flow.",
+  "profile": "feature-delivery",
+  "tasks": [
+    {
+      "name": "Add run-ship-draft CLI and auto-infer on run-ship-complete",
+      "files": [
+        ".cnogo/scripts/workflow_memory.py"
+      ],
+      "action": "Add cmd_run_ship_draft function and argparse registration for run-ship-draft subcommand. Accepts feature slug, outputs build_ship_draft result as JSON or formatted table. Modify cmd_run_ship_complete to make commit positional arg optional (nargs='?'). When commit is omitted, auto-infer: check current branch matches feature/<feature>, run git rev-parse HEAD, verify unambiguous run. Fail closed if any guard fails. Add tests.",
+      "verify": [
+        "python3 .cnogo/scripts/workflow_memory.py run-ship-draft --help 2>&1 | head -3",
+        "python3 -m pytest tests/test_ship_draft_cli.py -v"
+      ],
+      "microSteps": [
+        "Import build_ship_draft from orchestration.ship_draft",
+        "Add cmd_run_ship_draft(args) — call build_ship_draft, format as JSON or compact table",
+        "Register run-ship-draft in argparse subparsers with feature arg and --json flag",
+        "Add to dispatch dict and read-only commands list",
+        "Modify run-ship-complete argparse: change commit from positional to optional (nargs='?', default=None)",
+        "In cmd_run_ship_complete: when commit is None, check branch matches feature/<feature>, run git rev-parse HEAD via subprocess, verify single latest run. If any guard fails, print error and exit 1",
+        "Error path: auto-infer on wrong branch prints clear error message",
+        "Error path: auto-infer with ambiguous run prints clear error message",
+        "Write tests/test_ship_draft_cli.py covering run-ship-draft output, auto-infer success, auto-infer guard failures"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_ship_draft_cli.py -v"],
+        "passingVerify": ["python3 -m pytest tests/test_ship_draft_cli.py -v"]
+      },
+      "contextLinks": ["D4", "D5", "D8"],
+      "blockedBy": []
+    },
+    {
+      "name": "Gitignore work-order runtime files and update /ship command",
+      "files": [
+        ".gitignore",
+        ".claude/commands/ship.md"
+      ],
+      "action": "Add .cnogo/work-orders/*.json (not .gitkeep), .cnogo/runs/, and .cnogo/feature-phases.json to .gitignore so runtime state is never committed. Update ship.md to use run-ship-draft --json for commit surface, commit message, and PR body. Replace manual git add -A with draft-guided git add of specific files. Replace manual gh pr create with draft-provided title and body. Replace manual run-ship-complete with auto-infer version. Keep each step visible but pre-computed from draft output.",
+      "verify": [
+        "grep -q 'run-ship-draft' .claude/commands/ship.md",
+        "grep -q 'work-orders' .gitignore",
+        "python3 .cnogo/scripts/workflow_validate.py"
+      ],
+      "microSteps": [
+        "Add .cnogo/work-orders/*.json, !.cnogo/work-orders/.gitkeep, .cnogo/runs/, .cnogo/feature-phases.json to .gitignore under a Ship runtime section",
+        "Rewrite ship.md Step 2 to use run-ship-draft --json for commit surface and message",
+        "Rewrite ship.md Step 4 to use draft prTitle and prBody for gh pr create",
+        "Rewrite ship.md Step 4a to use auto-infer run-ship-complete (no manual commit SHA or branch args)",
+        "Keep Step 0, Step 1, Step 1a, Step 5-7 unchanged",
+        "Verify ship.md is clear about fallback to manual mode if draft is unavailable"
+      ],
+      "tdd": {
+        "required": false,
+        "reason": "Markdown command file and .gitignore — verified by workflow_validate.py and grep checks"
+      },
+      "contextLinks": ["D6", "D7"],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -m pytest tests/test_ship_draft_cli.py -v",
+    "python3 .cnogo/scripts/workflow_validate.py",
+    "python3 .cnogo/scripts/workflow_memory.py run-ship-draft --help 2>&1 | head -3"
+  ],
+  "commitMessage": "feat(workflow): add ship draft CLI, auto-infer, and guided /ship\n\nWire run-ship-draft CLI subcommand, add auto-infer to\nrun-ship-complete, gitignore work-order runtime files, and\nupdate /ship to use draft-driven flow.",
+  "timestamp": "2026-03-21T14:30:00Z"
+}

@@ -41,31 +41,46 @@ python3 .cnogo/scripts/workflow_memory.py run-ship-start <feature-slug>
 ```
 This sets `ship.status = in_progress`.
 
-### Step 2: Commit (if needed)
+### Step 2: Compute Ship Draft
 
 ```bash
-git add -A
-git commit -m "<conventional-commit-message>"
+python3 .cnogo/scripts/workflow_memory.py run-ship-draft <feature-slug> --json
 ```
-Choose `feat|fix|refactor|docs|test|chore` from the diff.
 
-### Step 3: Push Branch
+This returns: `commitSurface[]`, `excludedFiles[]`, `commitMessage`, `prTitle`, `prBody`, `branch`, `gitAddCommand`, and `warnings[]`. Review the draft before proceeding.
+
+If no draft is available, fall back to manual: choose files with `git add`, compose commit message from the diff.
+
+### Step 3: Commit + Push
+
+Use the draft output to stage and commit:
 
 ```bash
+# Stage only the computed commit surface (from draft gitAddCommand)
+<gitAddCommand from draft>
+git commit -m "<commitMessage from draft>"
 git push -u origin $(git branch --show-current)
 ```
 
 ### Step 4: Create PR
 
+Use the draft `prTitle` and `prBody`:
+
 ```bash
-gh pr create --title "<title>" --body "<summary/testing/links>"
+gh pr create --title "<prTitle from draft>" --body "$(cat <<'EOF'
+<prBody from draft>
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+EOF
+)"
 ```
-Include summary, testing, and planning links.
 
 ### Step 4a: Record Ship Completion
 
+Auto-infer mode (commit SHA and branch inferred from HEAD):
+
 ```bash
-python3 .cnogo/scripts/workflow_memory.py run-ship-complete <feature-slug> <commit-sha> --branch <branch> --pr-url <pr-url>
+python3 .cnogo/scripts/workflow_memory.py run-ship-complete <feature-slug> --pr-url <pr-url>
 ```
 
 Then confirm the Work Order rolled up to shipped state:
