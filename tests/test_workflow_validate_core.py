@@ -263,6 +263,43 @@ def test_workflow_config_rejects_invalid_task_ownership_and_max_takeovers(tmp_pa
     assert any("agentTeams.maxTakeoversPerTask should be an integer >= 0" in m for m in msgs)
 
 
+def test_validate_research_wrapper_preserves_contract_checks(tmp_path):
+    research_dir = tmp_path / "docs" / "planning" / "work" / "research" / "provider-study"
+    research_dir.mkdir(parents=True, exist_ok=True)
+    (research_dir / "RESEARCH.md").write_text("# Research\n", encoding="utf-8")
+    (research_dir / "RESEARCH.json").write_text(
+        json.dumps({"schemaVersion": 1, "sources": "not-an-array"}),
+        encoding="utf-8",
+    )
+
+    findings = []
+    core._validate_research(tmp_path, findings, lambda _path: True)
+
+    assert any("RESEARCH.json: sources should be an array." in m for m in _messages(findings))
+
+
+def test_validate_quick_wrapper_preserves_contract_checks(tmp_path):
+    quick_dir = tmp_path / "docs" / "planning" / "work" / "quick" / "001-fix-typo"
+    quick_dir.mkdir(parents=True, exist_ok=True)
+    (quick_dir / "PLAN.md").write_text("# Quick Plan\n", encoding="utf-8")
+
+    findings = []
+    core._validate_quick_tasks(tmp_path, findings, lambda _path: True)
+
+    assert any("Missing PLAN.json contract for quick PLAN.md" in m for m in _messages(findings))
+
+
+def test_validate_quick_summary_wrapper_preserves_contract_checks():
+    findings = []
+
+    core._validate_quick_summary({"schemaVersion": 1, "changes": []}, findings, Path("SUMMARY.json"))
+
+    msgs = _messages(findings)
+    assert any("Quick summary missing non-empty 'outcome'." in m for m in msgs)
+    assert any("Quick summary missing non-empty 'changes' list." in m for m in msgs)
+    assert any("Quick summary missing non-empty 'verification' list." in m for m in msgs)
+
+
 def test_workflow_config_accepts_review_default_composition_with_real_agents(tmp_path):
     agents_dir = tmp_path / ".claude" / "agents"
     agents_dir.mkdir(parents=True, exist_ok=True)
@@ -306,6 +343,98 @@ def test_workflow_config_warns_on_homogeneous_or_missing_review_agents(tmp_path)
     msgs = _messages(findings)
     assert any("references missing agent 'missing-agent'" in m for m in msgs)
     assert any("should use at least 2 distinct reviewer agents" in m for m in msgs)
+
+
+def test_detect_repo_shape_prefers_configured_packages(tmp_path):
+    shape = core._detect_repo_shape(
+        tmp_path,
+        {
+            "packages": [
+                {"path": "apps/web", "kind": "node"},
+                {"path": "services/api", "kind": "go"},
+                {"path": "tools/worker", "kind": "go"},
+            ]
+        },
+    )
+
+    assert shape["package_json"] == 1
+    assert shape["go_mod"] == 2
+    assert shape["monorepo"] is True
+    assert shape["polyglot"] is True
+
+
+def test_policy_level_wrappers_fall_back_to_defaults():
+    cfg = {
+        "enforcement": {
+            "monorepoVerifyScope": "nope",
+            "operatingPrinciples": "nope",
+            "tddMode": "nope",
+            "verificationBeforeCompletion": "nope",
+            "twoStageReview": "nope",
+            "taskOwnership": "nope",
+        }
+    }
+
+    assert core._get_monorepo_scope_level(cfg) == "warn"
+    assert core._get_operating_principles_level(cfg) == "warn"
+    assert core._get_tdd_mode_level(cfg) == "error"
+    assert core._get_verification_before_completion_level(cfg) == "error"
+    assert core._get_two_stage_review_level(cfg) == "error"
+    assert core._get_task_ownership_level(cfg) == "error"
+
+
+def test_verify_cmd_scoped_wrapper_distinguishes_scoped_and_unscoped_commands():
+    assert core._verify_cmd_scoped("cd apps/web && npm test")
+    assert core._verify_cmd_scoped("pytest -q")
+    assert not core._verify_cmd_scoped("npm test")
+
+
+def test_validate_token_budgets_warns_on_touched_shape_artifact(tmp_path):
+    ideas_dir = tmp_path / "docs" / "planning" / "work" / "ideas" / "demo-shape"
+    ideas_dir.mkdir(parents=True, exist_ok=True)
+    shape_md = ideas_dir / "SHAPE.md"
+    shape_md.write_text(" ".join(["shape"] * 40), encoding="utf-8")
+
+    findings = []
+    core._validate_token_budgets(
+        tmp_path,
+        findings,
+        lambda _path: True,
+        {
+            "enabled": True,
+            "shapeWordMax": 5,
+            "brainstormWordMax": 5,
+        },
+    )
+
+    assert any("Shape artifact is" in m for m in _messages(findings))
+
+
+def test_validate_bootstrap_context_warns_on_large_claude_files(tmp_path):
+    (tmp_path / "CLAUDE.md").write_text(" ".join(["root"] * 20), encoding="utf-8")
+    workflow_claude = tmp_path / ".claude"
+    workflow_claude.mkdir(parents=True, exist_ok=True)
+    (workflow_claude / "CLAUDE.md").write_text(" ".join(["workflow"] * 20), encoding="utf-8")
+    commands_dir = workflow_claude / "commands"
+    commands_dir.mkdir(parents=True, exist_ok=True)
+    (commands_dir / "shape.md").write_text(" ".join(["command"] * 20), encoding="utf-8")
+
+    findings = []
+    core._validate_bootstrap_context(
+        tmp_path,
+        findings,
+        {
+            "enabled": True,
+            "rootClaudeWordMax": 5,
+            "workflowClaudeWordMax": 5,
+            "commandSetWordMax": 5,
+        },
+    )
+
+    msgs = _messages(findings)
+    assert any("Root CLAUDE.md is" in m for m in msgs)
+    assert any("Workflow CLAUDE.md is" in m for m in msgs)
+    assert any("Command artifact set totals" in m for m in msgs)
 
 
 def test_memory_runtime_accepts_tracked_issues_jsonl(tmp_path):
@@ -1000,3 +1129,21 @@ def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path
     assert not any("Summary generatedFrom" in m for m in msgs)
     assert not any("Summary notes" in m for m in msgs)
     assert not any("REVIEW.json reviewers" in m for m in msgs)
+
+
+def test_validation_baseline_round_trip(tmp_path):
+    warning = core._finding_to_warning(core.Finding("WARN", "Example warning", "demo.json"))
+    path = core.save_baseline([warning], tmp_path)
+    assert path.exists()
+
+    loaded = core.load_baseline(tmp_path)
+    assert loaded == [warning]
+
+    diff = core.diff_baselines(loaded, loaded)
+    assert diff == {"new": [], "resolved": [], "unchanged": [warning]}
+
+
+def test_validate_repo_staged_requires_git_repo(tmp_path):
+    findings = core.validate_repo(tmp_path, staged_only=True)
+
+    assert any("--staged requires a git repository." in message for message in _messages(findings))

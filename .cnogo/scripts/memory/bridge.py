@@ -17,14 +17,16 @@ from __future__ import annotations
 
 import json
 import re
-import shlex
 import time
 from pathlib import Path
 from typing import Any
 
 from . import storage as _st
 from .identity import generate_child_id as _child_id
-from ..workflow_utils import load_workflow
+from ..workflow.shared.config import load_workflow_config
+from ..workflow.shared.config import workflow_packages
+from ..workflow.shared.packages import infer_task_package as _shared_infer_task_package
+from ..workflow.shared.packages import scope_package_command
 
 _CNOGO_DIR = ".cnogo"
 _DB_NAME = "memory.db"
@@ -36,26 +38,7 @@ _MEMORY_ID_RE = re.compile(r"^cn-[a-z0-9]+(\.\d+)*$")
 
 
 def _packages_from_workflow(root: Path) -> list[dict[str, Any]]:
-    cfg = load_workflow(root)
-    packages = cfg.get("packages")
-    if not isinstance(packages, list):
-        return []
-    out: list[dict[str, Any]] = []
-    for package in packages:
-        if not isinstance(package, dict):
-            continue
-        path = package.get("path")
-        if isinstance(path, str) and path.strip():
-            out.append(package)
-    out.sort(key=lambda item: len(str(item.get("path") or "")), reverse=True)
-    return out
-
-
-def _normalize_pkg_path(path: str) -> str:
-    normalized = path.strip()
-    if normalized.startswith("./"):
-        normalized = normalized[2:]
-    return normalized.strip("/")
+    return workflow_packages(load_workflow_config(root))
 
 
 def _infer_task_package(
@@ -64,44 +47,7 @@ def _infer_task_package(
     *,
     cwd: str | None = None,
 ) -> str | None:
-    if cwd and isinstance(cwd, str) and cwd.strip():
-        normalized_cwd = _normalize_pkg_path(cwd)
-        for package in packages:
-            package_path = package.get("path")
-            if isinstance(package_path, str) and _normalize_pkg_path(package_path) == normalized_cwd:
-                return package_path
-
-    if not files or not packages:
-        return None
-
-    matched: set[str] = set()
-    for file_path in files:
-        normalized_file = str(file_path).lstrip("./")
-        for package in packages:
-            package_path = package.get("path")
-            if not isinstance(package_path, str):
-                continue
-            base = _normalize_pkg_path(package_path)
-            if not base:
-                matched.add(package_path)
-                break
-            if normalized_file == base or normalized_file.startswith(base + "/"):
-                matched.add(package_path)
-                break
-        else:
-            matched.add("__outside__")
-    if len(matched) == 1:
-        only = next(iter(matched))
-        if only != "__outside__":
-            return only
-    return None
-
-
-def _scope_package_command(package_path: str, command: str) -> str:
-    normalized_path = _normalize_pkg_path(package_path)
-    if not normalized_path:
-        return command
-    return f"cd {shlex.quote(normalized_path)} && {command}"
+    return _shared_infer_task_package(files, packages, cwd=cwd)
 
 
 def _package_quality_gates(
@@ -141,7 +87,7 @@ def _package_quality_gates(
         command = commands.get(key)
         if not isinstance(command, str) or not command.strip():
             continue
-        scoped = _scope_package_command(package_path, command.strip())
+        scoped = scope_package_command(package_path, command.strip())
         if scoped in existing:
             continue
         existing.add(scoped)
