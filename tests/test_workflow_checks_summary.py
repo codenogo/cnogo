@@ -11,6 +11,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts import workflow_checks_core as checks
 
 
+ROOT = Path(__file__).resolve().parent.parent
+SCRIPT = ROOT / ".cnogo" / "scripts" / "workflow_checks.py"
+
+
 def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data), encoding="utf-8")
@@ -128,3 +132,48 @@ def test_write_summary_prefers_task_evidence_when_memory_outputs_exist(tmp_path,
     assert task_entry["commands"] == ["pytest -q tests/test_demo.py -k invalid"]
     assert task_entry["timestamp"] == "2026-03-20T11:59:00Z"
     assert (feature_dir / "01-SUMMARY.json").exists()
+
+
+def test_write_summary_prefers_working_tree_changes_over_last_commit(tmp_path):
+    _init_repo(tmp_path)
+    _write_plan(tmp_path)
+    app = tmp_path / "app.py"
+    old = tmp_path / "old.py"
+    app.write_text("print('before')\n", encoding="utf-8")
+    old.write_text("print('old-before')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "chore: bootstrap"], cwd=tmp_path, check=True, stdout=subprocess.DEVNULL)
+
+    old.write_text("print('old-after')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "old.py"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "feat: update old"], cwd=tmp_path, check=True, stdout=subprocess.DEVNULL)
+
+    app.write_text("print('working-tree')\n", encoding="utf-8")
+
+    contract = checks.write_summary(tmp_path, "demo", "01")
+
+    assert contract["generatedFrom"]["changedFilesSource"] == "git:working-tree"
+    assert contract["changes"] == [{"file": "app.py", "change": "Add demo handler"}]
+
+
+def test_summarize_cli_accepts_positional_feature_and_plan(tmp_path):
+    _init_repo(tmp_path)
+    _write_plan(tmp_path)
+    app = tmp_path / "app.py"
+    app.write_text("print('before')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "chore: bootstrap"], cwd=tmp_path, check=True, stdout=subprocess.DEVNULL)
+
+    app.write_text("print('after')\n", encoding="utf-8")
+    subprocess.run(["git", "add", "app.py"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-m", "feat: update demo"], cwd=tmp_path, check=True, stdout=subprocess.DEVNULL)
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "summarize", "demo", "01", "--json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    contract = json.loads(result.stdout)
+    assert contract["generatedFrom"]["changedFilesSource"] == "git:HEAD"

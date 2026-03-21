@@ -249,6 +249,10 @@ CNOGO_BLOCK="# >>> cnogo
 
 # Worktree session state (transient, contains absolute paths)
 .cnogo/worktree-session.json
+.cnogo/runs/
+.cnogo/feature-phases.json
+.cnogo/work-orders/*.json
+!.cnogo/work-orders/.gitkeep
 
 # Compaction checkpoint (runtime snapshot, not source)
 .cnogo/compaction-checkpoint.json

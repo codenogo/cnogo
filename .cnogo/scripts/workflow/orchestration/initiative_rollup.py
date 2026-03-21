@@ -72,6 +72,48 @@ def _has_plan(feature_dir: Path) -> bool:
     return bool(list(feature_dir.glob("[0-9][0-9]-PLAN.json")))
 
 
+def _infer_feature_from_branch(root: Path, branch_name: str) -> str:
+    feature_root = root / _FEATURES_DIR
+    branch = branch_name.strip()
+    if not branch or not feature_root.is_dir():
+        return ""
+
+    candidates: list[str] = []
+    if "/" in branch:
+        parts = [part.strip() for part in branch.split("/") if part.strip()]
+        if parts:
+            candidates.append(parts[-1])
+    candidates.append(branch)
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if (feature_root / candidate).is_dir():
+            return candidate
+    return ""
+
+
+def _resolve_parent_shape_path(root: Path, feature_slug: str) -> tuple[Path | None, str]:
+    feature_dir = root / _FEATURES_DIR / feature_slug
+    for name in ("CONTEXT.json", "FEATURE.json"):
+        contract = _read_json(feature_dir / name)
+        if not isinstance(contract, dict):
+            continue
+        parent_shape = contract.get("parentShape")
+        if not isinstance(parent_shape, dict):
+            continue
+        raw_path = parent_shape.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        shape_path = Path(raw_path.strip())
+        if not shape_path.is_absolute():
+            shape_path = root / shape_path
+        return shape_path, name
+    return None, ""
+
+
 # ---------------------------------------------------------------------------
 # Status derivation (D6)
 # ---------------------------------------------------------------------------
@@ -363,6 +405,65 @@ def build_initiative_rollup(root: Path, shape_path: Path) -> dict[str, Any]:
         "features": features_rollup,
         "pendingFeedback": pending_feedback,
         "nextAction": next_action,
+        "timestamp": _now_iso(),
+    }
+
+
+def current_initiative_rollup(
+    root: Path,
+    *,
+    feature_slug: str | None = None,
+    branch_name: str | None = None,
+) -> dict[str, Any]:
+    """Resolve initiative context for the current feature, if any."""
+    feature = (feature_slug or "").strip()
+    if not feature:
+        feature = _infer_feature_from_branch(root, branch_name or "")
+    if not feature:
+        return {
+            "found": False,
+            "feature": "",
+            "reason": "no_feature_context",
+            "timestamp": _now_iso(),
+        }
+
+    shape_path, source_file = _resolve_parent_shape_path(root, feature)
+    if shape_path is None:
+        return {
+            "found": False,
+            "feature": feature,
+            "reason": "no_parent_shape",
+            "timestamp": _now_iso(),
+        }
+    if not shape_path.exists():
+        return {
+            "found": False,
+            "feature": feature,
+            "reason": "missing_shape",
+            "shapePath": str(shape_path),
+            "sourceFile": source_file,
+            "timestamp": _now_iso(),
+        }
+
+    rollup = build_initiative_rollup(root, shape_path)
+    if "error" in rollup:
+        return {
+            "found": False,
+            "feature": feature,
+            "reason": "shape_error",
+            "shapePath": str(shape_path),
+            "sourceFile": source_file,
+            "error": str(rollup.get("error", "")),
+            "timestamp": _now_iso(),
+        }
+
+    return {
+        "found": True,
+        "feature": feature,
+        "initiativeSlug": str(rollup.get("slug", "")).strip(),
+        "shapePath": str(shape_path),
+        "sourceFile": source_file,
+        "rollup": rollup,
         "timestamp": _now_iso(),
     }
 

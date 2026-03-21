@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +41,19 @@ def emit(
 
 
 def auto_export(root: Path) -> None:
-    """Best-effort JSONL export after state-changing operations."""
+    """Best-effort JSONL export after state-changing operations.
+
+    Auto-export is opt-in so normal workflow operations do not dirty the
+    worktree with memory sync artifacts. Use `/sync` for the explicit export
+    path, or set `CNOGO_AUTO_EXPORT_JSONL=1` to restore eager exports.
+    """
+    if os.getenv("CNOGO_AUTO_EXPORT_JSONL", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return
     try:
         from .sync import export_jsonl as _export
 

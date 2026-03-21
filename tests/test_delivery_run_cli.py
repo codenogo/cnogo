@@ -222,6 +222,73 @@ def test_run_plan_verify_records_review_readiness(tmp_path):
     assert payload["integration"]["status"] == "merged"
 
 
+def test_run_task_prompt_renders_supported_worker_prompt(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
+
+    created = _run_cli("run-create", "demo", "01", "--json", cwd=tmp_path)
+    assert created.returncode == 0, created.stderr + created.stdout
+    run = json.loads(created.stdout)
+
+    prompted = _run_cli(
+        "run-task-prompt",
+        "demo",
+        "0",
+        "--run-id",
+        run["runId"],
+        "--json",
+        cwd=tmp_path,
+    )
+    assert prompted.returncode == 0, prompted.stderr + prompted.stdout
+    payload = json.loads(prompted.stdout)
+    assert payload["taskIndex"] == 0
+    assert payload["title"] == "Task 1"
+    assert "# Implement: Task 1" in payload["prompt"]
+    assert "do NOT run `git commit`, `git push`, or create PRs" in payload["prompt"]
+
+
+def test_run_review_ready_prepares_branch_native_team_run_for_review(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=False)
+
+    created = _run_cli("run-create", "demo", "01", "--mode", "team", "--json", cwd=tmp_path)
+    assert created.returncode == 0, created.stderr + created.stdout
+    run = json.loads(created.stdout)
+    run_id = run["runId"]
+
+    _run_cli("run-task-set", "demo", "0", "done", "--run-id", run_id, "--json", cwd=tmp_path)
+    _run_cli("run-task-set", "demo", "1", "done", "--run-id", run_id, "--json", cwd=tmp_path)
+
+    verified = _run_cli(
+        "run-plan-verify",
+        "demo",
+        "pass",
+        "--run-id",
+        run_id,
+        "--command",
+        "pytest -q",
+        "--json",
+        cwd=tmp_path,
+    )
+    assert verified.returncode == 0, verified.stderr + verified.stdout
+    verified_payload = json.loads(verified.stdout)
+    assert verified_payload["reviewReadiness"]["status"] == "pending"
+
+    phase = _run_cli("phase-get", "demo", "--json", cwd=tmp_path)
+    assert phase.returncode == 0, phase.stderr + phase.stdout
+    assert json.loads(phase.stdout)["phase"] == "implement"
+
+    prepared = _run_cli("run-review-ready", "demo", "--run-id", run_id, "--json", cwd=tmp_path)
+    assert prepared.returncode == 0, prepared.stderr + prepared.stdout
+    prepared_payload = json.loads(prepared.stdout)
+    assert prepared_payload["integration"]["status"] == "cleaned"
+    assert prepared_payload["reviewReadiness"]["status"] == "ready"
+
+    phase = _run_cli("phase-get", "demo", "--json", cwd=tmp_path)
+    assert phase.returncode == 0, phase.stderr + phase.stdout
+    assert json.loads(phase.stdout)["phase"] == "review"
+
+
 def test_run_review_commands_update_delivery_run_review_state(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     feature = "demo"

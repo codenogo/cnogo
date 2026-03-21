@@ -39,6 +39,9 @@ Commands:
     work-list           List Work Orders across features
     work-sync           Rebuild Work Order rollups
     work-next           Show the next feature-level action
+    initiative-show     Show an initiative rollup from SHAPE.json
+    initiative-list     List initiatives with SHAPE.json artifacts
+    initiative-current  Show initiative context for the current or specified feature
     run-watch           Inspect delivery-run health and next actions
     run-watch-status    Show recurring watch schedule status and patrol state
     run-watch-tick      Run the recurring watch patrol only when due (or when forced)
@@ -55,7 +58,9 @@ Commands:
     run-task-complete   Report memory completion and mark a task done
     run-task-fail       Mark a delivery-run task as failed
     run-task-set        Update a delivery-run task state
+    run-task-prompt     Render a stable implementer prompt for one run task
     run-plan-verify     Record plan verification outcome for a delivery run
+    run-review-ready    Finalize integration and mark a delivery run review-ready
     run-review-start    Start or resume review state for a delivery run
     run-review-stage-set Update one review stage on a delivery run
     run-review-verdict  Set the final review verdict on a delivery run
@@ -164,6 +169,7 @@ from scripts.memory import (  # noqa: E402
     next_delivery_run_action,
     next_work_order_action,
     plan_to_task_descriptions,
+    prepare_delivery_run_review_ready,
     persist_delivery_run_watch_report,
     get_phase,
     merge_session,
@@ -173,6 +179,7 @@ from scripts.memory import (  # noqa: E402
     refresh_delivery_run,
     reconcile_session,
     recommend_team_mode,
+    generate_implement_prompt,
     record_cost_event,
     run_delivery_run_watch_tick,
     run_scheduler_once,
@@ -204,7 +211,11 @@ from scripts.memory import (  # noqa: E402
     verify_and_close,
     watch_delivery_runs,
 )
-from scripts.workflow.orchestration.initiative_rollup import build_initiative_rollup, list_initiatives
+from scripts.workflow.orchestration.initiative_rollup import (
+    build_initiative_rollup,
+    current_initiative_rollup,
+    list_initiatives,
+)
 from scripts.workflow.orchestration import (
     DELIVERY_REVIEW_STAGE_STATUSES,
     DELIVERY_REVIEW_STAGES,
@@ -273,6 +284,31 @@ def _resolve_run(root: Path, feature: str, run_id: str | None):
     if run_id:
         return load_delivery_run(feature, run_id, root=root)
     return latest_delivery_run(feature, root=root)
+
+
+def _run_plan_path(root: Path, run) -> Path:
+    raw_path = str(getattr(run, "plan_path", "") or "").strip()
+    if not raw_path:
+        raise FileNotFoundError(f"Delivery Run {run.run_id} is missing planPath.")
+    plan_path = Path(raw_path)
+    if not plan_path.is_absolute():
+        plan_path = root / plan_path
+    return plan_path
+
+
+def _resolve_task_description_for_run(root: Path, run, task_index: int) -> dict[str, object]:
+    plan_path = _run_plan_path(root, run)
+    if not plan_path.exists():
+        raise FileNotFoundError(f"Plan contract not found: {plan_path}")
+    taskdescs = plan_to_task_descriptions(
+        plan_path,
+        root,
+        profile=run.profile if isinstance(getattr(run, "profile", None), dict) else None,
+    )
+    for taskdesc in taskdescs:
+        if int(taskdesc.get("plan_task_index", -1)) == task_index:
+            return taskdesc
+    raise ValueError(f"Unknown task index {task_index} for plan {run.plan_number}.")
 
 
 def _print_run(run) -> None:
@@ -1440,7 +1476,7 @@ def cmd_work_next(args: argparse.Namespace) -> int:
 
 
 def cmd_initiative_show(args: argparse.Namespace) -> int:
-    root = Path(".")
+    root = _root()
     slug = args.slug
     shape_path = root / "docs" / "planning" / "work" / "ideas" / slug / "SHAPE.json"
     if not shape_path.exists():
@@ -1473,7 +1509,7 @@ def cmd_initiative_show(args: argparse.Namespace) -> int:
 
 
 def cmd_initiative_list(args: argparse.Namespace) -> int:
-    root = Path(".")
+    root = _root()
     initiatives = list_initiatives(root)
     if getattr(args, "json", False):
         print(json.dumps(initiatives, indent=2))
@@ -1485,6 +1521,32 @@ def cmd_initiative_list(args: argparse.Namespace) -> int:
     print("-" * 65)
     for init in initiatives:
         print(f"{init.get('initiative', ''):<30} {init.get('slug', ''):<25} {init.get('candidateCount', 0):<10}")
+    return 0
+
+
+def cmd_initiative_current(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = current_initiative_rollup(
+        root,
+        feature_slug=getattr(args, "feature", None),
+        branch_name=args.branch or _git_branch(root),
+    )
+    if args.json:
+        _print_json(payload)
+        return 0
+    if not payload.get("found"):
+        print("No initiative context found.")
+        return 0
+    rollup = payload.get("rollup", {}) if isinstance(payload.get("rollup"), dict) else {}
+    print(
+        f"Initiative: {rollup.get('initiative', '')} "
+        f"({rollup.get('completedFeatures', 0)}/{rollup.get('totalFeatures', 0)} completed)"
+    )
+    print(f"Feature: {payload.get('feature', '')}")
+    print(f"Shape: {payload.get('shapePath', '')}")
+    next_action = rollup.get("nextAction", {}) if isinstance(rollup.get("nextAction"), dict) else {}
+    if next_action.get("summary"):
+        print(f"Next: {next_action['summary']}")
     return 0
 
 
@@ -1750,6 +1812,35 @@ def cmd_run_next(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run_task_prompt(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        taskdesc = _resolve_task_description_for_run(root, run, args.task_index)
+        prompt = generate_implement_prompt(taskdesc, actor_name=args.actor)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    payload = {
+        "feature": run.feature,
+        "planNumber": run.plan_number,
+        "runId": run.run_id,
+        "taskIndex": args.task_index,
+        "title": str(taskdesc.get("title", "")),
+        "taskId": str(taskdesc.get("task_id", "")),
+        "actor": args.actor,
+        "prompt": prompt,
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        print(prompt)
+    return 0
+
+
 def cmd_run_task_begin(args: argparse.Namespace) -> int:
     root = _root()
     run = _resolve_run(root, args.feature, args.run_id)
@@ -1921,7 +2012,43 @@ def cmd_run_plan_verify(args: argparse.Namespace) -> int:
         note=args.note,
         root=root,
     )
-    if args.result == "pass":
+    if args.result == "pass" and run.review_readiness.get("status") == "ready":
+        set_phase(args.feature, "review", root=root)
+    elif args.result == "pass" and not args.json:
+        print(
+            "Plan verification recorded, but review is not ready yet. "
+            "Use `python3 .cnogo/scripts/workflow_memory.py "
+            f"run-review-ready {args.feature} --run-id {run.run_id}` "
+            "after integration is finalized.",
+            file=sys.stderr,
+        )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_review_ready(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    session = load_session(root)
+    if session is not None and session.feature == run.feature and (not session.run_id or session.run_id == run.run_id):
+        run = sync_delivery_run_with_session(run, session, root=root)
+    try:
+        run = prepare_delivery_run_review_ready(
+            run,
+            integration_status=args.integration_status,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if run.review_readiness.get("status") == "ready":
         set_phase(args.feature, "review", root=root)
     if args.json:
         _print_json(run.to_dict())
@@ -1950,7 +2077,9 @@ def cmd_run_review_start(args: argparse.Namespace) -> int:
     if not _review_ready_or_started(run):
         print(
             "Review cannot start until reviewReadiness.status == ready "
-            f"(current={run.review_readiness.get('status', 'pending')!r}).",
+            f"(current={run.review_readiness.get('status', 'pending')!r}). "
+            f"If plan verification already passed, run "
+            f"`python3 .cnogo/scripts/workflow_memory.py run-review-ready {args.feature} --run-id {run.run_id}` first.",
             file=sys.stderr,
         )
         return 1
@@ -3283,6 +3412,12 @@ def main() -> int:
     p = sub.add_parser("initiative-list", help="List all initiatives with SHAPE.json")
     p.add_argument("--json", action="store_true")
 
+    # initiative-current
+    p = sub.add_parser("initiative-current", help="Show initiative context for the current or specified feature")
+    p.add_argument("--feature", help="Feature slug to inspect instead of inferring from branch")
+    p.add_argument("--branch", help="Override branch name used for feature inference")
+    p.add_argument("--json", action="store_true")
+
     # run-watch
     p = sub.add_parser("run-watch", help="Inspect delivery-run health and next actions")
     p.add_argument("--feature", help="Feature slug to filter")
@@ -3363,6 +3498,14 @@ def main() -> int:
     p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
     p.add_argument("--json", action="store_true")
 
+    # run-task-prompt
+    p = sub.add_parser("run-task-prompt", help="Render a stable implementer prompt for one Delivery Run task")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("task_index", type=int, help="Plan task index")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--actor", default="implementer", help="Actor name to embed in memory commands")
+    p.add_argument("--json", action="store_true")
+
     # run-task-set
     p = sub.add_parser("run-task-set", help="Update one delivery-run task status")
     p.add_argument("feature", help="Feature slug")
@@ -3421,6 +3564,14 @@ def main() -> int:
         help="Verification command that was run",
     )
     p.add_argument("--note", help="Optional note to store with verification state")
+    p.add_argument("--json", action="store_true")
+
+    # run-review-ready
+    p = sub.add_parser("run-review-ready", help="Finalize integration state and mark a Delivery Run ready for review")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--integration-status", choices=["merged", "cleaned"], help="Explicit integration status to record before recomputing review readiness")
+    p.add_argument("--note", help="Optional note to append to review readiness")
     p.add_argument("--json", action="store_true")
 
     # run-review-start
@@ -3697,6 +3848,9 @@ def main() -> int:
         "work-list",
         "work-sync",
         "work-next",
+        "initiative-show",
+        "initiative-list",
+        "initiative-current",
         "session-status",
         "session-cleanup",
     }
@@ -3745,6 +3899,7 @@ def main() -> int:
         "work-next": cmd_work_next,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,
+        "initiative-current": cmd_initiative_current,
         "run-watch": cmd_run_watch,
         "run-watch-status": cmd_run_watch_status,
         "run-watch-tick": cmd_run_watch_tick,
@@ -3758,11 +3913,13 @@ def main() -> int:
         "run-attention": cmd_run_attention,
         "run-refresh": cmd_run_refresh,
         "run-next": cmd_run_next,
+        "run-task-prompt": cmd_run_task_prompt,
         "run-task-set": cmd_run_task_set,
         "run-task-begin": cmd_run_task_begin,
         "run-task-complete": cmd_run_task_complete,
         "run-task-fail": cmd_run_task_fail,
         "run-plan-verify": cmd_run_plan_verify,
+        "run-review-ready": cmd_run_review_ready,
         "run-review-start": cmd_run_review_start,
         "run-review-stage-set": cmd_run_review_stage_set,
         "run-review-verdict": cmd_run_review_verdict,

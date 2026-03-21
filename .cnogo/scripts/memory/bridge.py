@@ -416,6 +416,8 @@ def generate_implement_prompt(
     lines.append("**On failure:** read history, summarize the last error, fix, and retry.")
     lines.append("**Retry loop:** after each failed verify, run the history command before next attempt.")
     lines.append("After 2 failures, message the team lead.")
+    lines.append("**Repo authority:** do NOT run `git commit`, `git push`, or create PRs.")
+    lines.append("**Staging:** do NOT stage repo-wide changes; the leader handles merge, commit, and ship.")
     if task_id:
         lines.append("**If blocked:** do NOT report done. Message the team lead.")
         lines.append("**NEVER close issues. Only report done. The leader handles closure.**")

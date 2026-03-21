@@ -34,6 +34,30 @@ def _write_shape(root: Path, slug: str, initiative: str = "Test Initiative", can
     return shape_path
 
 
+def _write_feature_with_parent_shape(root: Path, feature: str, shape_slug: str) -> None:
+    feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    contract = {
+        "schemaVersion": 1,
+        "feature": feature,
+        "displayName": feature.replace("-", " ").title(),
+        "userOutcome": "Outcome",
+        "scopeSummary": "Scope",
+        "dependencies": [],
+        "risks": [],
+        "status": "discuss-ready",
+        "readinessReason": "Ready now",
+        "handoffSummary": "Discuss next",
+        "parentShape": {
+            "path": f"docs/planning/work/ideas/{shape_slug}/SHAPE.json",
+            "timestamp": "2026-03-21T12:00:00Z",
+            "schemaVersion": 1,
+        },
+        "timestamp": "2026-03-21T12:00:00Z",
+    }
+    (feature_dir / "FEATURE.json").write_text(json.dumps(contract, indent=2) + "\n", encoding="utf-8")
+
+
 def test_initiative_list_json_returns_empty_list_when_no_ideas(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     result = _run_cli("initiative-list", "--json", cwd=tmp_path)
@@ -121,3 +145,31 @@ def test_initiative_show_table_output(tmp_path):
     assert result.returncode == 0, result.stderr + result.stdout
     assert "Demo Initiative" in result.stdout
     assert "feat-one" in result.stdout
+
+
+def test_initiative_current_json_returns_rollup_for_feature_context(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    _write_shape(
+        tmp_path,
+        "demo-initiative",
+        initiative="Demo Initiative",
+        candidates=[{"slug": "feat-one", "displayName": "Feat One", "status": "draft"}],
+    )
+    _write_feature_with_parent_shape(tmp_path, "feat-one", "demo-initiative")
+
+    result = _run_cli("initiative-current", "--feature", "feat-one", "--json", cwd=tmp_path)
+    assert result.returncode == 0, result.stderr + result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["found"] is True
+    assert payload["feature"] == "feat-one"
+    assert payload["initiativeSlug"] == "demo-initiative"
+    assert payload["rollup"]["initiative"] == "Demo Initiative"
+
+
+def test_initiative_current_json_reports_missing_context(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    result = _run_cli("initiative-current", "--feature", "feat-one", "--json", cwd=tmp_path)
+    assert result.returncode == 0, result.stderr + result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["found"] is False
+    assert payload["reason"] == "no_parent_shape"

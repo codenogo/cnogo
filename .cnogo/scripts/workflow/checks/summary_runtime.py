@@ -44,12 +44,19 @@ def summary_changed_files(
     git_name_only: Callable[[Path, str], list[str]],
     changed_relpaths: Callable[[Path], set[str]],
 ) -> tuple[list[str], str]:
-    changed = sorted(set(git_name_only(root, "git diff-tree --no-commit-id --name-only --diff-filter=ACMR -r HEAD")))
+    working_tree = sorted(
+        set(git_name_only(root, "git diff --name-only --diff-filter=ACMR HEAD"))
+    )
+    if working_tree:
+        return working_tree, "git:working-tree"
+    changed = sorted(
+        set(git_name_only(root, "git diff-tree --no-commit-id --name-only --diff-filter=ACMR -r HEAD"))
+    )
     if changed:
         return changed, "git:HEAD"
     fallback = sorted(changed_relpaths(root))
     if fallback:
-        return fallback, "git:working-tree"
+        return fallback, "git:fallback"
     return [], "git:none"
 
 

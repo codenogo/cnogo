@@ -95,12 +95,14 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     assert "workflow_checks.py summarize --feature <feature-slug> --plan <NN>" in implement
     assert "run-watch-patrol --feature <feature-slug>" in implement
     assert "work-next <feature-slug> --json" in implement
+    assert "run-review-ready <feature-slug> --run-id <run-id>" in implement
     assert "Delivery Run" in team
     assert "Work Order state" in team
-    assert "same `run_id`" in team
-    assert "workflow_memory.py run-create <feature> <NN> --mode team --run-id <run-id>" in team
+    assert "workflow_memory.py run-create <feature> <NN> --mode team --json" in team
+    assert "workflow_memory.py run-task-prompt <feature> <task-index> --run-id <run-id>" in team
     assert "workflow_memory.py run-sync-session <feature> --run-id <run-id> --json" in team
     assert "run-plan-verify <feature> pass|fail" in team
+    assert "Workers must not commit, push, create PRs, or stage repo-wide changes" in team
     assert "Work Order state, Delivery Run state, Integration state, Review readiness" in team
     assert "work-list --needs-attention --json" in team
     assert "session-status --json" in resume
@@ -108,6 +110,8 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     assert "work-list --needs-attention --json" in resume
     assert "run-watch-patrol --feature <feature>" in resume
     assert "work-list --needs-attention --json" in status
+    assert "initiative-current --json" in status
+    assert "initiative-current --json" in resume
 
 
 def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
@@ -123,6 +127,7 @@ def test_review_command_uses_pending_final_verdict_and_reviewer_agents():
     assert "always spawn" in review
     assert "REVIEW.json.reviewers[]" in review
     assert "reviewReadiness.status == ready" in review
+    assert "run-review-ready <feature-slug> --json" in review
     assert "must stop if there is no linked Delivery Run" in review
     assert "review.status = in_progress" in review
     assert "profile-required reviewers" in review

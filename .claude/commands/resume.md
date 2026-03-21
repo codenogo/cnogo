@@ -16,38 +16,17 @@ python3 .cnogo/scripts/workflow_memory.py ready --limit 10
 
 ### Step 1.5: Initiative Context (If Applicable)
 
-Detect if the current feature has a `parentShape` link. Extract the feature slug from the current branch (e.g., `feature/my-feature` → `my-feature`), then check:
-
 ```bash
-python3 -c "
-import json, pathlib, sys
-slug = '$(git branch --show-current | sed \"s|^feature/||\")'
-for name in ['CONTEXT.json', 'FEATURE.json']:
-    p = pathlib.Path(f'docs/planning/work/features/{slug}/{name}')
-    if p.exists():
-        data = json.loads(p.read_text())
-        ps = data.get('parentShape', {})
-        if ps and ps.get('path'):
-            parts = pathlib.Path(ps['path']).parts
-            idx = parts.index('ideas') + 1 if 'ideas' in parts else -1
-            if idx > 0: print(parts[idx]); sys.exit(0)
-print('')
-"
+python3 .cnogo/scripts/workflow_memory.py initiative-current --json
 ```
 
-If a shape slug is returned, run:
-
-```bash
-python3 .cnogo/scripts/workflow_memory.py initiative-show <shape-slug> --json
-```
-
-Include initiative context in Step 5 (Next) summary:
+If `found=true`, include initiative context in Step 5 (Next):
 - Initiative progress (N/M features completed)
 - Blocked features that need attention
 - Pending shapeFeedback count
 - Initiative-level recommended next action
 
-If no `parentShape` link exists, skip this step silently.
+If `found=false`, skip this step silently.
 
 ### Step 2: Verify Git
 
