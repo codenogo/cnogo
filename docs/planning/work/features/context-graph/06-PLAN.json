@@ -9,7 +9,8 @@
       "files": [
         "scripts/context/phases/coupling.py",
         "scripts/context/storage.py",
-        "tests/test_context_coupling.py"
+        "tests/test_context_coupling.py",
+        "tests/test_context_storage.py"
       ],
       "microSteps": [
         "Write tests for get_all_relationships_by_types() storage method",

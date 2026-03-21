@@ -69,7 +69,8 @@
         "scripts/context/phases/__init__.py",
         "scripts/context/__init__.py",
         "tests/test_context_heritage.py",
-        "tests/test_context_pipeline.py"
+        "tests/test_context_pipeline.py",
+        "tests/test_context_graph.py"
       ],
       "microSteps": [
         "Write tests for heritage extraction (EXTENDS edges for class inheritance)",

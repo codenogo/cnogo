@@ -72,7 +72,7 @@ python3 -m pytest tests/test_context_calls.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: Implement heritage phase and assemble full indexing pipeline
-**Files:** `scripts/context/phases/heritage.py`, `scripts/context/phases/symbols.py`, `scripts/context/phases/__init__.py`, `scripts/context/__init__.py`, `tests/test_context_heritage.py`, `tests/test_context_pipeline.py`
+**Files:** `scripts/context/phases/heritage.py`, `scripts/context/phases/symbols.py`, `scripts/context/phases/__init__.py`, `scripts/context/__init__.py`, `tests/test_context_heritage.py`, `tests/test_context_pipeline.py`, `tests/test_context_graph.py`
 **Action:**
 Heritage phase resolves class inheritance. For each (class_name, 'extends', parent_name) tuple from parser, find both nodes in storage and create EXTENDS edge. Same for IMPLEMENTS. Symbols phase creates FUNCTION/CLASS/METHOD/INTERFACE/TYPE_ALIAS/ENUM nodes from ParseResult symbols + DEFINES edges from FILE to each symbol. Assemble full pipeline in ContextGraph.index(): (1) walk files, (2) compare hashes for incremental, (3) remove stale nodes, (4) parse changed files, (5) run phases: structure → symbols → imports → calls → heritage, (6) update file hashes. Implement ContextGraph.query(name) as simple name match on nodes table.
 

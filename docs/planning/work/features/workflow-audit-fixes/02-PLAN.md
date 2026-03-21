@@ -51,7 +51,7 @@ python3 .cnogo/scripts/workflow_validate.py
 **Done when:** [Observable outcome]
 
 ### Task 3: Consolidate perf-analysis into performance-review
-**Files:** `.claude/skills/performance-review.md`
+**Files:** `.claude/skills/performance-review.md`, `.claude/skills/perf-analysis.md`
 **Action:**
 Merge the perf-analysis.md checklist (hotspot identification, complexity check, IO patterns, N+1, caching, backpressure/retries, payload handling, connection pooling) into performance-review.md as a subsection under Step B or as a new Step B2. Include the 'Process' section (measure-before, identify bottleneck, fix, measure-after, check regressions). Then delete perf-analysis.md.
 

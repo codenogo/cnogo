@@ -5,8 +5,64 @@
   "outcome": "complete",
   "changes": [
     {
-      "file": ".claude/skills/*.md (15 files)",
-      "description": "Added YAML frontmatter (name, tags, appliesTo) to all 15 skill files. Tags categorize skills by domain/workflow/quality/security/testing/debug/release/performance. appliesTo maps each skill to commands that reference it."
+      "file": ".claude/skills/api-review.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/artifact-token-budgeting.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/boundary-and-sdk-enforcement.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/changed-scope-verification.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/code-review.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/debug-investigation.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/feature-lifecycle-closure.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/memory-sync-reconciliation.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/perf-analysis.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/refactor-safety.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/release-readiness.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/security-scan.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/test-writing.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/workflow-contract-integrity.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
+    },
+    {
+      "file": ".claude/skills/worktree-merge-recovery.md",
+      "description": "Added YAML frontmatter (name, tags, appliesTo)."
     },
     {
       "file": ".cnogo/scripts/workflow_checks_core.py",

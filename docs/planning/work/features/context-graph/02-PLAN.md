@@ -75,7 +75,7 @@ python3 -m pytest tests/test_context_python_parser.py -x
 **Done when:** [Observable outcome]
 
 ### Task 3: Implement structure phase (File/Folder nodes + CONTAINS edges)
-**Files:** `scripts/context/phases/structure.py`, `tests/test_context_structure.py`
+**Files:** `scripts/context/phases/structure.py`, `scripts/context/phases/__init__.py`, `tests/test_context_structure.py`
 **Action:**
 Structure phase creates File and Folder nodes + CONTAINS edges. For each FileEntry, create a FILE node. Extract unique directory paths, create FOLDER nodes. Connect folders with CONTAINS relationships (parent→child folder, folder→file). Use PurePosixPath for platform-independent path handling. Store content_hash in FILE node properties for incremental support.
 

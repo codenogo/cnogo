@@ -6,7 +6,7 @@ Compute structural coupling between symbols via shared call/import neighbors (Ja
 ## Tasks
 
 ### Task 1: Coupling detection phase and storage helper
-**Files:** `scripts/context/phases/coupling.py`, `scripts/context/storage.py`, `tests/test_context_coupling.py`
+**Files:** `scripts/context/phases/coupling.py`, `scripts/context/storage.py`, `tests/test_context_coupling.py`, `tests/test_context_storage.py`
 **Action:**
 Create scripts/context/phases/coupling.py with CouplingResult dataclass (source_id, source_name, target_id, target_name, strength, shared_count) and compute_coupling(storage, threshold=0.5) function. Algorithm: (1) call storage.get_all_relationships_by_types() for CALLS + IMPORTS edge types to get all edges in one query, (2) build dict[node_id → set[neighbor_id]] from both source and target sides, (3) filter to symbol nodes only via get_all_symbol_nodes(), (4) for each pair of symbols sharing at least one neighbor compute Jaccard similarity = |A∩B| / |A∪B|, (5) if similarity >= threshold create COUPLED_WITH relationship via add_relationships(), (6) return list of CouplingResult sorted by strength descending. Add get_all_relationships_by_types(rel_types) to GraphStorage returning list of (source, target, type) tuples in a single indexed query. Optimization: use inverted index (neighbor → symbols) to avoid O(N²) — only compare symbols that share at least one neighbor.
 
