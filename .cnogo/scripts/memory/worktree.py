@@ -659,6 +659,8 @@ def cleanup_session(session: WorktreeSession | None, root: Path) -> None:
     if session is None:
         return
 
+    session.phase = "cleaned"
+
     for wt in session.worktrees:
         if wt.status == "cleaned":
             continue

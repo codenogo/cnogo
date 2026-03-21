@@ -1131,6 +1131,209 @@ def test_validate_repo_accepts_generated_summary_metadata_and_reviewers(tmp_path
     assert not any("REVIEW.json reviewers" in m for m in msgs)
 
 
+def test_validate_repo_accepts_delivery_run_and_session_link(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps({"version": 1, "repoShape": "auto", "packages": []}),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+
+    feature_dir = tmp_path / "docs" / "planning" / "work" / "features" / "demo"
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "01-PLAN.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 3,
+                "feature": "demo",
+                "planNumber": "01",
+                "goal": "demo",
+                "tasks": [
+                    {
+                        "name": "Add handler",
+                        "files": ["app.py"],
+                        "contextLinks": ["Constraint: return deterministic output"],
+                        "microSteps": ["write invalid-input failure test", "implement handler", "run tests"],
+                        "action": "Update app.py",
+                        "verify": ["pytest -q"],
+                        "tdd": {
+                            "required": True,
+                            "failingVerify": ["pytest -q -k fail"],
+                            "passingVerify": ["pytest -q -k fail"],
+                        },
+                    }
+                ],
+                "planVerify": ["pytest -q"],
+                "commitMessage": "feat: demo",
+                "timestamp": _iso_now(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    runs_dir = tmp_path / ".cnogo" / "runs" / "demo"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / "demo-100.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "runId": "demo-100",
+                "feature": "demo",
+                "planNumber": "01",
+                "mode": "team",
+                "status": "active",
+                "startedBy": "claude",
+                "branch": "feature/demo",
+                "planPath": "docs/planning/work/features/demo/01-PLAN.json",
+                "summaryPath": "docs/planning/work/features/demo/01-SUMMARY.json",
+                "reviewPath": "docs/planning/work/features/demo/REVIEW.json",
+                "recommendation": {"recommended": True},
+                "integration": {
+                    "status": "awaiting_merge",
+                    "mergedTaskIndices": [],
+                    "awaitingMergeTaskIndices": [0],
+                    "activeTaskIndices": [],
+                    "conflictTaskIndex": None,
+                    "conflictFiles": [],
+                    "lastSessionPhase": "executing",
+                    "updatedAt": _iso_now(),
+                },
+                "reviewReadiness": {
+                    "status": "pending",
+                    "planVerifyPassed": None,
+                    "verifiedAt": "",
+                    "verifiedCommands": [],
+                    "notes": [],
+                    "updatedAt": _iso_now(),
+                },
+                "tasks": [
+                    {
+                        "taskIndex": 0,
+                        "title": "Add handler",
+                        "status": "ready",
+                        "memoryId": "cn-demo",
+                        "blockedBy": [],
+                        "filePaths": ["app.py"],
+                        "forbiddenPaths": [],
+                        "verifyCommands": ["pytest -q"],
+                        "packageVerifyCommands": [],
+                        "cwd": "",
+                        "assignee": "",
+                        "branch": "",
+                        "worktreePath": "",
+                        "notes": [],
+                        "updatedAt": _iso_now(),
+                    }
+                ],
+                "notes": [],
+                "createdAt": _iso_now(),
+                "updatedAt": _iso_now(),
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (cnogo_dir / "worktree-session.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "feature": "demo",
+                "planNumber": "01",
+                "runId": "demo-100",
+                "baseCommit": "abc123",
+                "baseBranch": "feature/demo",
+                "phase": "executing",
+                "worktrees": [],
+                "mergeOrder": [],
+                "mergedSoFar": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert not any("Delivery run" in msg for msg in msgs)
+    assert not any("worktree-session.json references runId" in msg for msg in msgs)
+
+
+def test_validate_repo_warns_for_invalid_delivery_run_and_missing_session_link(tmp_path):
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "PROJECT.md").write_text("# Project\n", encoding="utf-8")
+    (planning_dir / "ROADMAP.md").write_text("# Roadmap\n", encoding="utf-8")
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps({"version": 1, "repoShape": "auto", "packages": []}),
+        encoding="utf-8",
+    )
+
+    cnogo_dir = tmp_path / ".cnogo"
+    cnogo_dir.mkdir(parents=True, exist_ok=True)
+    (cnogo_dir / "memory.db").write_text("", encoding="utf-8")
+
+    runs_dir = tmp_path / ".cnogo" / "runs" / "demo"
+    runs_dir.mkdir(parents=True, exist_ok=True)
+    (runs_dir / "demo-bad.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": "1",
+                "runId": "",
+                "feature": "wrong-feature",
+                "planNumber": "",
+                "mode": "invalid",
+                "status": "mystery",
+                "integration": {
+                    "status": "mystery",
+                    "mergedTaskIndices": "bad",
+                    "conflictTaskIndex": "zero",
+                },
+                "reviewReadiness": {
+                    "status": "mystery",
+                    "planVerifyPassed": "yes",
+                    "verifiedCommands": "pytest -q",
+                },
+                "tasks": [{"taskIndex": "0", "title": "", "status": "mystery"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    (cnogo_dir / "worktree-session.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "feature": "demo",
+                "planNumber": "01",
+                "runId": "missing-run",
+                "baseCommit": "abc123",
+                "baseBranch": "feature/demo",
+                "phase": "executing",
+                "worktrees": [],
+                "mergeOrder": [],
+                "mergedSoFar": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    findings = core.validate_repo(tmp_path, staged_only=False)
+    msgs = _messages(findings)
+
+    assert any("Delivery run schemaVersion should be an integer." in msg for msg in msgs)
+    assert any("Delivery run mode should be serial|team." in msg for msg in msgs)
+    assert any("Delivery run status should be one of" in msg for msg in msgs)
+    assert any("Delivery run integration.status should be one of" in msg for msg in msgs)
+    assert any("Delivery run reviewReadiness.status should be one of" in msg for msg in msgs)
+    assert any("worktree-session.json references runId that does not exist" in msg for msg in msgs)
+
+
 def test_validation_baseline_round_trip(tmp_path):
     warning = core._finding_to_warning(core.Finding("WARN", "Example warning", "demo.json"))
     path = core.save_baseline([warning], tmp_path)

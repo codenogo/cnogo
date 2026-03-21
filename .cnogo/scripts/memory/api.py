@@ -6,6 +6,28 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from ..workflow.orchestration import (
+    DELIVERY_INTEGRATION_STATUSES,
+    DELIVERY_REVIEW_READINESS_STATUSES,
+    DeliveryRun,
+    create_delivery_run as _create_delivery_run_impl,
+    ensure_run_coordination_state as _ensure_run_coordination_state_impl,
+    ensure_delivery_run as _ensure_delivery_run_impl,
+    latest_delivery_run as _latest_delivery_run_impl,
+    list_delivery_runs as _list_delivery_runs_impl,
+    load_delivery_run as _load_delivery_run_impl,
+    record_plan_verification as _record_plan_verification_impl,
+    refresh_task_frontier as _refresh_task_frontier_impl,
+    save_delivery_run as _save_delivery_run_impl,
+    summarize_delivery_run as _summarize_delivery_run_impl,
+    sync_integration_state as _sync_integration_state_impl,
+    sync_review_readiness as _sync_review_readiness_impl,
+    sync_run_with_worktree_session as _sync_run_with_worktree_session_impl,
+    update_delivery_task_status as _update_delivery_task_status_impl,
+    watch_delivery_runs as _watch_delivery_runs_impl,
+)
+from ..workflow.shared.config import agent_team_settings as _agent_team_settings_cfg
+from ..workflow.shared.config import load_workflow_config as _load_workflow_config
 from . import bootstrap as _bootstrap_api
 from . import cost_tracking as _cost_tracking_api
 from . import creation as _creation_api
@@ -410,3 +432,197 @@ def record_cost_event(
 def get_cost_summary(feature_slug: str, *, root: Path | None = None) -> dict[str, Any]:
     """Aggregate cost_report events for all issues in a feature."""
     return _cost_tracking_api.get_cost_summary(_resolve_root(root), feature_slug)
+
+
+def create_delivery_run(
+    *,
+    feature: str,
+    plan_number: str,
+    plan_path: Path,
+    task_descriptions: list[dict[str, Any]],
+    mode: str,
+    run_id: str | None = None,
+    started_by: str = "claude",
+    branch: str = "",
+    recommendation: dict[str, Any] | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    return _create_delivery_run_impl(
+        _resolve_root(root),
+        feature=feature,
+        plan_number=plan_number,
+        plan_path=plan_path,
+        task_descriptions=task_descriptions,
+        mode=mode,
+        run_id=run_id,
+        started_by=started_by,
+        branch=branch,
+        recommendation=recommendation,
+    )
+
+
+def ensure_delivery_run(
+    *,
+    feature: str,
+    plan_number: str,
+    plan_path: Path,
+    task_descriptions: list[dict[str, Any]],
+    mode: str,
+    run_id: str | None = None,
+    started_by: str = "claude",
+    branch: str = "",
+    recommendation: dict[str, Any] | None = None,
+    resume_latest: bool = True,
+    root: Path | None = None,
+) -> DeliveryRun:
+    return _ensure_delivery_run_impl(
+        _resolve_root(root),
+        feature=feature,
+        plan_number=plan_number,
+        plan_path=plan_path,
+        task_descriptions=task_descriptions,
+        mode=mode,
+        run_id=run_id,
+        started_by=started_by,
+        branch=branch,
+        recommendation=recommendation,
+        resume_latest=resume_latest,
+    )
+
+
+def load_delivery_run(feature: str, run_id: str, *, root: Path | None = None) -> DeliveryRun | None:
+    loaded = _load_delivery_run_impl(_resolve_root(root), feature, run_id)
+    if loaded is not None:
+        _ensure_run_coordination_state_impl(loaded)
+        _sync_review_readiness_impl(loaded)
+    return loaded
+
+
+def latest_delivery_run(feature: str, *, root: Path | None = None) -> DeliveryRun | None:
+    loaded = _latest_delivery_run_impl(_resolve_root(root), feature)
+    if loaded is not None:
+        _ensure_run_coordination_state_impl(loaded)
+        _sync_review_readiness_impl(loaded)
+    return loaded
+
+
+def save_delivery_run(run: DeliveryRun, *, root: Path | None = None) -> Path:
+    _ensure_run_coordination_state_impl(run)
+    return _save_delivery_run_impl(run, _resolve_root(root))
+
+
+def refresh_delivery_run(run: DeliveryRun, *, root: Path | None = None) -> DeliveryRun:
+    refreshed = _refresh_task_frontier_impl(run)
+    _save_delivery_run_impl(refreshed, _resolve_root(root))
+    return refreshed
+
+
+def update_delivery_task_status(
+    run: DeliveryRun,
+    *,
+    task_index: int,
+    status: str,
+    assignee: str | None = None,
+    branch: str | None = None,
+    worktree_path: str | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _update_delivery_task_status_impl(
+        run,
+        task_index=task_index,
+        status=status,
+        assignee=assignee,
+        branch=branch,
+        worktree_path=worktree_path,
+        note=note,
+    )
+    _save_delivery_run_impl(updated, _resolve_root(root))
+    return updated
+
+
+def sync_delivery_run_with_session(
+    run: DeliveryRun,
+    session: Any,
+    *,
+    root: Path | None = None,
+) -> DeliveryRun:
+    synced = _sync_run_with_worktree_session_impl(run, session)
+    _save_delivery_run_impl(synced, _resolve_root(root))
+    return synced
+
+
+def sync_delivery_run_integration(
+    run: DeliveryRun,
+    *,
+    session: Any | None = None,
+    merge_result: Any | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    synced = _sync_integration_state_impl(run, session=session, merge_result=merge_result)
+    _save_delivery_run_impl(synced, _resolve_root(root))
+    return synced
+
+
+def record_delivery_run_plan_verification(
+    run: DeliveryRun,
+    *,
+    passed: bool,
+    commands: list[str] | None = None,
+    note: str | None = None,
+    root: Path | None = None,
+) -> DeliveryRun:
+    updated = _record_plan_verification_impl(run, passed=passed, commands=commands, note=note)
+    _save_delivery_run_impl(updated, _resolve_root(root))
+    return updated
+
+
+def list_delivery_runs(
+    *,
+    feature_slug: str | None = None,
+    statuses: set[str] | None = None,
+    mode: str | None = None,
+    include_terminal: bool = False,
+    root: Path | None = None,
+) -> list[DeliveryRun]:
+    return _list_delivery_runs_impl(
+        _resolve_root(root),
+        feature_filter=feature_slug,
+        statuses=statuses,
+        mode=mode,
+        include_terminal=include_terminal,
+    )
+
+
+def summarize_delivery_run(
+    run: DeliveryRun,
+    *,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    return _summarize_delivery_run_impl(run, root=_resolve_root(root))
+
+
+def watch_delivery_runs(
+    *,
+    feature_slug: str | None = None,
+    stale_minutes: int | None = None,
+    review_stale_minutes: int | None = None,
+    include_terminal: bool = False,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    resolved_root = _resolve_root(root)
+    cfg = _load_workflow_config(resolved_root)
+    stale_cfg = _agent_team_settings_cfg(cfg).get("staleIndicatorMinutes", 10)
+    stale_threshold = stale_minutes if isinstance(stale_minutes, int) and stale_minutes > 0 else stale_cfg
+    review_threshold = (
+        review_stale_minutes
+        if isinstance(review_stale_minutes, int) and review_stale_minutes > 0
+        else max(stale_threshold * 6, 60)
+    )
+    return _watch_delivery_runs_impl(
+        resolved_root,
+        feature_filter=feature_slug,
+        stale_minutes=stale_threshold,
+        review_stale_minutes=review_threshold,
+        include_terminal=include_terminal,
+    )

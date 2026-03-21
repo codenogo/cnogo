@@ -64,14 +64,31 @@ def test_shape_workspace_supports_dedicated_read_only_scouts():
 def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     plan = _read(".claude/commands/plan.md")
     implement = _read(".claude/commands/implement.md")
+    team = _read(".claude/commands/team.md")
+    resume = _read(".claude/commands/resume.md")
 
     assert "Each task needs `name`" in plan
     assert "`contextLinks[]`" in plan
     assert "explicit error-path scenario" in plan
     assert "[--serial]" in implement
     assert "recommend_team_mode(taskdescs)" in implement
+    assert "Delivery Run" in implement
+    assert ".cnogo/runs/<feature>/<run-id>.json" in implement
+    assert "workflow_memory.py run-create <feature-slug> <NN>" in implement
+    assert "workflow_memory.py run-plan-verify <feature-slug> pass" in implement
+    assert "workflow_memory.py run-task-set <feature-slug> <task-index> in_progress" in implement
+    assert "workflow_memory.py run-task-set <feature-slug> <task-index> done" in implement
+    assert "integration` plus `reviewReadiness`" in implement
     assert "auto-appended package `lint` / `typecheck` / `test` commands" in implement
     assert "workflow_checks.py summarize --feature <feature-slug> --plan <NN>" in implement
+    assert "Delivery Run" in team
+    assert "same `run_id`" in team
+    assert "workflow_memory.py run-create <feature> <NN> --mode team --run-id <run-id>" in team
+    assert "workflow_memory.py run-sync-session <feature> --run-id <run-id> --json" in team
+    assert "run-plan-verify <feature> pass|fail" in team
+    assert "Delivery Run state, Integration state, Review readiness" in team
+    assert "session-status --json" in resume
+    assert "status`, `integration`, and `reviewReadiness`" in resume
 
 
 def test_review_command_uses_pending_final_verdict_and_reviewer_agents():

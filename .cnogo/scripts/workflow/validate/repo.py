@@ -5,6 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
+from scripts.workflow.orchestration import (
+    DELIVERY_INTEGRATION_STATUSES,
+    DELIVERY_REVIEW_READINESS_STATUSES,
+    DELIVERY_RUN_STATUSES,
+    DELIVERY_TASK_STATUSES,
+)
+
 
 def validate_worktree_session(
     root: Path,
@@ -36,6 +43,9 @@ def validate_worktree_session(
         value = data.get(field)
         if not isinstance(value, str):
             findings.append(finding_type("WARN", f"worktree-session.json: {field} should be a string.", str(session_path)))
+    run_id = data.get("runId")
+    if run_id is not None and not isinstance(run_id, str):
+        findings.append(finding_type("WARN", "worktree-session.json: runId should be a string.", str(session_path)))
     phase = data.get("phase")
     if not isinstance(phase, str) or phase not in valid_phases:
         findings.append(
@@ -63,6 +73,302 @@ def validate_worktree_session(
                         str(session_path),
                     )
                 )
+
+
+def validate_delivery_runs(
+    root: Path,
+    findings: list[Any],
+    touched: Callable[[Path], bool],
+    *,
+    feature_filter: str | None = None,
+    load_json: Callable[[Path], Any],
+    finding_type: Any,
+) -> None:
+    runs_root = root / ".cnogo" / "runs"
+    if not runs_root.is_dir():
+        return
+
+    target_dirs = []
+    if feature_filter:
+        target_dir = runs_root / feature_filter
+        if target_dir.exists():
+            target_dirs.append(target_dir)
+    else:
+        target_dirs = [path for path in runs_root.iterdir() if path.is_dir()]
+
+    run_ids_by_feature: dict[str, set[str]] = {}
+    for feature_dir in target_dirs:
+        if not touched(feature_dir):
+            continue
+        run_ids_by_feature[feature_dir.name] = set()
+        for run_path in sorted(feature_dir.glob("*.json")):
+            if not touched(run_path):
+                continue
+            try:
+                contract = load_json(run_path)
+            except Exception as exc:
+                findings.append(
+                    finding_type("ERROR", f"Failed to parse delivery run: {exc}", str(run_path))
+                )
+                continue
+            if not isinstance(contract, dict):
+                findings.append(
+                    finding_type("ERROR", "Delivery run artifact must be a JSON object.", str(run_path))
+                )
+                continue
+
+            run_id = contract.get("runId")
+            if isinstance(run_id, str) and run_id.strip():
+                run_ids_by_feature[feature_dir.name].add(run_id.strip())
+            else:
+                findings.append(
+                    finding_type("WARN", "Delivery run should include non-empty runId.", str(run_path))
+                )
+
+            schema_version = contract.get("schemaVersion")
+            if not isinstance(schema_version, int):
+                findings.append(
+                    finding_type("WARN", "Delivery run schemaVersion should be an integer.", str(run_path))
+                )
+
+            feature = contract.get("feature")
+            if not isinstance(feature, str) or not feature.strip():
+                findings.append(
+                    finding_type("WARN", "Delivery run should include non-empty feature.", str(run_path))
+                )
+            elif feature.strip() != feature_dir.name:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"Delivery run feature {feature!r} does not match directory slug {feature_dir.name!r}.",
+                        str(run_path),
+                    )
+                )
+
+            plan_number = contract.get("planNumber")
+            if not isinstance(plan_number, str) or not plan_number.strip():
+                findings.append(
+                    finding_type("WARN", "Delivery run should include non-empty planNumber.", str(run_path))
+                )
+
+            mode = contract.get("mode")
+            if mode not in {"serial", "team"}:
+                findings.append(
+                    finding_type("WARN", "Delivery run mode should be serial|team.", str(run_path))
+                )
+
+            status = contract.get("status")
+            if status not in DELIVERY_RUN_STATUSES:
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"Delivery run status should be one of {sorted(DELIVERY_RUN_STATUSES)}.",
+                        str(run_path),
+                    )
+                )
+
+            for field in ("startedBy", "branch", "planPath", "summaryPath", "reviewPath", "createdAt", "updatedAt"):
+                value = contract.get(field)
+                if value is not None and not isinstance(value, str):
+                    findings.append(
+                        finding_type("WARN", f"Delivery run {field} should be a string when present.", str(run_path))
+                    )
+
+            plan_path = contract.get("planPath")
+            if isinstance(plan_path, str) and plan_path.strip():
+                resolved_plan = root / plan_path
+                if not resolved_plan.exists():
+                    findings.append(
+                        finding_type(
+                            "WARN",
+                            f"Delivery run planPath not found: {plan_path}",
+                            str(run_path),
+                        )
+                    )
+
+            recommendation = contract.get("recommendation")
+            if recommendation is not None and not isinstance(recommendation, dict):
+                findings.append(
+                    finding_type("WARN", "Delivery run recommendation should be an object.", str(run_path))
+                )
+
+            integration = contract.get("integration")
+            if integration is not None:
+                if not isinstance(integration, dict):
+                    findings.append(
+                        finding_type("WARN", "Delivery run integration should be an object.", str(run_path))
+                    )
+                else:
+                    status_value = integration.get("status")
+                    if status_value not in DELIVERY_INTEGRATION_STATUSES:
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run integration.status should be one of "
+                                f"{sorted(DELIVERY_INTEGRATION_STATUSES)}.",
+                                str(run_path),
+                            )
+                        )
+                    for list_field in (
+                        "mergedTaskIndices",
+                        "awaitingMergeTaskIndices",
+                        "activeTaskIndices",
+                        "conflictFiles",
+                    ):
+                        value = integration.get(list_field)
+                        if value is not None and not isinstance(value, list):
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run integration.{list_field} should be an array.",
+                                    str(run_path),
+                                )
+                            )
+                    conflict_task_index = integration.get("conflictTaskIndex")
+                    if conflict_task_index is not None and not isinstance(conflict_task_index, int):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run integration.conflictTaskIndex should be an integer when present.",
+                                str(run_path),
+                            )
+                        )
+                    for field in ("lastSessionPhase", "updatedAt"):
+                        value = integration.get(field)
+                        if value is not None and not isinstance(value, str):
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run integration.{field} should be a string when present.",
+                                    str(run_path),
+                                )
+                            )
+
+            review_readiness = contract.get("reviewReadiness")
+            if review_readiness is not None:
+                if not isinstance(review_readiness, dict):
+                    findings.append(
+                        finding_type("WARN", "Delivery run reviewReadiness should be an object.", str(run_path))
+                    )
+                else:
+                    status_value = review_readiness.get("status")
+                    if status_value not in DELIVERY_REVIEW_READINESS_STATUSES:
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run reviewReadiness.status should be one of "
+                                f"{sorted(DELIVERY_REVIEW_READINESS_STATUSES)}.",
+                                str(run_path),
+                            )
+                        )
+                    plan_verify_passed = review_readiness.get("planVerifyPassed")
+                    if plan_verify_passed is not None and not isinstance(plan_verify_passed, bool):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                "Delivery run reviewReadiness.planVerifyPassed should be a boolean when present.",
+                                str(run_path),
+                            )
+                        )
+                    for list_field in ("verifiedCommands", "notes"):
+                        value = review_readiness.get(list_field)
+                        if value is not None and not isinstance(value, list):
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run reviewReadiness.{list_field} should be an array.",
+                                    str(run_path),
+                                )
+                            )
+                    for field in ("verifiedAt", "updatedAt"):
+                        value = review_readiness.get(field)
+                        if value is not None and not isinstance(value, str):
+                            findings.append(
+                                finding_type(
+                                    "WARN",
+                                    f"Delivery run reviewReadiness.{field} should be a string when present.",
+                                    str(run_path),
+                                )
+                            )
+
+            notes = contract.get("notes")
+            if notes is not None and not isinstance(notes, list):
+                findings.append(
+                    finding_type("WARN", "Delivery run notes should be an array.", str(run_path))
+                )
+
+            tasks = contract.get("tasks")
+            if not isinstance(tasks, list):
+                findings.append(
+                    finding_type("ERROR", "Delivery run tasks should be an array.", str(run_path))
+                )
+                continue
+            for index, task in enumerate(tasks, start=1):
+                label = f"tasks[{index}]"
+                if not isinstance(task, dict):
+                    findings.append(
+                        finding_type("WARN", f"Delivery run {label} should be an object.", str(run_path))
+                    )
+                    continue
+                task_index = task.get("taskIndex")
+                if not isinstance(task_index, int):
+                    findings.append(
+                        finding_type("WARN", f"Delivery run {label}.taskIndex should be an integer.", str(run_path))
+                    )
+                title = task.get("title")
+                if not isinstance(title, str) or not title.strip():
+                    findings.append(
+                        finding_type("WARN", f"Delivery run {label}.title should be non-empty.", str(run_path))
+                    )
+                task_status = task.get("status")
+                if task_status not in DELIVERY_TASK_STATUSES:
+                    findings.append(
+                        finding_type(
+                            "WARN",
+                            f"Delivery run {label}.status should be one of {sorted(DELIVERY_TASK_STATUSES)}.",
+                            str(run_path),
+                        )
+                    )
+                for list_field in (
+                    "blockedBy",
+                    "filePaths",
+                    "forbiddenPaths",
+                    "verifyCommands",
+                    "packageVerifyCommands",
+                    "notes",
+                ):
+                    value = task.get(list_field)
+                    if value is not None and not isinstance(value, list):
+                        findings.append(
+                            finding_type(
+                                "WARN",
+                                f"Delivery run {label}.{list_field} should be an array.",
+                                str(run_path),
+                            )
+                        )
+
+    session_path = root / ".cnogo" / "worktree-session.json"
+    if session_path.exists():
+        try:
+            session = load_json(session_path)
+        except Exception:
+            return
+        if isinstance(session, dict):
+            session_feature = session.get("feature")
+            session_run_id = session.get("runId")
+            if isinstance(session_feature, str) and session_feature.strip() and isinstance(session_run_id, str) and session_run_id.strip():
+                known_run_ids = run_ids_by_feature.get(session_feature.strip(), set())
+                if session_run_id.strip() not in known_run_ids:
+                    findings.append(
+                        finding_type(
+                            "WARN",
+                            (
+                                "worktree-session.json references runId that does not exist under "
+                                f".cnogo/runs/{session_feature}: {session_run_id}"
+                            ),
+                            str(session_path),
+                        )
+                    )
 
 
 def build_touched_predicate(
@@ -138,6 +444,7 @@ def validate_repo(
     validate_research: Callable[[Path, list[Any], Callable[[Path], bool]], None],
     validate_shape_artifacts: Callable[[Path, list[Any], Callable[[Path], bool]], None],
     validate_worktree_session: Callable[[Path, list[Any]], None],
+    validate_delivery_runs: Callable[[Path, list[Any], Callable[[Path], bool]], None],
     validate_token_budgets: Callable[[Path, list[Any], Callable[[Path], bool], dict[str, Any]], None],
     validate_bootstrap_context: Callable[[Path, list[Any], dict[str, Any]], None],
     validate_skills: Callable[[Path, list[Any], Callable[[Path], bool]], None],
@@ -173,6 +480,7 @@ def validate_repo(
     if touched is None:
         return findings
 
+    validate_delivery_runs(root, findings, touched, feature_filter=feature_filter)
     validate_features(
         root,
         findings,

@@ -1,11 +1,11 @@
 # Resume
 <!-- effort: low -->
 
-Restore context from the latest handoff and current memory/git state.
+Restore context from handoff and memory/git state.
 
 ## Your Task
 
-### Step 1: Load Handoff + Memory Summary
+### Step 1: Load Handoff + Memory
 
 ```bash
 cat docs/planning/work/HANDOFF.md 2>/dev/null || echo "No handoff file"
@@ -14,7 +14,7 @@ python3 .cnogo/scripts/workflow_memory.py checkpoint
 python3 .cnogo/scripts/workflow_memory.py ready --limit 10
 ```
 
-### Step 2: Verify Git State
+### Step 2: Verify Git
 
 ```bash
 git branch --show-current
@@ -22,7 +22,7 @@ git status --porcelain
 git stash list
 ```
 
-If stash was referenced in handoff and needed:
+If needed:
 
 ```bash
 git stash pop
@@ -30,32 +30,32 @@ git stash pop
 
 ### Step 3: Rehydrate Working Context
 
-Open only files mentioned in handoff or active task metadata. Avoid broad file loading.
+Open only handoff-mentioned or active task files.
 
-### Step 4: Team/Worktree Recovery Check (If Relevant)
+### Step 4: Team Recovery (If Relevant)
 
 If resuming team execution:
 
 ```bash
 python3 .cnogo/scripts/workflow_memory.py list --type epic --status in_progress --limit 5
-python3 .cnogo/scripts/workflow_memory.py session-status
+python3 .cnogo/scripts/workflow_memory.py session-status --json
 python3 .cnogo/scripts/workflow_memory.py session-reconcile
 ```
 
-This auto-closes any memory issues whose worktrees were already merged/cleaned, fixing orphaned state from context compaction.
+`session-status --json` is the source of truth. When it returns a linked `deliveryRun`, inspect its `status`, `integration`, and `reviewReadiness` before choosing `/team implement`, more verification, or `/review`.
 
-If reconcile found orphaned issues, they are now closed. Check memory status with `python3 .cnogo/scripts/workflow_memory.py prime`.
+If reconcile found orphaned issues, rerun `python3 .cnogo/scripts/workflow_memory.py prime`.
 
-If an active worktree session exists, continue with `/team implement <feature> <plan>`; otherwise continue with normal `/implement`.
+If an active worktree session exists, continue with `/team implement <feature> <plan>`; otherwise use `/implement`.
 
-### Step 5: Confirm Next Action
+### Step 5: Next
 
 Summarize:
 - where execution stopped
-- current readiness (clean/dirty tree, ready tasks)
+- readiness
 - exact next command
 
 ## Output
 
 - Restored context summary
-- One explicit next step
+- One next step

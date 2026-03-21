@@ -1,0 +1,334 @@
+"""Watch and health reporting for delivery runs."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from scripts.workflow.shared.timestamps import parse_iso_timestamp
+
+from .delivery_run import (
+    TERMINAL_DELIVERY_RUN_STATUSES,
+    DeliveryRun,
+    delivery_run_dir,
+    latest_delivery_run,
+    load_delivery_run,
+)
+from .integration import ensure_run_coordination_state, sync_review_readiness
+
+_RUNS_DIR = Path(".cnogo") / "runs"
+_SESSION_FILE = Path(".cnogo") / "worktree-session.json"
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _session_dict(root: Path) -> dict[str, Any] | None:
+    session_path = root / _SESSION_FILE
+    if not session_path.exists():
+        return None
+    try:
+        data = json.loads(session_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _iter_run_paths(root: Path, *, feature_filter: str | None = None) -> list[Path]:
+    runs_root = root / _RUNS_DIR
+    if not runs_root.is_dir():
+        return []
+    feature_dirs: list[Path]
+    if feature_filter:
+        feature_dir = runs_root / feature_filter
+        feature_dirs = [feature_dir] if feature_dir.is_dir() else []
+    else:
+        feature_dirs = sorted(path for path in runs_root.iterdir() if path.is_dir())
+
+    run_paths: list[Path] = []
+    for feature_dir in feature_dirs:
+        run_paths.extend(path for path in feature_dir.glob("*.json") if path.is_file())
+    run_paths.sort(key=lambda path: path.stat().st_mtime, reverse=True)
+    return run_paths
+
+
+def list_delivery_runs(
+    root: Path,
+    *,
+    feature_filter: str | None = None,
+    statuses: set[str] | None = None,
+    mode: str | None = None,
+    include_terminal: bool = False,
+) -> list[DeliveryRun]:
+    """Load delivery runs with optional feature/status/mode filtering."""
+    runs: list[DeliveryRun] = []
+    for run_path in _iter_run_paths(root, feature_filter=feature_filter):
+        run = load_delivery_run(root, run_path.parent.name, run_path.stem)
+        if run is None:
+            continue
+        ensure_run_coordination_state(run)
+        sync_review_readiness(run)
+        if not include_terminal and run.status in TERMINAL_DELIVERY_RUN_STATUSES:
+            continue
+        if statuses and run.status not in statuses:
+            continue
+        if mode and run.mode != mode:
+            continue
+        runs.append(run)
+    runs.sort(
+        key=lambda run: parse_iso_timestamp(getattr(run, "updated_at", "")) or datetime.min.replace(tzinfo=timezone.utc),
+        reverse=True,
+    )
+    return runs
+
+
+def summarize_delivery_run(
+    run: DeliveryRun,
+    *,
+    root: Path,
+    session: dict[str, Any] | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Build a compact operator-facing summary for a single delivery run."""
+    ensure_run_coordination_state(run)
+    sync_review_readiness(run)
+    now = now or _now_utc()
+    updated_at = parse_iso_timestamp(run.updated_at)
+    minutes_since_update = None
+    if updated_at is not None:
+        minutes_since_update = round((now - updated_at).total_seconds() / 60.0, 1)
+
+    session_linked = bool(
+        session
+        and session.get("feature") == run.feature
+        and isinstance(session.get("runId"), str)
+        and session.get("runId") == run.run_id
+    )
+    return {
+        "runId": run.run_id,
+        "feature": run.feature,
+        "planNumber": run.plan_number,
+        "mode": run.mode,
+        "status": run.status,
+        "branch": run.branch,
+        "integrationStatus": run.integration.get("status", "pending"),
+        "reviewReadiness": run.review_readiness.get("status", "pending"),
+        "planVerifyPassed": run.review_readiness.get("planVerifyPassed"),
+        "updatedAt": run.updated_at,
+        "minutesSinceUpdate": minutes_since_update,
+        "taskCounts": _task_counts(run),
+        "sessionLinked": session_linked,
+        "path": str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+    }
+
+
+def _task_counts(run: DeliveryRun) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for task in run.tasks:
+        counts[task.status] = counts.get(task.status, 0) + 1
+    return counts
+
+
+def _finding(
+    *,
+    kind: str,
+    severity: str,
+    run: DeliveryRun | None = None,
+    message: str,
+    next_action: str,
+    minutes_stale: float | None = None,
+    path: str = "",
+) -> dict[str, Any]:
+    payload = {
+        "kind": kind,
+        "severity": severity,
+        "message": message,
+        "nextAction": next_action,
+    }
+    if run is not None:
+        payload.update(
+            {
+                "feature": run.feature,
+                "runId": run.run_id,
+                "planNumber": run.plan_number,
+                "mode": run.mode,
+                "status": run.status,
+                "integrationStatus": run.integration.get("status", "pending"),
+                "reviewReadiness": run.review_readiness.get("status", "pending"),
+        "path": str(path or (delivery_run_dir(Path.cwd(), run.feature) / f"{run.run_id}.json")),
+            }
+        )
+    elif path:
+        payload["path"] = path
+    if minutes_stale is not None:
+        payload["minutesStale"] = minutes_stale
+    return payload
+
+
+def watch_delivery_runs(
+    root: Path,
+    *,
+    feature_filter: str | None = None,
+    stale_minutes: int = 10,
+    review_stale_minutes: int = 60,
+    include_terminal: bool = False,
+) -> dict[str, Any]:
+    """Produce a queue + finding view over all active delivery runs."""
+    now = _now_utc()
+    session = _session_dict(root)
+    runs = list_delivery_runs(
+        root,
+        feature_filter=feature_filter,
+        include_terminal=include_terminal,
+    )
+    findings: list[dict[str, Any]] = []
+    summaries = [summarize_delivery_run(run, root=root, session=session, now=now) for run in runs]
+
+    for run, summary in zip(runs, summaries):
+        minutes_since_update = summary.get("minutesSinceUpdate")
+        integration_status = run.integration.get("status", "pending")
+        review_status = run.review_readiness.get("status", "pending")
+        session_linked = bool(summary.get("sessionLinked"))
+
+        if run.mode == "team" and run.status in {"active", "blocked"} and integration_status not in {"merged", "cleaned"} and not session_linked:
+            findings.append(
+                _finding(
+                    kind="team_run_missing_session",
+                    severity="warn",
+                    run=run,
+                    message="Active team delivery run has no linked worktree session.",
+                    next_action=f"Inspect with `python3 .cnogo/scripts/workflow_memory.py run-show {run.feature} --run-id {run.run_id}` and resume `/team implement {run.feature} {run.plan_number}` if needed.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if minutes_since_update is not None and minutes_since_update >= stale_minutes and run.status in {"active", "blocked"}:
+            findings.append(
+                _finding(
+                    kind="stale_active_run",
+                    severity="warn",
+                    run=run,
+                    message=f"Delivery run has not moved for {minutes_since_update:.1f} minutes while {run.status}.",
+                    next_action=f"Check `python3 .cnogo/scripts/workflow_memory.py session-status --json` and `python3 .cnogo/scripts/workflow_memory.py run-show {run.feature} --run-id {run.run_id}`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if integration_status == "awaiting_merge" and minutes_since_update is not None and minutes_since_update >= stale_minutes:
+            findings.append(
+                _finding(
+                    kind="awaiting_merge_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Integration is awaiting merge and has been idle for {minutes_since_update:.1f} minutes.",
+                    next_action="Run `python3 .cnogo/scripts/workflow_memory.py session-merge` or resume team integration.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if integration_status == "conflicted":
+            severity = "fail" if minutes_since_update is not None and minutes_since_update >= stale_minutes else "warn"
+            conflict_task = run.integration.get("conflictTaskIndex")
+            findings.append(
+                _finding(
+                    kind="integration_conflict",
+                    severity=severity,
+                    run=run,
+                    message=f"Integration is conflicted at task {conflict_task}.",
+                    next_action="Resolve the merge conflict, then rerun `python3 .cnogo/scripts/workflow_memory.py session-merge`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if review_status == "awaiting_verification" and minutes_since_update is not None and minutes_since_update >= stale_minutes:
+            findings.append(
+                _finding(
+                    kind="awaiting_verification_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Run is merged but plan verification has not been recorded for {minutes_since_update:.1f} minutes.",
+                    next_action=f"Record verification with `python3 .cnogo/scripts/workflow_memory.py run-plan-verify {run.feature} pass --run-id {run.run_id}` or `fail`.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+        if review_status == "ready" and minutes_since_update is not None and minutes_since_update >= review_stale_minutes:
+            findings.append(
+                _finding(
+                    kind="ready_for_review_stale",
+                    severity="warn",
+                    run=run,
+                    message=f"Run has been ready for review for {minutes_since_update:.1f} minutes.",
+                    next_action=f"Continue with `/review {run.feature}` or inspect `REVIEW.json` generation inputs.",
+                    minutes_stale=minutes_since_update,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
+
+    if session is not None:
+        session_feature = session.get("feature")
+        session_run_id = session.get("runId")
+        if isinstance(session_feature, str) and session_feature.strip():
+            if isinstance(session_run_id, str) and session_run_id.strip():
+                linked = load_delivery_run(root, session_feature.strip(), session_run_id.strip())
+                if linked is None:
+                    findings.append(
+                        _finding(
+                            kind="session_missing_run",
+                            severity="fail",
+                            message=(
+                                "Active worktree session references a delivery run that does not exist."
+                            ),
+                            next_action="Recreate or relink the run before resuming team execution.",
+                            path=str(root / _SESSION_FILE),
+                        )
+                    )
+            else:
+                latest = latest_delivery_run(root, session_feature.strip())
+                if latest is None:
+                    findings.append(
+                        _finding(
+                            kind="session_without_run",
+                            severity="warn",
+                            message="Active worktree session has no linked delivery run.",
+                            next_action=f"Create or resume one with `python3 .cnogo/scripts/workflow_memory.py run-create {session_feature.strip()} <NN> --mode team`.",
+                            path=str(root / _SESSION_FILE),
+                        )
+                    )
+
+    severity_counts: dict[str, int] = {}
+    status_counts: dict[str, int] = {}
+    for finding in findings:
+        severity = str(finding.get("severity", "warn"))
+        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+    for run in runs:
+        status_counts[run.status] = status_counts.get(run.status, 0) + 1
+
+    return {
+        "checkedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "thresholds": {
+            "staleMinutes": stale_minutes,
+            "reviewStaleMinutes": review_stale_minutes,
+        },
+        "runs": summaries,
+        "findings": findings,
+        "summary": {
+            "totalRuns": len(runs),
+            "statusCounts": status_counts,
+            "findingCounts": severity_counts,
+            "activeSession": {
+                "feature": session.get("feature"),
+                "runId": session.get("runId"),
+            }
+            if session is not None
+            else None,
+        },
+    }

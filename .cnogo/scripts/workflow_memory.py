@@ -32,6 +32,14 @@ Commands:
     history <id>        Show recent event history for an issue
     phase-get <feature> Get current workflow phase for feature
     phase-set <feature> Set workflow phase for feature
+    run-create          Create or resume a durable delivery run
+    run-list            List delivery runs across features
+    run-show            Show a delivery run
+    run-watch           Inspect delivery-run health and next actions
+    run-refresh         Refresh task frontier for a delivery run
+    run-task-set        Update a delivery-run task state
+    run-plan-verify     Record plan verification outcome for a delivery run
+    run-sync-session    Sync a delivery run from worktree-session state
     graph <feature>     Show dependency graph
     session-status      Show active worktree session status
     session-merge       Merge active worktree session branches
@@ -58,6 +66,7 @@ except ImportError:
 import argparse
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -96,6 +105,7 @@ from scripts.memory import (  # noqa: E402
     cleanup_session,
     close,
     create,
+    ensure_delivery_run,
     dep_add,
     dep_remove,
     export_jsonl,
@@ -104,27 +114,41 @@ from scripts.memory import (  # noqa: E402
     init,
     is_initialized,
     history,
+    latest_delivery_run,
+    list_delivery_runs,
     list_issues,
+    load_delivery_run,
     load_session,
+    plan_to_task_descriptions,
     get_phase,
     merge_session,
     prime,
     ready,
+    record_delivery_run_plan_verification,
+    refresh_delivery_run,
     reconcile_session,
+    recommend_team_mode,
     record_cost_event,
     release,
     reopen,
     report_done,
+    sync_delivery_run_integration,
+    sync_delivery_run_with_session,
     show,
     show_graph,
     stalled_tasks,
     stats,
     set_phase,
+    summarize_delivery_run,
     sync,
     takeover_task,
     update,
+    update_delivery_task_status,
     verify_and_close,
+    watch_delivery_runs,
 )
+from scripts.workflow.orchestration import DELIVERY_TASK_STATUSES
+from scripts.workflow.shared.plans import normalize_plan_number
 
 
 def _root() -> Path:
@@ -134,6 +158,108 @@ def _root() -> Path:
         if (p / ".git").exists():
             return p
     return cwd
+
+
+def _git_branch(root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def _plan_contract_path(root: Path, feature: str, plan_number: str) -> Path:
+    normalized = normalize_plan_number(plan_number)
+    return root / "docs" / "planning" / "work" / "features" / feature / f"{normalized}-PLAN.json"
+
+
+def _resolve_run(root: Path, feature: str, run_id: str | None):
+    if run_id:
+        return load_delivery_run(feature, run_id, root=root)
+    return latest_delivery_run(feature, root=root)
+
+
+def _print_run(run) -> None:
+    status_counts: dict[str, int] = {}
+    for task in run.tasks:
+        status_counts[task.status] = status_counts.get(task.status, 0) + 1
+    print(f"Run: {run.run_id}")
+    print(f"Feature: {run.feature}")
+    print(f"Plan: {run.plan_number}")
+    print(f"Mode: {run.mode}")
+    print(f"Status: {run.status}")
+    if run.branch:
+        print(f"Branch: {run.branch}")
+    integration = run.integration if isinstance(getattr(run, "integration", None), dict) else {}
+    review = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    if integration:
+        print(
+            "Integration: "
+            f"{integration.get('status', 'pending')} "
+            f"(merged={len(integration.get('mergedTaskIndices', []))}, "
+            f"awaiting_merge={len(integration.get('awaitingMergeTaskIndices', []))})"
+        )
+        if integration.get("conflictTaskIndex") is not None or integration.get("conflictFiles"):
+            print(
+                "Integration conflicts: "
+                f"task={integration.get('conflictTaskIndex')} "
+                f"files={integration.get('conflictFiles', [])}"
+            )
+    if review:
+        print(
+            "Review readiness: "
+            f"{review.get('status', 'pending')} "
+            f"(plan_verify={review.get('planVerifyPassed')})"
+        )
+    if status_counts:
+        print(f"Task status counts: {status_counts}")
+    for task in run.tasks:
+        suffix = f" @{task.assignee}" if task.assignee else ""
+        print(f"- Task {task.task_index}: {task.title} [{task.status}{suffix}]")
+
+
+def _print_run_list(entries: list[dict]) -> None:
+    if not entries:
+        print("No delivery runs found")
+        return
+    for entry in entries:
+        updated = entry.get("minutesSinceUpdate")
+        updated_label = f"{updated}m" if updated is not None else "n/a"
+        print(
+            f"{entry['feature']} {entry['runId']} "
+            f"[{entry['status']}/{entry['mode']}] "
+            f"integration={entry['integrationStatus']} "
+            f"review={entry['reviewReadiness']} "
+            f"updated={updated_label}"
+        )
+
+
+def _print_watch_report(report: dict) -> None:
+    summary = report.get("summary", {})
+    print(
+        f"Delivery Runs: {summary.get('totalRuns', 0)} "
+        f"status_counts={summary.get('statusCounts', {})}"
+    )
+    findings = report.get("findings", [])
+    if not findings:
+        print("No watch findings")
+        return
+    print("Findings:")
+    for finding in findings:
+        location = ""
+        if finding.get("feature") and finding.get("runId"):
+            location = f"{finding['feature']}/{finding['runId']} "
+        print(
+            f"- {finding.get('severity', 'warn').upper()} "
+            f"{location}{finding.get('kind')}: {finding.get('message')}"
+        )
+        print(f"  next: {finding.get('nextAction')}")
 
 
 def _print_issue(issue, *, verbose: bool = False) -> None:
@@ -571,8 +697,19 @@ def cmd_graph(args: argparse.Namespace) -> int:
 def cmd_session_status(args: argparse.Namespace) -> int:
     root = _root()
     session = load_session(root)
+    linked_run = None
+    if session and session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
     if args.json:
-        _print_json(session.to_dict() if session else {"session": None})
+        if not session:
+            _print_json({"session": None})
+            return 0
+        payload = session.to_dict()
+        payload["deliveryRun"] = linked_run.to_dict() if linked_run else None
+        _print_json(payload)
         return 0
     if not session:
         print("No active worktree session")
@@ -582,6 +719,29 @@ def cmd_session_status(args: argparse.Namespace) -> int:
     print(f"Feature: {session.feature}")
     print(f"Plan: {session.plan_number}")
     print(f"Phase: {session.phase}")
+    if session.run_id:
+        if linked_run and linked_run.run_id == session.run_id:
+            print(f"Delivery Run: {linked_run.run_id} [{linked_run.status}, {linked_run.mode}]")
+        else:
+            print(f"Delivery Run: {session.run_id} [missing]")
+    elif linked_run:
+        print(f"Delivery Run: {linked_run.run_id} [{linked_run.status}, {linked_run.mode}]")
+    if linked_run:
+        integration = linked_run.integration if isinstance(linked_run.integration, dict) else {}
+        review = linked_run.review_readiness if isinstance(linked_run.review_readiness, dict) else {}
+        if integration:
+            print(
+                "Integration: "
+                f"{integration.get('status', 'pending')} "
+                f"(merged={len(integration.get('mergedTaskIndices', []))}, "
+                f"awaiting_merge={len(integration.get('awaitingMergeTaskIndices', []))})"
+            )
+        if review:
+            print(
+                "Review readiness: "
+                f"{review.get('status', 'pending')} "
+                f"(plan_verify={review.get('planVerifyPassed')})"
+            )
     print(f"Progress: {done}/{total}")
     for wt in session.worktrees:
         print(f"- Task {wt.task_index}: {wt.name} [{wt.status}]")
@@ -599,6 +759,21 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
             print(payload["error"])
         return 1
     result = merge_session(session, root)
+    updated_session = load_session(root) or session
+    linked_run = None
+    if session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
+    if linked_run is not None:
+        linked_run = sync_delivery_run_with_session(linked_run, updated_session, root=root)
+        linked_run = sync_delivery_run_integration(
+            linked_run,
+            session=updated_session,
+            merge_result=result,
+            root=root,
+        )
     tiers = {}
     for wt in session.worktrees:
         if wt.task_index in result.merged_indices:
@@ -611,6 +786,8 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
         "error": "",
         "tiers": tiers,
     }
+    if linked_run is not None:
+        payload["deliveryRun"] = linked_run.to_dict()
     if args.json:
         _print_json(payload)
     else:
@@ -623,6 +800,17 @@ def cmd_session_merge(args: argparse.Namespace) -> int:
             tier_counts[t] = tier_counts.get(t, 0) + 1
         if tier_counts:
             print(f"Resolution tiers: {tier_counts}")
+        if linked_run is not None:
+            print(
+                "Delivery Run integration: "
+                f"{linked_run.integration.get('status', 'pending')} "
+                f"(merged={len(linked_run.integration.get('mergedTaskIndices', []))})"
+            )
+            print(
+                "Delivery Run review readiness: "
+                f"{linked_run.review_readiness.get('status', 'pending')} "
+                f"(plan_verify={linked_run.review_readiness.get('planVerifyPassed')})"
+            )
     return 0 if result.success else 1
 
 
@@ -632,7 +820,16 @@ def cmd_session_cleanup(args: argparse.Namespace) -> int:
     if not session:
         print("No active worktree session")
         return 0
+    linked_run = None
+    if session.feature:
+        if session.run_id:
+            linked_run = load_delivery_run(session.feature, session.run_id, root=root)
+        if linked_run is None:
+            linked_run = latest_delivery_run(session.feature, root=root)
     cleanup_session(session, root)
+    if linked_run is not None:
+        linked_run = sync_delivery_run_with_session(linked_run, session, root=root)
+        sync_delivery_run_integration(linked_run, session=session, root=root)
     print("Worktrees cleaned")
     return 0
 
@@ -655,6 +852,174 @@ def cmd_session_reconcile(args: argparse.Namespace) -> int:
             print("No orphaned issues found")
         else:
             print(f"\nTotal: {len(result.get('reconciled', []))} closed, {len(result.get('skipped', []))} skipped, {len(result.get('errors', []))} errors")
+    return 0
+
+
+def cmd_run_create(args: argparse.Namespace) -> int:
+    root = _root()
+    plan_path = _plan_contract_path(root, args.feature, args.plan)
+    if not plan_path.exists():
+        print(f"Plan contract not found: {plan_path}", file=sys.stderr)
+        return 1
+    try:
+        taskdescs = plan_to_task_descriptions(plan_path, root)
+    except Exception as exc:
+        print(f"Error: failed to load plan tasks: {exc}", file=sys.stderr)
+        return 1
+    recommendation = recommend_team_mode(taskdescs)
+    mode = args.mode
+    if mode == "auto":
+        mode = "team" if recommendation.get("recommended") else "serial"
+    run = ensure_delivery_run(
+        feature=args.feature,
+        plan_number=normalize_plan_number(args.plan),
+        plan_path=plan_path,
+        task_descriptions=taskdescs,
+        mode=mode,
+        run_id=args.run_id,
+        started_by=args.actor,
+        branch=args.branch or _git_branch(root),
+        recommendation=recommendation,
+        resume_latest=not args.no_resume_latest,
+        root=root,
+    )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_list(args: argparse.Namespace) -> int:
+    root = _root()
+    statuses = set(args.status or []) if args.status else None
+    runs = list_delivery_runs(
+        feature_slug=args.feature,
+        statuses=statuses,
+        mode=args.mode,
+        include_terminal=args.all,
+        root=root,
+    )
+    payload = [summarize_delivery_run(run, root=root) for run in runs]
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_run_list(payload)
+    return 0
+
+
+def cmd_run_show(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_watch(args: argparse.Namespace) -> int:
+    root = _root()
+    report = watch_delivery_runs(
+        feature_slug=args.feature,
+        stale_minutes=args.stale_minutes,
+        review_stale_minutes=args.review_stale_minutes,
+        include_terminal=args.all,
+        root=root,
+    )
+    if args.json:
+        _print_json(report)
+    else:
+        _print_watch_report(report)
+    findings = report.get("findings", [])
+    return 1 if any(finding.get("severity") == "fail" for finding in findings) else 0
+
+
+def cmd_run_refresh(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    run = refresh_delivery_run(run, root=root)
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_task_set(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        run = update_delivery_task_status(
+            run,
+            task_index=args.task_index,
+            status=args.status,
+            assignee=args.assignee,
+            branch=args.branch,
+            worktree_path=args.worktree_path,
+            note=args.note,
+            root=root,
+        )
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_sync_session(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    session = load_session(root)
+    if session is None:
+        print("No active worktree session", file=sys.stderr)
+        return 1
+    if session.feature and session.feature != run.feature:
+        print(
+            f"Active worktree session is for feature {session.feature!r}, not {run.feature!r}",
+            file=sys.stderr,
+        )
+        return 1
+    run = sync_delivery_run_with_session(run, session, root=root)
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
+    return 0
+
+
+def cmd_run_plan_verify(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    run = record_delivery_run_plan_verification(
+        run,
+        passed=args.result == "pass",
+        commands=args.verify_command,
+        note=args.note,
+        root=root,
+    )
+    if args.json:
+        _print_json(run.to_dict())
+    else:
+        _print_run(run)
     return 0
 
 
@@ -1563,6 +1928,78 @@ def main() -> int:
     p.add_argument("phase", choices=["discuss", "plan", "implement", "review", "ship"])
     p.add_argument("--json", action="store_true")
 
+    # run-create
+    p = sub.add_parser("run-create", help="Create or resume a durable delivery run for a feature plan")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("plan", help="Plan number")
+    p.add_argument("--mode", choices=["auto", "serial", "team"], default="auto")
+    p.add_argument("--run-id", help="Explicit run ID")
+    p.add_argument("--actor", default="claude")
+    p.add_argument("--branch", help="Override branch recorded on the run")
+    p.add_argument("--no-resume-latest", action="store_true", help="Force creation of a fresh run instead of resuming latest")
+    p.add_argument("--json", action="store_true")
+
+    # run-list
+    p = sub.add_parser("run-list", help="List delivery runs across features")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--status", action="append", choices=["created", "active", "blocked", "ready_for_review", "completed", "failed", "cancelled"])
+    p.add_argument("--mode", choices=["serial", "team"])
+    p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--json", action="store_true")
+
+    # run-show
+    p = sub.add_parser("run-show", help="Show a delivery run for a feature")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
+    # run-watch
+    p = sub.add_parser("run-watch", help="Inspect delivery-run health and next actions")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--stale-minutes", type=int, help="Idle threshold for active/merge verification findings")
+    p.add_argument("--review-stale-minutes", type=int, help="Ready-for-review stale threshold")
+    p.add_argument("--all", action="store_true", help="Include terminal runs")
+    p.add_argument("--json", action="store_true")
+
+    # run-refresh
+    p = sub.add_parser("run-refresh", help="Refresh delivery-run task frontier and save it")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
+    # run-task-set
+    p = sub.add_parser("run-task-set", help="Update one delivery-run task status")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("task_index", type=int, help="Plan task index")
+    p.add_argument("status", choices=sorted(DELIVERY_TASK_STATUSES))
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--assignee")
+    p.add_argument("--branch")
+    p.add_argument("--worktree-path")
+    p.add_argument("--note")
+    p.add_argument("--json", action="store_true")
+
+    # run-plan-verify
+    p = sub.add_parser("run-plan-verify", help="Record plan verification outcome for a delivery run")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("result", choices=["pass", "fail"])
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument(
+        "--command",
+        action="append",
+        dest="verify_command",
+        default=[],
+        help="Verification command that was run",
+    )
+    p.add_argument("--note", help="Optional note to store with verification state")
+    p.add_argument("--json", action="store_true")
+
+    # run-sync-session
+    p = sub.add_parser("run-sync-session", help="Sync a delivery run from the active worktree session")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
     # graph
     p = sub.add_parser("graph", help="Show dependency graph")
     p.add_argument("feature", help="Feature slug")
@@ -1763,6 +2200,14 @@ def main() -> int:
         "history": cmd_history,
         "phase-get": cmd_phase_get,
         "phase-set": cmd_phase_set,
+        "run-create": cmd_run_create,
+        "run-list": cmd_run_list,
+        "run-show": cmd_run_show,
+        "run-watch": cmd_run_watch,
+        "run-refresh": cmd_run_refresh,
+        "run-task-set": cmd_run_task_set,
+        "run-plan-verify": cmd_run_plan_verify,
+        "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
         "session-status": cmd_session_status,
         "session-merge": cmd_session_merge,
