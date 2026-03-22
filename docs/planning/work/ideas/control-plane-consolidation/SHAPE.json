@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "initiative": "Control-Plane Consolidation",
   "slug": "control-plane-consolidation",
-  "problem": "Lifecycle truth split between old memory-phase system and new Work Order/Lane model. Auto-review and auto-ship now shipped (PR #51). Remaining: phase auto-advance not wired, memory observations not deeply used in context composition.",
+  "problem": "Control-plane consolidation ~95% complete. Auto-review, auto-ship (PR #51), and lifecycle auto-advance (PR #52) all shipped. Remaining: memory observations not deeply used in context composition.",
   "constraints": [
     "Python stdlib only",
     "No external services or daemons",
@@ -19,24 +19,19 @@
   "researchRefs": [
     "docs/planning/work/research/honcho-memory-patterns/RESEARCH.json"
   ],
-  "openQuestions": [
-    "How deeply should observation confidence levels gate contradiction detection?"
-  ],
+  "openQuestions": [],
   "candidateFeatures": [
     {
       "slug": "lifecycle-auto-advance",
       "displayName": "Lifecycle Auto-Advance",
       "userOutcome": "Phase truth is always consistent with work order status. No manual phase-set needed. Patrol detects and remediates phase divergence.",
-      "scopeSummary": "Add phase auto-advance as side-effect of work_order_sync. Add patrol consistency check for phase/status divergence. Deprecate manual phase-set in lifecycle commands.",
+      "scopeSummary": "Shipped in PR #52. Phase auto-advances from work_order_sync for active states. Patrol phase_status_divergence finding. Manual phase-set deprecated.",
       "dependencies": [],
-      "risks": [
-        "Backward phase transition warnings may fire during auto-sync if work order regresses",
-        "Commands that gate on phase may need updated to read work order status instead"
-      ],
+      "risks": [],
       "priority": 0,
-      "status": "ready",
-      "readinessReason": "Scope is clear, all dependencies are met, no open questions blocking implementation",
-      "handoffSummary": "Wire set_feature_phase() into sync_work_order() using _phase_from_status(). Add patrol check that warns on phase/status divergence. Update /review and /ship commands to read work order status as primary truth, phase as fallback."
+      "status": "parked",
+      "readinessReason": "Shipped in PR #52 on feature/ship-assistant. 112 tests passing.",
+      "handoffSummary": "Shipped. work_order.py: auto-advance in sync_work_order(). watch.py: phase_status_divergence finding. storage.py/phases.py: quiet parameter for auto-sync."
     },
     {
       "slug": "review-ship-automation",
@@ -54,21 +49,18 @@
       "slug": "memory-context-depth",
       "displayName": "Memory Context Depth",
       "userOutcome": "prime() produces rich, feature-aware context summaries that include active observations, resolved contradictions, and lane status. Context is useful for implementation decisions, not just task tracking.",
-      "scopeSummary": "Enhance prime() to compose context from work order state + observations + contradictions + cards. Add feature-specific context mode. Improve observation sourcing (link to artifact locations). Add observation confidence levels to contradiction gating.",
+      "scopeSummary": "Enhance prime() to compose context from work order state + observations + contradictions + cards. Add --feature flag to prime CLI. Improve observation sourcing with artifact path links.",
       "dependencies": [],
       "risks": [
-        "Richer context increases token consumption in prime() output",
-        "Observation confidence logic may be over-engineered for current scale"
+        "Richer context increases token consumption in prime() output"
       ],
-      "priority": 2,
-      "status": "draft",
-      "readinessReason": "Independent of other features but lower priority. Observations already persisted; this is about using them better.",
-      "handoffSummary": "Enhance context.py prime() to read cards table and format feature-aware summaries. Add --feature flag to prime CLI. Improve observation natural_key sourcing. Consider Honcho-inspired observation levels (explicit vs inferred) for confidence-weighted context."
+      "priority": 0,
+      "status": "ready",
+      "readinessReason": "No blocking decisions. Observations, contradictions, and cards tables already populated by sync_work_order(). prime() reads them but output is basic. Scope is formatting and CLI plumbing.",
+      "handoffSummary": "Enhance context.py prime() to render cards and observations into feature-aware markdown sections. Add --feature flag to prime CLI. Improve observation sourcing (link to artifact paths). Use existing explicit/derived confidence levels to weight context output."
     }
   ],
   "recommendedSequence": [
-    "lifecycle-auto-advance",
-    "review-ship-automation",
     "memory-context-depth"
   ],
   "feedbackInbox": [],
@@ -86,5 +78,5 @@
       "date": "2026-03-22"
     }
   ],
-  "timestamp": "2026-03-22T12:00:00Z"
+  "timestamp": "2026-03-22T14:00:00Z"
 }

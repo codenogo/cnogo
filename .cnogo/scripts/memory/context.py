@@ -93,8 +93,88 @@ def _pick_feature_slug(conn, explicit_feature: str | None, *, root: Path | None 
     return ""
 
 
+def _work_order_section(root: Path, feature: str) -> list[str]:
+    """Render work order status, lane health, and automation state for a feature."""
+    lines: list[str] = []
+    wo_path = runtime_path(root, "work-orders", f"{feature}.json")
+    if not wo_path.exists():
+        return lines
+    try:
+        wo = json.loads(wo_path.read_text(encoding="utf-8"))
+    except Exception:
+        return lines
+    if not isinstance(wo, dict):
+        return lines
+    status = str(wo.get("status", "")).strip()
+    phase = str(wo.get("phase", "")).strip()
+    lines.append(f"### Work Order (`{feature}`)")
+    lines.append(f"- Status: **{status}** | Phase: {phase}")
+    lane = wo.get("lane")
+    if isinstance(lane, dict) and lane.get("status"):
+        health = lane.get("health", {}) if isinstance(lane.get("health"), dict) else {}
+        stale_flag = " (STALE)" if health.get("stale") else ""
+        lines.append(f"- Lane: {lane.get('status', '?')}{stale_flag}")
+    automation = wo.get("automationState")
+    if isinstance(automation, dict):
+        state = str(automation.get("state", "")).strip()
+        owner = str(automation.get("owner", "")).strip()
+        if state:
+            lines.append(f"- Automation: {state} (owner: {owner})")
+        config = automation.get("config")
+        if isinstance(config, dict):
+            flags = []
+            if config.get("autoReview"):
+                flags.append("autoReview")
+            if config.get("autoShip"):
+                flags.append("autoShip")
+            if config.get("autoPlan"):
+                flags.append("autoPlan")
+            if flags:
+                lines.append(f"- Profile: {', '.join(flags)}")
+    review = wo.get("reviewSummary")
+    if isinstance(review, dict) and str(review.get("status", "")).strip() not in {"", "pending"}:
+        verdict = str(review.get("finalVerdict", "pending")).strip()
+        lines.append(f"- Review: {review.get('status', '?')} (verdict: {verdict})")
+    ship = wo.get("shipSummary")
+    if isinstance(ship, dict) and str(ship.get("status", "")).strip() not in {"", "pending"}:
+        lines.append(f"- Ship: {ship.get('status', '?')}")
+    lines.append("")
+    return lines
+
+
+def _grouped_observations(conn, feature: str, limit: int = 12) -> list[str]:
+    """Render observations grouped by kind for a feature."""
+    lines: list[str] = []
+    observations = _st.list_observations(conn, feature_slug=feature, statuses={"active"}, limit=limit)
+    if not observations:
+        return lines
+    by_kind: dict[str, list[dict]] = {}
+    for obs in observations:
+        kind = str(obs.get("kind", "other")).strip() or "other"
+        by_kind.setdefault(kind, []).append(obs)
+    lines.append("### Observations")
+    for kind in ("decision", "blocker", "review_finding", "verification", "risk", "assumption", "status_claim", "handoff"):
+        items = by_kind.pop(kind, [])
+        if not items:
+            continue
+        lines.append(f"**{kind}** ({len(items)})")
+        for obs in items[:3]:
+            summary = _truncate(str(obs.get("summary", "")), 140)
+            source = str(obs.get("source", "")).strip()
+            source_suffix = f" [{source}]" if source else ""
+            lines.append(f"- {summary}{source_suffix}")
+    # Remaining kinds
+    for kind, items in sorted(by_kind.items()):
+        lines.append(f"**{kind}** ({len(items)})")
+        for obs in items[:2]:
+            lines.append(f"- {_truncate(str(obs.get('summary', '')), 140)}")
+    lines.append("")
+    return lines
+
+
 def prime(
     *,
+    feature: str | None = None,
     limit: int = 10,
     verbose: bool = False,
     root: Path | None = None,
@@ -103,19 +183,22 @@ def prime(
 
     Returns ~500-1500 tokens of structured markdown with:
     - Stats overview
+    - Work order status and lane health (when feature focused)
+    - Grouped observations and contradictions
     - In-progress work
     - Ready-to-start tasks
     """
     conn = _conn(root)
     try:
         s = _st.get_stats(conn)
-        focus_feature = _pick_feature_slug(conn, None, root=root)
+        focus_feature = _pick_feature_slug(conn, feature, root=root)
         in_progress = _st.list_issues_query(
             conn, status="in_progress", limit=limit
         )
         ready_list = _st.ready_issues_query(conn, limit=limit)
 
         lines: list[str] = []
+        r = root or Path(".")
 
         # Header with stats
         open_count = s.get("open", 0)
@@ -135,6 +218,9 @@ def prime(
             lines.append("")
 
         if focus_feature:
+            # Work order status + lane health
+            lines.extend(_work_order_section(r, focus_feature))
+
             feature_cards = _st.list_cards(conn, scope="feature", scope_id=focus_feature, limit=1)
             if feature_cards:
                 lines.append(f"### Feature Card (`{focus_feature}`)")
@@ -146,18 +232,8 @@ def prime(
                 for contradiction in contradictions:
                     lines.append(f"- {contradiction['summary']}")
                 lines.append("")
-            recent_observations = [
-                item
-                for item in _st.list_observations(conn, feature_slug=focus_feature, statuses={"active"}, limit=8)
-                if item.get("kind") in {"decision", "review_finding", "verification", "blocker"}
-            ]
-            if recent_observations:
-                lines.append("### Derived Signals")
-                for observation in recent_observations[:5]:
-                    lines.append(
-                        f"- `{observation['kind']}`: {_truncate(str(observation.get('summary', '')), 140)}"
-                    )
-                lines.append("")
+            # Grouped observations (replaces flat "Derived Signals")
+            lines.extend(_grouped_observations(conn, focus_feature, limit=12 if verbose else 8))
 
         # Active Epics
         epics = _st.list_issues_query(

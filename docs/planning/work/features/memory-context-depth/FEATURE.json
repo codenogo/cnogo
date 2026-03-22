@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "feature": "memory-context-depth",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/control-plane-consolidation/SHAPE.json",
+    "timestamp": "2026-03-22T14:00:00Z"
+  },
+  "displayName": "Memory Context Depth",
+  "userOutcome": "prime() produces rich, feature-aware context summaries that include active observations, resolved contradictions, lane status, and work order automation state.",
+  "scopeSummary": "Add --feature flag to prime CLI. Enhance prime() to render work order status, lane health, and grouped observations. Improve observation sourcing with artifact path links.",
+  "dependencies": [],
+  "risks": [
+    "Richer context increases token consumption in prime() output"
+  ],
+  "priority": 0,
+  "status": "ready",
+  "readinessReason": "No blocking decisions. All data already in DB.",
+  "handoffSummary": "Add feature parameter to prime(). Render work order status + lane health + grouped observations + artifact source paths in markdown sections.",
+  "timestamp": "2026-03-22T14:00:00Z"
+}
