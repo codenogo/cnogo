@@ -25,6 +25,11 @@ from .review import (
     start_review,
     sync_review_state,
 )
+from .dispatch_ledger import (
+    check_dispatch_hold,
+    clear_dispatch_hold_on_success,
+    record_dispatch_failure,
+)
 from .ship import start_ship, sync_ship_state
 from .watch_artifacts import load_attention_queue
 from .work_order import WorkOrder, sync_all_work_orders, sync_work_order
@@ -148,6 +153,7 @@ def _attempt_auto_plan(
     except Exception as exc:
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", lane_id=lane_id)
         sync_work_order(root, feature)
         return (
             None,
@@ -180,6 +186,7 @@ def _attempt_auto_plan(
             feature=feature,
             start_run=bool(policy.get("autoAdvanceAllowed")),
         )
+        clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         lane = load_feature_lane(root, feature)
         if lane is not None:
@@ -191,6 +198,7 @@ def _attempt_auto_plan(
     except Exception as exc:
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", lane_id=lane_id)
         sync_work_order(root, feature)
         return (
             None,
@@ -284,6 +292,10 @@ def _attempt_auto_review(
             None,
         )
     except Exception as exc:
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="review", error=f"{type(exc).__name__}: {exc}")
         sync_work_order(root, feature)
         return (
             None,
@@ -360,6 +372,10 @@ def _attempt_auto_ship(
             payload["draft"] = draft
         return payload, None, None
     except Exception as exc:
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="ship", error=f"{type(exc).__name__}: {exc}")
         sync_work_order(root, feature)
         return (
             None,
@@ -496,6 +512,17 @@ def dispatch_ready_work(
             continue
         if order.feature in active_features:
             skipped.append({"feature": order.feature, "reason": "already_active"})
+            continue
+        # Circuit breaker: skip features held due to repeated dispatch failures.
+        hold = check_dispatch_hold(root, order.feature)
+        if hold is not None:
+            skipped.append({
+                "feature": order.feature,
+                "reason": "circuit_breaker",
+                "holdUntil": hold.get("holdUntil", ""),
+                "consecutiveFailures": hold.get("consecutiveFailures", 0),
+                "lastError": hold.get("lastError", ""),
+            })
             continue
         deps_ok, unresolved = _dependencies_satisfied(root, order.feature, orders_by_feature)
         if not deps_ok:

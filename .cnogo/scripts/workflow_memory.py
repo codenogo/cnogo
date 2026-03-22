@@ -1831,6 +1831,31 @@ def cmd_dispatch_ready(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dispatch_reset(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.dispatch_ledger import (
+        reset_dispatch_hold,
+        load_dispatch_ledger,
+    )
+    ledger = load_dispatch_ledger(root, args.feature)
+    if ledger is None:
+        print(f"No dispatch ledger found for {args.feature!r}")
+        return 0
+    consecutive = ledger.get("consecutiveFailures", 0)
+    reset_dispatch_hold(root, args.feature, reason=args.reason)
+    payload = {
+        "feature": args.feature,
+        "previousFailures": consecutive,
+        "reason": args.reason,
+        "status": "reset",
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Circuit breaker reset for {args.feature!r} ({consecutive} previous failures)")
+    return 0
+
+
 def cmd_feedback_sync(args: argparse.Namespace) -> int:
     root = _root()
     payload = sync_shape_feedback(feature_slug=args.feature, root=root)
@@ -3935,6 +3960,12 @@ def main() -> int:
     p.add_argument("--owner", default="dispatcher", help="Lease owner to record on the lane")
     p.add_argument("--json", action="store_true")
 
+    # dispatch-reset
+    p = sub.add_parser("dispatch-reset", help="Reset dispatch circuit breaker for a feature")
+    p.add_argument("feature", help="Feature slug to reset")
+    p.add_argument("--reason", default="manual_reset", help="Reason for the reset")
+    p.add_argument("--json", action="store_true")
+
     # feedback-sync
     p = sub.add_parser("feedback-sync", help="Sync downstream feature feedback into SHAPE.json inboxes")
     p.add_argument("--feature", help="Specific feature slug to sync")
@@ -4413,6 +4444,7 @@ def main() -> int:
         "lane-show",
         "lane-list",
         "dispatch-ready",
+        "dispatch-reset",
         "feedback-sync",
         "initiative-show",
         "initiative-list",
@@ -4471,6 +4503,7 @@ def main() -> int:
         "loop-status": cmd_loop_status,
         "loop-history": cmd_loop_history,
         "dispatch-ready": cmd_dispatch_ready,
+        "dispatch-reset": cmd_dispatch_reset,
         "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,

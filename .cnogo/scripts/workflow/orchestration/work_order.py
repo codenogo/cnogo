@@ -415,6 +415,13 @@ def _derive_status(
     if run is None:
         if lane_status:
             return lane_status, lane_payload
+        # Check ALL historical runs for a completed ship before falling through
+        # to "queued". Without this, a shipped feature whose lane was released
+        # and whose current run is None would regress to "queued".
+        for historical_run in _load_feature_runs(root, feature):
+            hist_ship = historical_run.ship if isinstance(getattr(historical_run, "ship", None), dict) else {}
+            if hist_ship.get("status") == "completed":
+                return "completed", lane_payload
         if phase in {"ship"}:
             return "shipping", lane_payload
         if phase in {"review"}:
