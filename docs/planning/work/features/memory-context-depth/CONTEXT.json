@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "feature": "memory-context-depth",
+  "timestamp": "2026-03-22T14:00:00Z",
+  "decisions": [
+    {
+      "area": "scope",
+      "decision": "Enhance existing prime() rather than creating new context API",
+      "rationale": "prime() is already the canonical context injection point. Adding a parallel API would fragment context."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "prime() output should stay under ~1500 tokens for non-verbose mode"
+  ],
+  "relatedCode": [
+    ".cnogo/scripts/memory/context.py",
+    ".cnogo/scripts/memory/storage.py",
+    ".cnogo/scripts/workflow_memory.py"
+  ],
+  "shapeFeedback": []
+}

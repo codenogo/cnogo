@@ -1186,7 +1186,8 @@ def cmd_sync_fn(args: argparse.Namespace) -> int:
 
 def cmd_prime(args: argparse.Namespace) -> int:
     root = _root()
-    output = prime(limit=args.limit, verbose=args.verbose, root=root)
+    feature = getattr(args, "feature", None) or None
+    output = prime(feature=feature, limit=args.limit, verbose=args.verbose, root=root)
     print(output)
     return 0
 
@@ -3788,6 +3789,7 @@ def main() -> int:
 
     # prime
     p = sub.add_parser("prime", help="Generate context summary")
+    p.add_argument("--feature", help="Feature slug to focus on (auto-detect if omitted)")
     p.add_argument("--limit", type=int, default=10)
     p.add_argument("--verbose", action="store_true", help="Include file hints and restore commands")
 

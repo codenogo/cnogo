@@ -3,7 +3,7 @@
   "feature": "review-ship-automation",
   "parentShape": {
     "path": "docs/planning/work/ideas/control-plane-consolidation/SHAPE.json",
-    "timestamp": "2026-03-22T12:00:00Z"
+    "timestamp": "2026-03-22T14:00:00Z"
   },
   "displayName": "Review & Ship Automation",
   "userOutcome": "When profile allows, review starts automatically after review-readiness and ship starts automatically after review passes. No manual /review or /ship needed for high-autonomy profiles.",
