@@ -110,6 +110,52 @@ def validate_workflow_config(
                     )
                 )
 
+    dispatcher = cfg.get("dispatcher")
+    if dispatcher is not None and not isinstance(dispatcher, dict):
+        findings.append(finding_type("WARN", "WORKFLOW.json: 'dispatcher' should be an object.", str(cfg_path)))
+    elif isinstance(dispatcher, dict):
+        enabled = dispatcher.get("enabled")
+        if enabled is not None and not isinstance(enabled, bool):
+            findings.append(
+                finding_type("WARN", "WORKFLOW.json: dispatcher.enabled should be boolean.", str(cfg_path))
+            )
+        wip = dispatcher.get("defaultWipLimit")
+        if wip is not None and not is_positive_int(wip):
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: dispatcher.defaultWipLimit should be an integer > 0.",
+                    str(cfg_path),
+                )
+            )
+        overlap = dispatcher.get("overlapPolicy")
+        if overlap is not None and overlap not in {"allow", "block"}:
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: dispatcher.overlapPolicy should be allow|block.",
+                    str(cfg_path),
+                )
+            )
+        autonomy = dispatcher.get("autonomy")
+        if autonomy is not None and autonomy not in {"low", "medium", "high"}:
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: dispatcher.autonomy should be low|medium|high.",
+                    str(cfg_path),
+                )
+            )
+        lease_timeout = dispatcher.get("leaseTimeoutMinutes")
+        if lease_timeout is not None and not is_positive_int(lease_timeout):
+            findings.append(
+                finding_type(
+                    "WARN",
+                    "WORKFLOW.json: dispatcher.leaseTimeoutMinutes should be an integer > 0.",
+                    str(cfg_path),
+                )
+            )
+
     watch = cfg.get("watch")
     if watch is not None and not isinstance(watch, dict):
         findings.append(finding_type("WARN", "WORKFLOW.json: 'watch' should be an object.", str(cfg_path)))

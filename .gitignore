@@ -24,6 +24,7 @@ build/
 .cnogo/worktree-session.json
 .cnogo/runs/
 .cnogo/feature-phases.json
+.cnogo/control-plane-root
 .cnogo/work-orders/*.json
 !.cnogo/work-orders/.gitkeep
 
@@ -64,6 +65,7 @@ service-account*.json
 .cnogo/worktree-session.json
 .cnogo/runs/
 .cnogo/feature-phases.json
+.cnogo/control-plane-root
 .cnogo/work-orders/*.json
 !.cnogo/work-orders/.gitkeep
 

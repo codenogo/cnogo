@@ -51,6 +51,49 @@ def _write_plan(root: Path, *, feature: str, plan_number: str, blocked_tail: boo
     return plan_path
 
 
+def _write_ready_dossier(root: Path, *, feature: str, related_code: list[str]) -> None:
+    feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    feature_dir.mkdir(parents=True, exist_ok=True)
+    (feature_dir / "FEATURE.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "feature": feature,
+                "displayName": feature.title(),
+                "userOutcome": "Outcome",
+                "scopeSummary": "Scope",
+                "dependencies": [],
+                "risks": [],
+                "priority": 0,
+                "status": "ready",
+                "readinessReason": "Ready now",
+                "handoffSummary": "Queued for planning.",
+                "timestamp": "2026-03-21T12:00:00Z",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    (feature_dir / "CONTEXT.json").write_text(
+        json.dumps(
+            {
+                "schemaVersion": 3,
+                "feature": feature,
+                "displayName": feature.title(),
+                "decisions": [],
+                "constraints": [],
+                "openQuestions": [],
+                "relatedCode": related_code,
+                "timestamp": "2026-03-21T12:00:00Z",
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
 def test_run_create_and_show_cli(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     planning_dir = tmp_path / "docs" / "planning"
@@ -105,6 +148,32 @@ def test_run_task_set_promotes_blocked_tail(tmp_path):
     assert run["tasks"][0]["status"] == "done"
     assert run["tasks"][0]["assignee"] == "implementer"
     assert run["tasks"][1]["status"] == "ready"
+
+
+def test_plan_auto_cli_creates_plan_and_delivery_run(tmp_path):
+    assert _run_cli("init", cwd=tmp_path).returncode == 0
+    planning_dir = tmp_path / "docs" / "planning"
+    planning_dir.mkdir(parents=True, exist_ok=True)
+    (planning_dir / "WORKFLOW.json").write_text(
+        json.dumps({"version": 1, "repoShape": "single", "profiles": {"default": "feature-delivery"}}, indent=2)
+        + "\n",
+        encoding="utf-8",
+    )
+    _write_ready_dossier(tmp_path, feature="demo", related_code=["app/demo.py"])
+
+    planned = _run_cli("plan-auto", "demo", "--json", cwd=tmp_path)
+    assert planned.returncode == 0, planned.stderr + planned.stdout
+    payload = json.loads(planned.stdout)
+    assert payload["feature"] == "demo"
+    assert payload["planNumber"] == "01"
+    assert payload["createdPlan"] is True
+    assert payload["startedRun"] is True
+    assert payload["deliveryRun"]["planNumber"] == "01"
+    assert (tmp_path / "docs" / "planning" / "work" / "features" / "demo" / "01-PLAN.json").exists()
+
+    phase = _run_cli("phase-get", "demo", "--json", cwd=tmp_path)
+    assert phase.returncode == 0, phase.stderr + phase.stdout
+    assert json.loads(phase.stdout)["phase"] == "implement"
 
 
 def test_run_sync_session_updates_task_state_from_worktree_session(tmp_path):
@@ -891,7 +960,7 @@ def test_phase_set_backfills_work_order_without_runs(tmp_path):
     order = json.loads(work.stdout)
     assert order["feature"] == "demo"
     assert order["currentPhase"] == "plan"
-    assert order["status"] == "planned"
+    assert order["status"] == "planning"
 
 
 def test_work_order_cli_rolls_up_runs_and_attention(tmp_path):
@@ -935,7 +1004,7 @@ def test_scheduler_cli_runs_once_and_reports_status(tmp_path):
     assert ran.returncode == 0, ran.stderr + ran.stdout
     ran_payload = json.loads(ran.stdout)
     assert ran_payload["executed"] is True
-    assert sorted(ran_payload["jobs"].keys()) == ["watch_patrol", "work_order_sync"]
+    assert sorted(ran_payload["jobs"].keys()) == ["dispatch_ready", "feedback_sync", "watch_patrol", "work_order_sync"]
 
     status_after = _run_cli("scheduler-status", "--json", cwd=tmp_path)
     assert status_after.returncode == 0, status_after.stderr + status_after.stdout

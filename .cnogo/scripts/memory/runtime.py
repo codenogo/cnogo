@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 from . import storage as _st
 from .models import Event
 
@@ -14,7 +16,7 @@ _CNOGO_DIR = ".cnogo"
 
 
 def db_path(root: Path) -> Path:
-    return root / _CNOGO_DIR / _DB_NAME
+    return runtime_path(root, _DB_NAME)
 
 
 def conn(root: Path):  # noqa: ANN202

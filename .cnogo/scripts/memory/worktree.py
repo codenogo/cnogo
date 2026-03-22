@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path, runtime_root, write_runtime_root_marker
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -215,7 +217,7 @@ def _now() -> str:
 def save_session(session: WorktreeSession, root: Path) -> None:
     """Serialize session to JSON, write atomically (temp file + rename)."""
     session.timestamp = _now()
-    session_path = root / _SESSION_FILE
+    session_path = runtime_path(root, "worktree-session.json")
     session_path.parent.mkdir(parents=True, exist_ok=True)
 
     data = json.dumps(session.to_dict(), indent=2, sort_keys=True) + "\n"
@@ -242,7 +244,7 @@ def save_session(session: WorktreeSession, root: Path) -> None:
 
 def load_session(root: Path) -> WorktreeSession | None:
     """Read and deserialize session state. Returns None if no file."""
-    session_path = root / _SESSION_FILE
+    session_path = runtime_path(root, "worktree-session.json")
     if not session_path.exists():
         return None
     data = json.loads(session_path.read_text())
@@ -251,7 +253,7 @@ def load_session(root: Path) -> WorktreeSession | None:
 
 def delete_session_file(root: Path) -> None:
     """Remove the session state file."""
-    session_path = root / _SESSION_FILE
+    session_path = runtime_path(root, "worktree-session.json")
     if session_path.exists():
         session_path.unlink()
 
@@ -301,7 +303,7 @@ def create_session(
         phase="setup",
     )
 
-    cnogo_abs = (root / _CNOGO_DIR).resolve()
+    control_root = runtime_root(root)
     created_worktrees: list[WorktreeInfo] = []
 
     try:
@@ -328,10 +330,9 @@ def create_session(
             # Create worktree
             _run_git("worktree", "add", str(wt_path), branch_name, cwd=root)
 
-            # Symlink .cnogo/ so agents share the same memory DB
-            wt_cnogo = wt_path / _CNOGO_DIR
-            if not wt_cnogo.exists():
-                os.symlink(str(cnogo_abs), str(wt_cnogo))
+            # Keep tracked files local while routing runtime state back to the
+            # control plane checkout.
+            write_runtime_root_marker(wt_path, control_root)
 
             wt_info = WorktreeInfo(
                 task_index=i,

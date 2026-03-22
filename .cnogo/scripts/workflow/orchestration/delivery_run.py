@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 from .integration import ensure_run_coordination_state, sync_integration_state
 from .review import ensure_run_review_state, sync_review_state
 from .ship import ensure_run_ship_state, sync_ship_state
@@ -234,7 +236,7 @@ class DeliveryRun:
         )
 
 def delivery_run_dir(root: Path, feature: str) -> Path:
-    return root / _RUNS_DIR / feature
+    return runtime_path(root, "runs", feature)
 
 
 def delivery_run_path(root: Path, feature: str, run_id: str) -> Path:

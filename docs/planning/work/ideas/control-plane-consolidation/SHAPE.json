@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "initiative": "Control-Plane Consolidation",
+  "slug": "control-plane-consolidation",
+  "problem": "Lifecycle truth split between old memory-phase system and new Work Order/Lane model. New model is ~92% complete but transitional seams remain: no phase auto-advance, review/ship manual where they should be automatic, memory observations not deeply used in context composition.",
+  "constraints": [
+    "Python stdlib only",
+    "No external services or daemons",
+    "Max 3 tasks per plan",
+    "106 tests must stay green",
+    "Forward-only phase transitions (advisory)"
+  ],
+  "globalDecisions": [
+    "Work Order + Lane + Delivery Run is the canonical lifecycle source of truth",
+    "Old phase becomes a derived compatibility view, auto-synced from work order status",
+    "Profile automation hooks (autoReview, autoShip, autoPlan) drive automatic transitions",
+    "Patrol owns recovery, retry, and escalation for stuck lifecycle stages"
+  ],
+  "researchRefs": [
+    "docs/planning/work/research/honcho-memory-patterns/RESEARCH.json"
+  ],
+  "openQuestions": [
+    "Should phase auto-advance be a side-effect of work_order_sync or a separate patrol job?",
+    "How deeply should observation confidence levels gate contradiction detection?"
+  ],
+  "candidateFeatures": [
+    {
+      "slug": "lifecycle-auto-advance",
+      "displayName": "Lifecycle Auto-Advance",
+      "userOutcome": "Phase truth is always consistent with work order status. No manual phase-set needed. Patrol detects and remediates phase divergence.",
+      "scopeSummary": "Add phase auto-advance as side-effect of work_order_sync. Add patrol consistency check for phase/status divergence. Deprecate manual phase-set in lifecycle commands.",
+      "dependencies": [],
+      "risks": [
+        "Backward phase transition warnings may fire during auto-sync if work order regresses",
+        "Commands that gate on phase may need updated to read work order status instead"
+      ],
+      "priority": 0,
+      "status": "ready",
+      "readinessReason": "Scope is clear, all dependencies are met, no open questions blocking implementation",
+      "handoffSummary": "Wire set_feature_phase() into sync_work_order() using _phase_from_status(). Add patrol check that warns on phase/status divergence. Update /review and /ship commands to read work order status as primary truth, phase as fallback."
+    },
+    {
+      "slug": "review-ship-automation",
+      "displayName": "Review & Ship Automation",
+      "userOutcome": "When profile allows, review starts automatically after review-readiness, and ship starts automatically after review passes. Manual gates preserved for profiles that require them.",
+      "scopeSummary": "Add auto-review and auto-ship paths to dispatcher tick. Auto-review: invoke write_review() + auto-complete stages from automated verdict when profile_auto_review=true. Auto-ship: invoke start_ship + build_ship_draft when profile_auto_ship=true and review passes. Surface profile requirements in work order automation state. Post-ship cleanup as best-effort patrol task.",
+      "dependencies": [],
+      "risks": [
+        "Auto-review skips human judgment — mitigated by profile gating (only high-autonomy profiles opt in)",
+        "Auto-ship git operations (stage/commit/push) require branch safety checks"
+      ],
+      "priority": 1,
+      "status": "ready",
+      "readinessReason": "All building blocks exist: profile hooks implemented, write_review() generates automated verdict, ship_draft.py generates full draft, state machines handle transitions. Only wiring needed.",
+      "handoffSummary": "In dispatcher tick: after auto-plan, check lanes in implementing/reviewing/shipping status. For implementing lanes with review_readiness=ready and profile_auto_review=true: call write_review(), auto-complete stages, set verdict. For lanes with ship.status=ready and profile_auto_ship=true: call start_ship(), build_ship_draft(), stage results. Surface profile policy in work_order automation state. Post-ship cleanup as patrol finding."
+    },
+    {
+      "slug": "memory-context-depth",
+      "displayName": "Memory Context Depth",
+      "userOutcome": "prime() produces rich, feature-aware context summaries that include active observations, resolved contradictions, and lane status. Context is useful for implementation decisions, not just task tracking.",
+      "scopeSummary": "Enhance prime() to compose context from work order state + observations + contradictions + cards. Add feature-specific context mode. Improve observation sourcing (link to artifact locations). Add observation confidence levels to contradiction gating.",
+      "dependencies": [],
+      "risks": [
+        "Richer context increases token consumption in prime() output",
+        "Observation confidence logic may be over-engineered for current scale"
+      ],
+      "priority": 2,
+      "status": "draft",
+      "readinessReason": "Independent of other features but lower priority. Observations already persisted; this is about using them better.",
+      "handoffSummary": "Enhance context.py prime() to read cards table and format feature-aware summaries. Add --feature flag to prime CLI. Improve observation natural_key sourcing. Consider Honcho-inspired observation levels (explicit vs inferred) for confidence-weighted context."
+    }
+  ],
+  "recommendedSequence": [
+    "lifecycle-auto-advance",
+    "review-ship-automation",
+    "memory-context-depth"
+  ],
+  "feedbackInbox": [],
+  "timestamp": "2026-03-22T10:00:00Z"
+}

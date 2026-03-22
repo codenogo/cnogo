@@ -1,4 +1,4 @@
-"""Live initiative rollup computed from SHAPE.json, feature directories, and Work Orders.
+"""Live initiative rollup computed from SHAPE.json, feature dossiers, lanes, and Work Orders.
 
 Decision record:
   D1 — Rollup is computed live on demand; no persisted artifact.
@@ -26,8 +26,10 @@ INITIATIVE_ROLLUP_STATUSES = frozenset(
         "parked",
         "blocked",
         # Post-stub progression statuses
-        "discuss-ready",
-        "discussing",
+        "ready",
+        "queued",
+        "leased",
+        "planning",
         "planned",
         # Work Order driven statuses
         "implementing",
@@ -35,6 +37,9 @@ INITIATIVE_ROLLUP_STATUSES = frozenset(
         "shipping",
         "completed",
         "cancelled",
+        # Legacy migration aliases
+        "discuss-ready",
+        "discussing",
     }
 )
 
@@ -123,11 +128,11 @@ def _derive_feature_status(root: Path, slug: str, shape_candidate_status: str) -
     """Compute the unified status for a candidate feature.
 
     Logic (D6):
-      1. No FEATURE.json stub  → use shape_candidate_status (draft/parked/blocked)
-      2. FEATURE.json exists   → 'discuss-ready'
-      3. CONTEXT.json exists   → 'discussing'
-      4. PLAN exists, no WO    → 'planned'
-      5. Work Order exists     → use WO status verbatim
+      1. No FEATURE.json stub  → use shape_candidate_status (draft/ready/blocked/parked)
+      2. Work Order exists     → use WO status verbatim
+      3. PLAN exists, no WO    → 'planning'
+      4. CONTEXT.json exists   → 'ready'
+      5. FEATURE.json exists   → 'ready'
          Note (D2): 'cancelled' is preserved as-is.
     """
     feature_dir = root / _FEATURES_DIR / slug
@@ -138,29 +143,35 @@ def _derive_feature_status(root: Path, slug: str, shape_candidate_status: str) -
     # Step 1 — no FEATURE.json stub → fall back to SHAPE candidate status
     if not feature_json.exists():
         candidate = shape_candidate_status.strip()
+        if candidate == "discuss-ready":
+            return "ready"
         if candidate in INITIATIVE_ROLLUP_STATUSES:
             return candidate
         return "draft"
 
-    # Step 5 — Work Order exists → its status wins (D2: preserve 'cancelled')
+    # Step 2 — Work Order exists → its status wins (D2: preserve 'cancelled')
     wo_data = _read_json(wo_path)
     if wo_data is not None:
         wo_status = str(wo_data.get("status", "")).strip()
+        if wo_status == "discuss-ready":
+            return "ready"
+        if wo_status in {"discussing", "planned"}:
+            return "planning"
         if wo_status in INITIATIVE_ROLLUP_STATUSES:
             return wo_status
         # Fallthrough: WO exists but status is unrecognised; treat as implementing
         return "implementing"
 
-    # Step 4 — PLAN exists but no Work Order → 'planned'
+    # Step 3 — PLAN exists but no Work Order → 'planning'
     if _has_plan(feature_dir):
-        return "planned"
+        return "planning"
 
-    # Step 3 — CONTEXT.json exists → 'discussing'
+    # Step 4 — CONTEXT.json exists → 'ready'
     if context_json.exists():
-        return "discussing"
+        return "ready"
 
-    # Step 2 — FEATURE.json exists, nothing else → 'discuss-ready'
-    return "discuss-ready"
+    # Step 5 — FEATURE.json exists, nothing else → 'ready'
+    return "ready"
 
 
 # ---------------------------------------------------------------------------
@@ -282,9 +293,11 @@ def _compute_next_initiative_action(
         action_map = {
             "draft": ("shape", f"/shape {slug}", "Shape or promote the feature stub."),
             "parked": ("review", f"/shape {slug}", "Review and re-engage with parked feature."),
-            "discuss-ready": ("discuss", f"/discuss {slug}", "Begin feature discussion."),
-            "discussing": ("discuss", f"/discuss {slug}", "Continue feature discussion."),
-            "planned": ("implement", f"/implement {slug}", "Start implementation."),
+            "ready": ("dispatch", f"python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {slug}", "Queue the ready feature into an execution lane."),
+            "queued": ("dispatch", f"python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {slug}", "Lease the feature into a lane."),
+            "leased": ("plan", f"python3 .cnogo/scripts/workflow_memory.py plan-auto {slug}", "Start deterministic planning in the leased lane."),
+            "planning": ("plan", f"python3 .cnogo/scripts/workflow_memory.py plan-auto {slug}", "Continue deterministic planning."),
+            "planned": ("plan", f"python3 .cnogo/scripts/workflow_memory.py plan-auto {slug}", "Continue deterministic planning."),
             "implementing": ("implement", f"/implement {slug}", "Continue implementation."),
             "reviewing": ("review", f"/review {slug}", "Complete review."),
             "shipping": ("ship", f"/ship {slug}", "Complete ship tracking."),
@@ -369,6 +382,9 @@ def build_initiative_rollup(root: Path, shape_path: Path) -> dict[str, Any]:
         candidate_slugs.append(c_slug)
         display_name = str(candidate.get("displayName", c_slug)).strip()
         shape_candidate_status = str(candidate.get("status", "draft")).strip()
+        priority = candidate.get("priority", 2)
+        if not isinstance(priority, int) or isinstance(priority, bool):
+            priority = 2
 
         status = _derive_feature_status(root, c_slug, shape_candidate_status)
 
@@ -376,6 +392,10 @@ def build_initiative_rollup(root: Path, shape_path: Path) -> dict[str, Any]:
         wo_path = root / _WORK_ORDERS_DIR / f"{c_slug}.json"
         wo_data = _read_json(wo_path)
         verdict = _review_verdict(wo_data)
+        queue_position = int(wo_data.get("queuePosition", 0) or 0) if isinstance(wo_data, dict) else 0
+        lane_status = ""
+        if isinstance(wo_data, dict) and isinstance(wo_data.get("lane"), dict):
+            lane_status = str(wo_data["lane"].get("status", "")).strip()
 
         # Per-feature next action (lightweight — initiative-level action below is richer)
         feature_next_action = _feature_next_action(c_slug, status)
@@ -384,7 +404,10 @@ def build_initiative_rollup(root: Path, shape_path: Path) -> dict[str, Any]:
             {
                 "slug": c_slug,
                 "displayName": display_name,
+                "priority": priority,
                 "status": status,
+                "queuePosition": queue_position,
+                "laneStatus": lane_status,
                 "reviewVerdict": verdict,
                 "nextAction": feature_next_action,
             }
@@ -474,9 +497,11 @@ def _feature_next_action(slug: str, status: str) -> dict[str, Any]:
         "draft": ("shape", f"/shape {slug}", "Shape or promote this feature."),
         "parked": ("review", f"/shape {slug}", "Review and re-engage with this feature."),
         "blocked": ("attention", f"python3 .cnogo/scripts/workflow_memory.py work-show {slug}", "Resolve blocker."),
-        "discuss-ready": ("discuss", f"/discuss {slug}", "Begin discussion."),
-        "discussing": ("discuss", f"/discuss {slug}", "Continue discussion."),
-        "planned": ("implement", f"/implement {slug}", "Start implementation."),
+        "ready": ("dispatch", f"python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {slug}", "Queue this ready feature into an execution lane."),
+        "queued": ("dispatch", f"python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {slug}", "Lease this feature into a lane."),
+        "leased": ("plan", f"python3 .cnogo/scripts/workflow_memory.py plan-auto {slug}", "Start deterministic planning in the leased lane."),
+        "planning": ("plan", f"python3 .cnogo/scripts/workflow_memory.py plan-auto {slug}", "Continue deterministic planning."),
+        "planned": ("plan", f"python3 .cnogo/scripts/workflow_memory.py plan-auto {slug}", "Continue deterministic planning."),
         "implementing": ("implement", f"/implement {slug}", "Continue implementation."),
         "reviewing": ("review", f"/review {slug}", "Complete review."),
         "shipping": ("ship", f"/ship {slug}", "Complete ship tracking."),

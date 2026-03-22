@@ -178,29 +178,29 @@ class TestDeriveFeatureStatus:
         status = _derive_feature_status(tmp_path, "feature-a", "parked")
         assert status == "parked"
 
-    def test_feature_json_only_returns_discuss_ready(self, tmp_path):
-        """D6: FEATURE.json exists → discuss-ready."""
+    def test_feature_json_only_returns_ready(self, tmp_path):
+        """D6: FEATURE.json exists → ready."""
         (_, _, _derive_feature_status, _, _, _) = _import_module()
         _make_feature_stub(tmp_path, "feature-a")
         status = _derive_feature_status(tmp_path, "feature-a", "draft")
-        assert status == "discuss-ready"
+        assert status == "ready"
 
-    def test_context_json_returns_discussing(self, tmp_path):
-        """D6: CONTEXT.json exists → discussing."""
+    def test_context_json_returns_ready(self, tmp_path):
+        """D6: CONTEXT.json exists → ready."""
         (_, _, _derive_feature_status, _, _, _) = _import_module()
         _make_feature_stub(tmp_path, "feature-a")
         _make_context(tmp_path, "feature-a")
         status = _derive_feature_status(tmp_path, "feature-a", "draft")
-        assert status == "discussing"
+        assert status == "ready"
 
-    def test_plan_but_no_work_order_returns_planned(self, tmp_path):
-        """D6: PLAN exists, no Work Order → planned."""
+    def test_plan_but_no_work_order_returns_planning(self, tmp_path):
+        """D6: PLAN exists, no Work Order → planning."""
         (_, _, _derive_feature_status, _, _, _) = _import_module()
         _make_feature_stub(tmp_path, "feature-a")
         _make_context(tmp_path, "feature-a")
         _make_plan(tmp_path, "feature-a")
         status = _derive_feature_status(tmp_path, "feature-a", "draft")
-        assert status == "planned"
+        assert status == "planning"
 
     def test_work_order_implementing_returns_implementing(self, tmp_path):
         """D6: Work Order status implementing → implementing."""
@@ -409,22 +409,22 @@ class TestComputeNextInitiativeAction:
         action_str = str(action).lower()
         assert "shape" in action_str or action.get("kind") == "shape"
 
-    def test_next_in_sequence_is_discuss_ready_returns_discuss_action(self, tmp_path):
-        """Next feature in sequence is discuss-ready → action suggests discussing."""
+    def test_next_in_sequence_is_ready_returns_dispatch_action(self, tmp_path):
+        """Next feature in sequence is ready → action suggests dispatching into a lane."""
         (_, _, _, _, _, _compute_next_initiative_action) = _import_module()
         features = [
             self._feature("feature-a", "completed"),
-            self._feature("feature-b", "discuss-ready"),
+            self._feature("feature-b", "ready"),
         ]
         action = _compute_next_initiative_action(features, ["feature-a", "feature-b"])
         action_str = str(action).lower()
-        assert "discuss" in action_str or action.get("kind") == "discuss"
+        assert "dispatch" in action_str or action.get("kind") == "dispatch"
 
     def test_features_with_pending_feedback_mentions_count(self, tmp_path):
         """When pendingFeedback is provided, next action references feedback count."""
         (_, _, _, _, _, _compute_next_initiative_action) = _import_module()
         features = [
-            self._feature("feature-a", "discussing"),
+            self._feature("feature-a", "ready"),
         ]
         pending_feedback = [
             {"feature": "feature-a", "summary": "feedback 1"},
@@ -659,8 +659,8 @@ class TestErrorPaths:
         result = build_initiative_rollup(tmp_path, shape_path)
         assert "error" not in result
         statuses = {f["slug"]: f["status"] for f in result["features"]}
-        # With only FEATURE.json and no work order, expect discuss-ready
-        assert statuses.get("feature-a") == "discuss-ready"
+        # With only FEATURE.json and no work order, expect ready
+        assert statuses.get("feature-a") == "ready"
 
     def test_missing_shape_file_returns_error_dict(self, tmp_path):
         """Non-existent SHAPE.json path → returns dict with 'error' key."""

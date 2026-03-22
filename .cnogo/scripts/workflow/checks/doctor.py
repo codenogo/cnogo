@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 
 def cmd_doctor(
     root: Path,
@@ -32,7 +34,7 @@ def cmd_doctor(
     except Exception as exc:
         checks.append({"name": "workflow_validation", "status": "fail", "details": str(exc)[:200]})
 
-    db_path = root / ".cnogo" / "memory.db"
+    db_path = runtime_path(root, "memory.db")
     if db_path.exists():
         try:
             conn = sqlite3.connect(str(db_path))
@@ -53,7 +55,7 @@ def cmd_doctor(
             ["git", "worktree", "list", "--porcelain"],
             capture_output=True, text=True, timeout=10, cwd=str(root),
         )
-        session_file = root / ".cnogo" / "worktree-session.json"
+        session_file = runtime_path(root, "worktree-session.json")
         tracked_paths = set()
         if session_file.exists():
             with open(session_file) as handle:

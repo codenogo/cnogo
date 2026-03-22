@@ -72,6 +72,13 @@
       "work-next"
     ]
   },
+  "dispatcher": {
+    "enabled": true,
+    "defaultWipLimit": 2,
+    "overlapPolicy": "allow",
+    "autonomy": "high",
+    "leaseTimeoutMinutes": 45
+  },
   "watch": {
     "enabled": true,
     "patrolIntervalMinutes": 15,

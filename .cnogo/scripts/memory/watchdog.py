@@ -13,6 +13,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 _SESSION_FILE = ".cnogo/worktree-session.json"
 _DB_NAME = "memory.db"
 _CNOGO_DIR = ".cnogo"
@@ -38,7 +40,7 @@ def check_stale_tasks(root: Path, stale_minutes: int = 10) -> list[dict]:
     Returns list of dicts: {task_index, name, branch, minutes_stale, memory_id}.
     Returns empty list if no session file exists.
     """
-    session_path = root / _SESSION_FILE
+    session_path = runtime_path(root, "worktree-session.json")
     if not session_path.exists():
         return []
 
@@ -88,7 +90,7 @@ def check_stale_issues(root: Path, stale_days: int = 30) -> list[dict]:
     Returns list of dicts: {id, title, days_stale}.
     Returns empty list if DB doesn't exist.
     """
-    db_path = root / _CNOGO_DIR / _DB_NAME
+    db_path = runtime_path(root, _DB_NAME)
     if not db_path.exists():
         return []
 
@@ -139,7 +141,7 @@ def record_stale_event(
 
     Handles gracefully if DB doesn't exist or insert fails.
     """
-    db_path = root / _CNOGO_DIR / _DB_NAME
+    db_path = runtime_path(root, _DB_NAME)
     if not db_path.exists():
         return
     if not stale_info:

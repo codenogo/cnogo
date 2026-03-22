@@ -13,14 +13,16 @@ def _read(rel_path: str) -> str:
 def test_shape_command_is_workspace_first():
     text = _read(".claude/commands/shape.md")
 
-    assert "available exit from shape" in text
+    assert "only upstream workspace" in text
+    assert "do not use `/discuss`" in text
     assert "stay-in-shape continuation moves first" in text
     assert "exact next commands for every ready feature" not in text
 
 
-def test_discuss_command_records_shape_feedback_without_mutating_shape():
+def test_discuss_command_is_deprecated_and_preserves_shape_feedback_contract():
     text = _read(".claude/commands/discuss.md")
 
+    assert "Deprecated compatibility entrypoint" in text
     assert "shapeFeedback[]" in text
     assert "instead of editing `SHAPE.json`" in text
 
@@ -31,6 +33,7 @@ def test_workspace_skills_and_brainstorm_alias_match_new_model():
 
     assert "available exit, not a stop signal" in facilitator
     assert "same workspace-first output contract as `/shape`" in brainstorm
+    assert "queued directly from shape" in brainstorm
 
 
 def test_research_command_and_spawn_use_research_skill():
@@ -58,7 +61,7 @@ def test_shape_workspace_supports_dedicated_read_only_scouts():
     assert "`risk-challenger` -> `.claude/agents/risk-challenger.md`" in spawn
     assert ".claude/skills/shape-facilitator/SKILL.md" not in spawn.split("`shape-scout` ->", 1)[1].splitlines()[0]
     assert "/spawn research <task>" not in shape
-    assert "discuss-ready features that should regress to `draft` or `blocked`" in risk_skill
+    assert "ready features that should regress to `draft` or `blocked`" in risk_skill
 
 
 def test_plan_and_implement_commands_enforce_stricter_execution_contracts():

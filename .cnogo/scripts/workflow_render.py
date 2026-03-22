@@ -47,6 +47,7 @@ def render_shape(shape: dict[str, Any]) -> str:
     research_refs = shape.get("researchRefs", [])
     open_questions = shape.get("openQuestions", [])
     candidate_features = shape.get("candidateFeatures", [])
+    feedback_inbox = shape.get("feedbackInbox", [])
     next_shape_moves = shape.get("nextShapeMoves", [])
     recommended_sequence = shape.get("recommendedSequence", [])
 
@@ -102,26 +103,28 @@ def render_shape(shape: dict[str, Any]) -> str:
         lines.append("- [No active shaping thread recorded]")
         lines.append("")
     lines.append("## Feature Queue")
-    lines.append("| Feature | Status | User Outcome |")
-    lines.append("|---------|--------|--------------|")
-    discuss_ready: list[tuple[str, str]] = []
+    lines.append("| Feature | Status | Priority | User Outcome |")
+    lines.append("|---------|--------|----------|--------------|")
+    ready_features: list[tuple[str, str]] = []
     if isinstance(candidate_features, list) and candidate_features:
         for feature in candidate_features:
             if not isinstance(feature, dict):
                 continue
             slug = str(feature.get("slug", "")).strip()
             display_name = str(feature.get("displayName") or slug or "[Feature]").strip()
-            if feature.get("status") == "discuss-ready" and slug:
-                discuss_ready.append((slug, display_name))
+            priority = feature.get("priority", 2)
+            if feature.get("status") in {"ready", "discuss-ready"} and slug:
+                ready_features.append((slug, display_name))
             lines.append(
-                "| `{}` | `{}` | {} |".format(
+                "| `{}` | `{}` | `P{}` | {} |".format(
                     slug,
                     feature.get("status", ""),
+                    priority if isinstance(priority, int) and not isinstance(priority, bool) else 2,
                     feature.get("userOutcome", ""),
                 )
             )
     else:
-        lines.append("| `feature-slug` | `draft` | [User outcome] |")
+        lines.append("| `feature-slug` | `draft` | `P2` | [User outcome] |")
     lines.append("")
     lines.append("## Feature Handoffs")
     if isinstance(candidate_features, list) and candidate_features:
@@ -132,12 +135,14 @@ def render_shape(shape: dict[str, Any]) -> str:
             display_name = str(feature.get("displayName") or slug or "[Feature]").strip()
             scope_summary = str(feature.get("scopeSummary") or "[Scope summary]").strip()
             readiness_reason = str(feature.get("readinessReason") or "[Why it is in this state]").strip()
-            handoff_summary = str(feature.get("handoffSummary") or "[What discuss should refine next]").strip()
+            handoff_summary = str(feature.get("handoffSummary") or "[What shape or planning should refine next]").strip()
             dependencies = feature.get("dependencies", [])
             risks = feature.get("risks", [])
+            priority = feature.get("priority", 2)
 
             lines.append(f"### {display_name}")
             lines.append(f"- Slug: `{slug}`")
+            lines.append(f"- Priority: `P{priority if isinstance(priority, int) and not isinstance(priority, bool) else 2}`")
             lines.append(f"- Scope: {scope_summary}")
             lines.append(f"- Readiness: {readiness_reason}")
             lines.append(f"- Handoff: {handoff_summary}")
@@ -159,12 +164,27 @@ def render_shape(shape: dict[str, Any]) -> str:
         lines.append("- Slug: `feature-slug`")
         lines.append("- Scope: [Scope summary]")
         lines.append("- Readiness: [Why it is in this state]")
-        lines.append("- Handoff: [What discuss should refine next]")
+        lines.append("- Handoff: [What shape or planning should refine next]")
         lines.append("- Dependencies:")
         lines.append("  - [None]")
         lines.append("- Risks:")
         lines.append("  - [None identified]")
         lines.append("")
+    lines.append("## Feedback Inbox")
+    if isinstance(feedback_inbox, list) and feedback_inbox:
+        for entry in feedback_inbox:
+            if isinstance(entry, dict):
+                summary = str(entry.get("summary") or "[Feedback]").strip()
+                source_feature = str(entry.get("sourceFeature") or "").strip()
+                if source_feature:
+                    lines.append(f"- {summary} (`{source_feature}`)")
+                else:
+                    lines.append(f"- {summary}")
+            else:
+                lines.append(f"- {entry}")
+    else:
+        lines.append("- [No downstream feedback queued]")
+    lines.append("")
     lines.append("## Suggested Next Shape Moves")
     if isinstance(next_shape_moves, list) and next_shape_moves:
         for item in next_shape_moves:
@@ -172,12 +192,12 @@ def render_shape(shape: dict[str, Any]) -> str:
     else:
         lines.append("- [Continue shaping by splitting, comparing, resequencing, promoting, parking, or reopening work]")
     lines.append("")
-    lines.append("## Optional Discuss Exits")
-    if discuss_ready:
-        for slug, display_name in discuss_ready:
-            lines.append(f"- `/discuss {slug}` - {display_name}")
+    lines.append("## Ready Features")
+    if ready_features:
+        for slug, display_name in ready_features:
+            lines.append(f"- `python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {slug}` - {display_name}")
     else:
-        lines.append("- [No discuss-ready feature yet]")
+        lines.append("- [No ready feature yet]")
     lines.append("")
     lines.append("## Recommended Sequence")
     if isinstance(recommended_sequence, list) and recommended_sequence:
@@ -257,7 +277,7 @@ def render_feature_stub(feature: dict[str, Any]) -> str:
     risks = feature.get("risks", [])
     status = str(feature.get("status") or "draft").strip()
     readiness_reason = str(feature.get("readinessReason") or "[Why it is in this state]").strip()
-    handoff_summary = str(feature.get("handoffSummary") or "[What discuss should refine next]").strip()
+    handoff_summary = str(feature.get("handoffSummary") or "[What shape or planning should refine next]").strip()
     parent_shape = feature.get("parentShape", {})
 
     lines: list[str] = []

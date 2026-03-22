@@ -13,13 +13,15 @@ from pathlib import Path
 from typing import Any
 
 from scripts.workflow.shared.config import load_workflow_config, scheduler_settings_cfg
+from scripts.workflow.shared.runtime_root import runtime_path
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
 
 from .watch_schedule import run_watch_tick
+from .dispatcher import dispatch_ready_work, sync_shape_feedback
 from .work_order import sync_all_work_orders
 
 SCHEDULER_STATE_SCHEMA_VERSION = 1
-SCHEDULER_JOB_NAMES = ("watch_patrol", "work_order_sync")
+SCHEDULER_JOB_NAMES = ("watch_patrol", "work_order_sync", "dispatch_ready", "feedback_sync")
 
 _SCHEDULER_DIR = Path(".cnogo") / "scheduler"
 _STATE_FILE = "state.json"
@@ -37,7 +39,7 @@ def _iso_utc(value: datetime) -> str:
 
 
 def scheduler_dir(root: Path) -> Path:
-    return root / _SCHEDULER_DIR
+    return runtime_path(root, "scheduler")
 
 
 def scheduler_state_path(root: Path) -> Path:
@@ -238,6 +240,10 @@ def run_scheduler_once(
             elif job == "work_order_sync":
                 synced = sync_all_work_orders(root)
                 job_results[job] = {"workOrders": [order.to_dict() for order in synced], "count": len(synced)}
+            elif job == "dispatch_ready":
+                job_results[job] = dispatch_ready_work(root)
+            elif job == "feedback_sync":
+                job_results[job] = sync_shape_feedback(root)
         event = {
             "timestamp": _iso_utc(ran_at),
             "triggeredBy": triggered_by,

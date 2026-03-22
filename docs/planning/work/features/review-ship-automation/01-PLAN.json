@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 3,
+  "feature": "review-ship-automation",
+  "planNumber": "01",
+  "goal": "Wire auto-review and auto-ship into the dispatcher tick so that high-autonomy profiles can progress from implementation-complete to ship-draft-ready without manual /review or /ship invocations.",
+  "commitMessage": "feat(workflow): add auto-review and auto-ship to dispatcher tick",
+  "profile": "feature-delivery",
+  "tasks": [
+    {
+      "name": "Add auto-review path to dispatcher",
+      "files": [
+        ".cnogo/scripts/workflow/orchestration/dispatcher.py",
+        "tests/test_feature_dispatch.py"
+      ],
+      "action": "Add _autoreview_candidates() to find lanes where review_readiness=ready and no review verdict yet. Add _attempt_auto_review() that resolves profile, checks profile_auto_review(), generates REVIEW.json via write_review(), auto-completes both review stages, sets final verdict from automated verdict, and syncs work order. Integrate into dispatch_ready_work() after auto-plan section. Return payload includes autoReviewed[], autoReviewSkipped[], reviewErrors[]. Write tests covering: auto-review when profile allows, skip when profile disallows, skip when review not ready, error handling.",
+      "verify": [
+        "python3 -m py_compile .cnogo/scripts/workflow/orchestration/dispatcher.py",
+        "python3 -m pytest tests/test_feature_dispatch.py -v --tb=short"
+      ],
+      "microSteps": [
+        "Add lazy imports for review orchestration (start_review, set_review_stage, set_review_verdict, sync_review_state) and checks.review (write_review) to break circular imports",
+        "Implement _autoreview_candidates(root, feature_filter) scanning lanes in implementing/reviewing status where latest run review_readiness=ready and review.finalVerdict=pending",
+        "Implement _resolve_review_profile(root, feature) loading the feature plan profile and calling profile_auto_review()",
+        "Implement _attempt_auto_review(root, feature, lease_owner) that: loads run, calls write_review() to generate REVIEW.json with automated verdict, calls start_review(), auto-completes both stages (spec-compliance, code-quality) with automated findings, sets final verdict from automated verdict, syncs work order, returns success/skip/error",
+        "Integrate _attempt_auto_review into dispatch_ready_work() after the auto-plan block, gated on autonomy=high",
+        "Add autoReviewed[], autoReviewSkipped[], reviewErrors[] to dispatch return payload",
+        "Write test: test_dispatch_auto_reviews_lane_when_profile_allows",
+        "Write test: test_dispatch_skips_auto_review_when_profile_disallows",
+        "Error path: handle missing run, missing plan, write_review failure"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_feature_dispatch.py -v --tb=short -k auto_review"],
+        "passingVerify": ["python3 -m pytest tests/test_feature_dispatch.py -v --tb=short"]
+      },
+      "contextLinks": ["D1", "D2"],
+      "blockedBy": []
+    },
+    {
+      "name": "Add auto-ship path to dispatcher",
+      "files": [
+        ".cnogo/scripts/workflow/orchestration/dispatcher.py",
+        "tests/test_feature_dispatch.py"
+      ],
+      "action": "Add _autoship_candidates() to find lanes where ship.status=ready. Add _attempt_auto_ship() that resolves profile, checks profile_auto_ship(), calls start_ship(), builds ship draft via build_ship_draft(), stores draft in work order automation state, syncs work order. Integrate into dispatch_ready_work() after auto-review. Return payload includes autoShipStarted[], autoShipSkipped[], shipErrors[]. Write tests covering: auto-ship when profile allows, skip when profile disallows, skip when ship not ready, draft stored correctly.",
+      "verify": [
+        "python3 -m py_compile .cnogo/scripts/workflow/orchestration/dispatcher.py",
+        "python3 -m pytest tests/test_feature_dispatch.py -v --tb=short"
+      ],
+      "microSteps": [
+        "Add lazy imports for ship orchestration (start_ship, sync_ship_state) and ship_draft (build_ship_draft)",
+        "Implement _autoship_candidates(root, feature_filter) scanning lanes in reviewing/shipping status where latest run ship.status=ready",
+        "Implement _attempt_auto_ship(root, feature, lease_owner) that: loads run, resolves profile, checks profile_auto_ship(), calls start_ship(), calls build_ship_draft(), stores draft in returned payload, syncs work order, returns success/skip/error",
+        "Integrate into dispatch_ready_work() after auto-review block",
+        "Add autoShipStarted[], autoShipSkipped[], shipErrors[] to dispatch return payload",
+        "Write test: test_dispatch_auto_starts_ship_when_profile_allows",
+        "Write test: test_dispatch_skips_auto_ship_when_profile_disallows",
+        "Error path: handle missing run, build_ship_draft failure, start_ship failure"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_feature_dispatch.py -v --tb=short -k auto_ship"],
+        "passingVerify": ["python3 -m pytest tests/test_feature_dispatch.py -v --tb=short"]
+      },
+      "contextLinks": ["D1", "D3"],
+      "blockedBy": [0]
+    },
+    {
+      "name": "Surface profile policy in work order automation state and add patrol post-ship finding",
+      "files": [
+        ".cnogo/scripts/workflow/orchestration/work_order.py",
+        ".cnogo/scripts/workflow/orchestration/watch.py",
+        "tests/test_feature_dispatch.py"
+      ],
+      "action": "Update _automation_state() in work_order.py to include profilePolicy sub-object showing autoReview, autoShip, autoAdvance, requiresTracking, requiresPullRequest from resolved profile. Update automation reason messages to reflect auto capabilities. In watch.py, add post-ship cleanup finding when ship.status=completed: severity=info, kind=post_ship_cleanup, suggesting feature-lifecycle-closure. Write tests for profile policy surfacing and post-ship patrol finding.",
+      "verify": [
+        "python3 -m py_compile .cnogo/scripts/workflow/orchestration/work_order.py",
+        "python3 -m py_compile .cnogo/scripts/workflow/orchestration/watch.py",
+        "python3 -m pytest tests/test_feature_dispatch.py -v --tb=short"
+      ],
+      "microSteps": [
+        "Read current _automation_state() in work_order.py to understand the return shape",
+        "Add profile resolution inside _automation_state() using lazy import of resolve_profile and relevant profile_ helpers",
+        "Add profilePolicy sub-object: {autoReview, autoShip, autoAdvance, requiresTracking, requiresPullRequest}",
+        "Update reason messages for waiting_for_review_command and waiting_for_ship_command to say 'auto-review/auto-ship will run on next dispatch tick' when profile allows",
+        "In watch.py, add post_ship_cleanup finding when ship.status=completed and work order status=completed",
+        "Write test: test_work_order_automation_state_includes_profile_policy",
+        "Write test: test_watch_patrol_reports_post_ship_cleanup"
+      ],
+      "tdd": {
+        "required": true,
+        "failingVerify": ["python3 -m pytest tests/test_feature_dispatch.py -v --tb=short -k profile_policy_or_post_ship"],
+        "passingVerify": ["python3 -m pytest tests/test_feature_dispatch.py -v --tb=short"]
+      },
+      "contextLinks": ["D1", "D4"],
+      "blockedBy": [0]
+    }
+  ],
+  "planVerify": [
+    "python3 -m py_compile .cnogo/scripts/workflow/orchestration/dispatcher.py",
+    "python3 -m py_compile .cnogo/scripts/workflow/orchestration/work_order.py",
+    "python3 -m py_compile .cnogo/scripts/workflow/orchestration/watch.py",
+    "python3 -m pytest tests/test_feature_dispatch.py tests/test_memory_insights.py tests/test_workflow_render.py tests/test_initiative_rollup.py tests/test_initiative_rollup_cli.py tests/test_delivery_run_cli.py tests/test_workflow_command_contracts.py -q"
+  ]
+}

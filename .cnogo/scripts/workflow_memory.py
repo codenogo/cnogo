@@ -32,6 +32,7 @@ Commands:
     history <id>        Show recent event history for an issue
     phase-get <feature> Get current workflow phase for feature
     phase-set <feature> Set workflow phase for feature
+    plan-auto          Generate or reuse a deterministic plan for a ready feature
     run-create          Create or resume a durable delivery run
     run-list            List delivery runs across features
     run-show            Show a delivery run
@@ -39,6 +40,10 @@ Commands:
     work-list           List Work Orders across features
     work-sync           Rebuild Work Order rollups
     work-next           Show the next feature-level action
+    lane-list           List feature lanes across the repo
+    lane-show           Show one feature lane
+    dispatch-ready      Lease ready features into feature lanes
+    feedback-sync       Sync downstream feedback back into SHAPE.json
     initiative-show     Show an initiative rollup from SHAPE.json
     initiative-list     List initiatives with SHAPE.json artifacts
     initiative-current  Show initiative context for the current or specified feature
@@ -135,6 +140,7 @@ def _ensure_graph_venv() -> None:
 
 
 from scripts.memory import (  # noqa: E402
+    auto_plan_feature,
     begin_delivery_run_task,
     blocks,
     blockers,
@@ -148,7 +154,9 @@ from scripts.memory import (  # noqa: E402
     complete_delivery_run_task,
     complete_delivery_run_ship,
     create,
+    describe_feature_lane,
     delivery_run_watch_schedule_status,
+    dispatch_ready_features,
     ensure_delivery_run,
     dep_add,
     dep_remove,
@@ -162,13 +170,16 @@ from scripts.memory import (  # noqa: E402
     is_initialized,
     history,
     latest_delivery_run,
+    list_feature_lane_snapshots,
     load_delivery_run_attention_queue,
     load_delivery_run_watch_history,
     list_delivery_runs,
+    list_feature_lanes,
     list_issues,
     list_work_orders,
     load_delivery_run,
     load_delivery_run_watch_report,
+    load_feature_lane,
     load_work_order,
     load_session,
     next_delivery_run_action,
@@ -207,6 +218,7 @@ from scripts.memory import (  # noqa: E402
     summarize_delivery_run,
     sync,
     sync_all_work_orders,
+    sync_shape_feedback,
     sync_work_order,
     takeover_task,
     stop_scheduler_supervisor,
@@ -463,6 +475,17 @@ def _print_work_order(order: dict) -> None:
     print(f"Feature: {order.get('feature', '')}")
     print(f"Status: {order.get('status', '')}")
     print(f"Phase: {order.get('currentPhase', '')}")
+    if order.get("queuePosition"):
+        print(f"Queue Position: {order['queuePosition']}")
+    lane = order.get("lane", {})
+    if isinstance(lane, dict) and lane.get("laneId"):
+        print(
+            "Lane: "
+            f"{lane.get('laneId', '')} "
+            f"(status={lane.get('status', '')}, owner={lane.get('leaseOwner', '') or 'n/a'})"
+        )
+        if lane.get("worktreePath"):
+            print(f"Lane Worktree: {lane['worktreePath']}")
     profile = order.get("profile", {})
     if isinstance(profile, dict) and profile.get("name"):
         version = str(profile.get("version", "")).strip()
@@ -491,11 +514,37 @@ def _print_work_order(order: dict) -> None:
             f"{ship.get('status', 'pending')} "
             f"(attempts={ship.get('attempts', 0)})"
         )
+    memory_sync = order.get("memorySync", {})
+    if isinstance(memory_sync, dict) and memory_sync.get("status"):
+        status = str(memory_sync.get("status", "unknown"))
+        if status == "ok":
+            print(
+                "Memory Sync: "
+                f"ok obs={memory_sync.get('observations', 0)} "
+                f"contradictions={memory_sync.get('contradictions', 0)} "
+                f"cards={memory_sync.get('cards', 0)}"
+            )
+        elif status == "error":
+            print(f"Memory Sync: error ({memory_sync.get('error', 'unknown error')})")
+        else:
+            print(f"Memory Sync: {status} ({memory_sync.get('reason', 'not run')})")
+    automation_state = order.get("automationState", {})
+    if isinstance(automation_state, dict) and automation_state.get("state"):
+        print(
+            "Automation State: "
+            f"{automation_state.get('state')} "
+            f"(owner={automation_state.get('owner', 'system')})"
+        )
+        if automation_state.get("reason"):
+            print(f"Automation Reason: {automation_state['reason']}")
     next_action = order.get("nextAction", {})
     if isinstance(next_action, dict) and next_action.get("summary"):
         print(f"Next: {next_action['summary']}")
         if next_action.get("command"):
             print(f"Command: {next_action['command']}")
+        automation = next_action.get("automation", {})
+        if isinstance(automation, dict) and automation.get("state"):
+            print(f"Automation: {automation.get('state')} ({automation.get('reason', '')})")
 
 
 def _print_work_order_list(entries: list[dict]) -> None:
@@ -507,7 +556,9 @@ def _print_work_order_list(entries: list[dict]) -> None:
             f"{entry.get('workOrderId', '')} "
             f"[{entry.get('status', '')}/{entry.get('currentPhase', '')}] "
             f"profile={entry.get('profile', {}).get('name', 'unknown') if isinstance(entry.get('profile'), dict) else 'unknown'} "
-            f"run={entry.get('currentRunId', '') or 'n/a'}"
+            f"run={entry.get('currentRunId', '') or 'n/a'} "
+            f"queue={entry.get('queuePosition', 0) or '-'} "
+            f"lane={entry.get('lane', {}).get('status', 'n/a') if isinstance(entry.get('lane'), dict) else 'n/a'}"
         )
         attention = entry.get("attentionSummary", {})
         if isinstance(attention, dict) and attention.get("itemCount", 0):
@@ -516,9 +567,60 @@ def _print_work_order_list(entries: list[dict]) -> None:
                 f"{attention.get('highestSeverity', 'warn')}:"
                 f"{attention.get('itemCount', 0)}"
             )
+        memory_sync = entry.get("memorySync", {})
+        if isinstance(memory_sync, dict) and memory_sync.get("status") == "error":
+            print(f"  memory=error:{memory_sync.get('error', 'unknown error')}")
+        automation_state = entry.get("automationState", {})
+        if isinstance(automation_state, dict) and automation_state.get("state"):
+            print(f"  automation={automation_state['state']}")
         next_action = entry.get("nextAction", {})
         if isinstance(next_action, dict) and next_action.get("command"):
             print(f"  next={next_action['command']}")
+
+
+def _print_lane(payload: dict) -> None:
+    print(f"Lane: {payload.get('laneId', '')}")
+    print(f"Feature: {payload.get('feature', '')}")
+    print(f"Status: {payload.get('status', '')}")
+    print(f"Work Order: {payload.get('workOrderId', '')}")
+    print(f"Owner: {payload.get('leaseOwner', '') or 'n/a'}")
+    if payload.get("branch"):
+        print(f"Branch: {payload['branch']}")
+    if payload.get("worktreePath"):
+        print(f"Worktree: {payload['worktreePath']}")
+    if payload.get("currentPlanNumber"):
+        print(f"Current Plan: {payload['currentPlanNumber']}")
+    if payload.get("currentRunId"):
+        print(f"Current Run: {payload['currentRunId']}")
+    if payload.get("sessionPath"):
+        print(f"Session: {payload['sessionPath']}")
+    health = payload.get("health", {})
+    if isinstance(health, dict):
+        print(
+            "Health: "
+            f"stale={health.get('stale', False)} "
+            f"reclaimable={health.get('reclaimable', False)} "
+            f"reason={health.get('reason', '') or 'ok'}"
+        )
+        if health.get("heartbeatAt"):
+            print(f"Heartbeat: {health['heartbeatAt']}")
+        if health.get("leaseExpiresAt"):
+            print(f"Lease Expires: {health['leaseExpiresAt']}")
+
+
+def _print_lane_list(entries: list[dict]) -> None:
+    if not entries:
+        print("No feature lanes found")
+        return
+    for entry in entries:
+        print(
+            f"{entry.get('feature', '')} "
+            f"[{entry.get('status', '')}] "
+            f"owner={entry.get('leaseOwner', '') or 'n/a'} "
+            f"stale={entry.get('health', {}).get('stale', False) if isinstance(entry.get('health'), dict) else False} "
+            f"branch={entry.get('branch', '') or 'n/a'} "
+            f"worktree={entry.get('worktreePath', '') or 'n/a'}"
+        )
 
 
 def _print_watch_schedule(payload: dict) -> None:
@@ -1556,6 +1658,148 @@ def cmd_work_next(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plan_auto(args: argparse.Namespace) -> int:
+    root = _root()
+    try:
+        payload = auto_plan_feature(
+            args.feature,
+            plan_number=args.plan,
+            requested_profile_name=args.profile,
+            force=args.force,
+            start_run=False if args.no_run else None,
+            root=root,
+        )
+    except Exception as exc:
+        print(f"Error: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(payload)
+    else:
+        status = "created" if payload.get("createdPlan") else "reused"
+        print(f"Plan auto: {payload.get('feature', args.feature)} {payload.get('planNumber', '')} ({status})")
+        profile = payload.get("profile", {})
+        if isinstance(profile, dict) and profile.get("name"):
+            print(f"Profile: {profile['name']}")
+        if payload.get("planningRoot"):
+            print(f"Planning root: {payload['planningRoot']}")
+        print(f"Plan path: {payload.get('planPath', '')}")
+        if payload.get("mode"):
+            print(f"Mode: {payload['mode']}")
+        if payload.get("startedRun") and isinstance(payload.get("deliveryRun"), dict):
+            print(f"Delivery Run: {payload['deliveryRun'].get('runId', '')}")
+        suggestion = payload.get("profileSuggestion", {})
+        if isinstance(suggestion, dict) and suggestion.get("reason"):
+            print(f"Reason: {suggestion['reason']}")
+        warnings = [
+            item
+            for item in payload.get("validation", [])
+            if isinstance(item, dict) and str(item.get("level", "")).upper() != "ERROR"
+        ]
+        if warnings:
+            print(f"Validation findings: {len(warnings)} warning(s)")
+    return 0
+
+
+def cmd_lane_show(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = describe_feature_lane(args.feature, root=root)
+    if payload is None:
+        print(f"No feature lane found for {args.feature!r}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_lane(payload)
+    return 0
+
+
+def cmd_lane_list(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = list_feature_lane_snapshots(
+        feature_slug=args.feature,
+        include_terminal=args.all,
+        root=root,
+    )
+    if args.json:
+        _print_json(payload)
+    else:
+        _print_lane_list(payload)
+    return 0
+
+
+def cmd_dispatch_ready(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = dispatch_ready_features(
+        feature_slug=args.feature,
+        lease_owner=args.owner,
+        root=root,
+    )
+    if args.json:
+        _print_json(payload)
+    else:
+        leased = payload.get("leased", []) if isinstance(payload.get("leased"), list) else []
+        auto_planned = payload.get("autoPlanned", []) if isinstance(payload.get("autoPlanned"), list) else []
+        auto_plan_skipped = payload.get("autoPlanSkipped", []) if isinstance(payload.get("autoPlanSkipped"), list) else []
+        plan_errors = payload.get("planErrors", []) if isinstance(payload.get("planErrors"), list) else []
+        reclaimed = payload.get("reclaimed", []) if isinstance(payload.get("reclaimed"), list) else []
+        skipped = payload.get("skipped", []) if isinstance(payload.get("skipped"), list) else []
+        print(
+            "Dispatch ready: "
+            f"leased={len(leased)} "
+            f"auto-planned={len(auto_planned)} "
+            f"plan-errors={len(plan_errors)} "
+            f"reclaimed={len(reclaimed)} "
+            f"skipped={len(skipped)} "
+            f"active={payload.get('activeLaneCount', 0)}"
+        )
+        for entry in reclaimed:
+            print(
+                f"- reclaimed {entry.get('feature', '')} "
+                f"from {entry.get('laneId', '')} "
+                f"({entry.get('releaseReason', '') or entry.get('health', {}).get('reason', 'unknown')})"
+            )
+        for entry in leased:
+            print(
+                f"- leased {entry.get('feature', '')} "
+                f"into {entry.get('laneId', '')} "
+                f"({entry.get('worktreePath', '')})"
+            )
+        for entry in auto_planned:
+            created = "created" if entry.get("createdPlan") else "reused"
+            run = entry.get("deliveryRun", {}) if isinstance(entry.get("deliveryRun"), dict) else {}
+            run_fragment = f", run={run.get('runId', '')}" if run.get("runId") else ""
+            print(
+                f"- auto-planned {entry.get('feature', '')} "
+                f"plan={entry.get('planNumber', '')} "
+                f"({created}{run_fragment})"
+            )
+        for entry in auto_plan_skipped:
+            print(
+                f"- auto-plan skipped {entry.get('feature', '')} "
+                f"({entry.get('reason', 'unknown')})"
+            )
+        for entry in plan_errors:
+            print(
+                f"- auto-plan failed {entry.get('feature', '')} "
+                f"({entry.get('error', 'unknown error')})"
+            )
+        for entry in skipped:
+            print(f"- skipped {entry.get('feature', '')}: {entry.get('reason', 'unknown')}")
+    return 0
+
+
+def cmd_feedback_sync(args: argparse.Namespace) -> int:
+    root = _root()
+    payload = sync_shape_feedback(feature_slug=args.feature, root=root)
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Shape feedback synced: {payload.get('itemsAdded', 0)} item(s)")
+        for entry in payload.get("updatedShapes", []) if isinstance(payload.get("updatedShapes"), list) else []:
+            print(f"- {entry.get('shapePath', '')}: +{entry.get('itemsAdded', 0)}")
+    return 0
+
+
 def cmd_initiative_show(args: argparse.Namespace) -> int:
     root = _root()
     slug = args.slug
@@ -1761,10 +2005,24 @@ def cmd_run_watch_patrol(args: argparse.Namespace) -> int:
             feature_slug=args.feature,
             root=root,
         )
+    payload["workOrders"] = [
+        order.to_dict()
+        for order in sync_all_work_orders(feature_slug=args.feature, root=root)
+    ]
+    payload["dispatch"] = dispatch_ready_features(feature_slug=args.feature, root=root)
+    payload["feedbackSync"] = sync_shape_feedback(feature_slug=args.feature, root=root)
     if args.json:
         _print_json(payload)
     else:
         _print_watch_patrol(payload)
+        dispatch_payload = payload.get("dispatch", {})
+        leased = dispatch_payload.get("leased", []) if isinstance(dispatch_payload, dict) else []
+        if leased:
+            print(f"Dispatch: leased {len(leased)} ready feature(s)")
+        feedback_payload = payload.get("feedbackSync", {})
+        items_added = feedback_payload.get("itemsAdded", 0) if isinstance(feedback_payload, dict) else 0
+        if items_added:
+            print(f"Feedback sync: added {items_added} item(s) to SHAPE inboxes")
     items = payload.get("attention", {}).get("items", [])
     if isinstance(items, list) and any(
         isinstance(item, dict) and item.get("severity") == "fail" for item in items
@@ -3596,6 +3854,37 @@ def main() -> int:
     p.add_argument("feature", help="Feature slug")
     p.add_argument("--json", action="store_true")
 
+    # plan-auto
+    p = sub.add_parser("plan-auto", help="Generate or reuse a deterministic plan for a ready feature")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--plan", help="Optional plan number to create or reuse")
+    p.add_argument("--profile", help="Override the resolved workflow profile")
+    p.add_argument("--force", action="store_true", help="Regenerate the target plan instead of reusing it")
+    p.add_argument("--no-run", action="store_true", help="Do not create or resume a Delivery Run after planning")
+    p.add_argument("--json", action="store_true")
+
+    # lane-show
+    p = sub.add_parser("lane-show", help="Show one feature lane")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--json", action="store_true")
+
+    # lane-list
+    p = sub.add_parser("lane-list", help="List feature lanes across the repo")
+    p.add_argument("--feature", help="Feature slug to filter")
+    p.add_argument("--all", action="store_true", help="Include completed or released lanes")
+    p.add_argument("--json", action="store_true")
+
+    # dispatch-ready
+    p = sub.add_parser("dispatch-ready", help="Lease ready features into feature lanes")
+    p.add_argument("--feature", help="Specific ready feature to dispatch")
+    p.add_argument("--owner", default="dispatcher", help="Lease owner to record on the lane")
+    p.add_argument("--json", action="store_true")
+
+    # feedback-sync
+    p = sub.add_parser("feedback-sync", help="Sync downstream feature feedback into SHAPE.json inboxes")
+    p.add_argument("--feature", help="Specific feature slug to sync")
+    p.add_argument("--json", action="store_true")
+
     # initiative-show
     p = sub.add_parser("initiative-show", help="Show initiative rollup for a shape")
     p.add_argument("slug", help="Initiative slug (matches ideas directory name)")
@@ -4065,6 +4354,11 @@ def main() -> int:
         "work-list",
         "work-sync",
         "work-next",
+        "plan-auto",
+        "lane-show",
+        "lane-list",
+        "dispatch-ready",
+        "feedback-sync",
         "initiative-show",
         "initiative-list",
         "initiative-current",
@@ -4116,6 +4410,11 @@ def main() -> int:
         "work-list": cmd_work_list,
         "work-sync": cmd_work_sync,
         "work-next": cmd_work_next,
+        "plan-auto": cmd_plan_auto,
+        "lane-show": cmd_lane_show,
+        "lane-list": cmd_lane_list,
+        "dispatch-ready": cmd_dispatch_ready,
+        "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,
         "initiative-current": cmd_initiative_current,

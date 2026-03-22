@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "topic": "Honcho memory patterns vs cnogo - what to steal",
+  "slug": "honcho-memory-patterns",
+  "timestamp": "2026-03-21T12:00:00Z",
+  "mode": "auto",
+  "sources": [
+    {
+      "type": "repo",
+      "url": "https://github.com/plastic-labs/honcho",
+      "quality": "primary",
+      "description": "Honcho source code: FastAPI backend, deriver pipeline, dialectic agent, vector store abstractions, SDK"
+    },
+    {
+      "type": "repo",
+      "path": ".cnogo/scripts/memory/",
+      "quality": "primary",
+      "description": "cnogo memory engine: 20+ modules, ~6600 lines, SQLite + JSONL sync"
+    },
+    {
+      "type": "repo",
+      "path": "docs/planning/WORKFLOW.json",
+      "quality": "primary",
+      "description": "cnogo workflow policy and memory configuration"
+    }
+  ],
+  "summary": [
+    "Honcho's core innovation is derived memory — continuous background reasoning extracts observations from conversations at four levels (explicit, deductive, inductive, contradiction)",
+    "cnogo's memory engine is a deterministic task coordination layer that only stores explicitly created state; it has no observation extraction, semantic search, or contradiction detection",
+    "Six transferable patterns identified: contradiction detection (P0), observation extraction (P1), multi-perspective notes (P1), conversation context capture (P2), background insight derivation (P2), semantic task search (P3)",
+    "Honcho's vector store and LLM-in-the-loop patterns are NOT adoptable due to cnogo's stdlib-only and offline-first constraints",
+    "The foundational insight: memory should be derived, not just stored — adding observation extraction would enable multiple downstream improvements"
+  ],
+  "recommendation": "Adopt contradiction detection immediately (pure validation logic, no new deps). Then build observation extraction as the foundation for multi-perspective notes, context capture, and background insight derivation. Route to /shape memory-intelligence for initiative-level architecture decisions."
+}

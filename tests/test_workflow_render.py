@@ -81,12 +81,12 @@ def test_render_shape_workspace_sections_are_ordered_and_workspace_first():
     assert "## Active Shape Threads" in markdown
     assert "## Feature Queue" in markdown
     assert "## Suggested Next Shape Moves" in markdown
-    assert "## Optional Discuss Exits" in markdown
+    assert "## Ready Features" in markdown
     assert markdown.index("## Stable Decisions") < markdown.index("## Active Shape Threads")
     assert markdown.index("## Active Shape Threads") < markdown.index("## Feature Queue")
     assert markdown.index("## Feature Queue") < markdown.index("## Suggested Next Shape Moves")
-    assert markdown.index("## Suggested Next Shape Moves") < markdown.index("## Optional Discuss Exits")
-    assert "- `/discuss learning-domain-model` - Learning Domain Model" in markdown
+    assert markdown.index("## Suggested Next Shape Moves") < markdown.index("## Ready Features")
+    assert "- `python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature learning-domain-model` - Learning Domain Model" in markdown
 
 
 def test_render_feature_stub_preserves_parent_shape_linkage():

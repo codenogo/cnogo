@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-ship-automation",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/control-plane-consolidation/SHAPE.json",
+    "timestamp": "2026-03-22T10:00:00Z"
+  },
+  "displayName": "Review & Ship Automation",
+  "userOutcome": "When profile allows, review starts automatically after review-readiness and ship starts automatically after review passes. No manual /review or /ship needed for high-autonomy profiles.",
+  "scopeSummary": "Add auto-review and auto-ship paths to dispatcher tick. Auto-review: invoke write_review() + auto-complete stages from automated verdict when profile_auto_review=true. Auto-ship: invoke start_ship + build_ship_draft when profile_auto_ship=true. Surface profile policy in work order automation state. Post-ship cleanup as best-effort patrol finding.",
+  "dependencies": [],
+  "risks": [
+    "Auto-review skips human judgment — mitigated by profile gating (only high-autonomy profiles opt in)",
+    "Auto-ship git operations (stage/commit/push) stay outside dispatcher — draft is prepared but not executed"
+  ],
+  "priority": 1,
+  "status": "ready",
+  "readinessReason": "All building blocks exist: profile hooks implemented, write_review() generates automated verdict, ship_draft.py generates full draft, state machines handle transitions. Only wiring needed.",
+  "handoffSummary": "In dispatcher tick: after auto-plan, check lanes where review_readiness=ready and profile_auto_review=true → call write_review(), auto-complete stages, set verdict. Check lanes where ship.status=ready and profile_auto_ship=true → call start_ship(), build_ship_draft(), store in automation state. Surface profile policy in work_order._automation_state(). Post-ship cleanup as patrol finding.",
+  "timestamp": "2026-03-22T11:00:00Z"
+}
