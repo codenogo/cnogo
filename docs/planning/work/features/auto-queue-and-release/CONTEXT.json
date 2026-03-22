@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "feature": "auto-queue-and-release",
+  "timestamp": "2026-03-22T15:00:00Z",
+  "decisions": [
+    {
+      "area": "auto-queue-source",
+      "decision": "Only queue from SHAPE.json candidateFeatures with status=ready",
+      "rationale": "Explicit readiness gate — draft/blocked/parked features are not queued"
+    },
+    {
+      "area": "worktree-cleanup",
+      "decision": "Remove worktree directory on lane release, configurable",
+      "rationale": "Frees disk space. Keep configurable for debugging."
+    }
+  ],
+  "constraints": ["Python stdlib only"],
+  "relatedCode": [
+    ".cnogo/scripts/workflow/orchestration/dispatcher.py",
+    ".cnogo/scripts/workflow/orchestration/lane.py",
+    ".cnogo/scripts/workflow/orchestration/work_order.py"
+  ],
+  "shapeFeedback": []
+}

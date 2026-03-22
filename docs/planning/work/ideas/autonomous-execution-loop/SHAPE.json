@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "initiative": "Autonomous Execution Loop",
+  "slug": "autonomous-execution-loop",
+  "problem": "Dispatcher leases and plans but doesn't execute. Auto-review and auto-ship exist but git ops are manual. Completed lanes aren't released. Shape-to-queue requires manual work-sync. The system prepares everything but nobody picks up the work.",
+  "constraints": [
+    "Python stdlib only",
+    "Claude Code Agent tool for spawning — no subprocess management",
+    "Existing worktree merge strategy preserved",
+    "Existing lane/dispatch/WIP infrastructure preserved",
+    "Execution events are append-only"
+  ],
+  "globalDecisions": [
+    "Always team mode — even single tasks get a spawned agent",
+    "Supervisor is a Claude session, not a Python process. Python owns state, Claude owns execution.",
+    "Two layers of agent spawning: feature-level (executor) and task-level (implementer)",
+    "Executor never writes code — purely orchestration. Implementers are the only code-writing agents.",
+    "Git ops handled by executor when profile allows full auto-ship",
+    "Execution events are the observability primitive"
+  ],
+  "researchRefs": [],
+  "openQuestions": [],
+  "candidateFeatures": [
+    {
+      "slug": "execution-event-log",
+      "displayName": "Execution Event Log",
+      "userOutcome": "Every layer (supervisor, executor, implementer) writes structured events to a shared append-only log. loop-status and loop-history CLI commands surface real-time state and recent history.",
+      "scopeSummary": "Create execution-log.jsonl format and log_execution_event() helper. Add loop-status CLI that reads lanes + log + heartbeats into a unified view. Add loop-history CLI that tails the event log. Add heartbeat file format for implementer liveness.",
+      "dependencies": [],
+      "risks": [
+        "Log file grows unbounded without rotation — mitigate with size cap or patrol cleanup"
+      ],
+      "priority": 0,
+      "status": "ready",
+      "readinessReason": "No dependencies. Format is straightforward. CLI commands follow existing patterns.",
+      "handoffSummary": "Create .cnogo/execution-log.jsonl format. Add log_execution_event(actor, feature, event, data) to a new execution_events.py module. Add loop-status and loop-history to workflow_memory.py. Define agent-heartbeat-task-N.json format. Wire heartbeat polling into executor design."
+    },
+    {
+      "slug": "auto-queue-and-release",
+      "displayName": "Auto-Queue from Shape and Auto-Release Lanes",
+      "userOutcome": "Dispatcher scans SHAPE.json for ready candidates and auto-creates Work Orders. Completed lanes are automatically released and worktrees cleaned up. No manual work-sync or lane management needed.",
+      "scopeSummary": "Add auto_queue_from_shape() to dispatcher that scans all SHAPE.json files, finds ready candidates without Work Orders, and creates them. Add release_completed_lanes() that releases lanes where ship.status=completed and cleans up worktrees. Wire both into dispatch_ready_work().",
+      "dependencies": [],
+      "risks": [
+        "Auto-queue might create Work Orders for features the user hasn't reviewed — mitigate by only queuing from shapes with explicit ready status"
+      ],
+      "priority": 0,
+      "status": "ready",
+      "readinessReason": "Dispatcher and lane infrastructure already exist. Shape scanning is straightforward file iteration. Lane release is a simple status update + worktree removal.",
+      "handoffSummary": "Add auto_queue_from_shape(root) scanning docs/planning/work/ideas/*/SHAPE.json for ready candidates. Check if Work Order exists; if not, call sync_work_order() to create queued order. Add release_completed_lanes(root) that finds lanes where latest run ship.status=completed, calls release_feature_lane(), optionally removes worktree. Wire both into dispatch_ready_work() before and after the main lease loop."
+    },
+    {
+      "slug": "executor-agent",
+      "displayName": "Feature Lane Executor Agent",
+      "userOutcome": "Each feature lane gets an executor agent that drives the full task lifecycle: spawn implementers per task frontier, wait for completion, merge worktrees, run plan-verify, handle git ops. The executor is the team leader for one feature.",
+      "scopeSummary": "Create execute-lane.md agent definition. Executor reads run state, computes task frontier, spawns implementer agents per runnable task, waits for returns, calls run-task-complete/fail, triggers worktree merge, runs plan-verify, handles git commit/push/PR when profile allows.",
+      "dependencies": ["execution-event-log"],
+      "risks": [
+        "Agent context window limits may constrain long-running features with many tasks",
+        "Merge conflicts between task branches may require resolver agent escalation"
+      ],
+      "priority": 1,
+      "status": "blocked",
+      "readinessReason": "Blocked on execution-event-log. All infrastructure exists otherwise.",
+      "handoffSummary": "Create .claude/agents/executor.md with prompt that: reads run-next for task frontier, spawns Agent(implementer) per runnable task, processes results via run-task-complete/fail, triggers session-merge for multi-task results, runs plan-verify when all done, handles git ops via ship draft. Writes execution events throughout. Polls implementer heartbeats for stale detection."
+    },
+    {
+      "slug": "supervisor-run-loop",
+      "displayName": "Supervisor Run Loop",
+      "userOutcome": "A long-running supervisor agent that continuously dispatches features, spawns executors, monitors progress, and releases completed lanes. The operator starts it once and the system runs autonomously.",
+      "scopeSummary": "Create run-loop.md command/agent that loops: auto-queue from shape, dispatch-ready, spawn executor agents for implementing lanes, wait for completions, advance transitions (auto-review, auto-ship), release completed lanes. Writes supervisor-level execution events. Configurable tick interval.",
+      "dependencies": ["executor-agent", "auto-queue-and-release"],
+      "risks": [
+        "Long-running session may hit context window limits — mitigate with context compaction or periodic restart",
+        "Supervisor crash loses running agent references — mitigate by persisting agent state in lane records"
+      ],
+      "priority": 2,
+      "status": "blocked",
+      "readinessReason": "Blocked on executor-agent and auto-queue-and-release.",
+      "handoffSummary": "Create .claude/commands/run-loop.md (or agent). Loop: call auto_queue_from_shape via Bash, call dispatch_ready_work via Bash, for each implementing lane spawn Agent(executor) with run_in_background=true, get notified on completion, call release_completed_lanes. Write loop_tick events. Configurable tick via WORKFLOW.json scheduler.tickIntervalMinutes."
+    },
+    {
+      "slug": "remove-serial-and-implement",
+      "displayName": "Remove Serial Mode and /implement",
+      "userOutcome": "Single execution model: always spawn agents. No serial path, no mode decision, no /implement command. Executor is the only execution entry point.",
+      "scopeSummary": "Remove recommend_team_mode() from bridge.py. Remove mode field distinction from delivery runs (always 'team'). Remove /implement command. Update /plan to not reference /implement. Clean up profile_mode_preference(). Update docs.",
+      "dependencies": ["executor-agent"],
+      "risks": [
+        "Existing features with in-progress serial runs may need migration path"
+      ],
+      "priority": 3,
+      "status": "draft",
+      "readinessReason": "Depends on executor being functional first. Migration path for existing serial runs needs definition.",
+      "handoffSummary": "Remove recommend_team_mode() and serial code paths from bridge.py, delivery_run.py, implement.py. Remove .claude/commands/implement.md. Update plan templates and commands that reference /implement. Add migration: existing serial runs continue as-is; new runs always use team mode."
+    }
+  ],
+  "recommendedSequence": [
+    "execution-event-log",
+    "auto-queue-and-release",
+    "executor-agent",
+    "supervisor-run-loop",
+    "remove-serial-and-implement"
+  ],
+  "feedbackInbox": [],
+  "timestamp": "2026-03-22T15:00:00Z"
+}
