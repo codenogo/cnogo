@@ -417,8 +417,8 @@ def release_completed_lanes(root: Path) -> list[dict[str, Any]]:
     import shutil
 
     released: list[dict[str, Any]] = []
-    for lane in list_feature_lanes(root):
-        if lane.status in {"completed", "released"}:
+    for lane in list_feature_lanes(root, include_terminal=True):
+        if lane.status == "released":
             continue
         run = latest_delivery_run(root, lane.feature)
         if run is None:
