@@ -28,7 +28,7 @@ Create plans for a feature.
    - Create `docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`.
    - New plans use `schemaVersion: 3`.
    - Required fields: `schemaVersion`, `feature`, `planNumber`, `goal`, `tasks[]`, `planVerify[]`, `commitMessage`, `timestamp`; keep `tasks.length <= 3`.
-   - Optional top-level `profile` selects delivery policy for `/implement`, `/review`, and `/ship`; use a string or `{ "name": "feature-delivery" }`.
+   - Optional top-level `profile` selects delivery policy for `/review` and `/ship`; use a string or `{ "name": "feature-delivery" }`.
    - Before finalizing, run `python3 .cnogo/scripts/workflow_memory.py profile-suggest $ARGUMENTS --plan <NN> --json`; if needed, stamp with `python3 .cnogo/scripts/workflow_memory.py profile-stamp $ARGUMENTS <NN>`.
    - If no profile fits, scaffold one with `python3 .cnogo/scripts/workflow_memory.py profile-init <profile-slug> --base feature-delivery`.
    - Each task needs `name`, `files[]`, `action`, `verify[]`, `microSteps[]`, and `tdd`.
@@ -37,7 +37,7 @@ Create plans for a feature.
    - For `schemaVersion >= 3`, `microSteps[]` must name at least one explicit error-path scenario when `tdd.required=true`.
    - `blockedBy` uses zero-based task indices.
    - `deletions` is optional; if used, leave a later task to absorb cleanup scope.
-   - Keep `planVerify[]` feature-level; package lint/typecheck/test is auto-appended during `/implement`.
+   - Keep `planVerify[]` feature-level; package lint/typecheck/test is auto-appended during execution.
 
 5. **Render `NN-PLAN.md`**
    Run `python3 .cnogo/scripts/workflow_render.py docs/planning/work/features/$ARGUMENTS/NN-PLAN.json`, then make only small readability edits in Markdown.
