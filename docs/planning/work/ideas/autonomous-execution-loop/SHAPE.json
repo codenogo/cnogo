@@ -71,8 +71,8 @@
         "Supervisor crash loses running agent references — mitigate by persisting agent state in lane records"
       ],
       "priority": 2,
-      "status": "blocked",
-      "readinessReason": "Blocked on executor-agent and auto-queue-and-release.",
+      "status": "parked",
+      "readinessReason": "Shipped. run-loop.md command created at .claude/commands/run-loop.md.",
       "handoffSummary": "Create .claude/commands/run-loop.md (or agent). Loop: call auto_queue_from_shape via Bash, call dispatch_ready_work via Bash, for each implementing lane spawn Agent(executor) with run_in_background=true, get notified on completion, call release_completed_lanes. Write loop_tick events. Configurable tick via WORKFLOW.json scheduler.tickIntervalMinutes."
     },
     {
