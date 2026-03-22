@@ -1733,6 +1733,43 @@ def cmd_lane_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_loop_status(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.execution_events import render_loop_status
+    output = render_loop_status(root, include_events=args.limit)
+    if args.json:
+        from scripts.workflow.orchestration.execution_events import read_execution_log
+        from scripts.memory import list_feature_lane_snapshots
+        lanes = list_feature_lane_snapshots(include_terminal=False, root=root)
+        events = read_execution_log(root, limit=args.limit)
+        _print_json({"lanes": lanes, "recentEvents": events})
+    else:
+        print(output)
+    return 0
+
+
+def cmd_loop_history(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.execution_events import read_execution_log
+    events = read_execution_log(root, feature=args.feature, limit=args.limit)
+    if args.json:
+        _print_json(events)
+    else:
+        if not events:
+            print("No execution events found.")
+            return 0
+        for ev in events:
+            ts = str(ev.get("ts", "")).strip()
+            ts_short = ts[11:19] if len(ts) >= 19 else ts
+            actor = str(ev.get("actor", "")).strip()
+            feature = str(ev.get("feature", "")).strip()
+            event_name = str(ev.get("event", "")).strip()
+            extra = {k: v for k, v in ev.items() if k not in {"ts", "actor", "feature", "event"}}
+            extra_str = f" {extra}" if extra else ""
+            print(f"{ts_short} [{feature}] {event_name} ({actor}){extra_str}")
+    return 0
+
+
 def cmd_dispatch_ready(args: argparse.Namespace) -> int:
     root = _root()
     payload = dispatch_ready_features(
@@ -3881,6 +3918,17 @@ def main() -> int:
     p.add_argument("--all", action="store_true", help="Include completed or released lanes")
     p.add_argument("--json", action="store_true")
 
+    # loop-status
+    p = sub.add_parser("loop-status", help="Show unified execution loop status")
+    p.add_argument("--limit", type=int, default=10, help="Number of recent events to show")
+    p.add_argument("--json", action="store_true")
+
+    # loop-history
+    p = sub.add_parser("loop-history", help="Show recent execution events")
+    p.add_argument("--feature", help="Filter by feature slug")
+    p.add_argument("--limit", type=int, default=25, help="Number of events to show")
+    p.add_argument("--json", action="store_true")
+
     # dispatch-ready
     p = sub.add_parser("dispatch-ready", help="Lease ready features into feature lanes")
     p.add_argument("--feature", help="Specific ready feature to dispatch")
@@ -4420,6 +4468,8 @@ def main() -> int:
         "plan-auto": cmd_plan_auto,
         "lane-show": cmd_lane_show,
         "lane-list": cmd_lane_list,
+        "loop-status": cmd_loop_status,
+        "loop-history": cmd_loop_history,
         "dispatch-ready": cmd_dispatch_ready,
         "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,

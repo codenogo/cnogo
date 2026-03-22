@@ -368,12 +368,88 @@ def _attempt_auto_ship(
         )
 
 
+def auto_queue_from_shape(root: Path) -> list[dict[str, Any]]:
+    """Scan SHAPE.json files for ready candidates without Work Orders. Auto-create queued orders."""
+    ideas_root = root / "docs" / "planning" / "work" / "ideas"
+    if not ideas_root.is_dir():
+        return []
+    queued: list[dict[str, Any]] = []
+    for shape_dir in sorted(ideas_root.iterdir()):
+        if not shape_dir.is_dir():
+            continue
+        shape_path = shape_dir / "SHAPE.json"
+        shape = _read_json(shape_path)
+        if not isinstance(shape, dict):
+            continue
+        candidates = shape.get("candidateFeatures", [])
+        if not isinstance(candidates, list):
+            continue
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            if str(candidate.get("status", "")).strip() != "ready":
+                continue
+            slug = str(candidate.get("slug", "")).strip()
+            if not slug:
+                continue
+            # Check if feature dossier exists.
+            feature_dir = root / "docs" / "planning" / "work" / "features" / slug
+            if not (feature_dir / "FEATURE.json").exists():
+                continue
+            if not (feature_dir / "CONTEXT.json").exists():
+                continue
+            # Check if Work Order already exists.
+            wo_path = runtime_path(root, "work-orders", f"{slug}.json")
+            if wo_path.exists():
+                continue
+            # Create the Work Order by syncing.
+            try:
+                sync_work_order(root, slug)
+                queued.append({"feature": slug, "initiative": str(shape.get("slug", ""))})
+            except Exception as exc:
+                queued.append({"feature": slug, "error": f"{type(exc).__name__}: {exc}"})
+    return queued
+
+
+def release_completed_lanes(root: Path) -> list[dict[str, Any]]:
+    """Release lanes where ship is completed. Clean up worktrees."""
+    from .lane import release_feature_lane
+    import shutil
+
+    released: list[dict[str, Any]] = []
+    for lane in list_feature_lanes(root):
+        if lane.status in {"completed", "released"}:
+            continue
+        run = latest_delivery_run(root, lane.feature)
+        if run is None:
+            continue
+        ship = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+        if str(ship.get("status", "")).strip() != "completed":
+            continue
+        try:
+            release_feature_lane(root, lane.feature, reason="ship_completed")
+            worktree = str(getattr(lane, "worktree_path", "")).strip()
+            if worktree:
+                wt = Path(worktree)
+                if wt.exists() and wt.is_dir() and str(wt) != str(root.resolve()):
+                    shutil.rmtree(wt, ignore_errors=True)
+            sync_work_order(root, lane.feature)
+            released.append({"feature": lane.feature, "worktreeRemoved": bool(worktree)})
+        except Exception as exc:
+            released.append({"feature": lane.feature, "error": f"{type(exc).__name__}: {exc}"})
+    return released
+
+
 def dispatch_ready_work(
     root: Path,
     *,
     feature_filter: str | None = None,
     lease_owner: str = "dispatcher",
 ) -> dict[str, Any]:
+    # Auto-queue ready features from shape and release completed lanes.
+    auto_queued = auto_queue_from_shape(root)
+    auto_released = release_completed_lanes(root)
+
     cfg = load_workflow_config(root)
     settings = dispatcher_settings_cfg(cfg)
     if not settings["enabled"]:
@@ -388,6 +464,8 @@ def dispatch_ready_work(
             "planErrors": [],
             "reclaimed": [],
             "skipped": [{"feature": feature_filter, "reason": "dispatcher_disabled"}] if feature_filter else [],
+            "autoQueued": auto_queued,
+            "autoReleased": auto_released,
             "activeLaneCount": len(list_feature_lanes(root)),
         }
     reclaimed = reclaim_stale_feature_lanes(root, lease_owner=lease_owner)
@@ -507,6 +585,8 @@ def dispatch_ready_work(
         "shipErrors": ship_errors,
         "reclaimed": reclaimed,
         "skipped": skipped,
+        "autoQueued": auto_queued,
+        "autoReleased": auto_released,
         "activeLaneCount": len(list_feature_lanes(root)),
     }
 
