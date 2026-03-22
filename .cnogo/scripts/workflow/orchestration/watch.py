@@ -22,7 +22,7 @@ from .integration import ensure_run_coordination_state, sync_review_readiness
 from .lane import feature_lane_health, lane_path, list_feature_lanes
 from .review import ensure_run_review_state, sync_review_state
 from .ship import ensure_run_ship_state, sync_ship_state
-from .work_order import build_work_order
+from .work_order import build_work_order, list_work_orders, work_order_path, _phase_from_status
 
 _RUNS_DIR = Path(".cnogo") / "runs"
 _SESSION_FILE = Path(".cnogo") / "worktree-session.json"
@@ -508,6 +508,36 @@ def watch_delivery_runs(
                     ),
                     minutes_stale=minutes_stale,
                     path=str(lane_file),
+                )
+            )
+
+    # Phase divergence check: warn if old phase disagrees with work order status.
+    for order in list_work_orders(root, feature_filter=feature_filter):
+        if order.status in {"queued", "completed", "cancelled"}:
+            continue
+        derived_phase = _phase_from_status(order.status, "")
+        if not derived_phase or derived_phase == "unknown":
+            continue
+        try:
+            from scripts.memory.phases import get_feature_phase as _get_phase
+            current_phase = _get_phase(root, order.feature)
+        except Exception:
+            continue
+        if current_phase != derived_phase:
+            findings.append(
+                _finding(
+                    kind="phase_status_divergence",
+                    severity="warn",
+                    message=(
+                        f"Feature {order.feature!r} phase is {current_phase!r} "
+                        f"but work order status implies {derived_phase!r}."
+                    ),
+                    next_action=(
+                        f"Phase will auto-advance on next work-sync. "
+                        f"Or manually: `python3 .cnogo/scripts/workflow_memory.py phase-set {order.feature} {derived_phase}`."
+                    ),
+                    minutes_stale=0,
+                    path=str(work_order_path(root, order.feature)),
                 )
             )
 

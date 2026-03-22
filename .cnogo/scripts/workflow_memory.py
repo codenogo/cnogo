@@ -1220,6 +1220,11 @@ def cmd_phase_get(args: argparse.Namespace) -> int:
 
 
 def cmd_phase_set(args: argparse.Namespace) -> int:
+    print(
+        "[cnogo] Note: manual phase-set is deprecated. "
+        "Phase now auto-advances from work order status on every work-sync.",
+        file=sys.stderr,
+    )
     root = _root()
     try:
         count = set_phase(args.feature, args.phase, root=root)

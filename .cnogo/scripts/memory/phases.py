@@ -67,14 +67,14 @@ def get_feature_phase(root: Path, feature_slug: str) -> str:
         conn.close()
 
 
-def set_feature_phase(root: Path, feature_slug: str, phase: str) -> int:
+def set_feature_phase(root: Path, feature_slug: str, phase: str, *, quiet: bool = False) -> int:
     normalized = _st.normalize_phase(phase)
 
     def _do_set() -> int:
         conn = _conn(root)
         try:
             conn.execute("BEGIN IMMEDIATE")
-            count = _st.set_feature_phase(conn, feature_slug, normalized)
+            count = _st.set_feature_phase(conn, feature_slug, normalized, quiet=quiet)
             conn.commit()
             return count
         finally:
