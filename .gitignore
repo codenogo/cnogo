@@ -86,6 +86,7 @@ service-account*.json
 .cnogo/execution-log.jsonl
 .cnogo/lanes/
 .cnogo/agent-heartbeat-*.json
+.cnogo/dispatch-ledgers/
 
 # Context graph (rebuild from source)
 .cnogo/graph.db

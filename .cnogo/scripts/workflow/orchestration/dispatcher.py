@@ -280,6 +280,7 @@ def _attempt_auto_review(
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="reviewing", lease_owner=lease_owner)
         save_delivery_run(run, root)
+        clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         return (
             {
@@ -362,6 +363,7 @@ def _attempt_auto_ship(
             draft = build_ship_draft(root, feature)
         except Exception:
             pass
+        clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         payload: dict[str, Any] = {
             "feature": feature,
@@ -567,6 +569,10 @@ def dispatch_ready_work(
     review_errors: list[dict[str, Any]] = []
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoreview_candidates(root, feature_filter=feature_filter):
+            hold = check_dispatch_hold(root, feature)
+            if hold is not None:
+                auto_review_skipped.append({"feature": feature, "reason": "circuit_breaker", "holdUntil": hold.get("holdUntil", "")})
+                continue
             reviewed, skipped_review, error = _attempt_auto_review(root, feature=feature, lease_owner=lease_owner)
             if reviewed is not None:
                 auto_reviewed.append(reviewed)
@@ -581,6 +587,10 @@ def dispatch_ready_work(
     ship_errors: list[dict[str, Any]] = []
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoship_candidates(root, feature_filter=feature_filter):
+            hold = check_dispatch_hold(root, feature)
+            if hold is not None:
+                auto_ship_skipped.append({"feature": feature, "reason": "circuit_breaker", "holdUntil": hold.get("holdUntil", "")})
+                continue
             shipped, skipped_ship, error = _attempt_auto_ship(root, feature=feature, lease_owner=lease_owner)
             if shipped is not None:
                 auto_ship_started.append(shipped)

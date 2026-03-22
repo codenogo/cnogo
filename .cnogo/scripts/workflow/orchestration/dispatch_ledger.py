@@ -2,15 +2,19 @@
 
 Tracks dispatch failures per feature in a ledger file. The dispatcher consults
 the ledger before leasing. The ledger auto-resets when feature artifacts change.
+
+Single-writer assumption: only the dispatcher (or CLI via dispatch-reset) writes
+to ledger files. Concurrent writes are not guarded with file locks.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+from scripts.workflow.shared.runtime_root import runtime_path
 
 # Backoff schedule: consecutive failures → hold duration in minutes.
 _BACKOFF_MINUTES = {
@@ -27,8 +31,13 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _ledger_dir(root: Path) -> Path:
+    """Dispatch ledgers live in their own directory, separate from work orders."""
+    return runtime_path(root, "dispatch-ledgers")
+
+
 def _ledger_path(root: Path, feature: str) -> Path:
-    return root / ".cnogo" / "work-orders" / f"{feature}.dispatch.json"
+    return _ledger_dir(root) / f"{feature}.json"
 
 
 def _artifact_fingerprint(root: Path, feature: str) -> str:
@@ -97,7 +106,7 @@ def record_dispatch_failure(
     attempts.append({
         "phase": phase,
         "timestamp": _now_iso(),
-        "error": error[:500],  # Truncate long errors
+        "error": (error[:997] + "...") if len(error) > 1000 else error,
         "laneId": lane_id,
     })
     ledger["attempts"] = attempts[-_MAX_ATTEMPTS_KEPT:]
@@ -202,12 +211,12 @@ def clear_dispatch_hold_on_success(root: Path, feature: str) -> None:
 
 def list_dispatch_holds(root: Path) -> list[dict[str, Any]]:
     """List all features currently held by the circuit breaker."""
-    wo_dir = root / ".cnogo" / "work-orders"
-    if not wo_dir.exists():
+    ledger_dir = _ledger_dir(root)
+    if not ledger_dir.exists():
         return []
     holds: list[dict[str, Any]] = []
-    for path in sorted(wo_dir.glob("*.dispatch.json")):
-        feature = path.stem.replace(".dispatch", "")
+    for path in sorted(ledger_dir.glob("*.json")):
+        feature = path.stem
         hold = check_dispatch_hold(root, feature)
         if hold is not None:
             holds.append({"feature": feature, **hold})

@@ -1,12 +1,10 @@
 """Tests for the dispatch circuit breaker (dispatch_ledger.py)."""
 
 import json
-import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 
@@ -28,9 +26,11 @@ from scripts.workflow.orchestration.dispatch_ledger import (
 
 @pytest.fixture
 def tmp_root(tmp_path):
-    """Create a minimal project root with work-orders dir."""
+    """Create a minimal project root with dispatch-ledgers dir."""
     wo_dir = tmp_path / ".cnogo" / "work-orders"
     wo_dir.mkdir(parents=True)
+    dl_dir = tmp_path / ".cnogo" / "dispatch-ledgers"
+    dl_dir.mkdir(parents=True)
     feat_dir = tmp_path / "docs" / "planning" / "work" / "features" / "test-feature"
     feat_dir.mkdir(parents=True)
     (feat_dir / "FEATURE.json").write_text('{"schemaVersion": 1}')
@@ -100,6 +100,7 @@ class TestCheckHold:
         assert check_dispatch_hold(tmp_root, "test-feature") is not None
         # Modify CONTEXT.json to simulate user fix
         ctx = tmp_root / "docs" / "planning" / "work" / "features" / "test-feature" / "CONTEXT.json"
+        time.sleep(0.01)  # Ensure mtime changes on coarse-resolution filesystems
         ctx.write_text('{"schemaVersion": 1, "relatedCode": ["foo.py"]}')
         # Fingerprint changed → hold should auto-reset
         assert check_dispatch_hold(tmp_root, "test-feature") is None
