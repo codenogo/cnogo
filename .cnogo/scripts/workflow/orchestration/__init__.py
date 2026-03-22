@@ -110,9 +110,29 @@ from .lane import (
     save_feature_lane,
     update_feature_lane,
 )
+from .dispatch_ledger import (
+    check_dispatch_hold,
+    clear_dispatch_hold_on_success,
+    list_dispatch_holds,
+    load_dispatch_ledger,
+    record_dispatch_failure,
+    reset_dispatch_hold,
+    save_dispatch_ledger,
+)
 from .dispatcher import (
+    auto_queue_from_shape,
     dispatch_ready_work,
+    release_completed_lanes,
     sync_shape_feedback,
+)
+from .execution_events import (
+    log_execution_event,
+    read_execution_log,
+    render_loop_status,
+    write_heartbeat,
+    read_heartbeat,
+    list_heartbeats,
+    is_heartbeat_stale,
 )
 from .plan_factory import (
     auto_plan_feature,

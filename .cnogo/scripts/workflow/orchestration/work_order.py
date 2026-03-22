@@ -406,6 +406,8 @@ def _derive_status(
     run: DeliveryRun | None,
     phase: str,
     attention_summary: dict[str, Any],
+    *,
+    all_runs: list[DeliveryRun] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     lane_status, lane_payload = _status_from_lane(root, feature)
     highest = str(attention_summary.get("highestSeverity", "ok"))
@@ -415,6 +417,14 @@ def _derive_status(
     if run is None:
         if lane_status:
             return lane_status, lane_payload
+        # Check ALL historical runs for a completed ship before falling through
+        # to "queued". Without this, a shipped feature whose lane was released
+        # and whose current run is None would regress to "queued".
+        historical_runs = all_runs if all_runs is not None else _load_feature_runs(root, feature)
+        for historical_run in historical_runs:
+            hist_ship = historical_run.ship if isinstance(getattr(historical_run, "ship", None), dict) else {}
+            if hist_ship.get("status") == "completed":
+                return "completed", lane_payload
         if phase in {"ship"}:
             return "shipping", lane_payload
         if phase in {"review"}:
@@ -645,7 +655,7 @@ def build_work_order(
     current_run_id = current_run.run_id if current_run is not None else ""
     phase = _feature_phase(root, feature)
     attention_summary = _feature_attention_summary(root, feature, attention_items=attention_items)
-    status, lane_payload = _derive_status(root, feature, current_run, phase, attention_summary)
+    status, lane_payload = _derive_status(root, feature, current_run, phase, attention_summary, all_runs=runs)
     profile = {}
     if current_run is not None and isinstance(getattr(current_run, "profile", None), dict):
         profile = dict(current_run.profile)

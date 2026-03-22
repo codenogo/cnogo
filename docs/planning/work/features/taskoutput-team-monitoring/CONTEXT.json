@@ -37,8 +37,8 @@
   "openQuestions": [],
   "relatedCode": [
     ".claude/commands/team.md",
-    "scripts/memory/worktree.py",
-    "scripts/memory/bridge.py",
+    ".cnogo/scripts/memory/worktree.py",
+    ".cnogo/scripts/memory/bridge.py",
     ".claude/agents/implementer.md"
   ],
   "research": [

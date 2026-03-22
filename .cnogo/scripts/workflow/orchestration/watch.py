@@ -541,6 +541,30 @@ def watch_delivery_runs(
                 )
             )
 
+    # Circuit breaker check: warn when features are held by the dispatch ledger.
+    try:
+        from .dispatch_ledger import list_dispatch_holds
+        for hold in list_dispatch_holds(root):
+            findings.append(
+                _finding(
+                    kind="dispatch_circuit_open",
+                    severity="warn",
+                    message=(
+                        f"Feature {hold['feature']!r} held by circuit breaker: "
+                        f"{hold.get('consecutiveFailures', 0)} consecutive failure(s). "
+                        f"Hold until {hold.get('holdUntil', 'unknown')}."
+                    ),
+                    next_action=(
+                        f"Fix the underlying issue, then reset: "
+                        f"`python3 .cnogo/scripts/workflow_memory.py dispatch-reset {hold['feature']}`"
+                    ),
+                    minutes_stale=0,
+                    path="",
+                )
+            )
+    except Exception:
+        pass  # dispatch_ledger may not exist yet
+
     if session is not None:
         session_feature = session.get("feature")
         session_run_id = session.get("runId")

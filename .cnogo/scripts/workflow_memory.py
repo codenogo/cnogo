@@ -194,7 +194,6 @@ from scripts.memory import (  # noqa: E402
     record_delivery_run_plan_verification,
     refresh_delivery_run,
     reconcile_session,
-    recommend_team_mode,
     generate_implement_prompt,
     record_cost_event,
     run_delivery_run_watch_tick,
@@ -1493,10 +1492,18 @@ def cmd_run_create(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"Error: failed to load plan tasks: {exc}", file=sys.stderr)
         return 1
-    recommendation = recommend_team_mode(taskdescs, profile=profile)
+    # Always team mode — recommend_team_mode removed.
+    recommendation = {
+        "recommended": True,
+        "reason": "Always team mode — executor spawns agents for all tasks.",
+        "runnableTasks": [i for i, t in enumerate(taskdescs) if not t.get("blockedBy")],
+        "blockedTasks": [i for i, t in enumerate(taskdescs) if t.get("blockedBy")],
+        "conflicts": [],
+        "profileModePreference": "team",
+    }
     mode = args.mode
     if mode == "auto":
-        mode = "team" if recommendation.get("recommended") else "serial"
+        mode = "team"
     run = ensure_delivery_run(
         feature=args.feature,
         plan_number=normalize_plan_number(args.plan),
@@ -1733,6 +1740,43 @@ def cmd_lane_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_loop_status(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.execution_events import render_loop_status
+    output = render_loop_status(root, include_events=args.limit)
+    if args.json:
+        from scripts.workflow.orchestration.execution_events import read_execution_log
+        from scripts.memory import list_feature_lane_snapshots
+        lanes = list_feature_lane_snapshots(include_terminal=False, root=root)
+        events = read_execution_log(root, limit=args.limit)
+        _print_json({"lanes": lanes, "recentEvents": events})
+    else:
+        print(output)
+    return 0
+
+
+def cmd_loop_history(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.execution_events import read_execution_log
+    events = read_execution_log(root, feature=args.feature, limit=args.limit)
+    if args.json:
+        _print_json(events)
+    else:
+        if not events:
+            print("No execution events found.")
+            return 0
+        for ev in events:
+            ts = str(ev.get("ts", "")).strip()
+            ts_short = ts[11:19] if len(ts) >= 19 else ts
+            actor = str(ev.get("actor", "")).strip()
+            feature = str(ev.get("feature", "")).strip()
+            event_name = str(ev.get("event", "")).strip()
+            extra = {k: v for k, v in ev.items() if k not in {"ts", "actor", "feature", "event"}}
+            extra_str = f" {extra}" if extra else ""
+            print(f"{ts_short} [{feature}] {event_name} ({actor}){extra_str}")
+    return 0
+
+
 def cmd_dispatch_ready(args: argparse.Namespace) -> int:
     root = _root()
     payload = dispatch_ready_features(
@@ -1791,6 +1835,31 @@ def cmd_dispatch_ready(args: argparse.Namespace) -> int:
             )
         for entry in skipped:
             print(f"- skipped {entry.get('feature', '')}: {entry.get('reason', 'unknown')}")
+    return 0
+
+
+def cmd_dispatch_reset(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.dispatch_ledger import (
+        reset_dispatch_hold,
+        load_dispatch_ledger,
+    )
+    ledger = load_dispatch_ledger(root, args.feature)
+    if ledger is None:
+        print(f"No dispatch ledger found for {args.feature!r}")
+        return 0
+    consecutive = ledger.get("consecutiveFailures", 0)
+    reset_dispatch_hold(root, args.feature, reason=args.reason)
+    payload = {
+        "feature": args.feature,
+        "previousFailures": consecutive,
+        "reason": args.reason,
+        "status": "reset",
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Circuit breaker reset for {args.feature!r} ({consecutive} previous failures)")
     return 0
 
 
@@ -3881,10 +3950,27 @@ def main() -> int:
     p.add_argument("--all", action="store_true", help="Include completed or released lanes")
     p.add_argument("--json", action="store_true")
 
+    # loop-status
+    p = sub.add_parser("loop-status", help="Show unified execution loop status")
+    p.add_argument("--limit", type=int, default=10, help="Number of recent events to show")
+    p.add_argument("--json", action="store_true")
+
+    # loop-history
+    p = sub.add_parser("loop-history", help="Show recent execution events")
+    p.add_argument("--feature", help="Filter by feature slug")
+    p.add_argument("--limit", type=int, default=25, help="Number of events to show")
+    p.add_argument("--json", action="store_true")
+
     # dispatch-ready
     p = sub.add_parser("dispatch-ready", help="Lease ready features into feature lanes")
     p.add_argument("--feature", help="Specific ready feature to dispatch")
     p.add_argument("--owner", default="dispatcher", help="Lease owner to record on the lane")
+    p.add_argument("--json", action="store_true")
+
+    # dispatch-reset
+    p = sub.add_parser("dispatch-reset", help="Reset dispatch circuit breaker for a feature")
+    p.add_argument("feature", help="Feature slug to reset")
+    p.add_argument("--reason", default="manual_reset", help="Reason for the reset")
     p.add_argument("--json", action="store_true")
 
     # feedback-sync
@@ -4365,6 +4451,7 @@ def main() -> int:
         "lane-show",
         "lane-list",
         "dispatch-ready",
+        "dispatch-reset",
         "feedback-sync",
         "initiative-show",
         "initiative-list",
@@ -4420,7 +4507,10 @@ def main() -> int:
         "plan-auto": cmd_plan_auto,
         "lane-show": cmd_lane_show,
         "lane-list": cmd_lane_list,
+        "loop-status": cmd_loop_status,
+        "loop-history": cmd_loop_history,
         "dispatch-ready": cmd_dispatch_ready,
+        "dispatch-reset": cmd_dispatch_reset,
         "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,

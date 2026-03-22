@@ -66,7 +66,7 @@ _BUILTIN_PROFILES = {
         "version": "1.0.0",
         "description": "Safer rollout profile for schema, backfill, and data-moving changes that should bias toward serial execution and explicit review evidence.",
         "defaults": {
-            "execution": {"modePreference": "serial", "preferTeamWhenSafe": False, "autoPlan": True, "autoAdvance": True},
+            "execution": {"modePreference": "team", "preferTeamWhenSafe": False, "autoPlan": True, "autoAdvance": True},
             "verify": {"requirePackageChecks": True, "requiredPackageCommands": ["lint", "typecheck", "test"]},
             "review": {
                 "autoSpawnConfiguredReviewers": True,
@@ -83,7 +83,7 @@ _BUILTIN_PROFILES = {
         "version": "1.0.0",
         "description": "Release-focused profile with serial preference, reviewer rigor, and tracked ship completion for coordinated branch and PR work.",
         "defaults": {
-            "execution": {"modePreference": "serial", "preferTeamWhenSafe": False, "autoPlan": True, "autoAdvance": True},
+            "execution": {"modePreference": "team", "preferTeamWhenSafe": False, "autoPlan": True, "autoAdvance": True},
             "verify": {"requirePackageChecks": True, "requiredPackageCommands": ["lint", "typecheck", "test"]},
             "review": {
                 "autoSpawnConfiguredReviewers": True,

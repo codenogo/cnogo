@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "feature": "auto-queue-and-release",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/autonomous-execution-loop/SHAPE.json",
+    "timestamp": "2026-03-22T15:00:00Z"
+  },
+  "displayName": "Auto-Queue from Shape and Auto-Release Lanes",
+  "userOutcome": "Dispatcher scans SHAPE.json for ready candidates and auto-creates Work Orders. Completed lanes are automatically released and worktrees cleaned up.",
+  "scopeSummary": "Add auto_queue_from_shape() scanning SHAPE.json files for ready candidates without Work Orders. Add release_completed_lanes() releasing shipped lanes and cleaning worktrees. Wire both into dispatch_ready_work().",
+  "dependencies": [],
+  "risks": ["Auto-queue might create Work Orders for features the user hasn't reviewed"],
+  "priority": 0,
+  "status": "ready",
+  "readinessReason": "Dispatcher and lane infrastructure exist. Shape scanning is file iteration. Lane release is status update + worktree removal.",
+  "handoffSummary": "Add auto_queue_from_shape(root) to dispatcher.py. Add release_completed_lanes(root) to dispatcher.py or lane.py. Wire both into dispatch_ready_work().",
+  "timestamp": "2026-03-22T15:00:00Z"
+}

@@ -110,7 +110,7 @@ def test_run_create_and_show_cli(tmp_path):
     run = json.loads(created.stdout)
     assert run["feature"] == "demo"
     assert run["planNumber"] == "01"
-    assert run["mode"] == "serial"
+    assert run["mode"] == "team"
     assert run["profile"]["name"] == "migration-rollout"
     assert [task["status"] for task in run["tasks"]] == ["ready", "ready"]
     phase = _run_cli("phase-get", "demo", "--json", cwd=tmp_path)
@@ -130,7 +130,7 @@ def test_run_task_set_promotes_blocked_tail(tmp_path):
 
     created = _run_cli("run-create", "demo", "01", "--json", cwd=tmp_path)
     run = json.loads(created.stdout)
-    assert run["mode"] == "serial"
+    assert run["mode"] == "team"
     assert [task["status"] for task in run["tasks"]] == ["ready", "pending"]
 
     updated = _run_cli(
@@ -770,7 +770,8 @@ def test_run_next_and_task_lifecycle_cli(tmp_path):
     assert _run_cli("init", cwd=tmp_path).returncode == 0
     _write_plan(tmp_path, feature="demo", plan_number="01", blocked_tail=True)
 
-    created = _run_cli("run-create", "demo", "01", "--json", cwd=tmp_path)
+    # Force serial mode to test the direct task lifecycle path (without merge_team_session).
+    created = _run_cli("run-create", "demo", "01", "--mode", "serial", "--json", cwd=tmp_path)
     run = json.loads(created.stdout)
     run_id = run["runId"]
 

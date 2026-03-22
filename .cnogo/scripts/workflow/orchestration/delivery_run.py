@@ -149,7 +149,7 @@ class DeliveryRun:
     run_id: str = ""
     feature: str = ""
     plan_number: str = ""
-    mode: str = "serial"
+    mode: str = "team"
     status: str = "created"
     started_by: str = "claude"
     branch: str = ""
@@ -202,7 +202,7 @@ class DeliveryRun:
             run_id=str(data.get("runId", "")),
             feature=str(data.get("feature", "")),
             plan_number=str(data.get("planNumber", "")),
-            mode=str(data.get("mode", "serial")),
+            mode=str(data.get("mode", "team")),
             status=str(data.get("status", "created")),
             started_by=str(data.get("startedBy", "claude")),
             branch=str(data.get("branch", "")),

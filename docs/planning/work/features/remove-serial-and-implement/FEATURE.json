@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "feature": "remove-serial-and-implement",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/autonomous-execution-loop/SHAPE.json",
+    "timestamp": "2026-03-22T15:00:00Z"
+  },
+  "displayName": "Remove Serial Mode and /implement",
+  "userOutcome": "Single execution model: always spawn agents. No serial path, no mode decision, no /implement command. Executor is the only execution entry point.",
+  "scopeSummary": "Remove recommend_team_mode() from bridge.py. Remove mode field distinction from delivery runs (always 'team'). Remove /implement command. Update /plan to not reference /implement. Clean up profile_mode_preference(). Update docs.",
+  "dependencies": [],
+  "risks": [
+    "Existing features with in-progress serial runs may need migration path"
+  ],
+  "priority": 3,
+  "status": "ready",
+  "readinessReason": "Executor is functional (shipped). All dependencies met. Migration path: existing serial runs continue as-is; new runs always use team mode.",
+  "handoffSummary": "Remove recommend_team_mode() and serial code paths from bridge.py, delivery_run.py, implement.py. Remove .claude/commands/implement.md. Update plan templates and commands that reference /implement. Add migration: existing serial runs continue as-is; new runs always use team mode.",
+  "timestamp": "2026-03-22T22:30:00Z"
+}

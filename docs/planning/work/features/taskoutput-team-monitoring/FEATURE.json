@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "feature": "taskoutput-team-monitoring",
+  "parentShape": {
+    "path": "",
+    "timestamp": ""
+  },
+  "displayName": "TaskOutput Team Monitoring Anti-Patterns",
+  "userOutcome": "Team command includes explicit anti-pattern guidance so agents avoid TaskOutput fabrication, worktree conflicts, and manual git worktree removal.",
+  "scopeSummary": "Add anti-pattern prohibitions with architectural rationale to .claude/commands/team.md. No code changes needed — fix is command guidance only.",
+  "dependencies": [],
+  "risks": [
+    "team.md word budget (~400 words) may require trimming existing content to fit new guidance"
+  ],
+  "priority": 2,
+  "status": "ready",
+  "readinessReason": "Research completed. Decisions documented in CONTEXT.json. Scope is one file edit.",
+  "handoffSummary": "Edit .claude/commands/team.md to add prohibitions: (1) no TaskOutput for foreground team agents, (2) no composite name@team_name IDs, (3) no isolation:worktree on Task tool, (4) no manual git worktree remove. Each with architectural rationale.",
+  "timestamp": "2026-03-22T12:00:00Z"
+}

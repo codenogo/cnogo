@@ -25,5 +25,12 @@
     "106+ tests must stay green",
     "Backward compatibility with manual phase-set"
   ],
+  "relatedCode": [
+    ".cnogo/scripts/workflow/orchestration/work_order.py",
+    ".cnogo/scripts/memory/storage.py",
+    ".cnogo/scripts/memory/phases.py",
+    ".cnogo/scripts/workflow/orchestration/watch.py",
+    ".cnogo/scripts/workflow_memory.py"
+  ],
   "shapeFeedback": []
 }

@@ -25,6 +25,11 @@ from .review import (
     start_review,
     sync_review_state,
 )
+from .dispatch_ledger import (
+    check_dispatch_hold,
+    clear_dispatch_hold_on_success,
+    record_dispatch_failure,
+)
 from .ship import start_ship, sync_ship_state
 from .watch_artifacts import load_attention_queue
 from .work_order import WorkOrder, sync_all_work_orders, sync_work_order
@@ -148,6 +153,7 @@ def _attempt_auto_plan(
     except Exception as exc:
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", lane_id=lane_id)
         sync_work_order(root, feature)
         return (
             None,
@@ -180,6 +186,7 @@ def _attempt_auto_plan(
             feature=feature,
             start_run=bool(policy.get("autoAdvanceAllowed")),
         )
+        clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         lane = load_feature_lane(root, feature)
         if lane is not None:
@@ -191,6 +198,7 @@ def _attempt_auto_plan(
     except Exception as exc:
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", lane_id=lane_id)
         sync_work_order(root, feature)
         return (
             None,
@@ -272,6 +280,7 @@ def _attempt_auto_review(
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="reviewing", lease_owner=lease_owner)
         save_delivery_run(run, root)
+        clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         return (
             {
@@ -284,6 +293,10 @@ def _attempt_auto_review(
             None,
         )
     except Exception as exc:
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="review", error=f"{type(exc).__name__}: {exc}")
         sync_work_order(root, feature)
         return (
             None,
@@ -350,6 +363,7 @@ def _attempt_auto_ship(
             draft = build_ship_draft(root, feature)
         except Exception:
             pass
+        clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         payload: dict[str, Any] = {
             "feature": feature,
@@ -360,6 +374,10 @@ def _attempt_auto_ship(
             payload["draft"] = draft
         return payload, None, None
     except Exception as exc:
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        record_dispatch_failure(root, feature, phase="ship", error=f"{type(exc).__name__}: {exc}")
         sync_work_order(root, feature)
         return (
             None,
@@ -368,12 +386,88 @@ def _attempt_auto_ship(
         )
 
 
+def auto_queue_from_shape(root: Path) -> list[dict[str, Any]]:
+    """Scan SHAPE.json files for ready candidates without Work Orders. Auto-create queued orders."""
+    ideas_root = root / "docs" / "planning" / "work" / "ideas"
+    if not ideas_root.is_dir():
+        return []
+    queued: list[dict[str, Any]] = []
+    for shape_dir in sorted(ideas_root.iterdir()):
+        if not shape_dir.is_dir():
+            continue
+        shape_path = shape_dir / "SHAPE.json"
+        shape = _read_json(shape_path)
+        if not isinstance(shape, dict):
+            continue
+        candidates = shape.get("candidateFeatures", [])
+        if not isinstance(candidates, list):
+            continue
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            if str(candidate.get("status", "")).strip() != "ready":
+                continue
+            slug = str(candidate.get("slug", "")).strip()
+            if not slug:
+                continue
+            # Check if feature dossier exists.
+            feature_dir = root / "docs" / "planning" / "work" / "features" / slug
+            if not (feature_dir / "FEATURE.json").exists():
+                continue
+            if not (feature_dir / "CONTEXT.json").exists():
+                continue
+            # Check if Work Order already exists.
+            wo_path = runtime_path(root, "work-orders", f"{slug}.json")
+            if wo_path.exists():
+                continue
+            # Create the Work Order by syncing.
+            try:
+                sync_work_order(root, slug)
+                queued.append({"feature": slug, "initiative": str(shape.get("slug", ""))})
+            except Exception as exc:
+                queued.append({"feature": slug, "error": f"{type(exc).__name__}: {exc}"})
+    return queued
+
+
+def release_completed_lanes(root: Path) -> list[dict[str, Any]]:
+    """Release lanes where ship is completed. Clean up worktrees."""
+    from .lane import release_feature_lane
+    import shutil
+
+    released: list[dict[str, Any]] = []
+    for lane in list_feature_lanes(root, include_terminal=True):
+        if lane.status == "released":
+            continue
+        run = latest_delivery_run(root, lane.feature)
+        if run is None:
+            continue
+        ship = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+        if str(ship.get("status", "")).strip() != "completed":
+            continue
+        try:
+            release_feature_lane(root, lane.feature, reason="ship_completed")
+            worktree = str(getattr(lane, "worktree_path", "")).strip()
+            if worktree:
+                wt = Path(worktree)
+                if wt.exists() and wt.is_dir() and str(wt) != str(root.resolve()):
+                    shutil.rmtree(wt, ignore_errors=True)
+            sync_work_order(root, lane.feature)
+            released.append({"feature": lane.feature, "worktreeRemoved": bool(worktree)})
+        except Exception as exc:
+            released.append({"feature": lane.feature, "error": f"{type(exc).__name__}: {exc}"})
+    return released
+
+
 def dispatch_ready_work(
     root: Path,
     *,
     feature_filter: str | None = None,
     lease_owner: str = "dispatcher",
 ) -> dict[str, Any]:
+    # Auto-queue ready features from shape and release completed lanes.
+    auto_queued = auto_queue_from_shape(root)
+    auto_released = release_completed_lanes(root)
+
     cfg = load_workflow_config(root)
     settings = dispatcher_settings_cfg(cfg)
     if not settings["enabled"]:
@@ -388,6 +482,8 @@ def dispatch_ready_work(
             "planErrors": [],
             "reclaimed": [],
             "skipped": [{"feature": feature_filter, "reason": "dispatcher_disabled"}] if feature_filter else [],
+            "autoQueued": auto_queued,
+            "autoReleased": auto_released,
             "activeLaneCount": len(list_feature_lanes(root)),
         }
     reclaimed = reclaim_stale_feature_lanes(root, lease_owner=lease_owner)
@@ -418,6 +514,17 @@ def dispatch_ready_work(
             continue
         if order.feature in active_features:
             skipped.append({"feature": order.feature, "reason": "already_active"})
+            continue
+        # Circuit breaker: skip features held due to repeated dispatch failures.
+        hold = check_dispatch_hold(root, order.feature)
+        if hold is not None:
+            skipped.append({
+                "feature": order.feature,
+                "reason": "circuit_breaker",
+                "holdUntil": hold.get("holdUntil", ""),
+                "consecutiveFailures": hold.get("consecutiveFailures", 0),
+                "lastError": hold.get("lastError", ""),
+            })
             continue
         deps_ok, unresolved = _dependencies_satisfied(root, order.feature, orders_by_feature)
         if not deps_ok:
@@ -462,6 +569,10 @@ def dispatch_ready_work(
     review_errors: list[dict[str, Any]] = []
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoreview_candidates(root, feature_filter=feature_filter):
+            hold = check_dispatch_hold(root, feature)
+            if hold is not None:
+                auto_review_skipped.append({"feature": feature, "reason": "circuit_breaker", "holdUntil": hold.get("holdUntil", "")})
+                continue
             reviewed, skipped_review, error = _attempt_auto_review(root, feature=feature, lease_owner=lease_owner)
             if reviewed is not None:
                 auto_reviewed.append(reviewed)
@@ -476,6 +587,10 @@ def dispatch_ready_work(
     ship_errors: list[dict[str, Any]] = []
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoship_candidates(root, feature_filter=feature_filter):
+            hold = check_dispatch_hold(root, feature)
+            if hold is not None:
+                auto_ship_skipped.append({"feature": feature, "reason": "circuit_breaker", "holdUntil": hold.get("holdUntil", "")})
+                continue
             shipped, skipped_ship, error = _attempt_auto_ship(root, feature=feature, lease_owner=lease_owner)
             if shipped is not None:
                 auto_ship_started.append(shipped)
@@ -507,6 +622,8 @@ def dispatch_ready_work(
         "shipErrors": ship_errors,
         "reclaimed": reclaimed,
         "skipped": skipped,
+        "autoQueued": auto_queued,
+        "autoReleased": auto_released,
         "activeLaneCount": len(list_feature_lanes(root)),
     }
 

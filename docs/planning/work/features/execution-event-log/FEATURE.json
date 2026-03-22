@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "feature": "execution-event-log",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/autonomous-execution-loop/SHAPE.json",
+    "timestamp": "2026-03-22T15:00:00Z"
+  },
+  "displayName": "Execution Event Log",
+  "userOutcome": "Every layer (supervisor, executor, implementer) writes structured events to a shared append-only log. loop-status and loop-history CLI commands surface real-time state and recent history.",
+  "scopeSummary": "Create execution-log.jsonl format and log_execution_event() helper. Add loop-status CLI that reads lanes + log + heartbeats. Add loop-history CLI. Define agent heartbeat file format.",
+  "dependencies": [],
+  "risks": ["Log file grows unbounded without rotation"],
+  "priority": 0,
+  "status": "ready",
+  "readinessReason": "No dependencies. Straightforward format + CLI commands.",
+  "handoffSummary": "Create execution_events.py with log_execution_event(). Create .cnogo/execution-log.jsonl format. Add loop-status and loop-history to workflow_memory.py. Define agent-heartbeat-task-N.json format.",
+  "timestamp": "2026-03-22T15:00:00Z"
+}

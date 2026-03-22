@@ -458,9 +458,17 @@ def ensure_feature_plan(
         write(plan_path.with_suffix(".md"), render_plan(contract).strip() + "\n")
         created = True
 
-    from scripts.memory.bridge import plan_to_task_descriptions, recommend_team_mode  # noqa: lazy to break circular import
+    from scripts.memory.bridge import plan_to_task_descriptions  # noqa: lazy to break circular import
     taskdescs = plan_to_task_descriptions(plan_path, root, profile=resolved_profile)
-    recommendation = recommend_team_mode(taskdescs, profile=resolved_profile)
+    # Always team mode — recommend_team_mode removed.
+    recommendation = {
+        "recommended": True,
+        "reason": "Always team mode — executor spawns agents for all tasks.",
+        "runnableTasks": [i for i, t in enumerate(taskdescs) if not t.get("blockedBy")],
+        "blockedTasks": [i for i, t in enumerate(taskdescs) if t.get("blockedBy")],
+        "conflicts": [],
+        "profileModePreference": "team",
+    }
     return {
         "feature": feature,
         "planNumber": str(contract.get("planNumber", "")),

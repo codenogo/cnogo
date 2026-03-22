@@ -26,7 +26,6 @@ from .identity import generate_child_id as _child_id
 from ..workflow.shared.config import load_workflow_config
 from ..workflow.shared.config import workflow_packages
 from ..workflow.shared.profiles import (
-    profile_mode_preference,
     profile_require_package_checks,
     profile_required_package_commands,
 )
@@ -485,96 +484,6 @@ def detect_file_conflicts(
                 })
 
     return conflicts
-
-
-def recommend_team_mode(
-    tasks: list[dict[str, Any]],
-    *,
-    profile: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Recommend whether a plan should default to team execution.
-
-    Team mode is recommended when there are 2+ tasks immediately runnable from
-    the dependency frontier and file scopes are conflict-free. Later blocked
-    tasks are allowed as long as they can stage behind that frontier.
-    """
-    non_skipped_tasks = [
-        (idx, task)
-        for idx, task in enumerate(tasks)
-        if not task.get("skipped", False)
-    ]
-    runnable_tasks = [
-        task.get("plan_task_index", idx)
-        for idx, task in non_skipped_tasks
-        if not task.get("blockedBy")
-    ]
-    mode_preference = profile_mode_preference(profile)
-
-    if mode_preference == "serial":
-        return {
-            "recommended": False,
-            "reason": "Profile prefers serial execution for this kind of work.",
-            "runnableTasks": runnable_tasks,
-            "blockedTasks": [
-                task.get("plan_task_index", idx)
-                for idx, task in non_skipped_tasks
-                if task.get("blockedBy")
-            ],
-            "conflicts": [],
-            "profileModePreference": mode_preference,
-        }
-
-    if len(runnable_tasks) < 2:
-        return {
-            "recommended": False,
-            "reason": (
-                "Need at least 2 immediately runnable tasks before team mode pays off; "
-                "keep serial for single-task or fully chained plans."
-            ),
-            "runnableTasks": runnable_tasks,
-            "blockedTasks": [
-                task.get("plan_task_index", idx)
-                for idx, task in non_skipped_tasks
-                if task.get("blockedBy")
-            ],
-            "conflicts": [],
-            "profileModePreference": mode_preference,
-        }
-
-    blocked_tasks = [
-        task.get("plan_task_index", idx)
-        for idx, task in non_skipped_tasks
-        if task.get("blockedBy")
-    ]
-    conflicts = detect_file_conflicts(tasks)
-    if conflicts:
-        return {
-            "recommended": False,
-            "reason": (
-                "Task file scopes overlap; keep serial unless the user explicitly asks for team mode."
-                if mode_preference != "team"
-                else "Profile prefers team mode, but task file scopes overlap so serial is safer."
-            ),
-            "runnableTasks": runnable_tasks,
-            "blockedTasks": blocked_tasks,
-            "conflicts": conflicts,
-            "profileModePreference": mode_preference,
-        }
-    return {
-        "recommended": True,
-        "reason": (
-            "Profile prefers team execution and the runnable frontier is safe."
-            if mode_preference == "team"
-            else (
-                "At least 2 tasks are runnable from the current dependency frontier, "
-                "remaining dependencies can stage later, and file scopes are disjoint."
-            )
-        ),
-        "runnableTasks": runnable_tasks,
-        "blockedTasks": blocked_tasks,
-        "conflicts": [],
-        "profileModePreference": mode_preference,
-    }
 
 
 def generate_run_id(feature: str) -> str:
