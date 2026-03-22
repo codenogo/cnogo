@@ -25,28 +25,24 @@
       "slug": "execution-event-log",
       "displayName": "Execution Event Log",
       "userOutcome": "Every layer (supervisor, executor, implementer) writes structured events to a shared append-only log. loop-status and loop-history CLI commands surface real-time state and recent history.",
-      "scopeSummary": "Create execution-log.jsonl format and log_execution_event() helper. Add loop-status CLI that reads lanes + log + heartbeats into a unified view. Add loop-history CLI that tails the event log. Add heartbeat file format for implementer liveness.",
+      "scopeSummary": "Shipped. execution_events.py with log/read/heartbeat/render. CLI: loop-status, loop-history.",
       "dependencies": [],
-      "risks": [
-        "Log file grows unbounded without rotation — mitigate with size cap or patrol cleanup"
-      ],
+      "risks": [],
       "priority": 0,
-      "status": "ready",
-      "readinessReason": "No dependencies. Format is straightforward. CLI commands follow existing patterns.",
+      "status": "parked",
+      "readinessReason": "Shipped in PR #54.",
       "handoffSummary": "Create .cnogo/execution-log.jsonl format. Add log_execution_event(actor, feature, event, data) to a new execution_events.py module. Add loop-status and loop-history to workflow_memory.py. Define agent-heartbeat-task-N.json format. Wire heartbeat polling into executor design."
     },
     {
       "slug": "auto-queue-and-release",
       "displayName": "Auto-Queue from Shape and Auto-Release Lanes",
-      "userOutcome": "Dispatcher scans SHAPE.json for ready candidates and auto-creates Work Orders. Completed lanes are automatically released and worktrees cleaned up. No manual work-sync or lane management needed.",
-      "scopeSummary": "Add auto_queue_from_shape() to dispatcher that scans all SHAPE.json files, finds ready candidates without Work Orders, and creates them. Add release_completed_lanes() that releases lanes where ship.status=completed and cleans up worktrees. Wire both into dispatch_ready_work().",
+      "userOutcome": "Dispatcher scans SHAPE.json for ready candidates and auto-creates Work Orders. Completed lanes are automatically released and worktrees cleaned up.",
+      "scopeSummary": "Shipped. auto_queue_from_shape() + release_completed_lanes() wired into dispatch_ready_work().",
       "dependencies": [],
-      "risks": [
-        "Auto-queue might create Work Orders for features the user hasn't reviewed — mitigate by only queuing from shapes with explicit ready status"
-      ],
+      "risks": [],
       "priority": 0,
-      "status": "ready",
-      "readinessReason": "Dispatcher and lane infrastructure already exist. Shape scanning is straightforward file iteration. Lane release is a simple status update + worktree removal.",
+      "status": "parked",
+      "readinessReason": "Shipped in PR #54.",
       "handoffSummary": "Add auto_queue_from_shape(root) scanning docs/planning/work/ideas/*/SHAPE.json for ready candidates. Check if Work Order exists; if not, call sync_work_order() to create queued order. Add release_completed_lanes(root) that finds lanes where latest run ship.status=completed, calls release_feature_lane(), optionally removes worktree. Wire both into dispatch_ready_work() before and after the main lease loop."
     },
     {
@@ -60,8 +56,8 @@
         "Merge conflicts between task branches may require resolver agent escalation"
       ],
       "priority": 1,
-      "status": "blocked",
-      "readinessReason": "Blocked on execution-event-log. All infrastructure exists otherwise.",
+      "status": "parked",
+      "readinessReason": "Implemented. Agent definition created at .claude/agents/executor.md.",
       "handoffSummary": "Create .claude/agents/executor.md with prompt that: reads run-next for task frontier, spawns Agent(implementer) per runnable task, processes results via run-task-complete/fail, triggers session-merge for multi-task results, runs plan-verify when all done, handles git ops via ship draft. Writes execution events throughout. Polls implementer heartbeats for stale detection."
     },
     {
