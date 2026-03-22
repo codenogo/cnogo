@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "feature": "remove-serial-and-implement",
+  "timestamp": "2026-03-22T22:30:00Z",
+  "decisions": [
+    {
+      "area": "execution-mode",
+      "decision": "Always team mode — even single tasks spawn one agent",
+      "rationale": "Executor is the only execution entry point. Removes mode decision complexity and eliminates serial code paths."
+    },
+    {
+      "area": "migration",
+      "decision": "Existing serial runs continue as-is; new runs always use team mode",
+      "rationale": "Backward compatibility: delivery_run.py still accepts mode='serial' on load but create_delivery_run defaults to 'team'."
+    },
+    {
+      "area": "command-removal",
+      "decision": "Remove /implement command entirely",
+      "rationale": "Executor spawns implementers. No direct implementation path needed."
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "Existing delivery runs with mode=serial must remain loadable",
+    "All tests must pass after changes"
+  ],
+  "relatedCode": [
+    ".cnogo/scripts/memory/bridge.py",
+    ".cnogo/scripts/workflow/orchestration/delivery_run.py",
+    ".cnogo/scripts/workflow/orchestration/implement.py",
+    ".cnogo/scripts/workflow/shared/profiles.py",
+    ".claude/commands/implement.md",
+    ".claude/commands/plan.md"
+  ],
+  "shapeFeedback": []
+}

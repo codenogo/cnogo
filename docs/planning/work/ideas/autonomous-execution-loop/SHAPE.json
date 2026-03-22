@@ -85,8 +85,8 @@
         "Existing features with in-progress serial runs may need migration path"
       ],
       "priority": 3,
-      "status": "draft",
-      "readinessReason": "Depends on executor being functional first. Migration path for existing serial runs needs definition.",
+      "status": "ready",
+      "readinessReason": "Executor is functional (shipped). All dependencies met. Migration path: existing serial runs continue as-is; new runs always use team mode.",
       "handoffSummary": "Remove recommend_team_mode() and serial code paths from bridge.py, delivery_run.py, implement.py. Remove .claude/commands/implement.md. Update plan templates and commands that reference /implement. Add migration: existing serial runs continue as-is; new runs always use team mode."
     }
   ],

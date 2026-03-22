@@ -49,3 +49,10 @@ Send teammate guidance.
 ## Action: `dismiss`
 
 Shutdown teammates, wait, then TeamDelete.
+
+## Anti-Patterns
+
+- **No TaskOutput**: foreground agents report via TaskList/SendMessage auto-delivery. TaskOutput targets background/remote sessions only.
+- **No composite IDs** (`name@team_name`): Claude Code uses opaque system-generated task IDs; composites cause "No task found" errors.
+- **No `isolation: worktree`**: cnogo owns worktree lifecycle via `create_session()`; this option creates conflicting `.cursor/worktrees/` paths.
+- **No manual `git worktree remove`**: `session-cleanup` runs `cleanup_session()` with `--force`, covering modified files and branch deletion.

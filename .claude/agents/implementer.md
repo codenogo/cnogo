@@ -36,7 +36,7 @@ You execute a single implementation task assigned by the team lead.
 - If verify fails: run the history command from task prompt, summarize the last error, then retry. After 2 failures, message the team lead
 - If blocked: do NOT report done. Message the team lead with details.
 - Always use SendMessage to communicate — plain text is not visible to the team
-- Do NOT use TaskOutput — report status via TaskList/SendMessage only.
+- Do NOT use TaskOutput — cnogo spawns teammates in foreground; foreground agents deliver output via TaskList and SendMessage auto-delivery, not TaskOutput. TaskOutput is for background/remote sessions only.
 - Do NOT report done before ALL verify commands pass.
 - Do NOT rationalize missing evidence ("probably fine", "seems fixed", "too small for tests").
 - Do NOT modify files outside your task description.
