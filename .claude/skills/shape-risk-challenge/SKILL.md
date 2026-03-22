@@ -19,7 +19,7 @@ Surface the few risks that would actually change feature readiness, sequencing, 
 - missing prerequisites
 - irreversible early choices
 - weak evidence behind a promoted feature
-- discuss-ready features that should regress to `draft` or `blocked`
+- ready features that should regress to `draft` or `blocked`
 3. Prefer concrete failure modes over generic caution.
 4. If the favored direction survives scrutiny, say so and explain what makes it robust.
 5. Route external unknowns to `/research`; keep repo-local risk inside `/shape`.

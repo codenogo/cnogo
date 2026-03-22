@@ -8,15 +8,29 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
+from scripts.workflow.shared.profiles import (
+    profile_auto_advance,
+    profile_auto_plan,
+    profile_auto_review,
+    profile_auto_ship,
+    profile_ship_require_pull_request,
+    profile_ship_require_tracking,
+)
+from scripts.workflow.shared.runtime_root import runtime_path
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
 
 from .delivery_run import DeliveryRun, delivery_run_dir, latest_delivery_run, load_delivery_run
 from .implement import next_delivery_run_action
+from .lane import feature_lane_payload, load_feature_lane, reclaim_stale_feature_lanes
 from .watch_artifacts import load_attention_queue
 
 WORK_ORDER_SCHEMA_VERSION = 1
 WORK_ORDER_STATUSES = frozenset(
     {
+        "queued",
+        "leased",
+        "planning",
         "planned",
         "implementing",
         "reviewing",
@@ -46,7 +60,7 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 
 def _feature_phase(root: Path, feature: str) -> str:
-    payload = _read_json(root / _PHASE_STATE_PATH) or {}
+    payload = _read_json(runtime_path(root, "feature-phases.json")) or {}
     features = payload.get("features")
     if isinstance(features, dict):
         entry = features.get(feature)
@@ -58,7 +72,7 @@ def _feature_phase(root: Path, feature: str) -> str:
 
 
 def work_orders_dir(root: Path) -> Path:
-    return root / _WORK_ORDERS_DIR
+    return runtime_path(root, "work-orders")
 
 
 def work_order_path(root: Path, feature: str) -> Path:
@@ -70,15 +84,19 @@ class WorkOrder:
     schema_version: int = WORK_ORDER_SCHEMA_VERSION
     work_order_id: str = ""
     feature: str = ""
-    status: str = "planned"
+    status: str = "queued"
     current_phase: str = "unknown"
     profile: dict[str, Any] = field(default_factory=dict)
     current_run_id: str = ""
     run_history: list[dict[str, Any]] = field(default_factory=list)
     artifact_paths: dict[str, str] = field(default_factory=dict)
+    queue_position: int = 0
+    lane: dict[str, Any] = field(default_factory=dict)
     attention_summary: dict[str, Any] = field(default_factory=dict)
     review_summary: dict[str, Any] = field(default_factory=dict)
     ship_summary: dict[str, Any] = field(default_factory=dict)
+    memory_sync: dict[str, Any] = field(default_factory=dict)
+    automation_state: dict[str, Any] = field(default_factory=dict)
     next_action: dict[str, Any] = field(default_factory=dict)
     created_at: str = field(default_factory=_now_iso)
     updated_at: str = field(default_factory=_now_iso)
@@ -94,9 +112,13 @@ class WorkOrder:
             "currentRunId": self.current_run_id,
             "runHistory": self.run_history,
             "artifactPaths": self.artifact_paths,
+            "queuePosition": self.queue_position,
+            "lane": self.lane,
             "attentionSummary": self.attention_summary,
             "reviewSummary": self.review_summary,
             "shipSummary": self.ship_summary,
+            "memorySync": self.memory_sync,
+            "automationState": self.automation_state,
             "nextAction": self.next_action,
             "createdAt": self.created_at,
             "updatedAt": self.updated_at,
@@ -108,7 +130,7 @@ class WorkOrder:
             schema_version=int(data.get("schemaVersion", WORK_ORDER_SCHEMA_VERSION)),
             work_order_id=str(data.get("workOrderId", "")),
             feature=str(data.get("feature", "")),
-            status=str(data.get("status", "planned")),
+            status=str(data.get("status", "queued")),
             current_phase=str(data.get("currentPhase", "unknown")),
             profile=dict(data.get("profile", {})) if isinstance(data.get("profile"), dict) else {},
             current_run_id=str(data.get("currentRunId", "")),
@@ -116,6 +138,8 @@ class WorkOrder:
             artifact_paths=dict(data.get("artifactPaths", {}))
             if isinstance(data.get("artifactPaths"), dict)
             else {},
+            queue_position=int(data.get("queuePosition", 0) or 0),
+            lane=dict(data.get("lane", {})) if isinstance(data.get("lane"), dict) else {},
             attention_summary=dict(data.get("attentionSummary", {}))
             if isinstance(data.get("attentionSummary"), dict)
             else {},
@@ -124,6 +148,12 @@ class WorkOrder:
             else {},
             ship_summary=dict(data.get("shipSummary", {}))
             if isinstance(data.get("shipSummary"), dict)
+            else {},
+            memory_sync=dict(data.get("memorySync", {}))
+            if isinstance(data.get("memorySync"), dict)
+            else {},
+            automation_state=dict(data.get("automationState", {}))
+            if isinstance(data.get("automationState"), dict)
             else {},
             next_action=dict(data.get("nextAction", {}))
             if isinstance(data.get("nextAction"), dict)
@@ -170,8 +200,82 @@ def _load_feature_runs(root: Path, feature: str) -> list[DeliveryRun]:
     return runs
 
 
+def _feature_dir(root: Path, feature: str) -> Path:
+    return root / "docs" / "planning" / "work" / "features" / feature
+
+
+def _feature_stub(root: Path, feature: str) -> dict[str, Any]:
+    payload = _read_json(_feature_dir(root, feature) / "FEATURE.json")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _feature_context(root: Path, feature: str) -> dict[str, Any]:
+    payload = _read_json(_feature_dir(root, feature) / "CONTEXT.json")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _parent_shape_path(root: Path, feature: str) -> Path | None:
+    for contract in (_feature_context(root, feature), _feature_stub(root, feature)):
+        parent_shape = contract.get("parentShape")
+        if not isinstance(parent_shape, dict):
+            continue
+        raw_path = parent_shape.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        shape_path = Path(raw_path.strip())
+        return shape_path if shape_path.is_absolute() else root / shape_path
+    return None
+
+
+def _shape_candidate(root: Path, feature: str) -> dict[str, Any]:
+    shape_path = _parent_shape_path(root, feature)
+    if shape_path is None:
+        return {}
+    payload = _read_json(shape_path)
+    if not isinstance(payload, dict):
+        return {}
+    candidates = payload.get("candidateFeatures")
+    if not isinstance(candidates, list):
+        return {}
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        if str(candidate.get("slug", "")).strip() == feature:
+            return candidate
+    return {}
+
+
+def _feature_priority(root: Path, feature: str) -> int:
+    for contract in (_feature_stub(root, feature), _feature_context(root, feature), _shape_candidate(root, feature)):
+        value = contract.get("priority")
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 4:
+            return value
+    return 2
+
+
+def _sequence_index(root: Path, feature: str) -> int:
+    shape_path = _parent_shape_path(root, feature)
+    if shape_path is None:
+        return 10_000
+    payload = _read_json(shape_path)
+    if not isinstance(payload, dict):
+        return 10_000
+    sequence = payload.get("recommendedSequence")
+    if not isinstance(sequence, list):
+        return 10_000
+    normalized = [str(value).strip() for value in sequence if isinstance(value, str) and value.strip()]
+    try:
+        return normalized.index(feature)
+    except ValueError:
+        return 10_000
+
+
+def _has_plan(feature_dir: Path) -> bool:
+    return feature_dir.is_dir() and any(feature_dir.glob("[0-9][0-9]-PLAN.json"))
+
+
 def _latest_feature_artifacts(root: Path, feature: str, current_run: DeliveryRun | None) -> dict[str, str]:
-    feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    feature_dir = _feature_dir(root, feature)
     artifacts = {
         "feature": str(feature_dir / "FEATURE.json"),
         "context": str(feature_dir / "CONTEXT.json"),
@@ -183,6 +287,9 @@ def _latest_feature_artifacts(root: Path, feature: str, current_run: DeliveryRun
             artifacts["summary"] = str(current_run.summary_path)
         if getattr(current_run, "review_path", ""):
             artifacts["review"] = str(current_run.review_path)
+    shape_path = _parent_shape_path(root, feature)
+    if shape_path is not None:
+        artifacts["shape"] = str(shape_path)
     if not artifacts["summary"] and feature_dir.is_dir():
         summaries = sorted(feature_dir.glob("*-SUMMARY.json"))
         if summaries:
@@ -211,7 +318,7 @@ def _run_history_entry(root: Path, run: DeliveryRun) -> dict[str, Any]:
         "reviewVerdict": str(review_state.get("finalVerdict", "pending")),
         "shipStatus": str(ship_state.get("status", "pending")),
         "profile": str(profile.get("name", "")),
-        "path": str(work_order_path(root, run.feature).parent.parent / "runs" / run.feature / f"{run.run_id}.json"),
+        "path": str(runtime_path(root, "runs", run.feature, f"{run.run_id}.json")),
     }
 
 
@@ -265,57 +372,250 @@ def _ship_summary(run: DeliveryRun | None) -> dict[str, Any]:
     }
 
 
-def _derive_status(run: DeliveryRun | None, phase: str, attention_summary: dict[str, Any]) -> str:
+def _status_from_lane(root: Path, feature: str) -> tuple[str | None, dict[str, Any]]:
+    lane = load_feature_lane(root, feature)
+    if lane is None:
+        return None, {}
+    payload = feature_lane_payload(root, lane)
+    status = str(payload.get("status", "")).strip()
+    if status == "released":
+        return None, payload
+    if status == "completed":
+        return "completed", payload
+    if status in WORK_ORDER_STATUSES:
+        return status, payload
+    return None, payload
+
+
+def _phase_from_status(status: str, fallback: str) -> str:
+    mapping = {
+        "queued": "plan",
+        "leased": "plan",
+        "planning": "plan",
+        "planned": "plan",
+        "implementing": "implement",
+        "reviewing": "review",
+        "shipping": "ship",
+    }
+    return mapping.get(status, fallback or "unknown")
+
+
+def _derive_status(
+    root: Path,
+    feature: str,
+    run: DeliveryRun | None,
+    phase: str,
+    attention_summary: dict[str, Any],
+) -> tuple[str, dict[str, Any]]:
+    lane_status, lane_payload = _status_from_lane(root, feature)
     highest = str(attention_summary.get("highestSeverity", "ok"))
+    feature_dir = _feature_dir(root, feature)
+    has_context = (feature_dir / "CONTEXT.json").exists()
+    has_plan = _has_plan(feature_dir)
     if run is None:
+        if lane_status:
+            return lane_status, lane_payload
         if phase in {"ship"}:
-            return "shipping"
+            return "shipping", lane_payload
         if phase in {"review"}:
-            return "reviewing"
-        return "planned"
+            return "reviewing", lane_payload
+        if has_plan or phase in {"plan", "implement"}:
+            return "planning", lane_payload
+        if has_context or (feature_dir / "FEATURE.json").exists():
+            return "queued", lane_payload
+        return "queued", lane_payload
     ship = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
     review = run.review if isinstance(getattr(run, "review", None), dict) else {}
     readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
     integration = run.integration if isinstance(getattr(run, "integration", None), dict) else {}
     if ship.get("status") == "completed":
-        return "completed"
+        return "completed", lane_payload
     if ship.get("status") in {"failed"}:
-        return "blocked"
+        return "blocked", lane_payload
     if ship.get("status") in {"ready", "in_progress"} or phase == "ship":
-        return "shipping"
+        return "shipping", lane_payload
     if review.get("finalVerdict") == "fail":
-        return "blocked"
+        return "blocked", lane_payload
     if review.get("status") in {"in_progress", "completed"} or readiness.get("status") == "ready" or phase == "review":
-        return "reviewing"
+        return "reviewing", lane_payload
     if run.status in {"failed", "cancelled", "blocked"}:
-        return "blocked"
+        return "blocked", lane_payload
     if integration.get("status") == "conflict":
-        return "blocked"
+        return "blocked", lane_payload
     if highest == "fail" and run.status not in {"completed"}:
-        return "blocked"
+        return "blocked", lane_payload
     if phase in {"implement"} or run.status in {"created", "active", "ready_for_review"}:
-        return "implementing"
-    return "planned"
+        return "implementing", lane_payload
+    return "planning", lane_payload
+
+
+def _automation_state(
+    root: Path,
+    *,
+    feature: str,
+    status: str,
+    profile: dict[str, Any],
+    lane_payload: dict[str, Any],
+    current_run: DeliveryRun | None,
+    next_action: dict[str, Any],
+    attention_summary: dict[str, Any],
+) -> dict[str, Any]:
+    dispatcher = dispatcher_settings_cfg(load_workflow_config(root))
+    lane_health = lane_payload.get("health", {}) if isinstance(lane_payload.get("health"), dict) else {}
+    automation_hint = next_action.get("automation", {}) if isinstance(next_action, dict) else {}
+    auto_review = profile_auto_review(profile)
+    auto_ship = profile_auto_ship(profile)
+    config = {
+        "dispatcherEnabled": dispatcher["enabled"],
+        "autoPlan": profile_auto_plan(profile),
+        "autoAdvance": profile_auto_advance(profile),
+        "autoReview": auto_review,
+        "autoShip": auto_ship,
+        "profilePolicy": {
+            "requiresTracking": profile_ship_require_tracking(profile),
+            "requiresPullRequest": profile_ship_require_pull_request(profile),
+        },
+    }
+    if lane_health.get("stale") and not current_run:
+        reason = "Feature lane lease expired before execution advanced."
+        if lane_health.get("reason") == "worktree_missing":
+            reason = "Feature lane worktree is missing and needs to be reclaimed or recreated."
+        return {
+            "state": "lane_stale",
+            "owner": "patrol",
+            "reason": reason,
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "queued":
+        return {
+            "state": "waiting_for_dispatch" if dispatcher["enabled"] else "dispatcher_disabled",
+            "owner": "dispatcher",
+            "reason": "Ready feature is queued for a free feature lane."
+            if dispatcher["enabled"]
+            else "Dispatcher is disabled in WORKFLOW.json.",
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status in {"leased", "planning", "planned"}:
+        return {
+            "state": str(automation_hint.get("state", "waiting_for_planner")),
+            "owner": "planner",
+            "reason": str(
+                automation_hint.get(
+                    "reason",
+                    "Planning is the next required step before execution can continue.",
+                )
+            ),
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "implementing":
+        return {
+            "state": "waiting_for_execution" if current_run is not None else "waiting_for_run_creation",
+            "owner": "implementer",
+            "reason": "Active delivery run can continue automatically through deterministic task state."
+            if current_run is not None
+            else "Feature needs a delivery run before implementation can continue.",
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "reviewing":
+        default_reason = (
+            "Auto-review will run on next dispatcher tick."
+            if auto_review and dispatcher["enabled"]
+            else "Review readiness is derived automatically, but review artifact authoring still needs `/review`."
+        )
+        return {
+            "state": str(automation_hint.get("state", "waiting_for_review_command")),
+            "owner": "dispatcher" if auto_review and dispatcher["enabled"] else "review",
+            "reason": str(automation_hint.get("reason", default_reason)),
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "shipping":
+        default_reason = (
+            "Auto-ship will run on next dispatcher tick."
+            if auto_ship and dispatcher["enabled"]
+            else "Ship readiness is derived automatically, but tracked ship completion still needs `/ship`."
+        )
+        return {
+            "state": str(automation_hint.get("state", "waiting_for_ship_command")),
+            "owner": "dispatcher" if auto_ship and dispatcher["enabled"] else "ship",
+            "reason": str(automation_hint.get("reason", default_reason)),
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "blocked":
+        highest = str(attention_summary.get("highestSeverity", "warn")).strip() or "warn"
+        return {
+            "state": "blocked",
+            "owner": "attention",
+            "reason": f"Blocking findings are present (highest severity: {highest}).",
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "completed":
+        return {
+            "state": "complete",
+            "owner": "system",
+            "reason": "Feature work order is completed.",
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    if status == "cancelled":
+        return {
+            "state": "cancelled",
+            "owner": "system",
+            "reason": "Feature work order is cancelled.",
+            "config": config,
+            "laneHealth": lane_health,
+        }
+    return {
+        "state": "unknown",
+        "owner": "system",
+        "reason": "Automation state is unknown.",
+        "config": config,
+        "laneHealth": lane_health,
+    }
 
 
 def _default_next_action(feature: str, status: str) -> dict[str, Any]:
-    if status == "planned":
+    if status == "queued":
+        return {
+            "kind": "dispatch",
+            "summary": "Lease this ready feature into an execution lane.",
+            "command": f"python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {feature}",
+        }
+    if status in {"leased", "planning", "planned"}:
         return {
             "kind": "plan",
-            "summary": "Continue planning the feature and prepare a delivery run.",
-            "command": f"/plan {feature}",
+            "summary": "Generate or resume the deterministic plan for this feature lane.",
+            "command": f"python3 .cnogo/scripts/workflow_memory.py plan-auto {feature}",
+            "automation": {
+                "state": "waiting_for_planner",
+                "reason": "Dispatcher or patrol can run deterministic planning automatically when profile policy allows.",
+            },
         }
     if status == "reviewing":
         return {
             "kind": "review",
             "summary": "Continue or complete review for the latest run.",
             "command": f"/review {feature}",
+            "automation": {
+                "state": "waiting_for_review_command",
+                "reason": "Review state is tracked automatically, but review artifact authoring still runs through `/review`.",
+            },
         }
     if status == "shipping":
         return {
             "kind": "ship",
             "summary": "Complete ship tracking for the latest accepted run.",
             "command": f"/ship {feature}",
+            "automation": {
+                "state": "waiting_for_ship_command",
+                "reason": "Ship readiness is derived automatically, but tracked ship completion still runs through `/ship`.",
+            },
         }
     if status == "blocked":
         return {
@@ -345,7 +645,7 @@ def build_work_order(
     current_run_id = current_run.run_id if current_run is not None else ""
     phase = _feature_phase(root, feature)
     attention_summary = _feature_attention_summary(root, feature, attention_items=attention_items)
-    status = _derive_status(current_run, phase, attention_summary)
+    status, lane_payload = _derive_status(root, feature, current_run, phase, attention_summary)
     profile = {}
     if current_run is not None and isinstance(getattr(current_run, "profile", None), dict):
         profile = dict(current_run.profile)
@@ -355,19 +655,33 @@ def build_work_order(
         if current_run is not None and status in {"implementing", "reviewing", "shipping", "blocked"}
         else _default_next_action(feature, status)
     )
+    automation_state = _automation_state(
+        root,
+        feature=feature,
+        status=status,
+        profile=profile,
+        lane_payload=lane_payload,
+        current_run=current_run,
+        next_action=next_action if isinstance(next_action, dict) else {},
+        attention_summary=attention_summary,
+    )
     created_at = existing.created_at if isinstance(existing, WorkOrder) and existing.created_at else _now_iso()
     return WorkOrder(
         work_order_id=feature,
         feature=feature,
         status=status,
-        current_phase=phase,
+        current_phase=_phase_from_status(status, phase),
         profile=profile,
         current_run_id=current_run_id,
         run_history=run_history,
         artifact_paths=_latest_feature_artifacts(root, feature, current_run),
+        queue_position=existing.queue_position if isinstance(existing, WorkOrder) else 0,
+        lane=lane_payload,
         attention_summary=attention_summary,
         review_summary=_review_summary(current_run),
         ship_summary=_ship_summary(current_run),
+        memory_sync=dict(existing.memory_sync) if isinstance(existing, WorkOrder) else {},
+        automation_state=automation_state,
         next_action=next_action if isinstance(next_action, dict) else _default_next_action(feature, status),
         created_at=created_at,
     )
@@ -380,6 +694,7 @@ def sync_work_order(
     current_run: DeliveryRun | None = None,
     attention_items: list[dict[str, Any]] | None = None,
 ) -> WorkOrder:
+    reclaim_stale_feature_lanes(root, feature_filter=feature)
     existing = load_work_order(root, feature)
     order = build_work_order(
         root,
@@ -388,6 +703,32 @@ def sync_work_order(
         attention_items=attention_items,
         existing=existing,
     )
+    memory_sync = {
+        "status": "skipped",
+        "reason": "memory_db_missing",
+        "syncedAt": _now_iso(),
+    }
+    try:
+        from scripts.memory.insights import sync_feature_memory
+        from scripts.memory.runtime import db_path as _memory_db_path
+
+        run_payload = current_run.to_dict() if current_run is not None else {}
+        if _memory_db_path(root).exists():
+            sync_result = sync_feature_memory(
+                root,
+                feature,
+                work_order=order.to_dict(),
+                run=run_payload,
+                trigger="work_order_sync",
+            )
+            memory_sync = {"status": "ok", "syncedAt": _now_iso(), **sync_result}
+    except Exception as exc:
+        memory_sync = {
+            "status": "error",
+            "error": f"{type(exc).__name__}: {exc}",
+            "syncedAt": _now_iso(),
+        }
+    order.memory_sync = memory_sync
     save_work_order(order, root)
     return order
 
@@ -403,8 +744,12 @@ def list_work_orders(root: Path, *, feature_filter: str | None = None) -> list[W
             if isinstance(payload, dict):
                 orders.append(WorkOrder.from_dict(payload))
     orders.sort(
-        key=lambda order: parse_iso_timestamp(order.updated_at) or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
+        key=lambda order: (
+            0 if order.status == "queued" else 1,
+            order.queue_position if order.status == "queued" else 10_000,
+            -_updated_sort_value(order.updated_at),
+            order.feature,
+        )
     )
     return orders
 
@@ -416,7 +761,7 @@ def _discover_features(root: Path) -> set[str]:
         for path in features_root.iterdir():
             if path.is_dir():
                 features.add(path.name)
-    runs_root = root / ".cnogo" / "runs"
+    runs_root = runtime_path(root, "runs")
     if runs_root.is_dir():
         for path in runs_root.iterdir():
             if path.is_dir():
@@ -425,11 +770,33 @@ def _discover_features(root: Path) -> set[str]:
     if work_root.is_dir():
         for path in work_root.glob("*.json"):
             features.add(path.stem)
-    payload = _read_json(root / _PHASE_STATE_PATH) or {}
+    lanes_root = runtime_path(root, "lanes")
+    if lanes_root.is_dir():
+        for path in lanes_root.glob("*.json"):
+            features.add(path.stem)
+    payload = _read_json(runtime_path(root, "feature-phases.json")) or {}
     entries = payload.get("features")
     if isinstance(entries, dict):
         features.update(str(key).strip() for key in entries.keys() if str(key).strip())
     return features
+
+
+def _queue_sort_key(root: Path, order: WorkOrder) -> tuple[Any, ...]:
+    return (
+        _feature_priority(root, order.feature),
+        _sequence_index(root, order.feature),
+        order.feature,
+    )
+
+
+def _updated_sort_value(updated_at: str) -> float:
+    parsed = parse_iso_timestamp(updated_at)
+    if parsed is None:
+        return 0.0
+    try:
+        return parsed.timestamp()
+    except (OverflowError, OSError, ValueError):
+        return 0.0
 
 
 def sync_all_work_orders(root: Path, *, feature_filter: str | None = None) -> list[WorkOrder]:
@@ -440,9 +807,20 @@ def sync_all_work_orders(root: Path, *, feature_filter: str | None = None) -> li
     for feature in sorted(feature for feature in features if feature):
         scoped_items = [item for item in items if str(item.get("feature", "")).strip() == feature]
         synced.append(sync_work_order(root, feature, attention_items=scoped_items))
+    queued = sorted((order for order in synced if order.status == "queued"), key=lambda order: _queue_sort_key(root, order))
+    positions = {order.feature: index + 1 for index, order in enumerate(queued)}
+    for order in synced:
+        position = positions.get(order.feature, 0)
+        if order.queue_position != position:
+            order.queue_position = position
+            save_work_order(order, root)
     synced.sort(
-        key=lambda order: parse_iso_timestamp(order.updated_at) or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
+        key=lambda order: (
+            0 if order.status == "queued" else 1,
+            order.queue_position if order.status == "queued" else 10_000,
+            -_updated_sort_value(order.updated_at),
+            order.feature,
+        )
     )
     return synced
 

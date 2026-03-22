@@ -92,6 +92,9 @@ def validate_shape_contract(
         value = contract.get(field)
         if value is not None and not isinstance(value, list):
             findings.append(finding_type("WARN", f"SHAPE.json: {field} should be an array.", str(path)))
+    feedback_inbox = contract.get("feedbackInbox")
+    if feedback_inbox is not None and not isinstance(feedback_inbox, list):
+        findings.append(finding_type("WARN", "SHAPE.json: feedbackInbox should be an array.", str(path)))
 
     validate_decision_log(contract.get("decisionLog"), findings, path)
     validate_shape_threads(contract.get("shapeThreads"), findings, path)
@@ -130,12 +133,30 @@ def validate_shape_contract(
                     findings.append(
                         finding_type("WARN", f"SHAPE.json: {label}.{field} should be a non-empty string.", str(path))
                     )
+            priority = candidate.get("priority")
+            if priority is not None and (not isinstance(priority, int) or isinstance(priority, bool) or priority < 0 or priority > 4):
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"SHAPE.json: {label}.priority should be an integer between 0 and 4.",
+                        str(path),
+                    )
+                )
             for field in ("dependencies", "risks"):
                 if not isinstance(candidate.get(field), list):
                     findings.append(finding_type("WARN", f"SHAPE.json: {label}.{field} should be an array.", str(path)))
 
             status = candidate.get("status")
-            if status not in shape_candidate_statuses:
+            normalized_status = "ready" if status == "discuss-ready" else status
+            if status == "discuss-ready":
+                findings.append(
+                    finding_type(
+                        "WARN",
+                        f"SHAPE.json: {label}.status uses deprecated value 'discuss-ready'; use 'ready' instead.",
+                        str(path),
+                    )
+                )
+            if normalized_status not in shape_candidate_statuses:
                 findings.append(
                     finding_type(
                         "ERROR",
@@ -143,15 +164,17 @@ def validate_shape_contract(
                         str(path),
                     )
                 )
-            elif status == "discuss-ready":
+            elif normalized_status == "ready":
                 stub_md = root / "docs" / "planning" / "work" / "features" / candidate_slug / "FEATURE.md"
                 stub_json = root / "docs" / "planning" / "work" / "features" / candidate_slug / "FEATURE.json"
+                context_md = root / "docs" / "planning" / "work" / "features" / candidate_slug / "CONTEXT.md"
+                context_json = root / "docs" / "planning" / "work" / "features" / candidate_slug / "CONTEXT.json"
                 if not stub_md.exists():
                     findings.append(
                         finding_type(
                             "ERROR",
                             (
-                                f"SHAPE.json candidate {candidate_slug!r} is discuss-ready but missing feature stub "
+                                f"SHAPE.json candidate {candidate_slug!r} is {status} but missing feature stub "
                                 f"{stub_md.relative_to(root)}."
                             ),
                             str(path),
@@ -162,12 +185,35 @@ def validate_shape_contract(
                         finding_type(
                             "ERROR",
                             (
-                                f"SHAPE.json candidate {candidate_slug!r} is discuss-ready but missing feature stub "
+                                f"SHAPE.json candidate {candidate_slug!r} is {status} but missing feature stub "
                                 f"{stub_json.relative_to(root)}."
                             ),
                             str(path),
                         )
                     )
+                if status == "ready":
+                    if not context_md.exists():
+                        findings.append(
+                            finding_type(
+                                "ERROR",
+                                (
+                                    f"SHAPE.json candidate {candidate_slug!r} is ready but missing context dossier "
+                                    f"{context_md.relative_to(root)}."
+                                ),
+                                str(path),
+                            )
+                        )
+                    if not context_json.exists():
+                        findings.append(
+                            finding_type(
+                                "ERROR",
+                                (
+                                    f"SHAPE.json candidate {candidate_slug!r} is ready but missing context dossier "
+                                    f"{context_json.relative_to(root)}."
+                                ),
+                                str(path),
+                            )
+                        )
 
     recommended_sequence = contract.get("recommendedSequence")
     if recommended_sequence is not None:

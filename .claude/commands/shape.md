@@ -9,7 +9,7 @@ Run a persistent initiative workspace.
 
 ## Your Task
 
-Treat `/shape` as the workspace for broad or multi-feature work. Keep cross-feature truth here. A `discuss-ready` feature is an available exit from shape, not a stop signal.
+Treat `/shape` as the only upstream workspace for broad or multi-feature work. Keep cross-feature truth here. Shape owns feature definition, prioritization, readiness, dependencies, research, and feedback intake.
 
 1. Load only the essentials:
 - `docs/planning/PROJECT.md`
@@ -23,7 +23,7 @@ Treat `/shape` as the workspace for broad or multi-feature work. Keep cross-feat
 - accept natural-language follow-ups such as split, merge, compare, resequence, promote, park, or reopen
 - use `/research "$ARGUMENTS"` only for targeted uncertainty reduction
 - do not branch or create feature memory issues here
-- end a pass after persisting workspace state plus next moves or optional exits
+- end a pass after persisting workspace state, queue state, and next shaping moves
 
 3. Persist the initiative source of truth:
 - `docs/planning/work/ideas/<initiative-slug>/SHAPE.md`
@@ -31,16 +31,18 @@ Treat `/shape` as the workspace for broad or multi-feature work. Keep cross-feat
 - if only legacy `BRAINSTORM.*` exists, read it and migrate forward into `SHAPE.*`
 
 `SHAPE.json` minimum fields:
-- `schemaVersion`, `initiative`, `slug`, `problem`, `constraints[]`, `globalDecisions[]`, `researchRefs[]`, `openQuestions[]`, `candidateFeatures[]`, `recommendedSequence[]`, `timestamp`
-- each `candidateFeatures[]` entry needs `slug`, `displayName`, `userOutcome`, `scopeSummary`, `dependencies[]`, `risks[]`, `status`, `readinessReason`, `handoffSummary`
-- valid `status`: `draft`, `discuss-ready`, `blocked`, `parked`
+- `schemaVersion`, `initiative`, `slug`, `problem`, `constraints[]`, `globalDecisions[]`, `researchRefs[]`, `openQuestions[]`, `candidateFeatures[]`, `recommendedSequence[]`, `feedbackInbox[]`, `timestamp`
+- each `candidateFeatures[]` entry needs `slug`, `displayName`, `userOutcome`, `scopeSummary`, `dependencies[]`, `risks[]`, `priority`, `status`, `readinessReason`, `handoffSummary`
+- valid `status`: `draft`, `ready`, `blocked`, `parked`
 - optional: `decisionLog[]`, `shapeThreads[]`, `nextShapeMoves[]`
 
-4. Materialize delivery-ready features immediately:
-- for each `discuss-ready` candidate, create `docs/planning/work/features/<feature-slug>/FEATURE.md`
-- create matching `FEATURE.json` with `parentShape` linkage plus inherited outcome, scope, dependencies, risks, readiness, and handoff fields
-- do not create `CONTEXT.*` yet
-- leave those features as optional exits
+4. Materialize ready-for-line features immediately:
+- for each `ready` candidate, create `docs/planning/work/features/<feature-slug>/FEATURE.md`
+- create matching `FEATURE.json` with `parentShape` linkage plus inherited outcome, scope, dependencies, risks, priority, readiness, and handoff fields
+- create `docs/planning/work/features/<feature-slug>/CONTEXT.md`
+- create matching `CONTEXT.json` so planning can start from a stable dossier immediately
+- queue the feature into the assembly line by running `python3 .cnogo/scripts/workflow_memory.py work-sync <feature-slug>`
+- do not use `/discuss`; shape already owns the readiness conversation
 
 5. Optional scouts:
 - never use `/team` inside `/shape`
@@ -63,6 +65,6 @@ python3 .cnogo/scripts/workflow_validate.py --json
 
 - initiative workspace summary
 - stable cross-feature decisions and active shaping threads
-- feature queue snapshot with any `discuss-ready` features that were materialized
+- feature queue snapshot with any `ready` features that were materialized
 - stay-in-shape continuation moves first
-- optional exits second: `/discuss <feature-slug>` for any ready feature
+- assembly-line visibility second: queued or leased features, priority, and any new feedback for shape

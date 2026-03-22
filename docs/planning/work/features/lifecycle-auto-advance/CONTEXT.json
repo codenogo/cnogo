@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "feature": "lifecycle-auto-advance",
+  "timestamp": "2026-03-22T10:00:00Z",
+  "decisions": [
+    {
+      "area": "phase-sync",
+      "decision": "Phase auto-advance is a side-effect of sync_work_order(), not a separate patrol job",
+      "rationale": "Keeps phase truth consistent on every sync instead of waiting for patrol tick"
+    },
+    {
+      "area": "backward-transitions",
+      "decision": "Suppress backward transition warnings during auto-sync; only warn on manual phase-set",
+      "rationale": "Work order status regression (e.g., review fail → back to implementing) is legitimate; warnings would be noise"
+    },
+    {
+      "area": "command-migration",
+      "decision": "Commands read work order automation state as primary, phase as fallback",
+      "rationale": "Gradual migration; features not yet in work order system still use phase"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "No new dependencies",
+    "106+ tests must stay green",
+    "Backward compatibility with manual phase-set"
+  ],
+  "shapeFeedback": []
+}

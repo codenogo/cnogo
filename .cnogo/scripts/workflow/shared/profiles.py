@@ -20,6 +20,8 @@ _DEFAULT_POLICY = {
     "execution": {
         "modePreference": "auto",
         "preferTeamWhenSafe": True,
+        "autoPlan": True,
+        "autoAdvance": True,
     },
     "verify": {
         "requirePackageChecks": True,
@@ -28,17 +30,18 @@ _DEFAULT_POLICY = {
     "review": {
         "autoSpawnConfiguredReviewers": True,
         "requiredReviewers": [],
+        "autoReview": True,
     },
     "ship": {
         "requireTracking": True,
         "requirePullRequest": True,
+        "autoShip": True,
     },
     "watch": {
         "staleMinutes": 10,
         "reviewStaleMinutes": 60,
     },
 }
-
 _BUILTIN_PROFILES = {
     "feature-delivery": {
         "schemaVersion": 1,
@@ -46,13 +49,14 @@ _BUILTIN_PROFILES = {
         "version": "1.0.0",
         "description": "Default feature flow for product work with team execution when safe, adversarial review, and tracked ship completion.",
         "defaults": {
-            "execution": {"modePreference": "auto", "preferTeamWhenSafe": True},
+            "execution": {"modePreference": "auto", "preferTeamWhenSafe": True, "autoPlan": True, "autoAdvance": True},
             "verify": {"requirePackageChecks": True, "requiredPackageCommands": ["lint", "typecheck", "test"]},
             "review": {
                 "autoSpawnConfiguredReviewers": True,
                 "requiredReviewers": ["code-reviewer", "security-scanner", "perf-analyzer"],
+                "autoReview": True,
             },
-            "ship": {"requireTracking": True, "requirePullRequest": True},
+            "ship": {"requireTracking": True, "requirePullRequest": True, "autoShip": True},
             "watch": {"staleMinutes": 10, "reviewStaleMinutes": 60},
         },
     },
@@ -62,13 +66,14 @@ _BUILTIN_PROFILES = {
         "version": "1.0.0",
         "description": "Safer rollout profile for schema, backfill, and data-moving changes that should bias toward serial execution and explicit review evidence.",
         "defaults": {
-            "execution": {"modePreference": "serial", "preferTeamWhenSafe": False},
+            "execution": {"modePreference": "serial", "preferTeamWhenSafe": False, "autoPlan": True, "autoAdvance": True},
             "verify": {"requirePackageChecks": True, "requiredPackageCommands": ["lint", "typecheck", "test"]},
             "review": {
                 "autoSpawnConfiguredReviewers": True,
                 "requiredReviewers": ["code-reviewer", "security-scanner"],
+                "autoReview": True,
             },
-            "ship": {"requireTracking": True, "requirePullRequest": True},
+            "ship": {"requireTracking": True, "requirePullRequest": True, "autoShip": True},
             "watch": {"staleMinutes": 5, "reviewStaleMinutes": 30},
         },
     },
@@ -78,13 +83,14 @@ _BUILTIN_PROFILES = {
         "version": "1.0.0",
         "description": "Release-focused profile with serial preference, reviewer rigor, and tracked ship completion for coordinated branch and PR work.",
         "defaults": {
-            "execution": {"modePreference": "serial", "preferTeamWhenSafe": False},
+            "execution": {"modePreference": "serial", "preferTeamWhenSafe": False, "autoPlan": True, "autoAdvance": True},
             "verify": {"requirePackageChecks": True, "requiredPackageCommands": ["lint", "typecheck", "test"]},
             "review": {
                 "autoSpawnConfiguredReviewers": True,
                 "requiredReviewers": ["code-reviewer", "perf-analyzer"],
+                "autoReview": True,
             },
-            "ship": {"requireTracking": True, "requirePullRequest": True},
+            "ship": {"requireTracking": True, "requirePullRequest": True, "autoShip": True},
             "watch": {"staleMinutes": 10, "reviewStaleMinutes": 30},
         },
     },
@@ -94,13 +100,14 @@ _BUILTIN_PROFILES = {
         "version": "1.0.0",
         "description": "Fast-but-governed debugging profile for bug fixes that still need review and ship tracking, while allowing auto execution when task safety is clear.",
         "defaults": {
-            "execution": {"modePreference": "auto", "preferTeamWhenSafe": True},
+            "execution": {"modePreference": "auto", "preferTeamWhenSafe": True, "autoPlan": True, "autoAdvance": True},
             "verify": {"requirePackageChecks": True, "requiredPackageCommands": ["lint", "typecheck", "test"]},
             "review": {
                 "autoSpawnConfiguredReviewers": True,
                 "requiredReviewers": ["code-reviewer"],
+                "autoReview": True,
             },
-            "ship": {"requireTracking": True, "requirePullRequest": True},
+            "ship": {"requireTracking": True, "requirePullRequest": True, "autoShip": True},
             "watch": {"staleMinutes": 10, "reviewStaleMinutes": 45},
         },
     },
@@ -375,6 +382,32 @@ def profile_mode_preference(profile: dict[str, Any] | None) -> str:
     return mode
 
 
+def profile_auto_plan(profile: dict[str, Any] | None) -> bool:
+    if not isinstance(profile, dict):
+        return True
+    resolved = profile.get("resolvedPolicy")
+    if not isinstance(resolved, dict):
+        return True
+    execution = resolved.get("execution")
+    if not isinstance(execution, dict):
+        return True
+    value = execution.get("autoPlan")
+    return value if isinstance(value, bool) else True
+
+
+def profile_auto_advance(profile: dict[str, Any] | None) -> bool:
+    if not isinstance(profile, dict):
+        return True
+    resolved = profile.get("resolvedPolicy")
+    if not isinstance(resolved, dict):
+        return True
+    execution = resolved.get("execution")
+    if not isinstance(execution, dict):
+        return True
+    value = execution.get("autoAdvance")
+    return value if isinstance(value, bool) else True
+
+
 def profile_required_reviewers(profile: dict[str, Any] | None) -> list[str]:
     if not isinstance(profile, dict):
         return []
@@ -411,6 +444,19 @@ def profile_auto_spawn_configured_reviewers(profile: dict[str, Any] | None) -> b
         return True
     auto_spawn = review.get("autoSpawnConfiguredReviewers")
     return auto_spawn if isinstance(auto_spawn, bool) else True
+
+
+def profile_auto_review(profile: dict[str, Any] | None) -> bool:
+    if not isinstance(profile, dict):
+        return True
+    resolved = profile.get("resolvedPolicy")
+    if not isinstance(resolved, dict):
+        return True
+    review = resolved.get("review")
+    if not isinstance(review, dict):
+        return True
+    value = review.get("autoReview")
+    return value if isinstance(value, bool) else True
 
 
 def profile_require_package_checks(profile: dict[str, Any] | None) -> bool:
@@ -476,6 +522,19 @@ def profile_ship_require_pull_request(profile: dict[str, Any] | None) -> bool:
         return True
     required = ship.get("requirePullRequest")
     return required if isinstance(required, bool) else True
+
+
+def profile_auto_ship(profile: dict[str, Any] | None) -> bool:
+    if not isinstance(profile, dict):
+        return True
+    resolved = profile.get("resolvedPolicy")
+    if not isinstance(resolved, dict):
+        return True
+    ship = resolved.get("ship")
+    if not isinstance(ship, dict):
+        return True
+    value = ship.get("autoShip")
+    return value if isinstance(value, bool) else True
 
 
 def profile_watch_thresholds(

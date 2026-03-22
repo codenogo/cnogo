@@ -13,7 +13,10 @@ from ..workflow.orchestration import (
     DELIVERY_REVIEW_STATUSES,
     DELIVERY_REVIEW_VERDICTS,
     DeliveryRun,
+    FeatureLane,
     WorkOrder,
+    auto_plan_feature as _auto_plan_feature_impl,
+    dispatch_ready_work as _dispatch_ready_work_impl,
     begin_task_execution as _begin_task_execution_impl,
     build_attention_queue as _build_attention_queue_impl,
     build_work_order as _build_work_order_impl,
@@ -25,12 +28,17 @@ from ..workflow.orchestration import (
     ensure_run_review_state as _ensure_run_review_state_impl,
     ensure_run_ship_state as _ensure_run_ship_state_impl,
     ensure_delivery_run as _ensure_delivery_run_impl,
+    ensure_feature_plan as _ensure_feature_plan_impl,
+    feature_lane_payload as _feature_lane_payload_impl,
     fail_task_execution as _fail_task_execution_impl,
     fail_ship as _fail_ship_impl,
     filter_attention_queue as _filter_attention_queue_impl,
+    heartbeat_feature_lane as _heartbeat_feature_lane_impl,
     latest_delivery_run as _latest_delivery_run_impl,
+    list_feature_lanes as _list_feature_lanes_impl,
     list_work_orders as _list_work_orders_impl,
     list_delivery_runs as _list_delivery_runs_impl,
+    load_feature_lane as _load_feature_lane_impl,
     load_attention_queue as _load_attention_queue_impl,
     load_delivery_run as _load_delivery_run_impl,
     load_work_order as _load_work_order_impl,
@@ -60,6 +68,7 @@ from ..workflow.orchestration import (
     sync_review_state as _sync_review_state_impl,
     sync_ship_state as _sync_ship_state_impl,
     sync_all_work_orders as _sync_all_work_orders_impl,
+    sync_shape_feedback as _sync_shape_feedback_impl,
     sync_work_order as _sync_work_order_impl,
     sync_run_with_worktree_session as _sync_run_with_worktree_session_impl,
     start_review as _start_review_impl,
@@ -77,6 +86,7 @@ from . import bootstrap as _bootstrap_api
 from . import cost_tracking as _cost_tracking_api
 from . import creation as _creation_api
 from . import dependencies as _dependencies_api
+from . import insights as _insights_api
 from . import issues as _issues_api
 from . import lifecycle as _lifecycle_api
 from . import phases as _phases_api
@@ -119,11 +129,42 @@ def _auto_export(root: Path) -> None:
 def _sync_run_work_order(run: DeliveryRun | None, *, root: Path | None = None) -> WorkOrder | None:
     if run is None or not getattr(run, "feature", ""):
         return None
+    resolved_root = _resolve_root(root)
+    lane_status = "planning"
+    ship_state = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+    review_state = run.review if isinstance(getattr(run, "review", None), dict) else {}
+    readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+    integration = run.integration if isinstance(getattr(run, "integration", None), dict) else {}
+    if str(ship_state.get("status", "")).strip() == "completed":
+        lane_status = "completed"
+    elif str(ship_state.get("status", "")).strip() == "failed":
+        lane_status = "blocked"
+    elif str(ship_state.get("status", "")).strip() in {"ready", "in_progress"}:
+        lane_status = "shipping"
+    elif str(review_state.get("finalVerdict", "")).strip() == "fail":
+        lane_status = "blocked"
+    elif (
+        str(review_state.get("status", "")).strip() in {"in_progress", "completed"}
+        or str(readiness.get("status", "")).strip() == "ready"
+    ):
+        lane_status = "reviewing"
+    elif run.status in {"failed", "cancelled", "blocked"} or str(integration.get("status", "")).strip() == "conflict":
+        lane_status = "blocked"
+    elif run.status in {"created", "active", "ready_for_review", "completed"}:
+        lane_status = "implementing"
+    if _load_feature_lane_impl(resolved_root, run.feature) is not None:
+        _heartbeat_feature_lane_impl(
+            resolved_root,
+            run.feature,
+            status=lane_status,
+            current_plan_number=getattr(run, "plan_number", ""),
+            current_run_id=getattr(run, "run_id", ""),
+        )
     # Work Order rollups derive next actions from the current run; clone it so
     # that rollup computation cannot mutate the caller's in-memory lifecycle
     # state while we persist related artifacts.
     return _sync_work_order_impl(
-        _resolve_root(root),
+        resolved_root,
         run.feature,
         current_run=DeliveryRun.from_dict(run.to_dict()),
     )
@@ -134,6 +175,17 @@ def _persist_run_and_sync_work_order(run: DeliveryRun, *, root: Path | None = No
     _save_delivery_run_impl(run, resolved_root)
     _sync_run_work_order(run, root=resolved_root)
     return run
+
+
+def _planning_root_for_feature(root: Path, feature: str) -> Path:
+    lane = _load_feature_lane_impl(root, feature)
+    if lane is None:
+        return root
+    worktree_path = str(getattr(lane, "worktree_path", "")).strip()
+    if not worktree_path:
+        return root
+    candidate = Path(worktree_path)
+    return candidate if candidate.exists() else root
 
 
 def init(root: Path) -> None:
@@ -881,6 +933,131 @@ def summarize_delivery_run(
     root: Path | None = None,
 ) -> dict[str, Any]:
     return _summarize_delivery_run_impl(run, root=_resolve_root(root))
+
+
+def load_feature_lane(feature: str, *, root: Path | None = None) -> FeatureLane | None:
+    return _load_feature_lane_impl(_resolve_root(root), feature)
+
+
+def describe_feature_lane(feature: str, *, root: Path | None = None) -> dict[str, Any] | None:
+    resolved_root = _resolve_root(root)
+    lane = _load_feature_lane_impl(resolved_root, feature)
+    if lane is None:
+        return None
+    return _feature_lane_payload_impl(resolved_root, lane)
+
+
+def list_feature_lanes(
+    *,
+    feature_slug: str | None = None,
+    include_terminal: bool = False,
+    root: Path | None = None,
+) -> list[FeatureLane]:
+    return _list_feature_lanes_impl(
+        _resolve_root(root),
+        feature_filter=feature_slug,
+        include_terminal=include_terminal,
+    )
+
+
+def list_feature_lane_snapshots(
+    *,
+    feature_slug: str | None = None,
+    include_terminal: bool = False,
+    root: Path | None = None,
+) -> list[dict[str, Any]]:
+    resolved_root = _resolve_root(root)
+    return [
+        _feature_lane_payload_impl(resolved_root, lane)
+        for lane in _list_feature_lanes_impl(
+            resolved_root,
+            feature_filter=feature_slug,
+            include_terminal=include_terminal,
+        )
+    ]
+
+
+def dispatch_ready_features(
+    *,
+    feature_slug: str | None = None,
+    lease_owner: str = "dispatcher",
+    root: Path | None = None,
+) -> dict[str, Any]:
+    resolved_root = _resolve_root(root)
+    payload = _dispatch_ready_work_impl(
+        resolved_root,
+        feature_filter=feature_slug,
+        lease_owner=lease_owner,
+    )
+    _sync_all_work_orders_impl(resolved_root, feature_filter=feature_slug)
+    return payload
+
+
+def ensure_feature_plan(
+    feature: str,
+    *,
+    plan_number: str | None = None,
+    requested_profile_name: str | None = None,
+    force: bool = False,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    resolved_root = _resolve_root(root)
+    planning_root = _planning_root_for_feature(resolved_root, feature)
+    payload = _ensure_feature_plan_impl(
+        planning_root,
+        feature=feature,
+        plan_number=plan_number,
+        requested_profile_name=requested_profile_name,
+        force=force,
+    )
+    payload["planningRoot"] = str(planning_root)
+    _sync_work_order_impl(resolved_root, feature)
+    return payload
+
+
+def auto_plan_feature(
+    feature: str,
+    *,
+    plan_number: str | None = None,
+    requested_profile_name: str | None = None,
+    force: bool = False,
+    start_run: bool | None = None,
+    root: Path | None = None,
+) -> dict[str, Any]:
+    resolved_root = _resolve_root(root)
+    planning_root = _planning_root_for_feature(resolved_root, feature)
+    payload = _auto_plan_feature_impl(
+        planning_root,
+        feature=feature,
+        plan_number=plan_number,
+        requested_profile_name=requested_profile_name,
+        force=force,
+        start_run=start_run,
+    )
+    payload["planningRoot"] = str(planning_root)
+    _sync_work_order_impl(resolved_root, feature)
+    return payload
+
+
+def sync_shape_feedback(*, feature_slug: str | None = None, root: Path | None = None) -> dict[str, Any]:
+    return _sync_shape_feedback_impl(_resolve_root(root), feature_filter=feature_slug)
+
+
+def sync_feature_memory(
+    feature: str,
+    *,
+    work_order: dict[str, Any] | None = None,
+    run: dict[str, Any] | None = None,
+    trigger: str = "manual",
+    root: Path | None = None,
+) -> dict[str, Any]:
+    return _insights_api.sync_feature_memory(
+        _resolve_root(root),
+        feature,
+        work_order=work_order,
+        run=run,
+        trigger=trigger,
+    )
 
 
 def load_work_order(feature: str, *, root: Path | None = None) -> WorkOrder | None:

@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 from . import storage as _st
 from .runtime import auto_export as _auto_export
 from .runtime import conn as _conn
@@ -20,7 +22,7 @@ def _now_iso() -> str:
 
 
 def _phase_state_path(root: Path) -> Path:
-    return root / _PHASE_STATE_PATH
+    return runtime_path(root, "feature-phases.json")
 
 
 def _load_phase_state(root: Path) -> dict[str, Any]:

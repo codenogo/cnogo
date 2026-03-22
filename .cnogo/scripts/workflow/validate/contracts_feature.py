@@ -664,7 +664,16 @@ def validate_feature_stub_contract(
             findings.append(finding_type("WARN", f"FEATURE.json: {field} should be an array.", str(path)))
 
     status = contract.get("status")
-    if status not in shape_candidate_statuses:
+    normalized_status = "ready" if status == "discuss-ready" else status
+    if status == "discuss-ready":
+        findings.append(
+            finding_type(
+                "WARN",
+                "FEATURE.json status 'discuss-ready' is deprecated; use 'ready' instead.",
+                str(path),
+            )
+        )
+    if normalized_status not in shape_candidate_statuses:
         findings.append(
             finding_type(
                 "ERROR",

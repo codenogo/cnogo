@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
 from scripts.workflow.shared.profiles import profile_watch_thresholds
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
 
@@ -18,6 +19,7 @@ from .delivery_run import (
     load_delivery_run,
 )
 from .integration import ensure_run_coordination_state, sync_review_readiness
+from .lane import feature_lane_health, lane_path, list_feature_lanes
 from .review import ensure_run_review_state, sync_review_state
 from .ship import ensure_run_ship_state, sync_ship_state
 from .work_order import build_work_order
@@ -31,7 +33,7 @@ def _now_utc() -> datetime:
 
 
 def _session_dict(root: Path) -> dict[str, Any] | None:
-    session_path = root / _SESSION_FILE
+    session_path = runtime_path(root, "worktree-session.json")
     if not session_path.exists():
         return None
     try:
@@ -42,7 +44,7 @@ def _session_dict(root: Path) -> dict[str, Any] | None:
 
 
 def _iter_run_paths(root: Path, *, feature_filter: str | None = None) -> list[Path]:
-    runs_root = root / _RUNS_DIR
+    runs_root = runtime_path(root, "runs")
     if not runs_root.is_dir():
         return []
     feature_dirs: list[Path]
@@ -231,6 +233,7 @@ def watch_delivery_runs(
     )
     findings: list[dict[str, Any]] = []
     summaries = [summarize_delivery_run(run, root=root, session=session, now=now) for run in runs]
+    lanes = list_feature_lanes(root, include_terminal=include_terminal, feature_filter=feature_filter)
 
     for run, summary in zip(runs, summaries):
         thresholds = profile_watch_thresholds(
@@ -393,6 +396,18 @@ def watch_delivery_runs(
                     path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
                 )
             )
+        if ship_state == "completed":
+            findings.append(
+                _finding(
+                    kind="post_ship_cleanup",
+                    severity="info",
+                    run=run,
+                    message=f"Ship completed for {run.feature}. Feature lifecycle closure recommended.",
+                    next_action=f"Run feature lifecycle closure for {run.feature} to clean up branches, update docs, and file follow-ups.",
+                    minutes_stale=0,
+                    path=str(delivery_run_dir(root, run.feature) / f"{run.run_id}.json"),
+                )
+            )
 
         if review_state in {"in_progress", "completed"}:
             if review_file is None:
@@ -435,6 +450,66 @@ def watch_delivery_runs(
                             path=str(review_file),
                         )
                     )
+
+    for lane in lanes:
+        health = feature_lane_health(root, lane, now=now)
+        lane_file = lane_path(root, lane.feature)
+        if lane.current_run_id:
+            linked_run = load_delivery_run(root, lane.feature, lane.current_run_id)
+            if linked_run is None:
+                findings.append(
+                    _finding(
+                        kind="lane_missing_run",
+                        severity="fail",
+                        message="Feature lane references a delivery run that does not exist.",
+                        next_action=(
+                            f"Inspect `python3 .cnogo/scripts/workflow_memory.py lane-show {lane.feature}` "
+                            "and recreate or relink the run before resuming execution."
+                        ),
+                        minutes_stale=health.get("minutesSinceHeartbeat"),
+                        path=str(lane_file),
+                    )
+                )
+            continue
+        if health.get("worktreeMissing"):
+            findings.append(
+                _finding(
+                    kind="lane_worktree_missing",
+                    severity="fail",
+                    message="Feature lane worktree is missing while the lane is still active.",
+                    next_action=(
+                        f"Re-dispatch with `python3 .cnogo/scripts/workflow_memory.py dispatch-ready --feature {lane.feature}` "
+                        "after confirming the lane should be reclaimed."
+                    ),
+                    minutes_stale=health.get("minutesSinceHeartbeat"),
+                    path=str(lane_file),
+                )
+            )
+            continue
+        if health.get("stale"):
+            minutes_stale = health.get("minutesSinceHeartbeat")
+            stale_fragment = (
+                f"{minutes_stale:.1f} minutes"
+                if isinstance(minutes_stale, (int, float))
+                else "an unknown amount of time"
+            )
+            findings.append(
+                _finding(
+                    kind="stale_feature_lane",
+                    severity="warn",
+                    message=(
+                        f"Feature lane has not heartbeated for {stale_fragment} "
+                        "while waiting for planning or recovery."
+                    ),
+                    next_action=(
+                        "Run "
+                        f"`python3 .cnogo/scripts/workflow_memory.py plan-auto {lane.feature}` "
+                        "or let dispatch reclaim the stale lane."
+                    ),
+                    minutes_stale=minutes_stale,
+                    path=str(lane_file),
+                )
+            )
 
     if session is not None:
         session_feature = session.get("feature")
@@ -507,6 +582,12 @@ def watch_delivery_runs(
                 attention_items=findings_by_feature.get(feature, []),
             ).to_dict()
         )
+        seen_features.add(feature)
+    for lane in lanes:
+        if lane.feature in seen_features:
+            continue
+        work_orders.append(build_work_order(root, lane.feature).to_dict())
+        seen_features.add(lane.feature)
 
     return {
         "checkedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),

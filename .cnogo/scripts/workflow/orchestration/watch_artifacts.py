@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 _WATCH_DIR = Path(".cnogo") / "watch"
 _LATEST_REPORT = "latest.json"
 _ATTENTION_QUEUE = "attention.json"
@@ -13,7 +15,7 @@ _HISTORY_DIR = "history"
 
 
 def watch_dir(root: Path) -> Path:
-    return root / _WATCH_DIR
+    return runtime_path(root, "watch")
 
 
 def watch_report_path(root: Path) -> Path:

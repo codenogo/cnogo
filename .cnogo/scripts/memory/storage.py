@@ -17,7 +17,7 @@ from typing import Any
 
 from .models import Dependency, Event, Issue
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 WORKFLOW_PHASES = ("discuss", "plan", "implement", "review", "ship")
 _VALID_PHASES = frozenset(WORKFLOW_PHASES)
 
@@ -90,6 +90,69 @@ CREATE TABLE IF NOT EXISTS schema_info (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS observations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    natural_key TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    feature_slug TEXT DEFAULT '',
+    subject_type TEXT DEFAULT '',
+    subject_id TEXT DEFAULT '',
+    observer_role TEXT DEFAULT '',
+    confidence TEXT DEFAULT 'derived'
+        CHECK(confidence IN ('explicit', 'derived', 'verified', 'contested')),
+    status TEXT DEFAULT 'active'
+        CHECK(status IN ('active', 'superseded', 'contested')),
+    summary TEXT NOT NULL,
+    detail TEXT DEFAULT '',
+    metadata TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS observation_sources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    observation_id INTEGER NOT NULL,
+    source_kind TEXT NOT NULL,
+    source_ref TEXT DEFAULT '',
+    source_path TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    UNIQUE(observation_id, source_kind, source_ref, source_path),
+    FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS contradictions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    contradiction_key TEXT NOT NULL UNIQUE,
+    feature_slug TEXT DEFAULT '',
+    scope TEXT DEFAULT '',
+    subject_id TEXT DEFAULT '',
+    kind TEXT NOT NULL,
+    status TEXT DEFAULT 'open'
+        CHECK(status IN ('open', 'resolved')),
+    summary TEXT NOT NULL,
+    left_observation_id INTEGER DEFAULT 0,
+    right_observation_id INTEGER DEFAULT 0,
+    metadata TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (left_observation_id) REFERENCES observations(id),
+    FOREIGN KEY (right_observation_id) REFERENCES observations(id)
+);
+
+CREATE TABLE IF NOT EXISTS cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    scope TEXT NOT NULL,
+    scope_id TEXT NOT NULL,
+    card_kind TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    content TEXT DEFAULT '',
+    metadata TEXT DEFAULT '{}',
+    updated_at TEXT NOT NULL,
+    UNIQUE(scope, scope_id, card_kind)
+);
+
 CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
 CREATE INDEX IF NOT EXISTS idx_issues_type ON issues(issue_type);
 CREATE INDEX IF NOT EXISTS idx_issues_feature ON issues(feature_slug);
@@ -99,6 +162,11 @@ CREATE INDEX IF NOT EXISTS idx_deps_depends_on ON dependencies(depends_on_id);
 CREATE INDEX IF NOT EXISTS idx_deps_type ON dependencies(dep_type);
 CREATE INDEX IF NOT EXISTS idx_events_issue ON events(issue_id);
 CREATE INDEX IF NOT EXISTS idx_labels_label ON labels(label);
+CREATE INDEX IF NOT EXISTS idx_observations_feature ON observations(feature_slug);
+CREATE INDEX IF NOT EXISTS idx_observations_kind ON observations(kind);
+CREATE INDEX IF NOT EXISTS idx_observations_scope ON observations(scope, scope_id);
+CREATE INDEX IF NOT EXISTS idx_contradictions_feature ON contradictions(feature_slug, status);
+CREATE INDEX IF NOT EXISTS idx_cards_scope ON cards(scope, scope_id);
 """
 
 
@@ -109,6 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_labels_label ON labels(label);
 _ALLOWED_TABLES = frozenset({
     "issues", "dependencies", "events", "labels",
     "blocked_cache", "child_counters", "schema_info",
+    "observations", "observation_sources", "contradictions", "cards",
 })
 
 
@@ -243,6 +312,9 @@ def migrate(conn: sqlite3.Connection) -> None:
     if current < 3:
         _migrate_to_v3(conn)
         current = 3
+    if current < 4:
+        _migrate_to_v4(conn)
+        current = 4
     if _column_exists(conn, "issues", "phase"):
         conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_phase ON issues(phase)")
     conn.execute(
@@ -309,6 +381,78 @@ def _migrate_to_v3(conn: sqlite3.Connection) -> None:
     # Create indexes
     conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_state ON issues(state)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_issues_owner ON issues(owner_actor)")
+
+
+def _migrate_to_v4(conn: sqlite3.Connection) -> None:
+    """Schema v4: add derived-memory tables for observations, contradictions, and cards."""
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS observations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            natural_key TEXT NOT NULL UNIQUE,
+            kind TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            feature_slug TEXT DEFAULT '',
+            subject_type TEXT DEFAULT '',
+            subject_id TEXT DEFAULT '',
+            observer_role TEXT DEFAULT '',
+            confidence TEXT DEFAULT 'derived'
+                CHECK(confidence IN ('explicit', 'derived', 'verified', 'contested')),
+            status TEXT DEFAULT 'active'
+                CHECK(status IN ('active', 'superseded', 'contested')),
+            summary TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS observation_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            observation_id INTEGER NOT NULL,
+            source_kind TEXT NOT NULL,
+            source_ref TEXT DEFAULT '',
+            source_path TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            UNIQUE(observation_id, source_kind, source_ref, source_path),
+            FOREIGN KEY (observation_id) REFERENCES observations(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS contradictions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contradiction_key TEXT NOT NULL UNIQUE,
+            feature_slug TEXT DEFAULT '',
+            scope TEXT DEFAULT '',
+            subject_id TEXT DEFAULT '',
+            kind TEXT NOT NULL,
+            status TEXT DEFAULT 'open'
+                CHECK(status IN ('open', 'resolved')),
+            summary TEXT NOT NULL,
+            left_observation_id INTEGER DEFAULT 0,
+            right_observation_id INTEGER DEFAULT 0,
+            metadata TEXT DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (left_observation_id) REFERENCES observations(id),
+            FOREIGN KEY (right_observation_id) REFERENCES observations(id)
+        );
+        CREATE TABLE IF NOT EXISTS cards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            scope_id TEXT NOT NULL,
+            card_kind TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            content TEXT DEFAULT '',
+            metadata TEXT DEFAULT '{}',
+            updated_at TEXT NOT NULL,
+            UNIQUE(scope, scope_id, card_kind)
+        );
+        CREATE INDEX IF NOT EXISTS idx_observations_feature ON observations(feature_slug);
+        CREATE INDEX IF NOT EXISTS idx_observations_kind ON observations(kind);
+        CREATE INDEX IF NOT EXISTS idx_observations_scope ON observations(scope, scope_id);
+        CREATE INDEX IF NOT EXISTS idx_contradictions_feature ON contradictions(feature_slug, status);
+        CREATE INDEX IF NOT EXISTS idx_cards_scope ON cards(scope, scope_id);
+        """
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -560,6 +704,317 @@ def get_events(
         (issue_id, limit),
     ).fetchall()
     return [_row_to_event(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Derived memory CRUD
+# ---------------------------------------------------------------------------
+
+def upsert_observation(
+    conn: sqlite3.Connection,
+    *,
+    natural_key: str,
+    kind: str,
+    scope: str,
+    scope_id: str,
+    feature_slug: str = "",
+    subject_type: str = "",
+    subject_id: str = "",
+    observer_role: str = "",
+    confidence: str = "derived",
+    status: str = "active",
+    summary: str,
+    detail: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> int:
+    now = _now()
+    conn.execute(
+        """
+        INSERT INTO observations (
+            natural_key, kind, scope, scope_id, feature_slug, subject_type,
+            subject_id, observer_role, confidence, status, summary, detail,
+            metadata, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(natural_key) DO UPDATE SET
+            kind=excluded.kind,
+            scope=excluded.scope,
+            scope_id=excluded.scope_id,
+            feature_slug=excluded.feature_slug,
+            subject_type=excluded.subject_type,
+            subject_id=excluded.subject_id,
+            observer_role=excluded.observer_role,
+            confidence=excluded.confidence,
+            status=excluded.status,
+            summary=excluded.summary,
+            detail=excluded.detail,
+            metadata=excluded.metadata,
+            updated_at=excluded.updated_at
+        """,
+        (
+            natural_key,
+            kind,
+            scope,
+            scope_id,
+            feature_slug,
+            subject_type,
+            subject_id,
+            observer_role,
+            confidence,
+            status,
+            summary,
+            detail,
+            json.dumps(metadata or {}, sort_keys=True, separators=(",", ":")),
+            now,
+            now,
+        ),
+    )
+    row = conn.execute(
+        "SELECT id FROM observations WHERE natural_key = ?",
+        (natural_key,),
+    ).fetchone()
+    return int(row["id"]) if row is not None else 0
+
+
+def replace_observation_sources(
+    conn: sqlite3.Connection,
+    observation_id: int,
+    sources: list[dict[str, str]] | None,
+) -> None:
+    conn.execute("DELETE FROM observation_sources WHERE observation_id = ?", (observation_id,))
+    now = _now()
+    for source in sources or []:
+        kind = str(source.get("source_kind", "")).strip()
+        if not kind:
+            continue
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO observation_sources (
+                observation_id, source_kind, source_ref, source_path, created_at
+            ) VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                observation_id,
+                kind,
+                str(source.get("source_ref", "")).strip(),
+                str(source.get("source_path", "")).strip(),
+                now,
+            ),
+        )
+
+
+def list_observations(
+    conn: sqlite3.Connection,
+    *,
+    feature_slug: str | None = None,
+    statuses: set[str] | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    if feature_slug:
+        clauses.append("feature_slug = ?")
+        params.append(feature_slug)
+    if statuses:
+        placeholders = ",".join("?" for _ in statuses)
+        clauses.append(f"status IN ({placeholders})")
+        params.extend(sorted(statuses))
+    where = " AND ".join(clauses) if clauses else "1=1"
+    params.append(limit)
+    rows = conn.execute(
+        f"SELECT * FROM observations WHERE {where} ORDER BY updated_at DESC, id DESC LIMIT ?",  # noqa: S608
+        params,
+    ).fetchall()
+    return [
+        {
+            "id": int(row["id"]),
+            "naturalKey": row["natural_key"],
+            "kind": row["kind"],
+            "scope": row["scope"],
+            "scopeId": row["scope_id"],
+            "featureSlug": row["feature_slug"] or "",
+            "subjectType": row["subject_type"] or "",
+            "subjectId": row["subject_id"] or "",
+            "observerRole": row["observer_role"] or "",
+            "confidence": row["confidence"] or "derived",
+            "status": row["status"] or "active",
+            "summary": row["summary"],
+            "detail": row["detail"] or "",
+            "metadata": _parse_json(row["metadata"]),
+            "updatedAt": row["updated_at"],
+        }
+        for row in rows
+    ]
+
+
+def upsert_contradiction(
+    conn: sqlite3.Connection,
+    *,
+    contradiction_key: str,
+    feature_slug: str = "",
+    scope: str = "",
+    subject_id: str = "",
+    kind: str,
+    summary: str,
+    left_observation_id: int = 0,
+    right_observation_id: int = 0,
+    metadata: dict[str, Any] | None = None,
+    status: str = "open",
+) -> int:
+    now = _now()
+    conn.execute(
+        """
+        INSERT INTO contradictions (
+            contradiction_key, feature_slug, scope, subject_id, kind, status,
+            summary, left_observation_id, right_observation_id, metadata,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(contradiction_key) DO UPDATE SET
+            feature_slug=excluded.feature_slug,
+            scope=excluded.scope,
+            subject_id=excluded.subject_id,
+            kind=excluded.kind,
+            status=excluded.status,
+            summary=excluded.summary,
+            left_observation_id=excluded.left_observation_id,
+            right_observation_id=excluded.right_observation_id,
+            metadata=excluded.metadata,
+            updated_at=excluded.updated_at
+        """,
+        (
+            contradiction_key,
+            feature_slug,
+            scope,
+            subject_id,
+            kind,
+            status,
+            summary,
+            left_observation_id,
+            right_observation_id,
+            json.dumps(metadata or {}, sort_keys=True, separators=(",", ":")),
+            now,
+            now,
+        ),
+    )
+    row = conn.execute(
+        "SELECT id FROM contradictions WHERE contradiction_key = ?",
+        (contradiction_key,),
+    ).fetchone()
+    return int(row["id"]) if row is not None else 0
+
+
+def resolve_contradiction(conn: sqlite3.Connection, contradiction_key: str) -> None:
+    conn.execute(
+        "UPDATE contradictions SET status = 'resolved', updated_at = ? WHERE contradiction_key = ?",
+        (_now(), contradiction_key),
+    )
+
+
+def list_contradictions(
+    conn: sqlite3.Connection,
+    *,
+    feature_slug: str | None = None,
+    status: str = "open",
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    clauses = ["status = ?"]
+    params: list[Any] = [status]
+    if feature_slug:
+        clauses.append("feature_slug = ?")
+        params.append(feature_slug)
+    params.append(limit)
+    rows = conn.execute(
+        f"SELECT * FROM contradictions WHERE {' AND '.join(clauses)} ORDER BY updated_at DESC, id DESC LIMIT ?",  # noqa: S608
+        params,
+    ).fetchall()
+    return [
+        {
+            "id": int(row["id"]),
+            "key": row["contradiction_key"],
+            "featureSlug": row["feature_slug"] or "",
+            "scope": row["scope"] or "",
+            "subjectId": row["subject_id"] or "",
+            "kind": row["kind"],
+            "status": row["status"] or "open",
+            "summary": row["summary"],
+            "metadata": _parse_json(row["metadata"]),
+            "updatedAt": row["updated_at"],
+        }
+        for row in rows
+    ]
+
+
+def upsert_card(
+    conn: sqlite3.Connection,
+    *,
+    scope: str,
+    scope_id: str,
+    card_kind: str,
+    summary: str,
+    content: str = "",
+    metadata: dict[str, Any] | None = None,
+) -> int:
+    now = _now()
+    conn.execute(
+        """
+        INSERT INTO cards (scope, scope_id, card_kind, summary, content, metadata, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(scope, scope_id, card_kind) DO UPDATE SET
+            summary=excluded.summary,
+            content=excluded.content,
+            metadata=excluded.metadata,
+            updated_at=excluded.updated_at
+        """,
+        (
+            scope,
+            scope_id,
+            card_kind,
+            summary,
+            content,
+            json.dumps(metadata or {}, sort_keys=True, separators=(",", ":")),
+            now,
+        ),
+    )
+    row = conn.execute(
+        "SELECT id FROM cards WHERE scope = ? AND scope_id = ? AND card_kind = ?",
+        (scope, scope_id, card_kind),
+    ).fetchone()
+    return int(row["id"]) if row is not None else 0
+
+
+def list_cards(
+    conn: sqlite3.Connection,
+    *,
+    scope: str | None = None,
+    scope_id: str | None = None,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    if scope:
+        clauses.append("scope = ?")
+        params.append(scope)
+    if scope_id:
+        clauses.append("scope_id = ?")
+        params.append(scope_id)
+    where = " AND ".join(clauses) if clauses else "1=1"
+    params.append(limit)
+    rows = conn.execute(
+        f"SELECT * FROM cards WHERE {where} ORDER BY updated_at DESC, id DESC LIMIT ?",  # noqa: S608
+        params,
+    ).fetchall()
+    return [
+        {
+            "id": int(row["id"]),
+            "scope": row["scope"],
+            "scopeId": row["scope_id"],
+            "cardKind": row["card_kind"],
+            "summary": row["summary"],
+            "content": row["content"] or "",
+            "metadata": _parse_json(row["metadata"]),
+            "updatedAt": row["updated_at"],
+        }
+        for row in rows
+    ]
 
 
 # ---------------------------------------------------------------------------

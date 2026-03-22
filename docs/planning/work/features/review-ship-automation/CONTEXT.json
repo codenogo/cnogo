@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "feature": "review-ship-automation",
+  "timestamp": "2026-03-22T11:00:00Z",
+  "decisions": [
+    {
+      "area": "auto-review-depth",
+      "decision": "Auto-review generates REVIEW.json with automated verdict and auto-completes both stages. No reviewer agents spawned.",
+      "rationale": "write_review() already computes automated verdict from checks+invariants. Spawning agents is a team-mode concern, not a dispatcher concern."
+    },
+    {
+      "area": "auto-ship-boundary",
+      "decision": "Auto-ship prepares draft and transitions to in_progress but does NOT execute git operations",
+      "rationale": "Git safety — auto-committing/pushing without explicit operator confirmation is too risky. Draft stored in automation state for next operator."
+    },
+    {
+      "area": "post-ship-cleanup",
+      "decision": "Best-effort patrol finding, not a completion gate",
+      "rationale": "Ship completion is the real milestone. Blocking on cleanup creates friction without safety benefit."
+    },
+    {
+      "area": "dispatcher-extension-pattern",
+      "decision": "Follow the same scan-check-call-sync-report pattern used for auto-plan",
+      "rationale": "Proven pattern, consistent return payload, testable in isolation"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "No new dependencies",
+    "106+ tests must stay green",
+    "Profile gating must be respected"
+  ],
+  "relatedCode": [
+    ".cnogo/scripts/workflow/orchestration/dispatcher.py",
+    ".cnogo/scripts/workflow/orchestration/work_order.py",
+    ".cnogo/scripts/workflow/orchestration/watch.py",
+    ".cnogo/scripts/workflow/orchestration/review.py",
+    ".cnogo/scripts/workflow/orchestration/ship.py",
+    ".cnogo/scripts/workflow/orchestration/ship_draft.py",
+    ".cnogo/scripts/workflow/checks/review.py",
+    ".cnogo/scripts/workflow/shared/profiles.py"
+  ],
+  "shapeFeedback": []
+}

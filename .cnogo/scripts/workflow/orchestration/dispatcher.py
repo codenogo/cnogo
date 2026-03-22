@@ -1,0 +1,664 @@
+"""Ready-feature dispatch and shape feedback synchronization."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any
+
+from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
+from scripts.workflow.shared.runtime_root import runtime_path
+
+from .lane import (
+    ensure_feature_lane,
+    feature_lane_payload,
+    heartbeat_feature_lane,
+    list_feature_lanes,
+    load_feature_lane,
+    reclaim_stale_feature_lanes,
+)
+from .delivery_run import latest_delivery_run, save_delivery_run
+from .plan_factory import auto_plan_feature, resolve_feature_plan_policy
+from .review import (
+    set_review_stage,
+    set_review_verdict,
+    start_review,
+    sync_review_state,
+)
+from .ship import start_ship, sync_ship_state
+from .watch_artifacts import load_attention_queue
+from .work_order import WorkOrder, sync_all_work_orders, sync_work_order
+
+
+def _read_json(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _feature_context(root: Path, feature: str) -> dict[str, Any]:
+    feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    payload = _read_json(feature_dir / "CONTEXT.json")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _feature_stub(root: Path, feature: str) -> dict[str, Any]:
+    feature_dir = root / "docs" / "planning" / "work" / "features" / feature
+    payload = _read_json(feature_dir / "FEATURE.json")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _priority(root: Path, feature: str) -> int:
+    stub = _feature_stub(root, feature)
+    priority = stub.get("priority", 2)
+    return priority if isinstance(priority, int) and not isinstance(priority, bool) else 2
+
+
+def _dependencies(root: Path, feature: str) -> list[str]:
+    stub = _feature_stub(root, feature)
+    deps = stub.get("dependencies", [])
+    if not isinstance(deps, list):
+        return []
+    return [str(dep).strip() for dep in deps if isinstance(dep, str) and str(dep).strip()]
+
+
+def _sequence_index(root: Path, feature: str) -> int:
+    stub = _feature_stub(root, feature)
+    parent_shape = stub.get("parentShape")
+    if not isinstance(parent_shape, dict):
+        return 10_000
+    raw_path = parent_shape.get("path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return 10_000
+    shape_path = Path(raw_path.strip())
+    if not shape_path.is_absolute():
+        shape_path = root / shape_path
+    shape = _read_json(shape_path)
+    if not isinstance(shape, dict):
+        return 10_000
+    sequence = shape.get("recommendedSequence", [])
+    if not isinstance(sequence, list):
+        return 10_000
+    try:
+        return [str(value).strip() for value in sequence].index(feature)
+    except ValueError:
+        return 10_000
+
+
+def _dependencies_satisfied(root: Path, feature: str, orders_by_feature: dict[str, WorkOrder]) -> tuple[bool, list[str]]:
+    unresolved: list[str] = []
+    for dependency in _dependencies(root, feature):
+        order = orders_by_feature.get(dependency)
+        if order is None or order.status != "completed":
+            unresolved.append(dependency)
+    return not unresolved, unresolved
+
+
+def _context_overlap(root: Path, feature: str, other_feature: str) -> bool:
+    current = _feature_context(root, feature).get("relatedCode", [])
+    other = _feature_context(root, other_feature).get("relatedCode", [])
+    if not isinstance(current, list) or not isinstance(other, list):
+        return False
+    current_set = {str(value).strip() for value in current if isinstance(value, str) and str(value).strip()}
+    other_set = {str(value).strip() for value in other if isinstance(value, str) and str(value).strip()}
+    return bool(current_set.intersection(other_set))
+
+
+def _planning_root_for_lane(root: Path, feature: str) -> Path:
+    lane = load_feature_lane(root, feature)
+    if lane is None:
+        return root
+    worktree_path = str(getattr(lane, "worktree_path", "")).strip()
+    if not worktree_path:
+        return root
+    candidate = Path(worktree_path)
+    return candidate if candidate.exists() else root
+
+
+def _autoplan_candidates(root: Path, *, feature_filter: str | None = None) -> list[str]:
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for lane in list_feature_lanes(root, feature_filter=feature_filter):
+        if lane.feature in seen:
+            continue
+        if lane.status not in {"leased", "planning"}:
+            continue
+        if getattr(lane, "current_run_id", ""):
+            continue
+        seen.add(lane.feature)
+        candidates.append(lane.feature)
+    return candidates
+
+
+def _attempt_auto_plan(
+    root: Path,
+    *,
+    feature: str,
+    lease_owner: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    planning_root = _planning_root_for_lane(root, feature)
+    lane = load_feature_lane(root, feature)
+    lane_id = str(getattr(lane, "lane_id", "") or "")
+    try:
+        policy = resolve_feature_plan_policy(planning_root, feature=feature)
+    except Exception as exc:
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        sync_work_order(root, feature)
+        return (
+            None,
+            None,
+            {
+                "feature": feature,
+                "laneId": lane_id,
+                "planningRoot": str(planning_root),
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+    profile = policy.get("profile", {}) if isinstance(policy.get("profile"), dict) else {}
+    profile_name = str(profile.get("name", "")).strip()
+    if not bool(policy.get("autoPlanAllowed")):
+        sync_work_order(root, feature)
+        return (
+            None,
+            {
+                "feature": feature,
+                "laneId": lane_id,
+                "planningRoot": str(planning_root),
+                "profile": profile_name,
+                "reason": "profile_auto_plan_disabled",
+            },
+            None,
+        )
+    try:
+        payload = auto_plan_feature(
+            planning_root,
+            feature=feature,
+            start_run=bool(policy.get("autoAdvanceAllowed")),
+        )
+        sync_work_order(root, feature)
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            payload["lane"] = feature_lane_payload(root, lane)
+        payload["laneId"] = lane_id
+        payload["planningRoot"] = str(planning_root)
+        payload["feature"] = feature
+        return payload, None, None
+    except Exception as exc:
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
+        sync_work_order(root, feature)
+        return (
+            None,
+            None,
+            {
+                "feature": feature,
+                "laneId": lane_id,
+                "planningRoot": str(planning_root),
+                "profile": profile_name,
+                "error": f"{type(exc).__name__}: {exc}",
+            },
+        )
+
+
+def _autoreview_candidates(root: Path, *, feature_filter: str | None = None) -> list[str]:
+    """Find lanes whose latest run is ready for review but has no verdict yet."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for lane in list_feature_lanes(root, feature_filter=feature_filter):
+        if lane.feature in seen:
+            continue
+        if lane.status not in {"implementing", "reviewing"}:
+            continue
+        run = latest_delivery_run(root, lane.feature)
+        if run is None:
+            continue
+        review_readiness = run.review_readiness if isinstance(getattr(run, "review_readiness", None), dict) else {}
+        review = run.review if isinstance(getattr(run, "review", None), dict) else {}
+        if str(review_readiness.get("status", "")).strip() != "ready":
+            continue
+        if str(review.get("finalVerdict", "pending")).strip() != "pending":
+            continue
+        seen.add(lane.feature)
+        candidates.append(lane.feature)
+    return candidates
+
+
+def _attempt_auto_review(
+    root: Path,
+    *,
+    feature: str,
+    lease_owner: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    """Auto-review a feature if profile allows. Returns (success, skipped, error)."""
+    from scripts.workflow.shared.profiles import profile_auto_review, resolve_profile  # noqa: lazy
+
+    run = latest_delivery_run(root, feature)
+    if run is None:
+        return None, None, {"feature": feature, "error": "no delivery run found"}
+    run_profile = run.profile if isinstance(getattr(run, "profile", None), dict) else {}
+    if not run_profile:
+        try:
+            run_profile = resolve_profile(root, profile_name=None) or {}
+        except Exception:
+            run_profile = {}
+    if not profile_auto_review(run_profile):
+        return (
+            None,
+            {"feature": feature, "reason": "profile_auto_review_disabled"},
+            None,
+        )
+    try:
+        # Start the review with automated verdict = pass (plan verify already passed).
+        start_review(run, automated_verdict="pass", note="Auto-review by dispatcher")
+        # Auto-complete both stages.
+        for stage_name in ("spec-compliance", "code-quality"):
+            set_review_stage(
+                run,
+                stage=stage_name,
+                status="pass",
+                findings=[],
+                evidence=["Automated pass from plan verification"],
+                notes=["Auto-completed by dispatcher — profile allows autoReview"],
+            )
+        # Set final verdict.
+        set_review_verdict(run, verdict="pass", note="Auto-verdict by dispatcher")
+        # Advance lane status.
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="reviewing", lease_owner=lease_owner)
+        save_delivery_run(run, root)
+        sync_work_order(root, feature)
+        return (
+            {
+                "feature": feature,
+                "automatedVerdict": "pass",
+                "finalVerdict": "pass",
+                "runId": str(getattr(run, "run_id", "")),
+            },
+            None,
+            None,
+        )
+    except Exception as exc:
+        sync_work_order(root, feature)
+        return (
+            None,
+            None,
+            {"feature": feature, "error": f"{type(exc).__name__}: {exc}"},
+        )
+
+
+def _autoship_candidates(root: Path, *, feature_filter: str | None = None) -> list[str]:
+    """Find lanes whose latest run has ship.status == ready."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for lane in list_feature_lanes(root, feature_filter=feature_filter):
+        if lane.feature in seen:
+            continue
+        if lane.status not in {"reviewing", "shipping"}:
+            continue
+        run = latest_delivery_run(root, lane.feature)
+        if run is None:
+            continue
+        ship = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
+        if str(ship.get("status", "")).strip() != "ready":
+            continue
+        seen.add(lane.feature)
+        candidates.append(lane.feature)
+    return candidates
+
+
+def _attempt_auto_ship(
+    root: Path,
+    *,
+    feature: str,
+    lease_owner: str,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
+    """Auto-start ship for a feature if profile allows. Returns (success, skipped, error)."""
+    from scripts.workflow.shared.profiles import profile_auto_ship, resolve_profile  # noqa: lazy
+
+    run = latest_delivery_run(root, feature)
+    if run is None:
+        return None, None, {"feature": feature, "error": "no delivery run found"}
+    run_profile = run.profile if isinstance(getattr(run, "profile", None), dict) else {}
+    if not run_profile:
+        try:
+            run_profile = resolve_profile(root, profile_name=None) or {}
+        except Exception:
+            run_profile = {}
+    if not profile_auto_ship(run_profile):
+        return (
+            None,
+            {"feature": feature, "reason": "profile_auto_ship_disabled"},
+            None,
+        )
+    try:
+        start_ship(run, note="Auto-ship started by dispatcher")
+        # Advance lane status.
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            heartbeat_feature_lane(root, feature, status="shipping", lease_owner=lease_owner)
+        save_delivery_run(run, root)
+        # Build ship draft (best-effort — failure here should not block ship start).
+        draft: dict[str, Any] | None = None
+        try:
+            from .ship_draft import build_ship_draft
+            draft = build_ship_draft(root, feature)
+        except Exception:
+            pass
+        sync_work_order(root, feature)
+        payload: dict[str, Any] = {
+            "feature": feature,
+            "runId": str(getattr(run, "run_id", "")),
+            "shipStatus": "in_progress",
+        }
+        if draft is not None:
+            payload["draft"] = draft
+        return payload, None, None
+    except Exception as exc:
+        sync_work_order(root, feature)
+        return (
+            None,
+            None,
+            {"feature": feature, "error": f"{type(exc).__name__}: {exc}"},
+        )
+
+
+def dispatch_ready_work(
+    root: Path,
+    *,
+    feature_filter: str | None = None,
+    lease_owner: str = "dispatcher",
+) -> dict[str, Any]:
+    cfg = load_workflow_config(root)
+    settings = dispatcher_settings_cfg(cfg)
+    if not settings["enabled"]:
+        return {
+            "enabled": False,
+            "autonomy": settings["autonomy"],
+            "defaultWipLimit": settings["defaultWipLimit"],
+            "leaseTimeoutMinutes": settings["leaseTimeoutMinutes"],
+            "leased": [],
+            "autoPlanned": [],
+            "autoPlanSkipped": [],
+            "planErrors": [],
+            "reclaimed": [],
+            "skipped": [{"feature": feature_filter, "reason": "dispatcher_disabled"}] if feature_filter else [],
+            "activeLaneCount": len(list_feature_lanes(root)),
+        }
+    reclaimed = reclaim_stale_feature_lanes(root, lease_owner=lease_owner)
+    for entry in reclaimed:
+        feature = str(entry.get("feature", "")).strip()
+        if feature:
+            sync_work_order(root, feature)
+    orders = sync_all_work_orders(root, feature_filter=feature_filter)
+    orders_by_feature = {order.feature: order for order in orders}
+    active_lanes = list_feature_lanes(root)
+    active_features = {lane.feature for lane in active_lanes}
+    available_slots = max(int(settings["defaultWipLimit"]) - len(active_lanes), 0)
+    queued_orders = [order for order in orders if order.status == "queued"]
+    queued_orders.sort(
+        key=lambda order: (
+            _priority(root, order.feature),
+            _sequence_index(root, order.feature),
+            order.updated_at,
+            order.feature,
+        )
+    )
+
+    leased_features: list[str] = []
+    skipped: list[dict[str, Any]] = []
+    for order in queued_orders:
+        if available_slots <= 0:
+            skipped.append({"feature": order.feature, "reason": "wip_limit_reached"})
+            continue
+        if order.feature in active_features:
+            skipped.append({"feature": order.feature, "reason": "already_active"})
+            continue
+        deps_ok, unresolved = _dependencies_satisfied(root, order.feature, orders_by_feature)
+        if not deps_ok:
+            skipped.append({"feature": order.feature, "reason": "dependencies_unresolved", "dependencies": unresolved})
+            continue
+        if settings["overlapPolicy"] == "block":
+            overlapping = sorted(
+                active_feature for active_feature in active_features if _context_overlap(root, order.feature, active_feature)
+            )
+            if overlapping:
+                skipped.append({"feature": order.feature, "reason": "overlap_blocked", "overlaps": overlapping})
+                continue
+
+        lane = ensure_feature_lane(
+            root,
+            feature=order.feature,
+            work_order_id=order.work_order_id or order.feature,
+            lease_owner=lease_owner,
+            status="leased",
+        )
+        sync_work_order(root, order.feature)
+        active_features.add(order.feature)
+        available_slots -= 1
+        leased_features.append(lane.feature)
+
+    auto_planned: list[dict[str, Any]] = []
+    auto_plan_skipped: list[dict[str, Any]] = []
+    plan_errors: list[dict[str, Any]] = []
+    if str(settings.get("autonomy", "")).strip() == "high":
+        for feature in _autoplan_candidates(root, feature_filter=feature_filter):
+            planned, skipped_plan, error = _attempt_auto_plan(root, feature=feature, lease_owner=lease_owner)
+            if planned is not None:
+                auto_planned.append(planned)
+            if skipped_plan is not None:
+                auto_plan_skipped.append(skipped_plan)
+            if error is not None:
+                plan_errors.append(error)
+
+    # --- Auto-review ---
+    auto_reviewed: list[dict[str, Any]] = []
+    auto_review_skipped: list[dict[str, Any]] = []
+    review_errors: list[dict[str, Any]] = []
+    if str(settings.get("autonomy", "")).strip() == "high":
+        for feature in _autoreview_candidates(root, feature_filter=feature_filter):
+            reviewed, skipped_review, error = _attempt_auto_review(root, feature=feature, lease_owner=lease_owner)
+            if reviewed is not None:
+                auto_reviewed.append(reviewed)
+            if skipped_review is not None:
+                auto_review_skipped.append(skipped_review)
+            if error is not None:
+                review_errors.append(error)
+
+    # --- Auto-ship ---
+    auto_ship_started: list[dict[str, Any]] = []
+    auto_ship_skipped: list[dict[str, Any]] = []
+    ship_errors: list[dict[str, Any]] = []
+    if str(settings.get("autonomy", "")).strip() == "high":
+        for feature in _autoship_candidates(root, feature_filter=feature_filter):
+            shipped, skipped_ship, error = _attempt_auto_ship(root, feature=feature, lease_owner=lease_owner)
+            if shipped is not None:
+                auto_ship_started.append(shipped)
+            if skipped_ship is not None:
+                auto_ship_skipped.append(skipped_ship)
+            if error is not None:
+                ship_errors.append(error)
+
+    leased: list[dict[str, Any]] = []
+    for feature in leased_features:
+        lane = load_feature_lane(root, feature)
+        if lane is not None:
+            leased.append(feature_lane_payload(root, lane))
+
+    return {
+        "enabled": settings["enabled"],
+        "autonomy": settings["autonomy"],
+        "defaultWipLimit": settings["defaultWipLimit"],
+        "leaseTimeoutMinutes": settings["leaseTimeoutMinutes"],
+        "leased": leased,
+        "autoPlanned": auto_planned,
+        "autoPlanSkipped": auto_plan_skipped,
+        "planErrors": plan_errors,
+        "autoReviewed": auto_reviewed,
+        "autoReviewSkipped": auto_review_skipped,
+        "reviewErrors": review_errors,
+        "autoShipStarted": auto_ship_started,
+        "autoShipSkipped": auto_ship_skipped,
+        "shipErrors": ship_errors,
+        "reclaimed": reclaimed,
+        "skipped": skipped,
+        "activeLaneCount": len(list_feature_lanes(root)),
+    }
+
+
+def sync_shape_feedback(
+    root: Path,
+    *,
+    feature_filter: str | None = None,
+) -> dict[str, Any]:
+    updated_shapes: list[dict[str, Any]] = []
+    features_root = root / "docs" / "planning" / "work" / "features"
+    if not features_root.is_dir():
+        return {"updatedShapes": [], "itemsAdded": 0}
+
+    attention_queue = load_attention_queue(root) or {}
+    attention_items = [
+        dict(item)
+        for item in attention_queue.get("items", [])
+        if isinstance(item, dict)
+    ] if isinstance(attention_queue, dict) else []
+    grouped: dict[Path, list[dict[str, Any]]] = {}
+    for feature_dir in sorted(path for path in features_root.iterdir() if path.is_dir()):
+        feature = feature_dir.name
+        if feature_filter and feature != feature_filter:
+            continue
+        context = _read_json(feature_dir / "CONTEXT.json")
+        if not isinstance(context, dict):
+            continue
+        parent_shape = context.get("parentShape")
+        if not isinstance(parent_shape, dict):
+            continue
+        raw_path = parent_shape.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        shape_path = Path(raw_path.strip())
+        if not shape_path.is_absolute():
+            shape_path = root / shape_path
+        if not shape_path.exists():
+            continue
+
+        items: list[dict[str, Any]] = []
+        work_order = _read_json(runtime_path(root, "work-orders", f"{feature}.json")) or {}
+        for entry in context.get("shapeFeedback", []) if isinstance(context.get("shapeFeedback"), list) else []:
+            if isinstance(entry, dict) and isinstance(entry.get("summary"), str) and entry.get("summary", "").strip():
+                item = dict(entry)
+                item["sourceFeature"] = feature
+                item.setdefault("kind", "shape_feedback")
+                items.append(item)
+            elif isinstance(entry, str) and entry.strip():
+                items.append({"summary": entry.strip(), "sourceFeature": feature, "kind": "shape_feedback"})
+
+        review = _read_json(feature_dir / "REVIEW.json")
+        if isinstance(review, dict):
+            verdict = str(review.get("verdict", "pending")).strip()
+            if verdict in {"warn", "fail"}:
+                items.append(
+                    {
+                        "summary": f"Review verdict for {feature} is {verdict}.",
+                        "sourceFeature": feature,
+                        "kind": "review_verdict",
+                    }
+                )
+
+        for attention in attention_items:
+            if str(attention.get("feature", "")).strip() != feature:
+                continue
+            message = str(attention.get("message", "")).strip()
+            if not message:
+                continue
+            items.append(
+                {
+                    "summary": message,
+                    "sourceFeature": feature,
+                    "kind": "patrol_attention",
+                    "severity": str(attention.get("severity", "warn")).strip() or "warn",
+                    "nextAction": str(attention.get("nextAction", "")).strip(),
+                }
+            )
+
+        ship_summary = work_order.get("shipSummary")
+        if isinstance(ship_summary, dict) and str(ship_summary.get("status", "")).strip() == "failed":
+            last_error = str(ship_summary.get("lastError", "")).strip()
+            summary = f"Ship failed for {feature}."
+            if last_error:
+                summary = f"{summary} {last_error}"
+            items.append(
+                {
+                    "summary": summary,
+                    "sourceFeature": feature,
+                    "kind": "ship_failure",
+                }
+            )
+
+        from scripts.memory import runtime as _mem_rt, storage as _mem_st  # noqa: lazy to break circular import
+        if _mem_rt.db_path(root).exists():
+            conn = _mem_rt.conn(root)
+            try:
+                contradictions = _mem_st.list_contradictions(
+                    conn,
+                    feature_slug=feature,
+                    status="open",
+                    limit=5,
+                )
+            finally:
+                conn.close()
+            for contradiction in contradictions:
+                summary = str(contradiction.get("summary", "")).strip()
+                if not summary:
+                    continue
+                items.append(
+                    {
+                        "summary": summary,
+                        "sourceFeature": feature,
+                        "kind": "contradiction",
+                    }
+                )
+
+        if items:
+            grouped.setdefault(shape_path, []).extend(items)
+
+    total_added = 0
+    for shape_path, items in grouped.items():
+        shape = _read_json(shape_path)
+        if not isinstance(shape, dict):
+            continue
+        inbox = shape.get("feedbackInbox")
+        if not isinstance(inbox, list):
+            inbox = []
+        existing_keys = {
+            (
+                str(entry.get("summary", "")).strip(),
+                str(entry.get("sourceFeature", "")).strip(),
+                str(entry.get("kind", "")).strip(),
+            )
+            for entry in inbox
+            if isinstance(entry, dict)
+        }
+        added = 0
+        for item in items:
+            key = (
+                str(item.get("summary", "")).strip(),
+                str(item.get("sourceFeature", "")).strip(),
+                str(item.get("kind", "")).strip(),
+            )
+            if key in existing_keys:
+                continue
+            existing_keys.add(key)
+            inbox.append(item)
+            added += 1
+        if added:
+            shape["feedbackInbox"] = inbox
+            shape_path.write_text(json.dumps(shape, indent=2) + "\n", encoding="utf-8")
+            total_added += added
+            updated_shapes.append({"shapePath": str(shape_path), "itemsAdded": added})
+    return {"updatedShapes": updated_shapes, "itemsAdded": total_added}

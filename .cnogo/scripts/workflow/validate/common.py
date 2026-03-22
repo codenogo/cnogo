@@ -6,11 +6,13 @@ import re
 from pathlib import Path
 from typing import Any, Iterable
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 FEATURE_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 QUICK_DIR_RE = re.compile(r"^[0-9]{3}-[a-z0-9]+(?:-[a-z0-9]+)*$")
 PLAN_MD_RE = re.compile(r"^(?P<num>[0-9]{2})-PLAN\.md$")
 SUMMARY_MD_RE = re.compile(r"^(?P<num>[0-9]{2})-SUMMARY\.md$")
-SHAPE_CANDIDATE_STATUSES = {"draft", "discuss-ready", "blocked", "parked"}
+SHAPE_CANDIDATE_STATUSES = {"draft", "ready", "blocked", "parked"}
 
 
 def is_positive_int(val: Any, *, allow_zero: bool = False) -> bool:
@@ -25,8 +27,8 @@ def require(path: Path, findings: list[Any], msg: str, *, finding_type: Any) -> 
 
 def validate_memory_runtime(root: Path, findings: list[Any], *, finding_type: Any) -> None:
     """Treat tracked memory sync data as sufficient for source validation."""
-    memory_db = root / ".cnogo" / "memory.db"
-    issues_jsonl = root / ".cnogo" / "issues.jsonl"
+    memory_db = runtime_path(root, "memory.db")
+    issues_jsonl = runtime_path(root, "issues.jsonl")
     if memory_db.exists() or issues_jsonl.exists():
         return
     findings.append(

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "feature": "lifecycle-auto-advance",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/control-plane-consolidation/SHAPE.json",
+    "timestamp": "2026-03-22T10:00:00Z"
+  },
+  "displayName": "Lifecycle Auto-Advance",
+  "userOutcome": "Phase truth is always consistent with work order status. No manual phase-set needed.",
+  "scopeSummary": "Wire set_feature_phase() into sync_work_order() using _phase_from_status(). Add patrol phase consistency check. Migrate /review and /ship to read work order status first. Deprecate manual phase-set.",
+  "dependencies": [],
+  "risks": [
+    "Backward phase transition warnings during auto-sync on work order regression",
+    "Phase-gated commands may need updated to read work order status"
+  ],
+  "priority": 0,
+  "status": "ready",
+  "readinessReason": "All dependencies met. Scope clear. No blocking open questions.",
+  "handoffSummary": "Wire set_feature_phase() into sync_work_order() via _phase_from_status(). Add patrol check for phase/status divergence. Update /review and /ship to read work order status as primary, phase as fallback. Mark manual phase-set as deprecated.",
+  "timestamp": "2026-03-22T10:00:00Z"
+}

@@ -17,6 +17,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 from . import storage as _st
 from .graph import rebuild_blocked_cache
 from .models import Dependency, Event
@@ -62,8 +64,8 @@ def export_jsonl(root: Path) -> Path:
     events inlined. Sorted by ID for stable, merge-friendly diffs.
     Returns the path to the JSONL file.
     """
-    db_path = root / _CNOGO_DIR / _DB_NAME
-    jsonl_path = root / _CNOGO_DIR / _JSONL_NAME
+    db_path = runtime_path(root, _DB_NAME)
+    jsonl_path = runtime_path(root, _JSONL_NAME)
 
     conn = _st.connect(db_path)
     try:
@@ -112,8 +114,8 @@ def import_jsonl(root: Path) -> int:
     Upserts issues, recreates deps/labels/events, rebuilds blocked cache.
     Returns count of issues imported.
     """
-    db_path = root / _CNOGO_DIR / _DB_NAME
-    jsonl_path = root / _CNOGO_DIR / _JSONL_NAME
+    db_path = runtime_path(root, _DB_NAME)
+    jsonl_path = runtime_path(root, _JSONL_NAME)
 
     if not jsonl_path.exists():
         return 0

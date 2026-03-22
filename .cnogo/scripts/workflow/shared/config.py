@@ -53,6 +53,14 @@ DEFAULT_SCHEDULER_SETTINGS = {
     ],
 }
 
+DEFAULT_DISPATCHER_SETTINGS = {
+    "enabled": True,
+    "defaultWipLimit": 2,
+    "overlapPolicy": "allow",
+    "autonomy": "high",
+    "leaseTimeoutMinutes": 45,
+}
+
 
 def _is_positive_int(val: Any, *, allow_zero: bool = False) -> bool:
     return isinstance(val, int) and not isinstance(val, bool) and (val >= 0 if allow_zero else val > 0)
@@ -209,6 +217,30 @@ def scheduler_settings_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
             parsed.append(command)
         if parsed:
             out["opportunisticCommands"] = parsed
+    return out
+
+
+def dispatcher_settings_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
+    raw = cfg.get("dispatcher")
+    if not isinstance(raw, dict):
+        return dict(DEFAULT_DISPATCHER_SETTINGS)
+
+    out = dict(DEFAULT_DISPATCHER_SETTINGS)
+    enabled = raw.get("enabled")
+    if isinstance(enabled, bool):
+        out["enabled"] = enabled
+    wip = raw.get("defaultWipLimit")
+    if _is_positive_int(wip):
+        out["defaultWipLimit"] = wip
+    overlap = raw.get("overlapPolicy")
+    if overlap in {"allow", "block"}:
+        out["overlapPolicy"] = overlap
+    autonomy = raw.get("autonomy")
+    if autonomy in {"low", "medium", "high"}:
+        out["autonomy"] = autonomy
+    lease_timeout = raw.get("leaseTimeoutMinutes")
+    if _is_positive_int(lease_timeout):
+        out["leaseTimeoutMinutes"] = lease_timeout
     return out
 
 

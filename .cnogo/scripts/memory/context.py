@@ -11,6 +11,8 @@ import json
 import re
 from pathlib import Path
 
+from scripts.workflow.shared.runtime_root import runtime_path
+
 from . import storage as _st
 
 _CNOGO_DIR = ".cnogo"
@@ -19,7 +21,7 @@ _DB_NAME = "memory.db"
 
 def _conn(root: Path | None = None):  # noqa: ANN202
     r = root or Path(".")
-    return _st.connect(r / _CNOGO_DIR / _DB_NAME)
+    return _st.connect(runtime_path(r, _DB_NAME))
 
 
 def _truncate(text: str, limit: int) -> str:
@@ -53,7 +55,7 @@ def _latest_plan_json(root: Path, feature_slug: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _pick_feature_slug(conn, explicit_feature: str | None) -> str:
+def _pick_feature_slug(conn, explicit_feature: str | None, *, root: Path | None = None) -> str:
     if explicit_feature:
         return explicit_feature
     active = _st.list_issues_query(conn, status="in_progress", limit=50)
@@ -66,6 +68,28 @@ def _pick_feature_slug(conn, explicit_feature: str | None) -> str:
     for issue in open_epics:
         if issue.feature_slug:
             return issue.feature_slug
+    runtime_root = root or Path(".")
+    work_orders_root = runtime_path(runtime_root, "work-orders")
+    if work_orders_root.is_dir():
+        ranked: list[tuple[int, int, str]] = []
+        for path in sorted(work_orders_root.glob("*.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(payload, dict):
+                continue
+            feature = str(payload.get("feature", path.stem)).strip() or path.stem
+            status = str(payload.get("status", "")).strip()
+            if status in {"completed", "cancelled"}:
+                continue
+            queue_position = int(payload.get("queuePosition", 0) or 0)
+            status_rank = 0 if status in {"implementing", "reviewing", "shipping", "blocked", "leased", "planning"} else 1
+            queue_rank = queue_position if queue_position > 0 else 10_000
+            ranked.append((status_rank, queue_rank, feature))
+        if ranked:
+            ranked.sort()
+            return ranked[0][2]
     return ""
 
 
@@ -85,6 +109,7 @@ def prime(
     conn = _conn(root)
     try:
         s = _st.get_stats(conn)
+        focus_feature = _pick_feature_slug(conn, None, root=root)
         in_progress = _st.list_issues_query(
             conn, status="in_progress", limit=limit
         )
@@ -102,6 +127,37 @@ def prime(
             f" {ready_count} ready, {blocked} blocked"
         )
         lines.append("")
+
+        repo_cards = _st.list_cards(conn, scope="repo", limit=1)
+        if repo_cards:
+            lines.append("### Repo Card")
+            lines.append(f"- {repo_cards[0]['summary']}")
+            lines.append("")
+
+        if focus_feature:
+            feature_cards = _st.list_cards(conn, scope="feature", scope_id=focus_feature, limit=1)
+            if feature_cards:
+                lines.append(f"### Feature Card (`{focus_feature}`)")
+                lines.append(f"- {feature_cards[0]['summary']}")
+                lines.append("")
+            contradictions = _st.list_contradictions(conn, feature_slug=focus_feature, status="open", limit=5)
+            if contradictions:
+                lines.append("### Open Contradictions")
+                for contradiction in contradictions:
+                    lines.append(f"- {contradiction['summary']}")
+                lines.append("")
+            recent_observations = [
+                item
+                for item in _st.list_observations(conn, feature_slug=focus_feature, statuses={"active"}, limit=8)
+                if item.get("kind") in {"decision", "review_finding", "verification", "blocker"}
+            ]
+            if recent_observations:
+                lines.append("### Derived Signals")
+                for observation in recent_observations[:5]:
+                    lines.append(
+                        f"- `{observation['kind']}`: {_truncate(str(observation.get('summary', '')), 140)}"
+                    )
+                lines.append("")
 
         # Active Epics
         epics = _st.list_issues_query(
@@ -192,7 +248,7 @@ def checkpoint(
     """Return a compact objective/progress checkpoint for recitation."""
     conn = _conn(root)
     try:
-        feature = _pick_feature_slug(conn, feature_slug)
+        feature = _pick_feature_slug(conn, feature_slug, root=root)
         if not feature:
             return (
                 "Checkpoint: no active feature in memory. "
@@ -221,6 +277,9 @@ def checkpoint(
             f"progress={done}/{total} done, active={len(active)}, "
             f"remaining={len(remaining)}"
         )
+        feature_cards = _st.list_cards(conn, scope="feature", scope_id=feature, limit=1)
+        if feature_cards:
+            lines.append(f"Feature Card: {_truncate(feature_cards[0]['summary'], 180)}")
         if goal:
             lines.append(f"Objective: {_truncate(goal, 180)}")
         if active:
@@ -236,6 +295,12 @@ def checkpoint(
         if verify_cmds:
             lines.append(
                 "Verify: " + "; ".join(_truncate(v, 80) for v in verify_cmds[:2])
+            )
+        contradictions = _st.list_contradictions(conn, feature_slug=feature, status="open", limit=3)
+        if contradictions:
+            lines.append(
+                "Contradictions: "
+                + "; ".join(_truncate(str(item.get("summary", "")), 90) for item in contradictions)
             )
         lines.append("Refresh: `python3 .cnogo/scripts/workflow_memory.py prime --limit 5 --verbose`")
         return "\n".join(lines)
