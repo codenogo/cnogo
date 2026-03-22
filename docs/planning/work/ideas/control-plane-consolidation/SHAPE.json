@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "initiative": "Control-Plane Consolidation",
   "slug": "control-plane-consolidation",
-  "problem": "Lifecycle truth split between old memory-phase system and new Work Order/Lane model. New model is ~92% complete but transitional seams remain: no phase auto-advance, review/ship manual where they should be automatic, memory observations not deeply used in context composition.",
+  "problem": "Lifecycle truth split between old memory-phase system and new Work Order/Lane model. Auto-review and auto-ship now shipped (PR #51). Remaining: phase auto-advance not wired, memory observations not deeply used in context composition.",
   "constraints": [
     "Python stdlib only",
     "No external services or daemons",
@@ -20,7 +20,6 @@
     "docs/planning/work/research/honcho-memory-patterns/RESEARCH.json"
   ],
   "openQuestions": [
-    "Should phase auto-advance be a side-effect of work_order_sync or a separate patrol job?",
     "How deeply should observation confidence levels gate contradiction detection?"
   ],
   "candidateFeatures": [
@@ -43,16 +42,13 @@
       "slug": "review-ship-automation",
       "displayName": "Review & Ship Automation",
       "userOutcome": "When profile allows, review starts automatically after review-readiness, and ship starts automatically after review passes. Manual gates preserved for profiles that require them.",
-      "scopeSummary": "Add auto-review and auto-ship paths to dispatcher tick. Auto-review: invoke write_review() + auto-complete stages from automated verdict when profile_auto_review=true. Auto-ship: invoke start_ship + build_ship_draft when profile_auto_ship=true and review passes. Surface profile requirements in work order automation state. Post-ship cleanup as best-effort patrol task.",
+      "scopeSummary": "Shipped in PR #51. Auto-review and auto-ship in dispatcher tick, profile policy in work order automation state, post-ship cleanup patrol finding.",
       "dependencies": [],
-      "risks": [
-        "Auto-review skips human judgment — mitigated by profile gating (only high-autonomy profiles opt in)",
-        "Auto-ship git operations (stage/commit/push) require branch safety checks"
-      ],
+      "risks": [],
       "priority": 1,
-      "status": "ready",
-      "readinessReason": "All building blocks exist: profile hooks implemented, write_review() generates automated verdict, ship_draft.py generates full draft, state machines handle transitions. Only wiring needed.",
-      "handoffSummary": "In dispatcher tick: after auto-plan, check lanes in implementing/reviewing/shipping status. For implementing lanes with review_readiness=ready and profile_auto_review=true: call write_review(), auto-complete stages, set verdict. For lanes with ship.status=ready and profile_auto_ship=true: call start_ship(), build_ship_draft(), stage results. Surface profile policy in work_order automation state. Post-ship cleanup as patrol finding."
+      "status": "parked",
+      "readinessReason": "Shipped in PR #51 on feature/ship-assistant. 112 tests passing.",
+      "handoffSummary": "Shipped. dispatcher.py: _attempt_auto_review(), _attempt_auto_ship(). work_order.py: profilePolicy in automation state. watch.py: post_ship_cleanup finding."
     },
     {
       "slug": "memory-context-depth",
@@ -76,5 +72,19 @@
     "memory-context-depth"
   ],
   "feedbackInbox": [],
-  "timestamp": "2026-03-22T10:00:00Z"
+  "decisionLog": [
+    {
+      "title": "Phase auto-advance is a side-effect of work_order_sync",
+      "decision": "Phase auto-advance is a side-effect of work_order_sync, not a separate patrol job",
+      "rationale": "Keeps phase truth consistent on every sync instead of waiting for patrol tick",
+      "date": "2026-03-22"
+    },
+    {
+      "title": "review-ship-automation shipped in PR #51",
+      "decision": "review-ship-automation shipped as part of PR #51 consolidation",
+      "rationale": "All building blocks existed — only wiring was needed",
+      "date": "2026-03-22"
+    }
+  ],
+  "timestamp": "2026-03-22T12:00:00Z"
 }

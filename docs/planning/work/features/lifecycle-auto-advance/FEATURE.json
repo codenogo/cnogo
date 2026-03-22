@@ -3,7 +3,7 @@
   "feature": "lifecycle-auto-advance",
   "parentShape": {
     "path": "docs/planning/work/ideas/control-plane-consolidation/SHAPE.json",
-    "timestamp": "2026-03-22T10:00:00Z"
+    "timestamp": "2026-03-22T12:00:00Z"
   },
   "displayName": "Lifecycle Auto-Advance",
   "userOutcome": "Phase truth is always consistent with work order status. No manual phase-set needed.",

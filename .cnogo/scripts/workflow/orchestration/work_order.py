@@ -730,6 +730,19 @@ def sync_work_order(
         }
     order.memory_sync = memory_sync
     save_work_order(order, root)
+
+    # Phase auto-advance: sync old phase system from work order status.
+    # Only advance for active execution states — not queued/leased/planning/planned
+    # which are pre-dispatch states where premature phase change would alter status derivation.
+    if order.status in {"implementing", "reviewing", "shipping", "completed"}:
+        try:
+            derived_phase = _phase_from_status(order.status, "")
+            if derived_phase and derived_phase != "unknown":
+                from scripts.memory.phases import set_feature_phase as _set_phase
+                _set_phase(root, feature, derived_phase, quiet=True)
+        except Exception:
+            pass  # Best-effort — phase is compatibility-only.
+
     return order
 
 
