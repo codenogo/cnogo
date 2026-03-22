@@ -88,7 +88,6 @@ from .bridge import (
     generate_implement_prompt,
     generate_run_id,
     plan_to_task_descriptions,
-    recommend_team_mode,
 )
 from .context import checkpoint, history, prime, show_graph
 from .costs import parse_transcript, summarize_project_costs as cost_summary
@@ -159,7 +158,6 @@ __all__ = [
     "plan_to_task_descriptions",
     "generate_implement_prompt",
     "detect_file_conflicts",
-    "recommend_team_mode",
     "generate_run_id",
     "reconcile_session",
     "record_cost_event",

@@ -194,7 +194,6 @@ from scripts.memory import (  # noqa: E402
     record_delivery_run_plan_verification,
     refresh_delivery_run,
     reconcile_session,
-    recommend_team_mode,
     generate_implement_prompt,
     record_cost_event,
     run_delivery_run_watch_tick,
@@ -1493,10 +1492,18 @@ def cmd_run_create(args: argparse.Namespace) -> int:
     except Exception as exc:
         print(f"Error: failed to load plan tasks: {exc}", file=sys.stderr)
         return 1
-    recommendation = recommend_team_mode(taskdescs, profile=profile)
+    # Always team mode — recommend_team_mode removed.
+    recommendation = {
+        "recommended": True,
+        "reason": "Always team mode — executor spawns agents for all tasks.",
+        "runnableTasks": [i for i, t in enumerate(taskdescs) if not t.get("blockedBy")],
+        "blockedTasks": [i for i, t in enumerate(taskdescs) if t.get("blockedBy")],
+        "conflicts": [],
+        "profileModePreference": "team",
+    }
     mode = args.mode
     if mode == "auto":
-        mode = "team" if recommendation.get("recommended") else "serial"
+        mode = "team"
     run = ensure_delivery_run(
         feature=args.feature,
         plan_number=normalize_plan_number(args.plan),
