@@ -25,8 +25,10 @@ For each `implementing` lane with `currentRunId` and no active executor:
 - Check `run-next <feature> --run-id <run-id> --json`
 - If `begin_task` or `resolve_failure`: spawn executor as background agent:
 ```
-Agent(subagent_type="executor", prompt="FEATURE=<f> RUN_ID=<r> WORKTREE=<w>\nDrive feature <f> to review-ready.", run_in_background=true, name="executor-<f>")
+Agent(subagent_type="executor", prompt="FEATURE=<f> RUN_ID=<r> WORKTREE=<w>\nDrive feature <f> to review-ready.", run_in_background=true, name="executor-<f>", isolation="worktree", mode="bypassPermissions")
 ```
+
+CRITICAL: Always use `isolation="worktree"` and `mode="bypassPermissions"` when spawning executors — executors spawn implementers which need worktree access.
 - Log `executor_spawned`. Track name to avoid duplicates.
 
 ### 3. Process completions

@@ -82,6 +82,11 @@ service-account*.json
 # Scheduler runtime (local supervisor state, not source)
 .cnogo/scheduler/
 
+# Autonomous execution loop runtime (append-only event log and lane records)
+.cnogo/execution-log.jsonl
+.cnogo/lanes/
+.cnogo/agent-heartbeat-*.json
+
 # Context graph (rebuild from source)
 .cnogo/graph.db
 .cnogo/graph.kuzu/

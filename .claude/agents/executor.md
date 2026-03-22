@@ -51,8 +51,10 @@ python3 .cnogo/scripts/workflow_memory.py run-task-prompt $FEATURE $TASK_INDEX -
 
 c. Spawn the implementer as a background agent:
 ```
-Agent(subagent_type="implementer", prompt=<prompt from step b>, run_in_background=true, name="impl-$TASK_INDEX")
+Agent(subagent_type="implementer", prompt=<prompt from step b>, run_in_background=true, name="impl-$TASK_INDEX", isolation="worktree", mode="bypassPermissions")
 ```
+
+CRITICAL: Always use `isolation="worktree"` and `mode="bypassPermissions"`. Without `isolation="worktree"`, the implementer agent cannot access feature worktrees (they are outside Claude Code's sandbox boundary). Without `mode="bypassPermissions"`, the agent will be blocked on tool approvals.
 
 Log an `agents_spawned` execution event for each.
 
@@ -122,4 +124,5 @@ Events to log: `executor_started`, `agents_spawned`, `task_completed`, `task_fai
 - If merge conflicts can't be resolved, log and exit — patrol will detect the stall.
 - Spawn ALL runnable tasks in the frontier simultaneously — always team mode.
 - Use `run_in_background=true` when spawning multiple implementers so they run in parallel.
+- ALWAYS use `isolation="worktree"` + `mode="bypassPermissions"` on every Agent spawn — implementers cannot function without them.
 - After all agents complete, refresh the frontier — new tasks may have been unblocked.
