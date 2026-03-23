@@ -151,6 +151,7 @@ from scripts.memory import (  # noqa: E402
     claim,
     cleanup_session,
     close,
+    create_session,
     complete_delivery_run_task,
     complete_delivery_run_ship,
     create,
@@ -1243,6 +1244,43 @@ def cmd_graph(args: argparse.Namespace) -> int:
     root = _root()
     output = show_graph(args.feature, root=root)
     print(output)
+    return 0
+
+
+def cmd_session_create(args: argparse.Namespace) -> int:
+    """Create a cnogo worktree session for parallel task execution."""
+    root = _root()
+    feature = args.feature
+    # Resolve plan number from the delivery run if not provided.
+    plan_number = getattr(args, "plan", None) or ""
+    run_id = getattr(args, "run_id", None) or ""
+    if not plan_number:
+        run = load_delivery_run(feature, run_id, root=root) if run_id else latest_delivery_run(feature, root=root)
+        if run is not None:
+            plan_number = str(getattr(run, "plan_number", "01"))
+            if not run_id:
+                run_id = str(getattr(run, "run_id", ""))
+    plan_number = normalize_plan_number(plan_number or "01")
+    plan_path = _plan_contract_path(root, feature, plan_number)
+    if not plan_path.exists():
+        print(f"Plan contract not found: {plan_path}", file=sys.stderr)
+        return 1
+    try:
+        profile = resolve_profile(root, plan_contract=json.loads(plan_path.read_text(encoding="utf-8")))
+        taskdescs = plan_to_task_descriptions(plan_path, root, profile=profile, ensure_memory_issues=False)
+        session = create_session(plan_path, root, taskdescs, run_id=run_id)
+    except Exception as exc:
+        print(f"Error creating session: {exc}", file=sys.stderr)
+        return 1
+    payload = session.to_dict()
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Session created: {session.feature} plan {session.plan_number}")
+        print(f"  Run ID: {session.run_id}")
+        print(f"  Phase: {session.phase}")
+        for wt in session.worktrees:
+            print(f"  Task {wt.task_index}: {wt.name} → {wt.path}")
     return 0
 
 
@@ -4260,6 +4298,13 @@ def main() -> int:
     p = sub.add_parser("graph", help="Show dependency graph")
     p.add_argument("feature", help="Feature slug")
 
+    # session-create
+    p = sub.add_parser("session-create", help="Create worktree session for parallel task execution")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--plan", help="Plan number (defaults to latest run's plan)")
+    p.add_argument("--run-id", help="Delivery run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
+
     # session-status
     p = sub.add_parser("session-status", help="Show active worktree session")
     p.add_argument("--json", action="store_true")
@@ -4481,6 +4526,7 @@ def main() -> int:
         "initiative-current",
         "run-ship-draft",
         "verify-import",
+        "session-create",
         "session-status",
         "session-cleanup",
     }
@@ -4570,6 +4616,7 @@ def main() -> int:
         "verify-import": cmd_verify_import,
         "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
+        "session-create": cmd_session_create,
         "session-status": cmd_session_status,
         "session-apply": cmd_session_apply,
         "session-merge": cmd_session_merge,
