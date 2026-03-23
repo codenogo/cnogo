@@ -1863,6 +1863,24 @@ def cmd_dispatch_reset(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dispatch_holds(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.dispatch_ledger import list_dispatch_holds
+    holds = list_dispatch_holds(root)
+    if args.json:
+        _print_json(holds)
+    else:
+        if not holds:
+            print("No features currently held by circuit breaker.")
+        else:
+            print(f"Circuit breaker holds: {len(holds)} feature(s)")
+            for h in holds:
+                print(f"  {h['feature']}: {h.get('consecutiveFailures', 0)} failures, hold until {h.get('holdUntil', 'unknown')}")
+                if h.get('lastError'):
+                    print(f"    last error: {h['lastError'][:100]}")
+    return 0
+
+
 def cmd_feedback_sync(args: argparse.Namespace) -> int:
     root = _root()
     payload = sync_shape_feedback(feature_slug=args.feature, root=root)
@@ -3973,6 +3991,10 @@ def main() -> int:
     p.add_argument("--reason", default="manual_reset", help="Reason for the reset")
     p.add_argument("--json", action="store_true")
 
+    # dispatch-holds
+    p = sub.add_parser("dispatch-holds", help="List features held by dispatch circuit breaker")
+    p.add_argument("--json", action="store_true")
+
     # feedback-sync
     p = sub.add_parser("feedback-sync", help="Sync downstream feature feedback into SHAPE.json inboxes")
     p.add_argument("--feature", help="Specific feature slug to sync")
@@ -4452,6 +4474,7 @@ def main() -> int:
         "lane-list",
         "dispatch-ready",
         "dispatch-reset",
+        "dispatch-holds",
         "feedback-sync",
         "initiative-show",
         "initiative-list",
@@ -4511,6 +4534,7 @@ def main() -> int:
         "loop-history": cmd_loop_history,
         "dispatch-ready": cmd_dispatch_ready,
         "dispatch-reset": cmd_dispatch_reset,
+        "dispatch-holds": cmd_dispatch_holds,
         "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,
