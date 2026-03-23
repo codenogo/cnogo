@@ -384,19 +384,23 @@ def _attempt_auto_ship(
         # Attempt git push + PR creation from the feature worktree.
         # These are best-effort — if there's no remote or gh is unavailable,
         # ship stays in_progress for manual /ship completion.
-        branch = f"feature/{feature}"
+        # Use lane.branch when available; fall back to convention.
+        branch = str(getattr(lane, "branch", "")).strip() or f"feature/{feature}"
         commit = ""
         pr_url = ""
+        _SHIP_TIMEOUT = 60  # seconds — prevent hangs on unreachable remotes
         try:
             push_result = _sp.run(
                 ["git", "push", "-u", "origin", branch],
                 cwd=str(wt_root), capture_output=True, text=True, check=False,
+                timeout=_SHIP_TIMEOUT,
             )
             if push_result.returncode == 0:
                 # Get the commit hash.
                 commit_result = _sp.run(
                     ["git", "rev-parse", "HEAD"],
                     cwd=str(wt_root), capture_output=True, text=True, check=False,
+                    timeout=10,
                 )
                 commit = commit_result.stdout.strip() if commit_result.returncode == 0 else ""
 
@@ -406,6 +410,7 @@ def _attempt_auto_ship(
                 pr_result = _sp.run(
                     ["gh", "pr", "create", "--title", pr_title, "--body", pr_body, "--head", branch],
                     cwd=str(wt_root), capture_output=True, text=True, check=False,
+                    timeout=_SHIP_TIMEOUT,
                 )
                 if pr_result.returncode == 0:
                     pr_url = pr_result.stdout.strip()
@@ -414,6 +419,7 @@ def _attempt_auto_ship(
                     view_result = _sp.run(
                         ["gh", "pr", "view", branch, "--json", "url", "-q", ".url"],
                         cwd=str(wt_root), capture_output=True, text=True, check=False,
+                        timeout=_SHIP_TIMEOUT,
                     )
                     if view_result.returncode == 0 and view_result.stdout.strip():
                         pr_url = view_result.stdout.strip()
