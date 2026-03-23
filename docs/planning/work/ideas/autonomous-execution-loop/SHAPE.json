@@ -5,16 +5,16 @@
   "problem": "Dispatcher leases and plans but doesn't execute. Auto-review and auto-ship exist but git ops are manual. Completed lanes aren't released. Shape-to-queue requires manual work-sync. The system prepares everything but nobody picks up the work.",
   "constraints": [
     "Python stdlib only",
-    "Claude Code Agent tool for spawning — no subprocess management",
+    "Claude Code Agent tool for spawning \u2014 no subprocess management",
     "Existing worktree merge strategy preserved",
     "Existing lane/dispatch/WIP infrastructure preserved",
     "Execution events are append-only"
   ],
   "globalDecisions": [
-    "Always team mode — even single tasks get a spawned agent",
+    "Always team mode \u2014 even single tasks get a spawned agent",
     "Supervisor is a Claude session, not a Python process. Python owns state, Claude owns execution.",
     "Two layers of agent spawning: feature-level (executor) and task-level (implementer)",
-    "Executor never writes code — purely orchestration. Implementers are the only code-writing agents.",
+    "Executor never writes code \u2014 purely orchestration. Implementers are the only code-writing agents.",
     "Git ops handled by executor when profile allows full auto-ship",
     "Execution events are the observability primitive"
   ],
@@ -50,7 +50,9 @@
       "displayName": "Feature Lane Executor Agent",
       "userOutcome": "Each feature lane gets an executor agent that drives the full task lifecycle: spawn implementers per task frontier, wait for completion, merge worktrees, run plan-verify, handle git ops. The executor is the team leader for one feature.",
       "scopeSummary": "Create execute-lane.md agent definition. Executor reads run state, computes task frontier, spawns implementer agents per runnable task, waits for returns, calls run-task-complete/fail, triggers worktree merge, runs plan-verify, handles git commit/push/PR when profile allows.",
-      "dependencies": ["execution-event-log"],
+      "dependencies": [
+        "execution-event-log"
+      ],
       "risks": [
         "Agent context window limits may constrain long-running features with many tasks",
         "Merge conflicts between task branches may require resolver agent escalation"
@@ -65,10 +67,13 @@
       "displayName": "Supervisor Run Loop",
       "userOutcome": "A long-running supervisor agent that continuously dispatches features, spawns executors, monitors progress, and releases completed lanes. The operator starts it once and the system runs autonomously.",
       "scopeSummary": "Create run-loop.md command/agent that loops: auto-queue from shape, dispatch-ready, spawn executor agents for implementing lanes, wait for completions, advance transitions (auto-review, auto-ship), release completed lanes. Writes supervisor-level execution events. Configurable tick interval.",
-      "dependencies": ["executor-agent", "auto-queue-and-release"],
+      "dependencies": [
+        "executor-agent",
+        "auto-queue-and-release"
+      ],
       "risks": [
-        "Long-running session may hit context window limits — mitigate with context compaction or periodic restart",
-        "Supervisor crash loses running agent references — mitigate by persisting agent state in lane records"
+        "Long-running session may hit context window limits \u2014 mitigate with context compaction or periodic restart",
+        "Supervisor crash loses running agent references \u2014 mitigate by persisting agent state in lane records"
       ],
       "priority": 2,
       "status": "parked",
@@ -80,13 +85,15 @@
       "displayName": "Remove Serial Mode and /implement",
       "userOutcome": "Single execution model: always spawn agents. No serial path, no mode decision, no /implement command. Executor is the only execution entry point.",
       "scopeSummary": "Remove recommend_team_mode() from bridge.py. Remove mode field distinction from delivery runs (always 'team'). Remove /implement command. Update /plan to not reference /implement. Clean up profile_mode_preference(). Update docs.",
-      "dependencies": ["executor-agent"],
+      "dependencies": [
+        "executor-agent"
+      ],
       "risks": [
         "Existing features with in-progress serial runs may need migration path"
       ],
       "priority": 3,
-      "status": "ready",
-      "readinessReason": "Executor is functional (shipped). All dependencies met. Migration path: existing serial runs continue as-is; new runs always use team mode.",
+      "status": "parked",
+      "readinessReason": "Shipped in PR #54. Serial mode removed, always team mode.",
       "handoffSummary": "Remove recommend_team_mode() and serial code paths from bridge.py, delivery_run.py, implement.py. Remove .claude/commands/implement.md. Update plan templates and commands that reference /implement. Add migration: existing serial runs continue as-is; new runs always use team mode."
     }
   ],

@@ -55,8 +55,8 @@
         "Richer context increases token consumption in prime() output"
       ],
       "priority": 0,
-      "status": "ready",
-      "readinessReason": "No blocking decisions. Observations, contradictions, and cards tables already populated by sync_work_order(). prime() reads them but output is basic. Scope is formatting and CLI plumbing.",
+      "status": "parked",
+      "readinessReason": "Shipped in PR #54.",
       "handoffSummary": "Enhance context.py prime() to render cards and observations into feature-aware markdown sections. Add --feature flag to prime CLI. Improve observation sourcing (link to artifact paths). Use existing explicit/derived confidence levels to weight context output."
     }
   ],
@@ -74,7 +74,7 @@
     {
       "title": "review-ship-automation shipped in PR #51",
       "decision": "review-ship-automation shipped as part of PR #51 consolidation",
-      "rationale": "All building blocks existed — only wiring was needed",
+      "rationale": "All building blocks existed \u2014 only wiring was needed",
       "date": "2026-03-22"
     }
   ],

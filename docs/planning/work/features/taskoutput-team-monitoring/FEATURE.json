@@ -3,11 +3,11 @@
   "feature": "taskoutput-team-monitoring",
   "parentShape": {
     "path": "",
-    "timestamp": ""
+    "timestamp": "2026-03-22T22:00:00Z"
   },
   "displayName": "TaskOutput Team Monitoring Anti-Patterns",
   "userOutcome": "Team command includes explicit anti-pattern guidance so agents avoid TaskOutput fabrication, worktree conflicts, and manual git worktree removal.",
-  "scopeSummary": "Add anti-pattern prohibitions with architectural rationale to .claude/commands/team.md. No code changes needed — fix is command guidance only.",
+  "scopeSummary": "Add anti-pattern prohibitions with architectural rationale to .claude/commands/team.md. No code changes needed \u2014 fix is command guidance only.",
   "dependencies": [],
   "risks": [
     "team.md word budget (~400 words) may require trimming existing content to fit new guidance"
