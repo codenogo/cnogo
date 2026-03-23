@@ -30,7 +30,7 @@ from .dispatch_ledger import (
     clear_dispatch_hold_on_success,
     record_dispatch_failure,
 )
-from .ship import start_ship, sync_ship_state
+from .ship import complete_ship, start_ship, sync_ship_state
 from .watch_artifacts import load_attention_queue
 from .work_order import WorkOrder, sync_all_work_orders, sync_work_order
 
@@ -331,7 +331,8 @@ def _attempt_auto_ship(
     feature: str,
     lease_owner: str,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    """Auto-start ship for a feature if profile allows. Returns (success, skipped, error)."""
+    """Auto-ship a feature: push feature branch + create PR. Returns (success, skipped, error)."""
+    import subprocess as _sp
     from scripts.workflow.shared.profiles import profile_auto_ship, resolve_profile  # noqa: lazy
 
     run = latest_delivery_run(root, feature)
@@ -356,22 +357,74 @@ def _attempt_auto_ship(
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="shipping", lease_owner=lease_owner)
         save_delivery_run(run, root)
-        # Build ship draft (best-effort — failure here should not block ship start).
+
+        # Resolve the feature worktree — git ops must run there, not the control plane.
+        wt_root = root
+        if lane is not None and str(getattr(lane, "worktree_path", "")).strip():
+            candidate = Path(str(lane.worktree_path).strip())
+            if candidate.exists() and candidate.is_dir():
+                wt_root = candidate
+
+        # Build ship draft from the feature worktree where feature/<slug> is HEAD.
         draft: dict[str, Any] | None = None
         try:
             from .ship_draft import build_ship_draft
-            draft = build_ship_draft(root, feature)
+            draft = build_ship_draft(wt_root, feature)
         except Exception:
             pass
+
+        # Attempt git push + PR creation from the feature worktree.
+        # These are best-effort — if there's no remote or gh is unavailable,
+        # ship stays in_progress for manual /ship completion.
+        branch = f"feature/{feature}"
+        commit = ""
+        pr_url = ""
+        try:
+            push_result = _sp.run(
+                ["git", "push", "-u", "origin", branch],
+                cwd=str(wt_root), capture_output=True, text=True, check=False,
+            )
+            if push_result.returncode == 0:
+                # Get the commit hash.
+                commit_result = _sp.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=str(wt_root), capture_output=True, text=True, check=False,
+                )
+                commit = commit_result.stdout.strip() if commit_result.returncode == 0 else ""
+
+                # Create PR via gh.
+                pr_title = draft.get("prTitle", f"feat({feature}): implement {feature}") if draft else f"feat({feature}): implement {feature}"
+                pr_body = draft.get("prBody", f"## Summary\n- Implement {feature}") if draft else f"## Summary\n- Implement {feature}"
+                pr_result = _sp.run(
+                    ["gh", "pr", "create", "--title", pr_title, "--body", pr_body, "--head", branch],
+                    cwd=str(wt_root), capture_output=True, text=True, check=False,
+                )
+                if pr_result.returncode == 0:
+                    pr_url = pr_result.stdout.strip()
+
+                # Record ship completion if we have enough for the profile.
+                try:
+                    complete_ship(run, commit=commit, branch=branch, pr_url=pr_url, note="Auto-ship completed by dispatcher")
+                except ValueError:
+                    pass  # Profile may require PR URL; ship stays in_progress for manual completion
+        except Exception:
+            pass  # git/gh not available — ship stays in_progress
+
+        save_delivery_run(run, root)
+
         clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
         payload: dict[str, Any] = {
             "feature": feature,
             "runId": str(getattr(run, "run_id", "")),
-            "shipStatus": "in_progress",
+            "shipStatus": "completed" if pr_url else "in_progress",
         }
         if draft is not None:
             payload["draft"] = draft
+        if pr_url:
+            payload["prUrl"] = pr_url
+        if commit:
+            payload["commit"] = commit
         return payload, None, None
     except Exception as exc:
         lane = load_feature_lane(root, feature)
