@@ -1,4 +1,9 @@
-"""Feature-lane runtime state for multi-feature execution."""
+"""Feature-lane runtime state for multi-feature execution.
+
+Single-writer assumption: only the dispatcher (or CLI via lane commands)
+writes to lane files. Concurrent writes from parallel dispatchers are not
+guarded with file locks and may cause state corruption.
+"""
 
 from __future__ import annotations
 
@@ -299,6 +304,23 @@ def _ensure_feature_worktree(root: Path, feature: str) -> tuple[str, str]:
         _run_git(root, "branch", branch, _resolve_base_branch(root))
     if not worktree_path.exists():
         _run_git(root, "worktree", "add", str(worktree_path), branch)
+    else:
+        # Verify existing worktree is on the expected branch.
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=str(worktree_path),
+                capture_output=True, text=True, check=False,
+            )
+            actual_branch = result.stdout.strip() if result.returncode == 0 else ""
+            if actual_branch and actual_branch != branch:
+                subprocess.run(
+                    ["git", "checkout", branch],
+                    cwd=str(worktree_path),
+                    capture_output=True, text=True, check=False,
+                )
+        except Exception:
+            pass  # Best-effort verification
     write_runtime_root_marker(worktree_path, runtime_root(root))
     return branch, str(worktree_path)
 

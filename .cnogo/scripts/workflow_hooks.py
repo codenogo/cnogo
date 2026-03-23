@@ -71,7 +71,7 @@ _INLINE_SECRET_PATTERNS = [
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"Bearer\s+[A-Za-z0-9._\-]+"),
     re.compile(r"-----BEGIN\s+[\w\s]+PRIVATE\s+KEY-----"),
-    re.compile(r"[A-Za-z0-9+/]{40,}={0,2}"),
+    re.compile(r"[A-Za-z0-9+/]{40,}={1,2}"),  # Require padding to reduce false positives
 ]
 _FLAG_SECRET_RE = re.compile(
     r"(?i)(--?(?:password|pass|token|secret|apikey|api-key)\s+)(\S+)"
@@ -186,11 +186,18 @@ def _git_current_branch(root: Path) -> str:
 
 def _is_worker_repo_authority_command(command: str) -> bool:
     normalized = _normalize_cmd(command)
-    return bool(
-        re.match(r"^\s*git\s+commit(\s|$)", normalized)
-        or re.match(r"^\s*git\s+push(\s|$)", normalized)
-        or re.match(r"^\s*gh\s+pr\s+create(\s|$)", normalized)
-    )
+    # Split on && and || to check each segment — prevents bypass via
+    # "cd /path && git commit" where the leading "cd" would dodge the anchor.
+    segments = re.split(r"\s*(?:&&|\|\|)\s*", normalized)
+    for segment in segments:
+        segment = segment.strip()
+        if (
+            re.match(r"^\s*git\s+commit(\s|$)", segment)
+            or re.match(r"^\s*git\s+push(\s|$)", segment)
+            or re.match(r"^\s*gh\s+pr\s+create(\s|$)", segment)
+        ):
+            return True
+    return False
 
 
 def _classify_command(command: str) -> dict[str, Any]:

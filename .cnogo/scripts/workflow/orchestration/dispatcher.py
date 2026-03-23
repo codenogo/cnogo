@@ -251,7 +251,7 @@ def _attempt_auto_review(
     run_profile = run.profile if isinstance(getattr(run, "profile", None), dict) else {}
     if not run_profile:
         try:
-            run_profile = resolve_profile(root, profile_name=None) or {}
+            run_profile = resolve_profile(root, requested_name=None) or {}
         except Exception:
             run_profile = {}
     if not profile_auto_review(run_profile):
@@ -275,10 +275,10 @@ def _attempt_auto_review(
             )
         # Set final verdict.
         set_review_verdict(run, verdict="pass", note="Auto-verdict by dispatcher")
-        # Advance lane status.
+        # Advance lane status — review is complete, next step is shipping.
         lane = load_feature_lane(root, feature)
         if lane is not None:
-            heartbeat_feature_lane(root, feature, status="reviewing", lease_owner=lease_owner)
+            heartbeat_feature_lane(root, feature, status="shipping", lease_owner=lease_owner)
         save_delivery_run(run, root)
         clear_dispatch_hold_on_success(root, feature)
         sync_work_order(root, feature)
@@ -340,7 +340,7 @@ def _attempt_auto_ship(
     run_profile = run.profile if isinstance(getattr(run, "profile", None), dict) else {}
     if not run_profile:
         try:
-            run_profile = resolve_profile(root, profile_name=None) or {}
+            run_profile = resolve_profile(root, requested_name=None) or {}
         except Exception:
             run_profile = {}
     if not profile_auto_ship(run_profile):
@@ -447,14 +447,37 @@ def release_completed_lanes(root: Path) -> list[dict[str, Any]]:
         try:
             release_feature_lane(root, lane.feature, reason="ship_completed")
             worktree = str(getattr(lane, "worktree_path", "")).strip()
+            actually_removed = False
             if worktree:
                 wt = Path(worktree)
                 if wt.exists() and wt.is_dir() and str(wt) != str(root.resolve()):
                     shutil.rmtree(wt, ignore_errors=True)
+                    actually_removed = not wt.exists()
             sync_work_order(root, lane.feature)
-            released.append({"feature": lane.feature, "worktreeRemoved": bool(worktree)})
+            released.append({"feature": lane.feature, "worktreeRemoved": actually_removed})
         except Exception as exc:
             released.append({"feature": lane.feature, "error": f"{type(exc).__name__}: {exc}"})
+    # Clean up stale worktree-agent-* branches left by Claude Code isolation worktrees.
+    try:
+        import subprocess as _sp
+        result = _sp.run(
+            ["git", "branch", "--list", "worktree-agent-*"],
+            cwd=str(root), capture_output=True, text=True, check=False,
+        )
+        for line in result.stdout.strip().splitlines():
+            branch = line.strip().lstrip("* ")
+            if branch.startswith("worktree-agent-"):
+                _sp.run(
+                    ["git", "branch", "-D", branch],
+                    cwd=str(root), capture_output=True, text=True, check=False,
+                )
+    except Exception:
+        pass  # Best-effort cleanup
+    # Also prune stale worktree references.
+    try:
+        _sp.run(["git", "worktree", "prune"], cwd=str(root), capture_output=True, check=False)
+    except Exception:
+        pass
     return released
 
 
@@ -555,6 +578,10 @@ def dispatch_ready_work(
     plan_errors: list[dict[str, Any]] = []
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoplan_candidates(root, feature_filter=feature_filter):
+            hold = check_dispatch_hold(root, feature)
+            if hold is not None:
+                auto_plan_skipped.append({"feature": feature, "reason": "circuit_breaker_hold", "holdUntil": hold.get("holdUntil", "")})
+                continue
             planned, skipped_plan, error = _attempt_auto_plan(root, feature=feature, lease_owner=lease_owner)
             if planned is not None:
                 auto_planned.append(planned)
