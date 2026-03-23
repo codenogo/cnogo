@@ -49,12 +49,16 @@ b. Get the implementer prompt:
 python3 .cnogo/scripts/workflow_memory.py run-task-prompt $FEATURE $TASK_INDEX --run-id $RUN_ID --actor implementer-$TASK_INDEX
 ```
 
-c. Spawn the implementer as a background agent:
+c. Spawn the implementer as a background agent. Prepend the worktree path warning to the prompt:
 ```
-Agent(subagent_type="implementer", prompt=<prompt from step b>, run_in_background=true, name="impl-$TASK_INDEX", isolation="worktree", mode="bypassPermissions")
+prompt = "WORKTREE PATH WARNING: You are in a git worktree. Run `pwd` first. Use that path as the base for ALL file paths in Read/Edit/Write calls. NEVER use paths containing the main repo checkout. NEVER `cd` to the main checkout. Use relative paths for Bash commands.\n\n" + <prompt from step b>
+
+Agent(subagent_type="implementer", prompt=prompt, run_in_background=true, name="impl-$TASK_INDEX", isolation="worktree", mode="bypassPermissions")
 ```
 
 CRITICAL: Always use `isolation="worktree"` and `mode="bypassPermissions"`. Without `isolation="worktree"`, the implementer agent cannot access feature worktrees (they are outside Claude Code's sandbox boundary). Without `mode="bypassPermissions"`, the agent will be blocked on tool approvals.
+
+CRITICAL: Always prepend the worktree path warning. Without it, the implementer will resolve file paths to the main checkout, bypassing isolation, editing the wrong files, and failing to commit (the `cd` prefix breaks permission pattern matching).
 
 Log an `agents_spawned` execution event for each.
 

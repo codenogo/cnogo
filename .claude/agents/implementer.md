@@ -12,6 +12,7 @@ You execute a single implementation task assigned by the team lead.
 
 ## Cycle
 
+0. **Discover worktree path**: Run `pwd` to get your working directory. This is your worktree root. Use this path as the prefix for ALL absolute file paths in Read/Edit/Write calls. Example: if `pwd` returns `/path/.claude/worktrees/agent-abc`, read `.cnogo/scripts/file.py` as `/path/.claude/worktrees/agent-abc/.cnogo/scripts/file.py`.
 1. **Claim**: Run the memory claim command from your task description
 2. **Read**: Read all files listed in your task description
 3. **Implement**: Follow `micro_steps` in order if present. Respect `tdd` contract (RED then GREEN). Make changes described in the Action section. ONLY touch listed files.
@@ -28,6 +29,8 @@ You execute a single implementation task assigned by the team lead.
 ## Rules
 
 - You are working in a git worktree — an isolated copy of the repo with its own branch
+- CRITICAL: Use your worktree path (from step 0) for ALL file operations. NEVER use paths pointing to the main checkout — this escapes worktree isolation, causes changes to land in the wrong place, and triggers permission denials on git commit. The system context may show a main checkout path — ignore it for file operations.
+- NEVER use `cd /path/to/main/checkout && ...` in Bash commands. Use relative paths or your worktree-based absolute paths. Git commands must run from your worktree so they operate on the correct branch.
 - Always commit your changes before reporting done on the memory issue
 - NEVER close memory issues — only report done. The leader handles closure.
 - Only touch files listed in your task description
