@@ -306,7 +306,11 @@ def _attempt_auto_review(
 
 
 def _autoship_candidates(root: Path, *, feature_filter: str | None = None) -> list[str]:
-    """Find lanes whose latest run has ship.status == ready."""
+    """Find lanes whose latest run has ship.status in {ready, in_progress}.
+
+    Including in_progress allows retry of failed git push/PR creation on the
+    next dispatcher tick, preventing permanent stall.
+    """
     candidates: list[str] = []
     seen: set[str] = set()
     for lane in list_feature_lanes(root, feature_filter=feature_filter):
@@ -318,7 +322,8 @@ def _autoship_candidates(root: Path, *, feature_filter: str | None = None) -> li
         if run is None:
             continue
         ship = run.ship if isinstance(getattr(run, "ship", None), dict) else {}
-        if str(ship.get("status", "")).strip() != "ready":
+        ship_status = str(ship.get("status", "")).strip()
+        if ship_status not in {"ready", "in_progress"}:
             continue
         seen.add(lane.feature)
         candidates.append(lane.feature)
@@ -359,11 +364,14 @@ def _attempt_auto_ship(
         save_delivery_run(run, root)
 
         # Resolve the feature worktree — git ops must run there, not the control plane.
-        wt_root = root
+        # NEVER fall back to root (main checkout) — pushing from main would ship wrong commits.
+        wt_root: Path | None = None
         if lane is not None and str(getattr(lane, "worktree_path", "")).strip():
             candidate = Path(str(lane.worktree_path).strip())
             if candidate.exists() and candidate.is_dir():
                 wt_root = candidate
+        if wt_root is None:
+            raise RuntimeError(f"Feature worktree not found for {feature} — cannot push")
 
         # Build ship draft from the feature worktree where feature/<slug> is HEAD.
         draft: dict[str, Any] | None = None
@@ -392,7 +400,7 @@ def _attempt_auto_ship(
                 )
                 commit = commit_result.stdout.strip() if commit_result.returncode == 0 else ""
 
-                # Create PR via gh.
+                # Create PR via gh (or find existing one).
                 pr_title = draft.get("prTitle", f"feat({feature}): implement {feature}") if draft else f"feat({feature}): implement {feature}"
                 pr_body = draft.get("prBody", f"## Summary\n- Implement {feature}") if draft else f"## Summary\n- Implement {feature}"
                 pr_result = _sp.run(
@@ -401,6 +409,14 @@ def _attempt_auto_ship(
                 )
                 if pr_result.returncode == 0:
                     pr_url = pr_result.stdout.strip()
+                else:
+                    # PR may already exist — try to get its URL.
+                    view_result = _sp.run(
+                        ["gh", "pr", "view", branch, "--json", "url", "-q", ".url"],
+                        cwd=str(wt_root), capture_output=True, text=True, check=False,
+                    )
+                    if view_result.returncode == 0 and view_result.stdout.strip():
+                        pr_url = view_result.stdout.strip()
 
                 # Record ship completion if we have enough for the profile.
                 try:
@@ -504,7 +520,15 @@ def release_completed_lanes(root: Path) -> list[dict[str, Any]]:
             if worktree:
                 wt = Path(worktree)
                 if wt.exists() and wt.is_dir() and str(wt) != str(root.resolve()):
-                    shutil.rmtree(wt, ignore_errors=True)
+                    # Use git worktree remove first (handles lock files and branch cleanup),
+                    # then fall back to shutil.rmtree if git worktree remove fails.
+                    import subprocess as _sp_rm
+                    rm_result = _sp_rm.run(
+                        ["git", "worktree", "remove", "--force", str(wt)],
+                        cwd=str(root), capture_output=True, text=True, check=False,
+                    )
+                    if rm_result.returncode != 0 and wt.exists():
+                        shutil.rmtree(wt, ignore_errors=True)
                     actually_removed = not wt.exists()
             sync_work_order(root, lane.feature)
             released.append({"feature": lane.feature, "worktreeRemoved": actually_removed})
