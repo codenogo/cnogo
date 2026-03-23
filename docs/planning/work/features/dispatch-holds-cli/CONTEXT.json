@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "feature": "dispatch-holds-cli",
+  "timestamp": "2026-03-23T00:00:00Z",
+  "decisions": [
+    {
+      "area": "cli-pattern",
+      "decision": "Follow the same pattern as dispatch-ready and dispatch-reset for subcommand registration",
+      "rationale": "Consistency with existing dispatch CLI commands"
+    }
+  ],
+  "constraints": [
+    "Python stdlib only",
+    "Follow existing workflow_memory.py CLI patterns",
+    "Must include --json flag"
+  ],
+  "relatedCode": [
+    ".cnogo/scripts/workflow_memory.py",
+    ".cnogo/scripts/workflow/orchestration/dispatch_ledger.py"
+  ],
+  "shapeFeedback": []
+}

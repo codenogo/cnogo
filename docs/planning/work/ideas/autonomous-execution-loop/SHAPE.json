@@ -95,6 +95,18 @@
       "status": "parked",
       "readinessReason": "Shipped in PR #54. Serial mode removed, always team mode.",
       "handoffSummary": "Remove recommend_team_mode() and serial code paths from bridge.py, delivery_run.py, implement.py. Remove .claude/commands/implement.md. Update plan templates and commands that reference /implement. Add migration: existing serial runs continue as-is; new runs always use team mode."
+    },
+    {
+      "slug": "dispatch-holds-cli",
+      "displayName": "Dispatch Holds CLI Command",
+      "userOutcome": "Operators can run `dispatch-holds` to see which features are held by the circuit breaker, why, and when holds expire.",
+      "scopeSummary": "Add dispatch-holds subcommand to workflow_memory.py that calls list_dispatch_holds() and renders a human-readable table. Add --json flag for machine output.",
+      "dependencies": [],
+      "risks": [],
+      "priority": 0,
+      "status": "ready",
+      "readinessReason": "dispatch_ledger.py already implements list_dispatch_holds(). Just needs CLI wiring.",
+      "handoffSummary": "Add dispatch-holds subparser to workflow_memory.py. Handler calls list_dispatch_holds(root), renders feature/failures/holdUntil/lastError table for human mode, or JSON for --json. Register in command dispatch table and allowlist."
     }
   ],
   "recommendedSequence": [

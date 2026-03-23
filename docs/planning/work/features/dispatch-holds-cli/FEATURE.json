@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "feature": "dispatch-holds-cli",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/autonomous-execution-loop/SHAPE.json",
+    "timestamp": "2026-03-23T00:00:00Z"
+  },
+  "displayName": "Dispatch Holds CLI Command",
+  "userOutcome": "Operators can run dispatch-holds to see which features are held by the circuit breaker, why, and when holds expire.",
+  "scopeSummary": "Add dispatch-holds subcommand to workflow_memory.py that calls list_dispatch_holds() and renders a human-readable table. Add --json flag for machine output.",
+  "dependencies": [],
+  "risks": [],
+  "priority": 0,
+  "status": "ready",
+  "readinessReason": "dispatch_ledger.py already implements list_dispatch_holds(). Just needs CLI wiring.",
+  "handoffSummary": "Add dispatch-holds subparser to workflow_memory.py. Handler calls list_dispatch_holds(root), renders feature/failures/holdUntil/lastError table for human mode, or JSON for --json. Register in command dispatch table and allowlist.",
+  "timestamp": "2026-03-23T00:00:00Z"
+}
