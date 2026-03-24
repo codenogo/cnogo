@@ -88,6 +88,30 @@ class _DispatchLock:
             return None
 
 
+def _is_systemic_error(exc: Exception) -> bool:
+    """Classify an exception as systemic (non-retryable) vs transient.
+
+    Systemic: corrupt state, missing schemas, permission denied, bad config.
+    Transient: network errors, timeouts, temporary file locks, git conflicts.
+
+    Inspired by Erlang/OTP :permanent vs :transient restart types.
+    """
+    systemic_types = (
+        TypeError,        # wrong function signature, bad schema
+        ValueError,       # invalid data, corrupt state
+        KeyError,         # missing required field
+        AttributeError,   # missing attribute on object
+        PermissionError,  # file permission denied
+        json.JSONDecodeError,  # corrupt JSON file
+    )
+    if isinstance(exc, systemic_types):
+        return True
+    # Check error message for systemic patterns.
+    msg = str(exc).lower()
+    systemic_patterns = ("schema", "corrupt", "permission denied", "invalid", "missing required")
+    return any(pat in msg for pat in systemic_patterns)
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
@@ -206,7 +230,7 @@ def _attempt_auto_plan(
     except Exception as exc:
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
-        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", lane_id=lane_id)
+        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", systemic=_is_systemic_error(exc), lane_id=lane_id)
         sync_work_order(root, feature)
         return (
             None,
@@ -251,7 +275,7 @@ def _attempt_auto_plan(
     except Exception as exc:
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
-        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", lane_id=lane_id)
+        record_dispatch_failure(root, feature, phase="plan", error=f"{type(exc).__name__}: {exc}", systemic=_is_systemic_error(exc), lane_id=lane_id)
         sync_work_order(root, feature)
         return (
             None,
@@ -431,7 +455,7 @@ def _attempt_auto_review(
         lane = load_feature_lane(root, feature)
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
-        record_dispatch_failure(root, feature, phase="review", error=f"{type(exc).__name__}: {exc}")
+        record_dispatch_failure(root, feature, phase="review", error=f"{type(exc).__name__}: {exc}", systemic=_is_systemic_error(exc))
         sync_work_order(root, feature)
         return (
             None,
@@ -593,7 +617,7 @@ def _attempt_auto_ship(
         lane = load_feature_lane(root, feature)
         if lane is not None:
             heartbeat_feature_lane(root, feature, status="blocked", lease_owner=lease_owner)
-        record_dispatch_failure(root, feature, phase="ship", error=f"{type(exc).__name__}: {exc}")
+        record_dispatch_failure(root, feature, phase="ship", error=f"{type(exc).__name__}: {exc}", systemic=_is_systemic_error(exc))
         sync_work_order(root, feature)
         return (
             None,
