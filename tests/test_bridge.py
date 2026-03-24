@@ -18,7 +18,6 @@ from scripts.memory.bridge import (
     generate_implement_prompt,
     generate_run_id,
     plan_to_task_descriptions,
-    recommend_team_mode,
 )
 
 
@@ -578,43 +577,5 @@ def test_is_already_closed_treats_completed_states_as_complete(tmp_path, status,
         assert _is_already_closed(tmp_path, "cn-finished") is True
 
 
-def test_recommend_team_mode_prefers_independent_tasks():
-    tasks = [
-        _make_desc(plan_task_index=0, file_scope={"paths": ["a.py"], "forbidden": []}, blockedBy=[]),
-        _make_desc(plan_task_index=1, file_scope={"paths": ["b.py"], "forbidden": []}, blockedBy=[]),
-    ]
-    recommendation = recommend_team_mode(tasks)
-    assert recommendation["recommended"] is True
-    assert recommendation["blockedTasks"] == []
 
-
-def test_recommend_team_mode_rejects_blocked_tasks():
-    tasks = [
-        _make_desc(plan_task_index=0, file_scope={"paths": ["a.py"], "forbidden": []}, blockedBy=[]),
-        _make_desc(plan_task_index=1, file_scope={"paths": ["b.py"], "forbidden": []}, blockedBy=[0]),
-    ]
-    recommendation = recommend_team_mode(tasks)
-    assert recommendation["recommended"] is False
-    assert recommendation["blockedTasks"] == [1]
-
-
-def test_recommend_team_mode_accepts_mixed_frontier_with_blocked_tail():
-    tasks = [
-        _make_desc(plan_task_index=0, file_scope={"paths": ["a.py"], "forbidden": []}, blockedBy=[]),
-        _make_desc(plan_task_index=1, file_scope={"paths": ["b.py"], "forbidden": []}, blockedBy=[]),
-        _make_desc(plan_task_index=2, file_scope={"paths": ["c.py"], "forbidden": []}, blockedBy=[0]),
-    ]
-    recommendation = recommend_team_mode(tasks)
-    assert recommendation["recommended"] is True
-    assert recommendation["runnableTasks"] == [0, 1]
-    assert recommendation["blockedTasks"] == [2]
-
-
-def test_recommend_team_mode_rejects_overlapping_file_scope():
-    tasks = [
-        _make_desc(plan_task_index=0, file_scope={"paths": ["shared.py"], "forbidden": []}, blockedBy=[]),
-        _make_desc(plan_task_index=1, file_scope={"paths": ["shared.py"], "forbidden": []}, blockedBy=[]),
-    ]
-    recommendation = recommend_team_mode(tasks)
-    assert recommendation["recommended"] is False
-    assert recommendation["conflicts"][0]["file"] == "shared.py"
+# recommend_team_mode tests removed — function was deleted (always team mode now)
