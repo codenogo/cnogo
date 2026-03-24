@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
 from scripts.workflow.shared.runtime_root import runtime_path, runtime_root, write_runtime_root_marker
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
@@ -175,8 +176,7 @@ def save_feature_lane(lane: FeatureLane, root: Path) -> Path:
             lane.heartbeat_at = now
         lane.lease_expires_at = _expires_at(lane.heartbeat_at, root)
     path = lane_path(root, lane.feature)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(lane.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, lane.to_dict())
     return path
 
 

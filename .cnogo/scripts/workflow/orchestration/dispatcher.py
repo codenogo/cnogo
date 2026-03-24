@@ -1051,7 +1051,8 @@ def sync_shape_feedback(
             added += 1
         if added:
             shape["feedbackInbox"] = inbox
-            shape_path.write_text(json.dumps(shape, indent=2) + "\n", encoding="utf-8")
+            from scripts.workflow.shared.atomic_write import atomic_write_json as _atomic_write
+            _atomic_write(shape_path, shape, sort_keys=False)
             total_added += added
             updated_shapes.append({"shapePath": str(shape_path), "itemsAdded": added})
     return {"updatedShapes": updated_shapes, "itemsAdded": total_added}

@@ -35,7 +35,26 @@ def runtime_path(root: Path, *parts: str) -> Path:
 
 
 def write_runtime_root_marker(worktree_root: Path, control_root: Path) -> Path:
+    import os
+    import tempfile
     marker = worktree_root / _CNOGO_DIR / _CONTROL_PLANE_MARKER
     marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text(str(control_root.resolve()) + "\n", encoding="utf-8")
+    content = str(control_root.resolve()) + "\n"
+    # Atomic write: temp file + os.replace to prevent partial-write corruption.
+    fd, tmp = tempfile.mkstemp(dir=str(marker.parent), suffix=".tmp")
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+        os.close(fd)
+        os.replace(tmp, str(marker))
+    except BaseException:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
     return marker

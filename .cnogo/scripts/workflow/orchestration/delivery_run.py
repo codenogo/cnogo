@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.runtime_root import runtime_path
 
 from .integration import ensure_run_coordination_state, sync_integration_state
@@ -253,8 +254,7 @@ def save_delivery_run(run: DeliveryRun, root: Path) -> Path:
     if not run.created_at:
         run.created_at = run.updated_at
     path = delivery_run_path(root, run.feature, run.run_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(run.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, run.to_dict())
     return path
 
 

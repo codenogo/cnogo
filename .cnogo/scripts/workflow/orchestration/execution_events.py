@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.runtime_root import runtime_path
 
 
@@ -129,8 +130,7 @@ def write_heartbeat(
         "updatedAt": _now_iso(),
     }
     path = heartbeat_path(worktree, task_index)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(entry, indent=2) + "\n", encoding="utf-8")
+    atomic_write_json(path, entry, sort_keys=False)
     return entry
 
 

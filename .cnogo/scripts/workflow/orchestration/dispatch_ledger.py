@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.runtime_root import runtime_path
 
 # Backoff schedule: consecutive failures → hold duration in minutes.
@@ -77,8 +78,7 @@ def load_dispatch_ledger(root: Path, feature: str) -> dict[str, Any] | None:
 def save_dispatch_ledger(root: Path, feature: str, ledger: dict[str, Any]) -> Path:
     """Persist a dispatch ledger."""
     path = _ledger_path(root, feature)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(ledger, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    atomic_write_json(path, ledger, sort_keys=False)
     return path
 
 
