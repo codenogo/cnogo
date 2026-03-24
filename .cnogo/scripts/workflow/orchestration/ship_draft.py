@@ -78,14 +78,27 @@ def _is_excluded(file_path: str) -> bool:
     return False
 
 
-def _load_changed_files(root: Path) -> list[str]:
-    """Return files changed relative to main branch via git diff.
+def _default_branch(root: Path) -> str:
+    """Detect the default branch (main or master)."""
+    for candidate in ("main", "master"):
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", candidate],
+            capture_output=True, text=True, cwd=str(root), check=False,
+        )
+        if result.returncode == 0:
+            return candidate
+    return "main"
 
-    Returns empty list if git is unavailable or the main branch doesn't exist.
+
+def _load_changed_files(root: Path) -> list[str]:
+    """Return files changed relative to default branch via git diff.
+
+    Returns empty list if git is unavailable or the default branch doesn't exist.
     """
     try:
+        base = _default_branch(root)
         result = subprocess.run(
-            ["git", "diff", "--name-only", "main...HEAD"],
+            ["git", "diff", "--name-only", f"{base}...HEAD"],
             capture_output=True,
             text=True,
             cwd=str(root),

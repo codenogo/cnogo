@@ -389,6 +389,8 @@ def _attempt_auto_ship(
         commit = ""
         pr_url = ""
         _SHIP_TIMEOUT = 60  # seconds — prevent hangs on unreachable remotes
+        # Check prerequisites before attempting git ops.
+        _has_gh = _sp.run(["gh", "--version"], capture_output=True, check=False).returncode == 0 if _sp else False
         try:
             push_result = _sp.run(
                 ["git", "push", "-u", "origin", branch],
@@ -405,24 +407,28 @@ def _attempt_auto_ship(
                 commit = commit_result.stdout.strip() if commit_result.returncode == 0 else ""
 
                 # Create PR via gh (or find existing one).
-                pr_title = draft.get("prTitle", f"feat({feature}): implement {feature}") if draft else f"feat({feature}): implement {feature}"
-                pr_body = draft.get("prBody", f"## Summary\n- Implement {feature}") if draft else f"## Summary\n- Implement {feature}"
-                pr_result = _sp.run(
-                    ["gh", "pr", "create", "--title", pr_title, "--body", pr_body, "--head", branch],
-                    cwd=str(wt_root), capture_output=True, text=True, check=False,
-                    timeout=_SHIP_TIMEOUT,
-                )
-                if pr_result.returncode == 0:
-                    pr_url = pr_result.stdout.strip()
+                if not _has_gh:
+                    # gh CLI not available — ship stays in_progress for manual /ship.
+                    pass
                 else:
-                    # PR may already exist — try to get its URL.
-                    view_result = _sp.run(
-                        ["gh", "pr", "view", branch, "--json", "url", "-q", ".url"],
+                    pr_title = draft.get("prTitle", f"feat({feature}): implement {feature}") if draft else f"feat({feature}): implement {feature}"
+                    pr_body = draft.get("prBody", f"## Summary\n- Implement {feature}") if draft else f"## Summary\n- Implement {feature}"
+                    pr_result = _sp.run(
+                        ["gh", "pr", "create", "--title", pr_title, "--body", pr_body, "--head", branch],
                         cwd=str(wt_root), capture_output=True, text=True, check=False,
                         timeout=_SHIP_TIMEOUT,
                     )
-                    if view_result.returncode == 0 and view_result.stdout.strip():
-                        pr_url = view_result.stdout.strip()
+                    if pr_result.returncode == 0:
+                        pr_url = pr_result.stdout.strip()
+                    else:
+                        # PR may already exist — try to get its URL.
+                        view_result = _sp.run(
+                            ["gh", "pr", "view", branch, "--json", "url", "-q", ".url"],
+                            cwd=str(wt_root), capture_output=True, text=True, check=False,
+                            timeout=_SHIP_TIMEOUT,
+                        )
+                        if view_result.returncode == 0 and view_result.stdout.strip():
+                            pr_url = view_result.stdout.strip()
 
                 # Record ship completion if we have enough for the profile.
                 try:
