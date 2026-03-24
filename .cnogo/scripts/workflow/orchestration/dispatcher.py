@@ -779,6 +779,26 @@ def _dispatch_ready_work_locked(
 
     cfg = load_workflow_config(root)
     settings = dispatcher_settings_cfg(cfg)
+
+    # Check global hold (graceful shutdown in progress).
+    try:
+        from .application import is_global_hold
+        if is_global_hold(root):
+            return {
+                "enabled": True,
+                "status": "global_hold",
+                "reason": "Global hold active (graceful shutdown in progress).",
+                "autoQueued": auto_queued,
+                "autoReleased": auto_released,
+                "leased": [], "autoPlanned": [], "autoPlanSkipped": [], "planErrors": [],
+                "autoReviewed": [], "autoReviewSkipped": [], "reviewErrors": [],
+                "autoShipStarted": [], "autoShipSkipped": [], "shipErrors": [],
+                "reclaimed": [], "skipped": [],
+                "activeLaneCount": 0, "autonomy": settings["autonomy"],
+                "defaultWipLimit": settings["defaultWipLimit"], "leaseTimeoutMinutes": settings["leaseTimeoutMinutes"],
+            }
+    except Exception:
+        pass
     if not settings["enabled"]:
         return {
             "enabled": False,
