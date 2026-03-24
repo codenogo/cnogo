@@ -2564,6 +2564,11 @@ def cmd_run_plan_verify(args: argparse.Namespace) -> int:
     )
     if args.result == "pass" and run.review_readiness.get("status") == "ready":
         set_phase(args.feature, "review", root=root)
+        try:
+            from scripts.workflow.orchestration.dispatch_trigger import touch_dispatch_trigger
+            touch_dispatch_trigger(root, args.feature, reason="review_ready")
+        except Exception:
+            pass  # Best-effort trigger
     elif args.result == "pass" and not args.json:
         print(
             "Plan verification recorded, but review is not ready yet. "

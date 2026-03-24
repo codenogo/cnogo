@@ -435,6 +435,12 @@ def _attempt_auto_review(
         save_delivery_run(run, root)
         if all_passed:
             clear_dispatch_hold_on_success(root, feature)
+            # Trigger immediate dispatch for auto-ship on next tick.
+            try:
+                from .dispatch_trigger import touch_dispatch_trigger
+                touch_dispatch_trigger(root, feature, reason="review_passed")
+            except Exception:
+                pass
         else:
             record_dispatch_failure(root, feature, phase="review", error=f"Auto-review failed: {len(spec_findings)} command(s) failed")
         sync_work_order(root, feature)
@@ -760,6 +766,13 @@ def _dispatch_ready_work_locked(
     feature_filter: str | None = None,
     lease_owner: str = "dispatcher",
 ) -> dict[str, Any]:
+    # Consume pending dispatch triggers (event-driven reactivity).
+    try:
+        from .dispatch_trigger import consume_dispatch_triggers
+        _consumed_triggers = consume_dispatch_triggers(root)
+    except Exception:
+        _consumed_triggers = []
+
     # Auto-queue ready features from shape and release completed lanes.
     auto_queued = auto_queue_from_shape(root)
     auto_released = release_completed_lanes(root)

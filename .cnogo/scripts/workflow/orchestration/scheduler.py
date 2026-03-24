@@ -148,12 +148,23 @@ def scheduler_status(root: Path, *, now: datetime | None = None) -> dict[str, An
     pid = _load_pid(scheduler_pid_path(root))
     supervisor_active = _pid_alive(pid)
     due = bool(settings["enabled"] and next_run is not None and now_dt >= next_run)
+    # Check for dispatch triggers — if any exist, the tick is due immediately.
+    triggered = False
+    try:
+        from .dispatch_trigger import has_pending_triggers
+        triggered = has_pending_triggers(root)
+    except Exception:
+        pass
+    if triggered and settings["enabled"]:
+        due = True
     reason = "Scheduler is disabled in WORKFLOW.json."
     if settings["enabled"]:
         if supervisor_active:
             reason = "Scheduler supervisor is active."
         elif last_run is None:
             reason = "No scheduler tick has been recorded yet."
+        elif triggered:
+            reason = "Dispatch triggers are pending."
         elif due:
             reason = "Scheduler tick interval has elapsed."
         else:
