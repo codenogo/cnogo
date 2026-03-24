@@ -325,9 +325,17 @@ def stop_scheduler_supervisor(root: Path) -> dict[str, Any]:
 
 
 def scheduler_worker_loop(root: Path) -> int:
+    """Main scheduler loop with responsive trigger-based wakeup.
+
+    Instead of sleeping for the full tick interval, checks for dispatch
+    triggers every few seconds. If triggers are found, runs dispatch
+    immediately. This reduces reaction time from ~15 minutes to ~5 seconds
+    while keeping CPU usage low (inspired by BEAM's timer wheel).
+    """
     pid_path = scheduler_pid_path(root)
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(f"{os.getpid()}\n", encoding="utf-8")
+    _POLL_INTERVAL = 5  # seconds — check for triggers this often
     try:
         while True:
             run_scheduler_once(
@@ -337,7 +345,19 @@ def scheduler_worker_loop(root: Path) -> int:
                 allow_when_supervisor=True,
             )
             settings = scheduler_settings_cfg(load_workflow_config(root))
-            time.sleep(max(settings["tickIntervalMinutes"] * 60, 5))
+            tick_seconds = max(settings["tickIntervalMinutes"] * 60, 10)
+            # Sleep in small increments, waking early if triggers appear.
+            slept = 0
+            while slept < tick_seconds:
+                time.sleep(min(_POLL_INTERVAL, tick_seconds - slept))
+                slept += _POLL_INTERVAL
+                # Check for dispatch triggers — if any, break and run tick now.
+                try:
+                    from .dispatch_trigger import has_pending_triggers
+                    if has_pending_triggers(root):
+                        break
+                except Exception:
+                    pass
     finally:
         try:
             pid_path.unlink()
