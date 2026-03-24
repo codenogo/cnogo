@@ -90,6 +90,7 @@ service-account*.json
 .cnogo/agent-heartbeat-*.json
 .cnogo/dispatch-ledgers/
 .cnogo/dispatch-triggers/
+.cnogo/agent-registry.json
 
 # Context graph (rebuild from source)
 .cnogo/graph.db
