@@ -1919,6 +1919,56 @@ def cmd_dispatch_holds(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dispatch_status(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.dispatch_ledger import list_dispatch_holds
+    from scripts.workflow.orchestration.lane import list_feature_lanes
+    from scripts.workflow.orchestration.work_order import list_work_orders
+    from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
+
+    cfg = load_workflow_config(root)
+    settings = dispatcher_settings_cfg(cfg)
+    holds = list_dispatch_holds(root)
+    orders = list_work_orders(root)
+    lanes = list_feature_lanes(root, include_terminal=False)
+
+    active_lanes = [lane for lane in lanes if lane.status not in ("released", "completed")]
+    queued = [order for order in orders if order.status == "queued"]
+    wip_limit = settings.get("defaultWipLimit", 3)
+    enabled = settings.get("enabled", True)
+
+    if args.json:
+        _print_json({
+            "enabled": enabled,
+            "wipUsed": len(active_lanes),
+            "wipLimit": wip_limit,
+            "queuedCount": len(queued),
+            "queued": [{"feature": o.feature, "queuePosition": o.queue_position} for o in queued],
+            "activeLanes": [
+                {"feature": lane.feature, "status": lane.status, "laneId": lane.lane_id}
+                for lane in active_lanes
+            ],
+            "holdsCount": len(holds),
+            "holds": holds,
+        })
+    else:
+        status_label = "enabled" if enabled else "disabled"
+        print(f"Dispatch: {status_label}  |  WIP {len(active_lanes)}/{wip_limit}  |  Queued {len(queued)}  |  Holds {len(holds)}")
+        if active_lanes:
+            print("Active lanes:")
+            for lane in active_lanes:
+                print(f"  {lane.feature}: {lane.status}")
+        if queued:
+            print("Queued:")
+            for order in queued:
+                print(f"  [{order.queue_position}] {order.feature}")
+        if holds:
+            print("Circuit breaker holds:")
+            for h in holds:
+                print(f"  {h['feature']}: {h.get('consecutiveFailures', 0)} failures")
+    return 0
+
+
 def cmd_feedback_sync(args: argparse.Namespace) -> int:
     root = _root()
     payload = sync_shape_feedback(feature_slug=args.feature, root=root)
@@ -4033,6 +4083,10 @@ def main() -> int:
     p = sub.add_parser("dispatch-holds", help="List features held by dispatch circuit breaker")
     p.add_argument("--json", action="store_true")
 
+    # dispatch-status
+    p = sub.add_parser("dispatch-status", help="Show compact dispatch dashboard")
+    p.add_argument("--json", action="store_true")
+
     # feedback-sync
     p = sub.add_parser("feedback-sync", help="Sync downstream feature feedback into SHAPE.json inboxes")
     p.add_argument("--feature", help="Specific feature slug to sync")
@@ -4520,6 +4574,7 @@ def main() -> int:
         "dispatch-ready",
         "dispatch-reset",
         "dispatch-holds",
+        "dispatch-status",
         "feedback-sync",
         "initiative-show",
         "initiative-list",
@@ -4581,6 +4636,7 @@ def main() -> int:
         "dispatch-ready": cmd_dispatch_ready,
         "dispatch-reset": cmd_dispatch_reset,
         "dispatch-holds": cmd_dispatch_holds,
+        "dispatch-status": cmd_dispatch_status,
         "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,
