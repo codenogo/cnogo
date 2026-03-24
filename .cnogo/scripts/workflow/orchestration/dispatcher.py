@@ -289,13 +289,53 @@ def _autoreview_candidates(root: Path, *, feature_filter: str | None = None) -> 
     return candidates
 
 
+def _run_verify_command(command: str, cwd: Path, timeout: int = 120) -> dict[str, Any]:
+    """Run a single verification command and capture result."""
+    import subprocess as _sp
+    try:
+        result = _sp.run(
+            command, shell=True, cwd=str(cwd),
+            capture_output=True, text=True, check=False, timeout=timeout,
+        )
+        output = (result.stdout + result.stderr).strip()
+        return {
+            "command": command,
+            "returncode": result.returncode,
+            "passed": result.returncode == 0,
+            "output": output[:2000],
+            "timedOut": False,
+        }
+    except _sp.TimeoutExpired:
+        return {"command": command, "returncode": -1, "passed": False, "output": f"Timed out after {timeout}s", "timedOut": True}
+    except Exception as exc:
+        return {"command": command, "returncode": -1, "passed": False, "output": str(exc)[:500], "timedOut": False}
+
+
+def _load_plan_verify_commands(run: Any, wt_root: Path) -> list[str]:
+    """Load planVerify[] commands from the delivery run's plan contract."""
+    plan_path_str = str(getattr(run, "plan_path", "")).strip()
+    if not plan_path_str:
+        return []
+    plan_path = Path(plan_path_str)
+    if not plan_path.is_absolute():
+        plan_path = wt_root / plan_path_str
+    if not plan_path.exists():
+        return []
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        raw = plan.get("planVerify", [])
+        return [str(cmd).strip() for cmd in raw if isinstance(cmd, str) and cmd.strip()]
+    except Exception:
+        return []
+
+
 def _attempt_auto_review(
     root: Path,
     *,
     feature: str,
     lease_owner: str,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
-    """Auto-review a feature if profile allows. Returns (success, skipped, error)."""
+    """Auto-review: run planVerify commands, set verdict based on results."""
     from scripts.workflow.shared.profiles import profile_auto_review, resolve_profile  # noqa: lazy
 
     run = latest_delivery_run(root, feature)
@@ -314,33 +354,75 @@ def _attempt_auto_review(
             None,
         )
     try:
-        # Start the review with automated verdict = pass (plan verify already passed).
-        start_review(run, automated_verdict="pass", note="Auto-review by dispatcher")
-        # Auto-complete both stages.
-        for stage_name in ("spec-compliance", "code-quality"):
-            set_review_stage(
-                run,
-                stage=stage_name,
-                status="pass",
-                findings=[],
-                evidence=["Automated pass from plan verification"],
-                notes=["Auto-completed by dispatcher — profile allows autoReview"],
-            )
-        # Set final verdict.
-        set_review_verdict(run, verdict="pass", note="Auto-verdict by dispatcher")
-        # Advance lane status — review is complete, next step is shipping.
+        # Resolve feature worktree — verify commands must run there.
         lane = load_feature_lane(root, feature)
+        wt_root = root
+        if lane is not None and str(getattr(lane, "worktree_path", "")).strip():
+            candidate = Path(str(lane.worktree_path).strip())
+            if candidate.exists() and candidate.is_dir():
+                wt_root = candidate
+
+        # Load verify commands from the plan.
+        plan_cmds = _load_plan_verify_commands(run, wt_root)
+
+        # Run commands and collect results.
+        spec_results: list[dict[str, Any]] = []
+        for cmd in plan_cmds:
+            spec_results.append(_run_verify_command(cmd, wt_root))
+
+        # Determine verdict.
+        all_passed = all(r["passed"] for r in spec_results) if spec_results else True
+        automated_verdict = "pass" if all_passed else "fail"
+
+        # Build evidence.
+        spec_evidence = [
+            f"{r['command']}: {'PASS' if r['passed'] else 'FAIL'} (rc={r['returncode']})"
+            for r in spec_results
+        ] if spec_results else ["No planVerify commands found — plan-verify gate was the only check"]
+
+        spec_findings = [
+            f"FAIL: {r['command']} (rc={r['returncode']}): {r['output'][:200]}"
+            for r in spec_results if not r["passed"]
+        ]
+
+        # Start review and set stages.
+        start_review(run, automated_verdict=automated_verdict, note="Auto-review by dispatcher")
+        set_review_stage(
+            run, stage="spec-compliance",
+            status="pass" if all_passed else "fail",
+            findings=spec_findings,
+            evidence=spec_evidence,
+            notes=[f"Auto-review ran {len(spec_results)} command(s) from feature worktree"],
+        )
+        set_review_stage(
+            run, stage="code-quality",
+            status="pass" if all_passed else "fail",
+            findings=[],
+            evidence=["Covered by planVerify commands in spec-compliance stage"],
+            notes=["Auto-completed by dispatcher"],
+        )
+        # Set final verdict.
+        set_review_verdict(run, verdict=automated_verdict, note=f"Auto-verdict: {len(spec_results)} commands, {sum(1 for r in spec_results if r['passed'])} passed")
+
+        # Advance lane status.
         if lane is not None:
-            heartbeat_feature_lane(root, feature, status="shipping", lease_owner=lease_owner)
+            new_status = "shipping" if all_passed else "blocked"
+            heartbeat_feature_lane(root, feature, status=new_status, lease_owner=lease_owner)
         save_delivery_run(run, root)
-        clear_dispatch_hold_on_success(root, feature)
+        if all_passed:
+            clear_dispatch_hold_on_success(root, feature)
+        else:
+            record_dispatch_failure(root, feature, phase="review", error=f"Auto-review failed: {len(spec_findings)} command(s) failed")
         sync_work_order(root, feature)
         return (
             {
                 "feature": feature,
-                "automatedVerdict": "pass",
-                "finalVerdict": "pass",
+                "automatedVerdict": automated_verdict,
+                "finalVerdict": automated_verdict,
                 "runId": str(getattr(run, "run_id", "")),
+                "commandsRun": len(spec_results),
+                "commandsPassed": sum(1 for r in spec_results if r["passed"]),
+                "commandsFailed": sum(1 for r in spec_results if not r["passed"]),
             },
             None,
             None,
