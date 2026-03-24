@@ -822,11 +822,17 @@ def _dispatch_ready_work_locked(
         available_slots -= 1
         leased_features.append(lane.feature)
 
+    stage_limits = settings.get("stageMaxPerTick", {})
+
     auto_planned: list[dict[str, Any]] = []
     auto_plan_skipped: list[dict[str, Any]] = []
     plan_errors: list[dict[str, Any]] = []
+    plan_limit = int(stage_limits.get("autoPlan", 2))
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoplan_candidates(root, feature_filter=feature_filter):
+            if len(auto_planned) >= plan_limit:
+                auto_plan_skipped.append({"feature": feature, "reason": "stage_limit_reached"})
+                continue
             hold = check_dispatch_hold(root, feature)
             if hold is not None:
                 auto_plan_skipped.append({"feature": feature, "reason": "circuit_breaker_hold", "holdUntil": hold.get("holdUntil", "")})
@@ -843,8 +849,12 @@ def _dispatch_ready_work_locked(
     auto_reviewed: list[dict[str, Any]] = []
     auto_review_skipped: list[dict[str, Any]] = []
     review_errors: list[dict[str, Any]] = []
+    review_limit = int(stage_limits.get("autoReview", 1))
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoreview_candidates(root, feature_filter=feature_filter):
+            if len(auto_reviewed) >= review_limit:
+                auto_review_skipped.append({"feature": feature, "reason": "stage_limit_reached"})
+                continue
             hold = check_dispatch_hold(root, feature)
             if hold is not None:
                 auto_review_skipped.append({"feature": feature, "reason": "circuit_breaker", "holdUntil": hold.get("holdUntil", "")})
@@ -861,8 +871,12 @@ def _dispatch_ready_work_locked(
     auto_ship_started: list[dict[str, Any]] = []
     auto_ship_skipped: list[dict[str, Any]] = []
     ship_errors: list[dict[str, Any]] = []
+    ship_limit = int(stage_limits.get("autoShip", 1))
     if str(settings.get("autonomy", "")).strip() == "high":
         for feature in _autoship_candidates(root, feature_filter=feature_filter):
+            if len(auto_ship_started) >= ship_limit:
+                auto_ship_skipped.append({"feature": feature, "reason": "stage_limit_reached"})
+                continue
             hold = check_dispatch_hold(root, feature)
             if hold is not None:
                 auto_ship_skipped.append({"feature": feature, "reason": "circuit_breaker", "holdUntil": hold.get("holdUntil", "")})
