@@ -59,7 +59,7 @@ Report:
 ### Step 5: Recommended Next Command
 
 Choose one:
-- `/implement <feature> <plan>` when mid-plan
+- `/implement <feature>` when ready to execute
 - `/review` when implementation is complete
 - `/ship` when review passed
 - `/discuss <feature>` or `/quick <task>` when idle

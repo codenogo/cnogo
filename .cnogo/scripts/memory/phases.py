@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.runtime_root import runtime_path
 
 from . import storage as _st
@@ -46,8 +47,7 @@ def _load_phase_state(root: Path) -> dict[str, Any]:
 
 def _save_phase_state(root: Path, payload: dict[str, Any]) -> None:
     path = _phase_state_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload)
 
 
 def get_feature_phase(root: Path, feature_slug: str) -> str:

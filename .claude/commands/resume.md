@@ -61,7 +61,7 @@ If unclear, inspect `python3 .cnogo/scripts/workflow_memory.py work-list --needs
 
 If reconcile found orphaned issues, rerun `python3 .cnogo/scripts/workflow_memory.py prime`.
 
-Active session: continue with `/team implement <feature> <plan>`; otherwise use `/implement`.
+Active session: continue with `/implement <feature>` (handles dispatch, lane, and executor spawning).
 
 ### Step 5: Next
 

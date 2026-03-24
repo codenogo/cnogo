@@ -151,6 +151,7 @@ from scripts.memory import (  # noqa: E402
     claim,
     cleanup_session,
     close,
+    create_session,
     complete_delivery_run_task,
     complete_delivery_run_ship,
     create,
@@ -256,7 +257,14 @@ from scripts.workflow.shared.plans import normalize_plan_number
 
 
 def _root() -> Path:
-    """Find repo root by walking up from cwd looking for .git."""
+    """Find repo root by walking up from cwd looking for .git.
+
+    In feature/task worktrees the .cnogo/control-plane-root marker redirects
+    runtime state (runs, lanes, work-orders, memory.db) back to the main
+    checkout via runtime_path(). This function returns the LOCAL root (which
+    may be a worktree). Callers that need runtime state should use
+    runtime_path(_root(), ...) instead of _root() / ".cnogo" / ... directly.
+    """
     cwd = Path.cwd()
     for p in [cwd, *cwd.parents]:
         if (p / ".git").exists():
@@ -1246,6 +1254,43 @@ def cmd_graph(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_session_create(args: argparse.Namespace) -> int:
+    """Create a cnogo worktree session for parallel task execution."""
+    root = _root()
+    feature = args.feature
+    # Resolve plan number from the delivery run if not provided.
+    plan_number = getattr(args, "plan", None) or ""
+    run_id = getattr(args, "run_id", None) or ""
+    if not plan_number:
+        run = load_delivery_run(feature, run_id, root=root) if run_id else latest_delivery_run(feature, root=root)
+        if run is not None:
+            plan_number = str(getattr(run, "plan_number", "01"))
+            if not run_id:
+                run_id = str(getattr(run, "run_id", ""))
+    plan_number = normalize_plan_number(plan_number or "01")
+    plan_path = _plan_contract_path(root, feature, plan_number)
+    if not plan_path.exists():
+        print(f"Plan contract not found: {plan_path}", file=sys.stderr)
+        return 1
+    try:
+        profile = resolve_profile(root, plan_contract=json.loads(plan_path.read_text(encoding="utf-8")))
+        taskdescs = plan_to_task_descriptions(plan_path, root, profile=profile, ensure_memory_issues=False)
+        session = create_session(plan_path, root, taskdescs, run_id=run_id)
+    except Exception as exc:
+        print(f"Error creating session: {exc}", file=sys.stderr)
+        return 1
+    payload = session.to_dict()
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Session created: {session.feature} plan {session.plan_number}")
+        print(f"  Run ID: {session.run_id}")
+        print(f"  Phase: {session.phase}")
+        for wt in session.worktrees:
+            print(f"  Task {wt.task_index}: {wt.name} → {wt.path}")
+    return 0
+
+
 def cmd_session_status(args: argparse.Namespace) -> int:
     root = _root()
     session = load_session(root)
@@ -1713,6 +1758,33 @@ def cmd_plan_auto(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_lane_ensure(args: argparse.Namespace) -> int:
+    """Ensure a feature lane exists (create worktree + lane if needed)."""
+    root = _root()
+    from scripts.workflow.orchestration.lane import ensure_feature_lane
+    lane = ensure_feature_lane(
+        root,
+        feature=args.feature,
+        work_order_id=args.feature,
+        lease_owner=getattr(args, "owner", "implement"),
+        status="leased",
+    )
+    payload = {
+        "feature": lane.feature,
+        "laneId": lane.lane_id,
+        "worktreePath": lane.worktree_path,
+        "branch": lane.branch,
+        "status": lane.status,
+        "leaseOwner": lane.lease_owner,
+        "created": True,
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Lane ensured: {lane.feature} → {lane.worktree_path}")
+    return 0
+
+
 def cmd_lane_show(args: argparse.Namespace) -> int:
     root = _root()
     payload = describe_feature_lane(args.feature, root=root)
@@ -1860,6 +1932,74 @@ def cmd_dispatch_reset(args: argparse.Namespace) -> int:
         _print_json(payload)
     else:
         print(f"Circuit breaker reset for {args.feature!r} ({consecutive} previous failures)")
+    return 0
+
+
+def cmd_dispatch_holds(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.dispatch_ledger import list_dispatch_holds
+    holds = list_dispatch_holds(root)
+    if args.json:
+        _print_json(holds)
+    else:
+        if not holds:
+            print("No features currently held by circuit breaker.")
+        else:
+            print(f"Circuit breaker holds: {len(holds)} feature(s)")
+            for h in holds:
+                print(f"  {h['feature']}: {h.get('consecutiveFailures', 0)} failures, hold until {h.get('holdUntil', 'unknown')}")
+                if h.get('lastError'):
+                    print(f"    last error: {h['lastError'][:100]}")
+    return 0
+
+
+def cmd_dispatch_status(args: argparse.Namespace) -> int:
+    root = _root()
+    from scripts.workflow.orchestration.dispatch_ledger import list_dispatch_holds
+    from scripts.workflow.orchestration.lane import list_feature_lanes
+    from scripts.workflow.orchestration.work_order import list_work_orders
+    from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
+
+    cfg = load_workflow_config(root)
+    settings = dispatcher_settings_cfg(cfg)
+    holds = list_dispatch_holds(root)
+    orders = list_work_orders(root)
+    lanes = list_feature_lanes(root, include_terminal=False)
+
+    active_lanes = [lane for lane in lanes if lane.status not in ("released", "completed")]
+    queued = [order for order in orders if order.status == "queued"]
+    wip_limit = settings.get("defaultWipLimit", 3)
+    enabled = settings.get("enabled", True)
+
+    if args.json:
+        _print_json({
+            "enabled": enabled,
+            "wipUsed": len(active_lanes),
+            "wipLimit": wip_limit,
+            "queuedCount": len(queued),
+            "queued": [{"feature": o.feature, "queuePosition": o.queue_position} for o in queued],
+            "activeLanes": [
+                {"feature": lane.feature, "status": lane.status, "laneId": lane.lane_id}
+                for lane in active_lanes
+            ],
+            "holdsCount": len(holds),
+            "holds": holds,
+        })
+    else:
+        status_label = "enabled" if enabled else "disabled"
+        print(f"Dispatch: {status_label}  |  WIP {len(active_lanes)}/{wip_limit}  |  Queued {len(queued)}  |  Holds {len(holds)}")
+        if active_lanes:
+            print("Active lanes:")
+            for lane in active_lanes:
+                print(f"  {lane.feature}: {lane.status}")
+        if queued:
+            print("Queued:")
+            for order in queued:
+                print(f"  [{order.queue_position}] {order.feature}")
+        if holds:
+            print("Circuit breaker holds:")
+            for h in holds:
+                print(f"  {h['feature']}: {h.get('consecutiveFailures', 0)} failures")
     return 0
 
 
@@ -2451,6 +2591,11 @@ def cmd_run_plan_verify(args: argparse.Namespace) -> int:
     )
     if args.result == "pass" and run.review_readiness.get("status") == "ready":
         set_phase(args.feature, "review", root=root)
+        try:
+            from scripts.workflow.orchestration.dispatch_trigger import touch_dispatch_trigger
+            touch_dispatch_trigger(root, args.feature, reason="review_ready")
+        except Exception:
+            pass  # Best-effort trigger
     elif args.result == "pass" and not args.json:
         print(
             "Plan verification recorded, but review is not ready yet. "
@@ -2678,6 +2823,27 @@ def cmd_run_ship_fail(args: argparse.Namespace) -> int:
         _print_json(run.to_dict())
     else:
         _print_run(run)
+    return 0
+
+
+def cmd_run_reset(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        from scripts.workflow.orchestration.delivery_run import reset_delivery_run
+        reset_run = reset_delivery_run(root, args.feature, run.run_id, reason=args.reason)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(reset_run.to_dict())
+    else:
+        print(f"Run {reset_run.run_id} reset: {len(reset_run.tasks)} tasks → {reset_run.status}")
+        print(f"  Reason: {args.reason}")
+        print(f"  Archive saved")
     return 0
 
 
@@ -3939,6 +4105,12 @@ def main() -> int:
     p.add_argument("--no-run", action="store_true", help="Do not create or resume a Delivery Run after planning")
     p.add_argument("--json", action="store_true")
 
+    # lane-ensure
+    p = sub.add_parser("lane-ensure", help="Ensure a feature lane exists (create if needed)")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--owner", default="implement", help="Lease owner (default: implement)")
+    p.add_argument("--json", action="store_true")
+
     # lane-show
     p = sub.add_parser("lane-show", help="Show one feature lane")
     p.add_argument("feature", help="Feature slug")
@@ -3971,6 +4143,14 @@ def main() -> int:
     p = sub.add_parser("dispatch-reset", help="Reset dispatch circuit breaker for a feature")
     p.add_argument("feature", help="Feature slug to reset")
     p.add_argument("--reason", default="manual_reset", help="Reason for the reset")
+    p.add_argument("--json", action="store_true")
+
+    # dispatch-holds
+    p = sub.add_parser("dispatch-holds", help="List features held by dispatch circuit breaker")
+    p.add_argument("--json", action="store_true")
+
+    # dispatch-status
+    p = sub.add_parser("dispatch-status", help="Show compact dispatch dashboard")
     p.add_argument("--json", action="store_true")
 
     # feedback-sync
@@ -4228,6 +4408,13 @@ def main() -> int:
     p.add_argument("--note", help="Optional note to attach to ship state")
     p.add_argument("--json", action="store_true")
 
+    # run-reset
+    p = sub.add_parser("run-reset", help="Reset a delivery run to initial state for clean restart")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--reason", default="manual_reset", help="Reason for the reset")
+    p.add_argument("--json", action="store_true")
+
     # run-sync-session
     p = sub.add_parser("run-sync-session", help="Sync a delivery run from the active worktree session")
     p.add_argument("feature", help="Feature slug")
@@ -4237,6 +4424,13 @@ def main() -> int:
     # graph
     p = sub.add_parser("graph", help="Show dependency graph")
     p.add_argument("feature", help="Feature slug")
+
+    # session-create
+    p = sub.add_parser("session-create", help="Create worktree session for parallel task execution")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--plan", help="Plan number (defaults to latest run's plan)")
+    p.add_argument("--run-id", help="Delivery run ID (defaults to latest)")
+    p.add_argument("--json", action="store_true")
 
     # session-status
     p = sub.add_parser("session-status", help="Show active worktree session")
@@ -4448,16 +4642,20 @@ def main() -> int:
         "work-sync",
         "work-next",
         "plan-auto",
+        "lane-ensure",
         "lane-show",
         "lane-list",
         "dispatch-ready",
         "dispatch-reset",
+        "dispatch-holds",
+        "dispatch-status",
         "feedback-sync",
         "initiative-show",
         "initiative-list",
         "initiative-current",
         "run-ship-draft",
         "verify-import",
+        "session-create",
         "session-status",
         "session-cleanup",
     }
@@ -4505,12 +4703,15 @@ def main() -> int:
         "work-sync": cmd_work_sync,
         "work-next": cmd_work_next,
         "plan-auto": cmd_plan_auto,
+        "lane-ensure": cmd_lane_ensure,
         "lane-show": cmd_lane_show,
         "lane-list": cmd_lane_list,
         "loop-status": cmd_loop_status,
         "loop-history": cmd_loop_history,
         "dispatch-ready": cmd_dispatch_ready,
         "dispatch-reset": cmd_dispatch_reset,
+        "dispatch-holds": cmd_dispatch_holds,
+        "dispatch-status": cmd_dispatch_status,
         "feedback-sync": cmd_feedback_sync,
         "initiative-show": cmd_initiative_show,
         "initiative-list": cmd_initiative_list,
@@ -4542,10 +4743,12 @@ def main() -> int:
         "run-ship-start": cmd_run_ship_start,
         "run-ship-complete": cmd_run_ship_complete,
         "run-ship-fail": cmd_run_ship_fail,
+        "run-reset": cmd_run_reset,
         "run-ship-draft": cmd_run_ship_draft,
         "verify-import": cmd_verify_import,
         "run-sync-session": cmd_run_sync_session,
         "graph": cmd_graph,
+        "session-create": cmd_session_create,
         "session-status": cmd_session_status,
         "session-apply": cmd_session_apply,
         "session-merge": cmd_session_merge,

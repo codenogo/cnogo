@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.runtime_root import runtime_path
 
 # Backoff schedule: consecutive failures → hold duration in minutes.
@@ -77,8 +78,7 @@ def load_dispatch_ledger(root: Path, feature: str) -> dict[str, Any] | None:
 def save_dispatch_ledger(root: Path, feature: str, ledger: dict[str, Any]) -> Path:
     """Persist a dispatch ledger."""
     path = _ledger_path(root, feature)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(ledger, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    atomic_write_json(path, ledger, sort_keys=False)
     return path
 
 
@@ -89,8 +89,13 @@ def record_dispatch_failure(
     phase: str,
     error: str,
     lane_id: str = "",
+    systemic: bool = False,
 ) -> dict[str, Any]:
     """Record a dispatch failure and compute the hold.
+
+    If systemic=True (non-retryable errors like corrupt state, missing schemas),
+    set consecutiveFailures to 4+ immediately to trigger permanent hold.
+    Inspired by Erlang/OTP :permanent vs :transient restart types.
 
     Returns the updated ledger.
     """
@@ -101,13 +106,18 @@ def record_dispatch_failure(
         "artifactFingerprint": "",
         "attempts": [],
     }
-    ledger["consecutiveFailures"] = ledger.get("consecutiveFailures", 0) + 1
+    if systemic:
+        # Systemic errors skip backoff — permanent hold immediately.
+        ledger["consecutiveFailures"] = max(ledger.get("consecutiveFailures", 0) + 1, 4)
+    else:
+        ledger["consecutiveFailures"] = ledger.get("consecutiveFailures", 0) + 1
     attempts = ledger.get("attempts", [])
     attempts.append({
         "phase": phase,
         "timestamp": _now_iso(),
         "error": (error[:997] + "...") if len(error) > 1000 else error,
         "laneId": lane_id,
+        "systemic": systemic,
     })
     ledger["attempts"] = attempts[-_MAX_ATTEMPTS_KEPT:]
     ledger["artifactFingerprint"] = _artifact_fingerprint(root, feature)

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
 from scripts.workflow.shared.profiles import (
     profile_auto_advance,
@@ -175,8 +176,7 @@ def save_work_order(order: WorkOrder, root: Path) -> Path:
     if not order.created_at:
         order.created_at = order.updated_at
     path = work_order_path(root, order.feature)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(order.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, order.to_dict())
     return path
 
 

@@ -68,3 +68,6 @@ python3 .cnogo/scripts/workflow_validate.py --json
 - feature queue snapshot with any `ready` features that were materialized
 - stay-in-shape continuation moves first
 - assembly-line visibility second: queued or leased features, priority, and any new feedback for shape
+- when ready features exist, suggest ONLY these entry points (never invent alternatives):
+  - `/run-loop` to auto-dispatch and execute all ready features
+  - `/implement <feature>` to execute a single feature through the pipeline

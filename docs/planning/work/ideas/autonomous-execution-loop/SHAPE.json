@@ -107,6 +107,18 @@
       "status": "ready",
       "readinessReason": "dispatch_ledger.py already implements list_dispatch_holds(). Just needs CLI wiring.",
       "handoffSummary": "Add dispatch-holds subparser to workflow_memory.py. Handler calls list_dispatch_holds(root), renders feature/failures/holdUntil/lastError table for human mode, or JSON for --json. Register in command dispatch table and allowlist."
+    },
+    {
+      "slug": "dispatch-status-cli",
+      "displayName": "Dispatch Status CLI Command",
+      "userOutcome": "Operators can run `dispatch-status` for a compact one-screen summary of the dispatch state: queued features, active lanes, circuit breaker holds, and WIP capacity.",
+      "scopeSummary": "Add dispatch-status subcommand to workflow_memory.py that calls list_work_orders, list_feature_lanes, list_dispatch_holds, and dispatcher_settings_cfg. Renders a compact dashboard for human mode, or JSON for --json.",
+      "dependencies": [],
+      "risks": [],
+      "priority": 0,
+      "status": "ready",
+      "readinessReason": "All underlying functions exist. Just needs CLI wiring and formatting.",
+      "handoffSummary": "Add dispatch-status subparser to workflow_memory.py. Handler loads work orders (list_work_orders), lanes (list_feature_lanes), holds (list_dispatch_holds), and config (dispatcher_settings_cfg). Renders: WIP used/limit, queued count, active lanes with feature/status, holds count. --json returns structured payload. Register in command dispatch table and allowlist."
     }
   ],
   "recommendedSequence": [

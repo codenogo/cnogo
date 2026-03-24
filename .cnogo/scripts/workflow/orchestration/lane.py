@@ -1,4 +1,9 @@
-"""Feature-lane runtime state for multi-feature execution."""
+"""Feature-lane runtime state for multi-feature execution.
+
+Single-writer assumption: only the dispatcher (or CLI via lane commands)
+writes to lane files. Concurrent writes from parallel dispatchers are not
+guarded with file locks and may cause state corruption.
+"""
 
 from __future__ import annotations
 
@@ -11,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.config import dispatcher_settings_cfg, load_workflow_config
 from scripts.workflow.shared.runtime_root import runtime_path, runtime_root, write_runtime_root_marker
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
@@ -170,8 +176,7 @@ def save_feature_lane(lane: FeatureLane, root: Path) -> Path:
             lane.heartbeat_at = now
         lane.lease_expires_at = _expires_at(lane.heartbeat_at, root)
     path = lane_path(root, lane.feature)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(lane.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, lane.to_dict())
     return path
 
 
@@ -285,7 +290,10 @@ def _resolve_base_branch(root: Path) -> str:
 
 
 def _feature_worktree_path(root: Path, feature: str) -> Path:
-    return (root.parent / f"{root.resolve().name}-feature-{feature}").resolve()
+    # Place worktrees INSIDE the main checkout (at a gitignored path) so they
+    # stay within Claude Code's file sandbox boundary. Agents can access them
+    # directly without isolation:"worktree" or additionalDirectories.
+    return (root / ".cnogo" / "feature-worktrees" / feature).resolve()
 
 
 def _ensure_feature_worktree(root: Path, feature: str) -> tuple[str, str]:
@@ -299,6 +307,23 @@ def _ensure_feature_worktree(root: Path, feature: str) -> tuple[str, str]:
         _run_git(root, "branch", branch, _resolve_base_branch(root))
     if not worktree_path.exists():
         _run_git(root, "worktree", "add", str(worktree_path), branch)
+    else:
+        # Verify existing worktree is on the expected branch.
+        try:
+            result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=str(worktree_path),
+                capture_output=True, text=True, check=False,
+            )
+            actual_branch = result.stdout.strip() if result.returncode == 0 else ""
+            if actual_branch and actual_branch != branch:
+                subprocess.run(
+                    ["git", "checkout", branch],
+                    cwd=str(worktree_path),
+                    capture_output=True, text=True, check=False,
+                )
+        except Exception:
+            pass  # Best-effort verification
     write_runtime_root_marker(worktree_path, runtime_root(root))
     return branch, str(worktree_path)
 

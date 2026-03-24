@@ -12,6 +12,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from scripts.workflow.shared.atomic_write import atomic_write_json
 from scripts.workflow.shared.config import load_workflow_config, scheduler_settings_cfg
 from scripts.workflow.shared.runtime_root import runtime_path
 from scripts.workflow.shared.timestamps import parse_iso_timestamp
@@ -69,8 +70,7 @@ def _read_json(path: Path) -> dict[str, Any] | None:
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(path, payload)
 
 
 def _append_event(root: Path, payload: dict[str, Any]) -> None:
@@ -148,12 +148,23 @@ def scheduler_status(root: Path, *, now: datetime | None = None) -> dict[str, An
     pid = _load_pid(scheduler_pid_path(root))
     supervisor_active = _pid_alive(pid)
     due = bool(settings["enabled"] and next_run is not None and now_dt >= next_run)
+    # Check for dispatch triggers — if any exist, the tick is due immediately.
+    triggered = False
+    try:
+        from .dispatch_trigger import has_pending_triggers
+        triggered = has_pending_triggers(root)
+    except Exception:
+        pass
+    if triggered and settings["enabled"]:
+        due = True
     reason = "Scheduler is disabled in WORKFLOW.json."
     if settings["enabled"]:
         if supervisor_active:
             reason = "Scheduler supervisor is active."
         elif last_run is None:
             reason = "No scheduler tick has been recorded yet."
+        elif triggered:
+            reason = "Dispatch triggers are pending."
         elif due:
             reason = "Scheduler tick interval has elapsed."
         else:
@@ -314,9 +325,17 @@ def stop_scheduler_supervisor(root: Path) -> dict[str, Any]:
 
 
 def scheduler_worker_loop(root: Path) -> int:
+    """Main scheduler loop with responsive trigger-based wakeup.
+
+    Instead of sleeping for the full tick interval, checks for dispatch
+    triggers every few seconds. If triggers are found, runs dispatch
+    immediately. This reduces reaction time from ~15 minutes to ~5 seconds
+    while keeping CPU usage low (inspired by BEAM's timer wheel).
+    """
     pid_path = scheduler_pid_path(root)
     pid_path.parent.mkdir(parents=True, exist_ok=True)
     pid_path.write_text(f"{os.getpid()}\n", encoding="utf-8")
+    _POLL_INTERVAL = 5  # seconds — check for triggers this often
     try:
         while True:
             run_scheduler_once(
@@ -326,7 +345,19 @@ def scheduler_worker_loop(root: Path) -> int:
                 allow_when_supervisor=True,
             )
             settings = scheduler_settings_cfg(load_workflow_config(root))
-            time.sleep(max(settings["tickIntervalMinutes"] * 60, 5))
+            tick_seconds = max(settings["tickIntervalMinutes"] * 60, 10)
+            # Sleep in small increments, waking early if triggers appear.
+            slept = 0
+            while slept < tick_seconds:
+                time.sleep(min(_POLL_INTERVAL, tick_seconds - slept))
+                slept += _POLL_INTERVAL
+                # Check for dispatch triggers — if any, break and run tick now.
+                try:
+                    from .dispatch_trigger import has_pending_triggers
+                    if has_pending_triggers(root):
+                        break
+                except Exception:
+                    pass
     finally:
         try:
             pid_path.unlink()

@@ -15,7 +15,9 @@ You are the executor for one feature lane. You drive the feature from `implement
 You receive these arguments:
 - `FEATURE`: the feature slug
 - `RUN_ID`: the delivery run ID
-- `WORKTREE`: the feature lane worktree path (you are already in it)
+- `WORKTREE`: the feature lane worktree path (at `.cnogo/feature-worktrees/<feature>` on branch `feature/<feature>`)
+
+The feature worktree is INSIDE the main checkout (at a gitignored path), so all agents can access it directly within the file sandbox.
 
 ## Execution Loop
 
@@ -29,9 +31,7 @@ python3 .cnogo/scripts/workflow_memory.py run-next $FEATURE --run-id $RUN_ID --j
 
 Read `nextAction.kind`:
 - `begin_task` → proceed to step 2 with `taskIndices` (all runnable tasks)
-- `merge_team_session` → run `session-apply --json`, then loop
-- `resolve_merge_conflict` → run `session-status --json`, attempt resolution, then loop
-- `run_plan_verify` → go to step 5
+- `run_plan_verify` → go to step 4
 - `start_review` / `start_ship` / `complete` → exit successfully
 - `blocked` / `wait` → log event, exit with status
 
@@ -49,42 +49,43 @@ b. Get the implementer prompt:
 python3 .cnogo/scripts/workflow_memory.py run-task-prompt $FEATURE $TASK_INDEX --run-id $RUN_ID --actor implementer-$TASK_INDEX
 ```
 
-c. Spawn the implementer as a background agent:
+c. Spawn the implementer targeting the feature worktree:
 ```
-Agent(subagent_type="implementer", prompt=<prompt from step b>, run_in_background=true, name="impl-$TASK_INDEX", isolation="worktree", mode="bypassPermissions")
+prompt = "WORKTREE: $WORKTREE\n<prompt from step b>"
+
+Agent(subagent_type="implementer", prompt=prompt, run_in_background=true, name="impl-$TASK_INDEX", mode="bypassPermissions")
 ```
 
-CRITICAL: Always use `isolation="worktree"` and `mode="bypassPermissions"`. Without `isolation="worktree"`, the implementer agent cannot access feature worktrees (they are outside Claude Code's sandbox boundary). Without `mode="bypassPermissions"`, the agent will be blocked on tool approvals.
+The worktree is at `.cnogo/feature-worktrees/<feature>` — inside the main checkout sandbox. No `isolation: "worktree"` needed.
 
-Log an `agents_spawned` execution event for each.
+Log an `agents_spawned` execution event.
 
-### 3. Wait for agents and process results
+### 3. Wait for agents, process results, commit
 
-As each implementer agent completes (you'll be notified):
-- If the agent succeeded (look for `TASK_DONE` in the response):
+As each implementer agent completes (you'll be notified), **parse `TASK_RESULT` first**. Look for `TASK_RESULT: {JSON}` in the response and parse it.
+
+- If `TASK_RESULT` found with `status == "done"`:
   ```bash
   python3 .cnogo/scripts/workflow_memory.py run-task-complete $FEATURE $TASK_INDEX --run-id $RUN_ID
   ```
-  Log a `task_completed` execution event.
+  Log a `task_completed` execution event with `filesModified` and `verifyResults` from the JSON.
 
-- If the agent failed or was blocked:
+- If `TASK_RESULT` found with `status == "failed"` or `"blocked"`:
   ```bash
-  python3 .cnogo/scripts/workflow_memory.py run-task-fail $FEATURE $TASK_INDEX --run-id $RUN_ID --error "<summary>"
+  python3 .cnogo/scripts/workflow_memory.py run-task-fail $FEATURE $TASK_INDEX --run-id $RUN_ID --error "<error from JSON>"
   ```
-  Log a `task_failed` execution event.
+  Log a `task_failed` execution event with `errorCategory` from the JSON.
 
-### 4. Merge and continue
+- **Fallback**: If no `TASK_RESULT` found, scan for `TASK_DONE` (backward compat). If neither found, treat as failure.
 
-After all spawned agents return:
-- If multiple agents ran in parallel, apply their work:
-  ```bash
-  python3 .cnogo/scripts/workflow_memory.py session-apply --json
-  ```
-  Log a `merge_completed` or `merge_conflict` execution event.
+After all agents return, commit in the feature worktree:
+```bash
+cd $WORKTREE && git add -A && git commit -m "feat($FEATURE): implement $FEATURE"
+```
 
-- Go back to step 1 to check for the next frontier.
+Go back to step 1 to check for the next frontier.
 
-### 5. Plan verification
+### 4. Plan verification
 
 When `run-next` says `run_plan_verify`:
 ```bash
@@ -112,17 +113,17 @@ log_execution_event(Path('.'), actor='executor', feature='$FEATURE', event='EVEN
 "
 ```
 
-Events to log: `executor_started`, `agents_spawned`, `task_completed`, `task_failed`, `merge_completed`, `merge_conflict`, `plan_verify_passed`, `plan_verify_failed`, `executor_finished`, `executor_error`.
+Events to log: `executor_started`, `agents_spawned`, `task_completed`, `task_failed`, `plan_verify_passed`, `plan_verify_failed`, `executor_finished`, `executor_error`.
 
 ## Rules
 
 - You NEVER write application code. Only implementers do that.
-- You orchestrate: spawn agents, process results, merge, verify.
+- You orchestrate: spawn agents, commit results, verify.
 - Always use `run-task-begin` BEFORE spawning an implementer for a task.
 - Always use `run-task-complete` or `run-task-fail` AFTER an implementer returns.
 - If a task fails twice, log it and move on (don't retry forever).
-- If merge conflicts can't be resolved, log and exit — patrol will detect the stall.
 - Spawn ALL runnable tasks in the frontier simultaneously — always team mode.
 - Use `run_in_background=true` when spawning multiple implementers so they run in parallel.
-- ALWAYS use `isolation="worktree"` + `mode="bypassPermissions"` on every Agent spawn — implementers cannot function without them.
+- Do NOT use `isolation="worktree"` on Agent spawns. The feature worktree is inside the sandbox at `.cnogo/feature-worktrees/`.
+- The executor owns the commit. Implementers only edit files — they never commit.
 - After all agents complete, refresh the frontier — new tasks may have been unblocked.

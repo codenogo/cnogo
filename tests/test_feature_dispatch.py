@@ -581,6 +581,14 @@ def _setup_lane_with_review_ready_run(root: Path, slug: str) -> None:
     # Update lane to implementing status.
     from scripts.workflow.orchestration.lane import heartbeat_feature_lane
     heartbeat_feature_lane(root, slug, status="implementing", lease_owner="dispatcher")
+    # Overwrite planVerify with a command that succeeds in the test tmp_path,
+    # since pytest from tmp_path exits non-zero (no test files).
+    # The plan is in the feature worktree, not the main root.
+    plan_path = Path(run.plan_path) if run else None
+    if plan_path and plan_path.exists():
+        plan_data = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan_data["planVerify"] = ["true"]
+        plan_path.write_text(json.dumps(plan_data, indent=2), encoding="utf-8")
     sync_work_order(slug, root=root)
 
 

@@ -643,6 +643,23 @@ def watch_delivery_runs(
         work_orders.append(build_work_order(root, lane.feature).to_dict())
         seen_features.add(lane.feature)
 
+    # Sweep orphaned agents and add findings.
+    try:
+        from .agent_registry import sweep_orphaned_agents
+        orphans = sweep_orphaned_agents(root, stale_minutes=stale_minutes)
+        for orphan in orphans:
+            findings.append(
+                _finding(
+                    kind="agent_orphaned",
+                    severity="warn",
+                    feature=orphan.get("feature", ""),
+                    detail=f"Agent {orphan.get('name', '?')} orphaned: {orphan.get('orphanReason', 'unknown')}",
+                    run_id="",
+                )
+            )
+    except Exception:
+        pass  # Agent registry not yet initialized.
+
     return {
         "checkedAt": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "thresholds": {

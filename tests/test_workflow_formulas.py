@@ -8,7 +8,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.memory.bridge import recommend_team_mode  # noqa: E402
 from scripts.workflow.shared.profiles import (  # noqa: E402
     is_profile_name,
     profile_auto_spawn_configured_reviewers,
@@ -55,7 +54,7 @@ def test_resolve_profile_uses_workflow_default(tmp_path):
     resolved = resolve_profile(tmp_path)
 
     assert resolved["name"] == "migration-rollout"
-    assert resolved["resolvedPolicy"]["execution"]["modePreference"] == "serial"
+    assert resolved["resolvedPolicy"]["execution"]["modePreference"] == "team"
 
 
 def test_resolve_profile_allows_plan_override(tmp_path):
@@ -87,20 +86,8 @@ def test_resolve_profile_allows_plan_override(tmp_path):
     assert profile_required_reviewers(resolved) == ["code-reviewer", "qa-reviewer"]
 
 
-def test_recommend_team_mode_respects_profile_serial_preference():
-    tasks = [_task(0, path="a.py"), _task(1, path="b.py")]
 
-    recommendation = recommend_team_mode(
-        tasks,
-        profile={
-            "name": "migration-rollout",
-            "resolvedPolicy": {"execution": {"modePreference": "serial"}},
-        },
-    )
-
-    assert recommendation["recommended"] is False
-    assert recommendation["reason"] == "Profile prefers serial execution for this kind of work."
-    assert recommendation["profileModePreference"] == "serial"
+# test_recommend_team_mode_respects_profile_serial_preference removed — function deleted (always team mode)
 
 
 def test_profile_auto_spawn_defaults_true_and_can_disable():

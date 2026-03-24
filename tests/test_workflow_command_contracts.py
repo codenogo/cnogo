@@ -79,26 +79,8 @@ def test_plan_and_implement_commands_enforce_stricter_execution_contracts():
     assert "profile-stamp $ARGUMENTS <NN>" in plan
     assert "`contextLinks[]`" in plan
     assert "explicit error-path scenario" in plan
-    assert "[--serial]" in implement
-    assert "recommend_team_mode(taskdescs)" in implement
-    assert "Resolve the plan profile" in implement
-    assert "Delivery Run" in implement
-    assert "work-show <feature-slug> --json" in implement
-    assert ".cnogo/runs/<feature>/<run-id>.json" in implement
-    assert "workflow_memory.py run-create <feature-slug> <NN>" in implement
-    assert "workflow_memory.py run-next <feature-slug> --run-id <run-id> --json" in implement
-    assert "returned `nextAction`" in implement
-    assert "serial mode, `run-plan-verify` absorbs integration" in implement
-    assert "workflow_memory.py run-plan-verify <feature-slug> pass" in implement
-    assert "workflow_memory.py run-task-begin <feature-slug> <task-index>" in implement
-    assert "workflow_memory.py run-task-complete <feature-slug> <task-index>" in implement
-    assert "workflow_memory.py run-task-fail <feature-slug> <task-index>" in implement
-    assert "integration` plus `reviewReadiness`" in implement
-    assert "auto-appended package `lint` / `typecheck` / `test` commands" in implement
-    assert "workflow_checks.py summarize --feature <feature-slug> --plan <NN>" in implement
-    assert "run-watch-patrol --feature <feature-slug>" in implement
-    assert "work-next <feature-slug> --json" in implement
-    assert "run-review-ready <feature-slug> --run-id <run-id>" in implement
+    # /implement command was removed (always team mode via executor agents)
+    # implement assertions removed — command is empty
     assert "Delivery Run" in team
     assert "Work Order state" in team
     assert "workflow_memory.py run-create <feature> <NN> --mode team --json" in team

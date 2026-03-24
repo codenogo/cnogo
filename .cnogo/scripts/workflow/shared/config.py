@@ -59,6 +59,13 @@ DEFAULT_DISPATCHER_SETTINGS = {
     "overlapPolicy": "allow",
     "autonomy": "high",
     "leaseTimeoutMinutes": 45,
+    "stageMaxPerTick": {
+        "autoQueue": 5,
+        "autoLease": 2,
+        "autoPlan": 2,
+        "autoReview": 1,
+        "autoShip": 1,
+    },
 }
 
 
@@ -241,6 +248,15 @@ def dispatcher_settings_cfg(cfg: dict[str, Any]) -> dict[str, Any]:
     lease_timeout = raw.get("leaseTimeoutMinutes")
     if _is_positive_int(lease_timeout):
         out["leaseTimeoutMinutes"] = lease_timeout
+    stage_max = raw.get("stageMaxPerTick")
+    if isinstance(stage_max, dict):
+        defaults = out["stageMaxPerTick"]
+        merged = dict(defaults)
+        for key in defaults:
+            val = stage_max.get(key)
+            if _is_positive_int(val):
+                merged[key] = val
+        out["stageMaxPerTick"] = merged
     return out
 
 

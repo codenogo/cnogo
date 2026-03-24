@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "feature": "dispatch-status-cli",
+  "parentShape": {
+    "path": "docs/planning/work/ideas/autonomous-execution-loop/SHAPE.json",
+    "timestamp": "2026-03-23T00:00:00Z"
+  },
+  "displayName": "Dispatch Status CLI Command",
+  "userOutcome": "Operators can run dispatch-status for a compact one-screen summary of the dispatch state: queued features, active lanes, circuit breaker holds, and WIP capacity.",
+  "scopeSummary": "Add dispatch-status subcommand to workflow_memory.py that calls list_work_orders, list_feature_lanes, list_dispatch_holds, and dispatcher_settings_cfg. Renders a compact dashboard for human mode, or JSON for --json.",
+  "dependencies": [],
+  "risks": [],
+  "priority": 0,
+  "status": "ready",
+  "readinessReason": "All underlying functions exist. Just needs CLI wiring and formatting.",
+  "handoffSummary": "Add dispatch-status subparser to workflow_memory.py. Handler loads work orders (list_work_orders), lanes (list_feature_lanes), holds (list_dispatch_holds), and config (dispatcher_settings_cfg). Renders: WIP used/limit, queued count, active lanes with feature/status, holds count. --json returns structured payload. Register in command dispatch table and allowlist.",
+  "timestamp": "2026-03-23T00:00:00Z"
+}
