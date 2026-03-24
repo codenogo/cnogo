@@ -1758,6 +1758,33 @@ def cmd_plan_auto(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_lane_ensure(args: argparse.Namespace) -> int:
+    """Ensure a feature lane exists (create worktree + lane if needed)."""
+    root = _root()
+    from scripts.workflow.orchestration.lane import ensure_feature_lane
+    lane = ensure_feature_lane(
+        root,
+        feature=args.feature,
+        work_order_id=args.feature,
+        lease_owner=getattr(args, "owner", "implement"),
+        status="leased",
+    )
+    payload = {
+        "feature": lane.feature,
+        "laneId": lane.lane_id,
+        "worktreePath": lane.worktree_path,
+        "branch": lane.branch,
+        "status": lane.status,
+        "leaseOwner": lane.lease_owner,
+        "created": True,
+    }
+    if args.json:
+        _print_json(payload)
+    else:
+        print(f"Lane ensured: {lane.feature} → {lane.worktree_path}")
+    return 0
+
+
 def cmd_lane_show(args: argparse.Namespace) -> int:
     root = _root()
     payload = describe_feature_lane(args.feature, root=root)
@@ -4078,6 +4105,12 @@ def main() -> int:
     p.add_argument("--no-run", action="store_true", help="Do not create or resume a Delivery Run after planning")
     p.add_argument("--json", action="store_true")
 
+    # lane-ensure
+    p = sub.add_parser("lane-ensure", help="Ensure a feature lane exists (create if needed)")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--owner", default="implement", help="Lease owner (default: implement)")
+    p.add_argument("--json", action="store_true")
+
     # lane-show
     p = sub.add_parser("lane-show", help="Show one feature lane")
     p.add_argument("feature", help="Feature slug")
@@ -4609,6 +4642,7 @@ def main() -> int:
         "work-sync",
         "work-next",
         "plan-auto",
+        "lane-ensure",
         "lane-show",
         "lane-list",
         "dispatch-ready",
@@ -4669,6 +4703,7 @@ def main() -> int:
         "work-sync": cmd_work_sync,
         "work-next": cmd_work_next,
         "plan-auto": cmd_plan_auto,
+        "lane-ensure": cmd_lane_ensure,
         "lane-show": cmd_lane_show,
         "lane-list": cmd_lane_list,
         "loop-status": cmd_loop_status,
