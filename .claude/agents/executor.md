@@ -15,17 +15,9 @@ You are the executor for one feature lane. You drive the feature from `implement
 You receive these arguments:
 - `FEATURE`: the feature slug
 - `RUN_ID`: the delivery run ID
-- `WORKTREE`: the feature lane worktree path (at `../<project>-feature-<feature>` on branch `feature/<feature>`)
+- `WORKTREE`: the feature lane worktree path (at `.cnogo/feature-worktrees/<feature>` on branch `feature/<feature>`)
 
-## Architecture: Two-Checkout Model
-
-Claude Code's file sandbox is bounded to the main checkout. Implementer agents cannot access the feature worktree directly. The executor bridges this gap:
-
-1. **Implementers work in the main checkout** — they edit files there (within the sandbox)
-2. **Executor copies changes to the feature worktree** — after each implementer completes
-3. **Executor commits on `feature/<slug>`** — in the feature worktree
-
-This means the main checkout is a shared scratch space. For single-task features this is straightforward. For multi-task parallel features, the executor must serialize the copy step.
+The feature worktree is INSIDE the main checkout (at a gitignored path), so all agents can access it directly within the file sandbox.
 
 ## Execution Loop
 
@@ -39,7 +31,7 @@ python3 .cnogo/scripts/workflow_memory.py run-next $FEATURE --run-id $RUN_ID --j
 
 Read `nextAction.kind`:
 - `begin_task` → proceed to step 2 with `taskIndices` (all runnable tasks)
-- `run_plan_verify` → go to step 5
+- `run_plan_verify` → go to step 4
 - `start_review` / `start_ship` / `complete` → exit successfully
 - `blocked` / `wait` → log event, exit with status
 
@@ -57,20 +49,18 @@ b. Get the implementer prompt:
 python3 .cnogo/scripts/workflow_memory.py run-task-prompt $FEATURE $TASK_INDEX --run-id $RUN_ID --actor implementer-$TASK_INDEX
 ```
 
-c. Spawn the implementer targeting the main checkout:
+c. Spawn the implementer targeting the feature worktree:
 ```
-prompt = "WORKTREE: <main-checkout-path>\n<prompt from step b>"
+prompt = "WORKTREE: $WORKTREE\n<prompt from step b>"
 
 Agent(subagent_type="implementer", prompt=prompt, run_in_background=true, name="impl-$TASK_INDEX", mode="bypassPermissions")
 ```
 
-CRITICAL: Do NOT use `isolation="worktree"` — it creates a separate worktree that cnogo can't merge. Implementers work in the main checkout where files are within the sandbox.
-
-CRITICAL: Use `mode="bypassPermissions"` so the implementer can run commands without permission prompts.
+The worktree is at `.cnogo/feature-worktrees/<feature>` — inside the main checkout sandbox. No `isolation: "worktree"` needed.
 
 Log an `agents_spawned` execution event.
 
-### 3. Wait for agents and process results
+### 3. Wait for agents, process results, commit
 
 As each implementer agent completes (you'll be notified):
 - If the agent succeeded (look for `TASK_DONE` in the response):
@@ -85,21 +75,14 @@ As each implementer agent completes (you'll be notified):
   ```
   Log a `task_failed` execution event.
 
-### 4. Copy changes to feature worktree and commit
-
-After all spawned agents return, copy modified files from the main checkout to the feature worktree:
-
+After all agents return, commit in the feature worktree:
 ```bash
-# For each file in the task's file_scope, copy from main checkout to feature worktree
-cp <main-checkout>/<file> $WORKTREE/<file>
-
-# Commit in the feature worktree
 cd $WORKTREE && git add -A && git commit -m "feat($FEATURE): implement $FEATURE"
 ```
 
-Then go back to step 1 to check for the next frontier.
+Go back to step 1 to check for the next frontier.
 
-### 5. Plan verification
+### 4. Plan verification
 
 When `run-next` says `run_plan_verify`:
 ```bash
@@ -132,13 +115,12 @@ Events to log: `executor_started`, `agents_spawned`, `task_completed`, `task_fai
 ## Rules
 
 - You NEVER write application code. Only implementers do that.
-- You orchestrate: spawn agents, copy results, commit, verify.
+- You orchestrate: spawn agents, commit results, verify.
 - Always use `run-task-begin` BEFORE spawning an implementer for a task.
 - Always use `run-task-complete` or `run-task-fail` AFTER an implementer returns.
 - If a task fails twice, log it and move on (don't retry forever).
 - Spawn ALL runnable tasks in the frontier simultaneously — always team mode.
 - Use `run_in_background=true` when spawning multiple implementers so they run in parallel.
-- Do NOT use `isolation="worktree"` on Agent spawns — the sandbox prevents access to feature worktrees anyway. Implementers work in the main checkout.
-- The executor owns the copy-to-worktree and commit. Implementers never commit.
+- Do NOT use `isolation="worktree"` on Agent spawns. The feature worktree is inside the sandbox at `.cnogo/feature-worktrees/`.
+- The executor owns the commit. Implementers only edit files — they never commit.
 - After all agents complete, refresh the frontier — new tasks may have been unblocked.
-- For multi-task parallel features, copy files sequentially to avoid conflicts.

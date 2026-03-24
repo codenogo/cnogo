@@ -54,6 +54,8 @@ credentials.json
 service-account*.json
 
 # >>> cnogo
+# Feature lane worktrees (git worktrees inside the sandbox boundary)
+.cnogo/feature-worktrees/
 # Memory engine runtime (SQLite binary — not diffable)
 .cnogo/memory.db
 .cnogo/memory.db-wal

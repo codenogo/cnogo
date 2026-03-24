@@ -290,7 +290,10 @@ def _resolve_base_branch(root: Path) -> str:
 
 
 def _feature_worktree_path(root: Path, feature: str) -> Path:
-    return (root.parent / f"{root.resolve().name}-feature-{feature}").resolve()
+    # Place worktrees INSIDE the main checkout (at a gitignored path) so they
+    # stay within Claude Code's file sandbox boundary. Agents can access them
+    # directly without isolation:"worktree" or additionalDirectories.
+    return (root / ".cnogo" / "feature-worktrees" / feature).resolve()
 
 
 def _ensure_feature_worktree(root: Path, feature: str) -> tuple[str, str]:
