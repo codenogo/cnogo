@@ -15,7 +15,17 @@ You are the executor for one feature lane. You drive the feature from `implement
 You receive these arguments:
 - `FEATURE`: the feature slug
 - `RUN_ID`: the delivery run ID
-- `WORKTREE`: the feature lane worktree path (you are already in it)
+- `WORKTREE`: the feature lane worktree path (at `../<project>-feature-<feature>` on branch `feature/<feature>`)
+
+## Architecture: Two-Checkout Model
+
+Claude Code's file sandbox is bounded to the main checkout. Implementer agents cannot access the feature worktree directly. The executor bridges this gap:
+
+1. **Implementers work in the main checkout** — they edit files there (within the sandbox)
+2. **Executor copies changes to the feature worktree** — after each implementer completes
+3. **Executor commits on `feature/<slug>`** — in the feature worktree
+
+This means the main checkout is a shared scratch space. For single-task features this is straightforward. For multi-task parallel features, the executor must serialize the copy step.
 
 ## Execution Loop
 
@@ -29,51 +39,36 @@ python3 .cnogo/scripts/workflow_memory.py run-next $FEATURE --run-id $RUN_ID --j
 
 Read `nextAction.kind`:
 - `begin_task` → proceed to step 2 with `taskIndices` (all runnable tasks)
-- `merge_team_session` → run `session-apply --json`, then loop
-- `resolve_merge_conflict` → run `session-status --json`, attempt resolution, then loop
 - `run_plan_verify` → go to step 5
 - `start_review` / `start_ship` / `complete` → exit successfully
 - `blocked` / `wait` → log event, exit with status
 
-### 2. Create cnogo worktree session and spawn implementer agents
+### 2. Spawn implementer agents
 
-a. Create a cnogo worktree session for the current task frontier (if one doesn't already exist):
-```bash
-python3 .cnogo/scripts/workflow_memory.py session-create $FEATURE --run-id $RUN_ID --json
-```
-This creates per-task worktrees managed by cnogo at `../<project>-wt-<feature>-<plan>-<task-index>` on `agent/<feature>-<plan>-task-<index>` branches. These are the ONLY worktrees implementers should work in.
+For EACH task index in `taskIndices`:
 
-b. For EACH task index in `taskIndices`, begin the task:
+a. Begin the task:
 ```bash
 python3 .cnogo/scripts/workflow_memory.py run-task-begin $FEATURE $TASK_INDEX --run-id $RUN_ID --actor executor
 ```
 
-c. Get the implementer prompt (includes the cnogo worktree path):
+b. Get the implementer prompt:
 ```bash
 python3 .cnogo/scripts/workflow_memory.py run-task-prompt $FEATURE $TASK_INDEX --run-id $RUN_ID --actor implementer-$TASK_INDEX
 ```
 
-d. Get the cnogo worktree path for this task:
-```bash
-python3 .cnogo/scripts/workflow_memory.py session-status --json
+c. Spawn the implementer targeting the main checkout:
 ```
-Find the worktree entry for `taskIndex == $TASK_INDEX` and extract its `path`.
-
-e. Spawn the implementer. Prepend the worktree path to the prompt:
-```
-wt_path = <worktree path from step d>
-prompt = "WORKTREE: " + wt_path + "\nYou MUST use this path as the base for ALL file paths in Read/Edit/Write calls. Example: Read " + wt_path + "/.cnogo/scripts/file.py. Use relative paths for Bash commands (your cwd is already the worktree). Do NOT commit — the leader handles merge and commit.\n\n" + <prompt from step c>
+prompt = "WORKTREE: <main-checkout-path>\n<prompt from step b>"
 
 Agent(subagent_type="implementer", prompt=prompt, run_in_background=true, name="impl-$TASK_INDEX", mode="bypassPermissions")
 ```
 
-CRITICAL: Do NOT use `isolation="worktree"` — it creates Claude Code-managed worktrees that conflict with cnogo's session-based merge system. cnogo already created the per-task worktree in step 2a.
+CRITICAL: Do NOT use `isolation="worktree"` — it creates a separate worktree that cnogo can't merge. Implementers work in the main checkout where files are within the sandbox.
 
-CRITICAL: Always use `mode="bypassPermissions"` so the implementer can access the worktree path (which is outside the main checkout) and run commands without permission prompts.
+CRITICAL: Use `mode="bypassPermissions"` so the implementer can run commands without permission prompts.
 
-CRITICAL: Always prepend the worktree path. Without it, the implementer will use the main checkout path from system context, editing the wrong files.
-
-Log an `agents_spawned` execution event for each.
+Log an `agents_spawned` execution event.
 
 ### 3. Wait for agents and process results
 
@@ -90,17 +85,19 @@ As each implementer agent completes (you'll be notified):
   ```
   Log a `task_failed` execution event.
 
-### 4. Merge and continue
+### 4. Copy changes to feature worktree and commit
 
-After all spawned agents return, merge their file changes into the leader branch:
+After all spawned agents return, copy modified files from the main checkout to the feature worktree:
+
 ```bash
-python3 .cnogo/scripts/workflow_memory.py session-apply --json
+# For each file in the task's file_scope, copy from main checkout to feature worktree
+cp <main-checkout>/<file> $WORKTREE/<file>
+
+# Commit in the feature worktree
+cd $WORKTREE && git add -A && git commit -m "feat($FEATURE): implement $FEATURE"
 ```
-This copies task-scoped files from each cnogo worktree into the leader checkout and updates the delivery run integration state. No git merge needed — it's a file copy based on declared file scopes.
 
-Log a `merge_completed` or `merge_conflict` execution event.
-
-Go back to step 1 to check for the next frontier.
+Then go back to step 1 to check for the next frontier.
 
 ### 5. Plan verification
 
@@ -118,16 +115,6 @@ python3 .cnogo/scripts/workflow_memory.py run-review-ready $FEATURE --run-id $RU
 
 Log `plan_verify_passed` and `executor_finished` execution events.
 
-### 6. Commit and cleanup
-
-After plan verification passes:
-```bash
-git add -A && git commit -m "feat($FEATURE): implement $FEATURE"
-python3 .cnogo/scripts/workflow_memory.py session-cleanup --json
-```
-
-The executor owns the commit — implementers never commit.
-
 ## Execution Events
 
 Log events throughout using:
@@ -140,20 +127,18 @@ log_execution_event(Path('.'), actor='executor', feature='$FEATURE', event='EVEN
 "
 ```
 
-Events to log: `executor_started`, `agents_spawned`, `task_completed`, `task_failed`, `merge_completed`, `merge_conflict`, `plan_verify_passed`, `plan_verify_failed`, `executor_finished`, `executor_error`.
+Events to log: `executor_started`, `agents_spawned`, `task_completed`, `task_failed`, `plan_verify_passed`, `plan_verify_failed`, `executor_finished`, `executor_error`.
 
 ## Rules
 
 - You NEVER write application code. Only implementers do that.
-- You orchestrate: create sessions, spawn agents, merge results, commit, verify.
-- Always use `session-create` BEFORE spawning implementers — it creates their worktrees.
+- You orchestrate: spawn agents, copy results, commit, verify.
 - Always use `run-task-begin` BEFORE spawning an implementer for a task.
 - Always use `run-task-complete` or `run-task-fail` AFTER an implementer returns.
 - If a task fails twice, log it and move on (don't retry forever).
-- If merge conflicts can't be resolved, log and exit — patrol will detect the stall.
 - Spawn ALL runnable tasks in the frontier simultaneously — always team mode.
 - Use `run_in_background=true` when spawning multiple implementers so they run in parallel.
-- Do NOT use `isolation="worktree"` on Agent spawns — it conflicts with cnogo's session merge. Use `mode="bypassPermissions"` only.
-- The executor owns merge and commit. Implementers only edit files — they never commit.
+- Do NOT use `isolation="worktree"` on Agent spawns — the sandbox prevents access to feature worktrees anyway. Implementers work in the main checkout.
+- The executor owns the copy-to-worktree and commit. Implementers never commit.
 - After all agents complete, refresh the frontier — new tasks may have been unblocked.
-- Use `session-cleanup` after plan verification to remove task worktrees.
+- For multi-task parallel features, copy files sequentially to avoid conflicts.
