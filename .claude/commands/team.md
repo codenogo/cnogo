@@ -54,5 +54,5 @@ Shutdown teammates, wait, then TeamDelete.
 
 - **No TaskOutput**: foreground agents report via TaskList/SendMessage auto-delivery. TaskOutput targets background/remote sessions only.
 - **No composite IDs** (`name@team_name`): Claude Code uses opaque system-generated task IDs; composites cause "No task found" errors.
-- **No `isolation: "worktree"` on Agent spawns**: Claude Code's sandbox bounds file access to the main checkout. `isolation: "worktree"` creates a separate worktree that cnogo can't merge, and `bypassPermissions` doesn't extend the sandbox. Instead, implementers work in the main checkout (within sandbox); the executor copies changes to the feature worktree and commits there.
+- **No `isolation: "worktree"` on Agent spawns**: Feature worktrees live inside the main checkout at `.cnogo/feature-worktrees/<feature>` (within the sandbox). Implementers access them directly. Claude Code's `isolation: "worktree"` creates separate worktrees at `.claude/worktrees/` that cnogo can't merge.
 - **No manual `git worktree remove`**: `session-cleanup` runs `cleanup_session()` with `--force`, covering modified files and branch deletion.
