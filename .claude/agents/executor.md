@@ -62,18 +62,21 @@ Log an `agents_spawned` execution event.
 
 ### 3. Wait for agents, process results, commit
 
-As each implementer agent completes (you'll be notified):
-- If the agent succeeded (look for `TASK_DONE` in the response):
+As each implementer agent completes (you'll be notified), **parse `TASK_RESULT` first**. Look for `TASK_RESULT: {JSON}` in the response and parse it.
+
+- If `TASK_RESULT` found with `status == "done"`:
   ```bash
   python3 .cnogo/scripts/workflow_memory.py run-task-complete $FEATURE $TASK_INDEX --run-id $RUN_ID
   ```
-  Log a `task_completed` execution event.
+  Log a `task_completed` execution event with `filesModified` and `verifyResults` from the JSON.
 
-- If the agent failed or was blocked:
+- If `TASK_RESULT` found with `status == "failed"` or `"blocked"`:
   ```bash
-  python3 .cnogo/scripts/workflow_memory.py run-task-fail $FEATURE $TASK_INDEX --run-id $RUN_ID --error "<summary>"
+  python3 .cnogo/scripts/workflow_memory.py run-task-fail $FEATURE $TASK_INDEX --run-id $RUN_ID --error "<error from JSON>"
   ```
-  Log a `task_failed` execution event.
+  Log a `task_failed` execution event with `errorCategory` from the JSON.
+
+- **Fallback**: If no `TASK_RESULT` found, scan for `TASK_DONE` (backward compat). If neither found, treat as failure.
 
 After all agents return, commit in the feature worktree:
 ```bash

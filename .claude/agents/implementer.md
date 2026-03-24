@@ -19,8 +19,16 @@ You execute a single implementation task assigned by the team lead.
 4. **Recite**: Re-read your task description and checkpoint objective before verify.
 5. **Verify**: Run ALL verify commands from the worktree directory. Every one must pass.
 6. **Report Done**: Run the memory report-done command from your task description (if provided)
-7. **TASK_EVIDENCE Footer**: Add `TASK_EVIDENCE: {...}` as second-to-last line with fresh verification + TDD evidence.
-8. **TASK_DONE Footer**: Your LAST line must be a TASK_DONE footer: `TASK_DONE: [cn-xxx]`
+7. **TASK_RESULT Footer**: Emit `TASK_RESULT: <single-line JSON>` with: `status` ("done"), `taskId`, `error` (null), `errorCategory` (null), `filesModified` (list of paths you changed), `verifyResults` (list of `{cmd, passed, output}`), `retryCount` (int).
+8. **TASK_EVIDENCE Footer**: Add `TASK_EVIDENCE: {...}` with fresh verification + TDD evidence.
+9. **TASK_DONE Footer**: Your LAST line must be `TASK_DONE: [cn-xxx]`
+
+## On Failure or Blocked
+
+If you cannot complete the task after 2 retry cycles:
+1. Emit `TASK_RESULT: <JSON>` with `status` set to `"failed"` or `"blocked"`, `error` describing the issue, and `errorCategory` set to one of: `verify_fail`, `blocked_dependency`, `file_conflict`, `timeout`, `unknown`.
+2. Do NOT emit TASK_EVIDENCE or TASK_DONE.
+3. Message the team lead with details.
 
 ## Rules
 
@@ -30,8 +38,8 @@ You execute a single implementation task assigned by the team lead.
 - NEVER close memory issues — only report done. The leader handles closure.
 - Only touch files listed in your task description
 - Follow existing code patterns
-- If verify fails: run the history command from task prompt, summarize the last error, then retry. After 2 failures, message the team lead
-- If blocked: do NOT report done. Message the team lead with details.
+- If verify fails: run the history command from task prompt, summarize the last error, then retry. After 2 failures, emit TASK_RESULT with status "failed" and message the team lead.
+- If blocked: emit TASK_RESULT with status "blocked" and message the team lead.
 - Always use SendMessage to communicate — plain text is not visible to the team
 - Do NOT use TaskOutput — cnogo spawns teammates in foreground; foreground agents deliver output via TaskList and SendMessage auto-delivery, not TaskOutput. TaskOutput is for background/remote sessions only.
 - Do NOT report done before ALL verify commands pass.
