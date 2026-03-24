@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
+import time
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +36,56 @@ from .dispatch_ledger import (
 from .ship import complete_ship, start_ship, sync_ship_state
 from .watch_artifacts import load_attention_queue
 from .work_order import WorkOrder, sync_all_work_orders, sync_work_order
+
+
+class _DispatchLock:
+    """Advisory flock-based lock for dispatch_ready_work().
+
+    Non-blocking: if the lock is already held, acquire() returns False.
+    The OS releases the flock automatically on fd close or process exit.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self._lock_path = runtime_path(root, "dispatch.lock")
+        self._fd: int | None = None
+
+    def acquire(self) -> bool:
+        self._lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(self._lock_path), os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            return False
+        os.ftruncate(fd, 0)
+        os.lseek(fd, 0, os.SEEK_SET)
+        content = json.dumps(
+            {"pid": os.getpid(), "acquiredAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())},
+            sort_keys=True,
+        )
+        os.write(fd, content.encode("utf-8"))
+        self._fd = fd
+        return True
+
+    def release(self) -> None:
+        if self._fd is not None:
+            try:
+                fcntl.flock(self._fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                os.close(self._fd)
+            except OSError:
+                pass
+            self._fd = None
+
+    def holder_info(self) -> dict[str, Any] | None:
+        if not self._lock_path.exists():
+            return None
+        try:
+            return json.loads(self._lock_path.read_text(encoding="utf-8").strip())
+        except Exception:
+            return None
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -571,6 +624,31 @@ def release_completed_lanes(root: Path) -> list[dict[str, Any]]:
 
 
 def dispatch_ready_work(
+    root: Path,
+    *,
+    feature_filter: str | None = None,
+    lease_owner: str = "dispatcher",
+) -> dict[str, Any]:
+    lock = _DispatchLock(root)
+    if not lock.acquire():
+        return {
+            "enabled": True,
+            "status": "dispatch_locked",
+            "reason": "Another dispatch is in progress.",
+            "holder": lock.holder_info() or {},
+            "leased": [], "autoPlanned": [], "autoPlanSkipped": [], "planErrors": [],
+            "autoReviewed": [], "autoReviewSkipped": [], "reviewErrors": [],
+            "autoShipStarted": [], "autoShipSkipped": [], "shipErrors": [],
+            "reclaimed": [], "skipped": [], "autoQueued": [], "autoReleased": [],
+            "activeLaneCount": 0, "autonomy": "", "defaultWipLimit": 0, "leaseTimeoutMinutes": 0,
+        }
+    try:
+        return _dispatch_ready_work_locked(root, feature_filter=feature_filter, lease_owner=lease_owner)
+    finally:
+        lock.release()
+
+
+def _dispatch_ready_work_locked(
     root: Path,
     *,
     feature_filter: str | None = None,
