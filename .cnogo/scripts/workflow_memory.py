@@ -2794,6 +2794,27 @@ def cmd_run_ship_fail(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run_reset(args: argparse.Namespace) -> int:
+    root = _root()
+    run = _resolve_run(root, args.feature, args.run_id)
+    if run is None:
+        print(f"No delivery run found for feature {args.feature!r}", file=sys.stderr)
+        return 1
+    try:
+        from scripts.workflow.orchestration.delivery_run import reset_delivery_run
+        reset_run = reset_delivery_run(root, args.feature, run.run_id, reason=args.reason)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        _print_json(reset_run.to_dict())
+    else:
+        print(f"Run {reset_run.run_id} reset: {len(reset_run.tasks)} tasks → {reset_run.status}")
+        print(f"  Reason: {args.reason}")
+        print(f"  Archive saved")
+    return 0
+
+
 def cmd_run_ship_draft(args: argparse.Namespace) -> int:
     root = _root()
     feature = args.feature
@@ -4349,6 +4370,13 @@ def main() -> int:
     p.add_argument("--note", help="Optional note to attach to ship state")
     p.add_argument("--json", action="store_true")
 
+    # run-reset
+    p = sub.add_parser("run-reset", help="Reset a delivery run to initial state for clean restart")
+    p.add_argument("feature", help="Feature slug")
+    p.add_argument("--run-id", help="Explicit run ID (defaults to latest)")
+    p.add_argument("--reason", default="manual_reset", help="Reason for the reset")
+    p.add_argument("--json", action="store_true")
+
     # run-sync-session
     p = sub.add_parser("run-sync-session", help="Sync a delivery run from the active worktree session")
     p.add_argument("feature", help="Feature slug")
@@ -4675,6 +4703,7 @@ def main() -> int:
         "run-ship-start": cmd_run_ship_start,
         "run-ship-complete": cmd_run_ship_complete,
         "run-ship-fail": cmd_run_ship_fail,
+        "run-reset": cmd_run_reset,
         "run-ship-draft": cmd_run_ship_draft,
         "verify-import": cmd_verify_import,
         "run-sync-session": cmd_run_sync_session,

@@ -258,6 +258,98 @@ def save_delivery_run(run: DeliveryRun, root: Path) -> Path:
     return path
 
 
+def reset_delivery_run(root: Path, feature: str, run_id: str, *, reason: str = "manual_reset") -> DeliveryRun:
+    """Reset a delivery run to initial state for clean restart.
+
+    Inspired by Erlang/OTP supervisor restart — instead of trying to recover
+    from a half-broken state, archive the current state and restart from
+    a known-good initial position.
+
+    1. Archive current run to .cnogo/runs/<feature>/archive/<run_id>-<ts>.json
+    2. Reset all tasks to pending/ready (based on blockedBy)
+    3. Clear integration, review_readiness, review, and ship
+    4. Set status to 'created' and increment restartCount
+    """
+    import shutil
+
+    run = load_delivery_run(root, feature, run_id)
+    if run is None:
+        raise ValueError(f"Delivery run {run_id} not found for feature {feature}")
+
+    # Archive the current state.
+    archive_dir = delivery_run_dir(root, feature) / "archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    ts = _now_iso().replace(":", "").replace("-", "")
+    archive_path = archive_dir / f"{run_id}-{ts}.json"
+    current_path = delivery_run_path(root, feature, run_id)
+    shutil.copy2(str(current_path), str(archive_path))
+
+    # Reset tasks.
+    for task in run.tasks:
+        has_blockers = bool(task.blocked_by)
+        task.status = "pending" if has_blockers else "ready"
+        task.assignee = ""
+        task.worktree_path = ""
+        task.notes = []
+
+    # Reset coordination state.
+    run.integration = {
+        "status": "pending",
+        "mergedTaskIndices": [],
+        "awaitingMergeTaskIndices": [],
+        "activeTaskIndices": [],
+        "conflictTaskIndex": None,
+        "conflictFiles": [],
+        "lastSessionPhase": "",
+        "updatedAt": _now_iso(),
+    }
+    run.review_readiness = {
+        "status": "pending",
+        "planVerifyPassed": None,
+        "verifiedAt": "",
+        "verifiedCommands": [],
+        "notes": [],
+        "updatedAt": _now_iso(),
+    }
+    run.review = {
+        "status": "pending",
+        "automatedVerdict": "pending",
+        "finalVerdict": "pending",
+        "stages": [
+            {"stage": "spec-compliance", "status": "pending", "findings": [], "evidence": [], "notes": [], "updatedAt": _now_iso()},
+            {"stage": "code-quality", "status": "pending", "findings": [], "evidence": [], "notes": [], "updatedAt": _now_iso()},
+        ],
+        "reviewers": [],
+        "reviewStartedAt": "",
+        "reviewCompletedAt": "",
+        "artifactPath": "",
+        "artifactTimestamp": "",
+        "artifactUpdatedAt": "",
+        "syncedAt": "",
+        "notes": [],
+        "updatedAt": _now_iso(),
+    }
+    run.ship = {
+        "status": "pending",
+        "attempts": 0,
+        "commit": "",
+        "branch": "",
+        "prUrl": "",
+        "startedAt": "",
+        "completedAt": "",
+        "failedAt": "",
+        "lastError": "",
+        "notes": [],
+        "updatedAt": _now_iso(),
+    }
+    run.status = "created"
+    run.notes.append(f"Reset at {_now_iso()}: {reason}")
+    run.updated_at = _now_iso()
+
+    save_delivery_run(run, root)
+    return run
+
+
 def load_delivery_run(root: Path, feature: str, run_id: str) -> DeliveryRun | None:
     path = delivery_run_path(root, feature, run_id)
     if not path.exists():
